@@ -9,11 +9,7 @@
  * in the user guide at https://docs.gradle.org/2.11/userguide/multi_project_builds.html
  */
 
-/*
 // To declare projects as part of a multi-project build use the 'include' method
-include 'shared'
-include 'api'
-include 'services:webservice'
-*/
 
-rootProject.name = 'messaging'
+include 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log'
+
