@@ -18,7 +18,7 @@
 // limitations under the License.
 -->
 
-<import-control pkg="org.apache.kafka">
+<import-control pkg="com.emc.nautilus">
 
   <!-- THINK HARD ABOUT THE LAYERING OF THE PROJECT BEFORE CHANGING THIS FILE -->
 
