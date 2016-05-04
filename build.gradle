@@ -25,6 +25,12 @@ apply plugin: 'checkstyle'
     jcenter()
     mavenCentral()
  }
+
+ checkstyle {
+   configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+   configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+ }
+
 }
 
 // In this section you declare the dependencies for your production and test code
