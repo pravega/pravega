@@ -36,6 +36,7 @@ public class PlaceholderReadResultEntry extends ReadResultEntry {
      * Cancels this pending read result entry.
      */
     protected void cancel() {
+        //TODO: this doesn't actually cancel the operation itself.
         this.result.cancel(true);
     }
 

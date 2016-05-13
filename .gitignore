@@ -5,3 +5,4 @@ build
 .gradle
 output
 streaming/build
+.idea
