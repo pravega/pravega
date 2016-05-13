@@ -11,8 +11,7 @@ import java.util.concurrent.locks.Lock;
  * <p>
  * Note: This class should be used with a ReadWriteAutoReleaseLock.
  */
-public class AutoReleaseLock implements AutoCloseable
-{
+public class AutoReleaseLock implements AutoCloseable {
     //region Members
 
     private final Lock lock;
@@ -31,10 +30,8 @@ public class AutoReleaseLock implements AutoCloseable
      * @param upgradeable Whether this lock is upgradeable or not.
      */
 
-    protected AutoReleaseLock(Lock baseLock, boolean upgradeable)
-    {
-        if (baseLock == null)
-        {
+    protected AutoReleaseLock(Lock baseLock, boolean upgradeable) {
+        if (baseLock == null) {
             throw new NullPointerException("baseLock");
         }
 
@@ -53,18 +50,15 @@ public class AutoReleaseLock implements AutoCloseable
      * @throws TimeoutException     If the timeout expired prior to the acquisition of the lock.
      * @throws InterruptedException If the thread got interrupted while waiting for the lock to be acquired.
      */
-    protected AutoReleaseLock(Lock baseLock, boolean upgradeable, Duration acquireTimeout) throws TimeoutException, InterruptedException
-    {
-        if (baseLock == null)
-        {
+    protected AutoReleaseLock(Lock baseLock, boolean upgradeable, Duration acquireTimeout) throws TimeoutException, InterruptedException {
+        if (baseLock == null) {
             throw new NullPointerException("baseLock");
         }
 
         this.replacedLock = null;
         this.lock = baseLock;
         this.upgradeable = upgradeable;
-        if (!this.lock.tryLock(acquireTimeout.toMillis(), TimeUnit.MILLISECONDS))
-        {
+        if (!this.lock.tryLock(acquireTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
             throw new TimeoutException("Unable to acquire lock within specified time frame.");
         }
     }
@@ -78,20 +72,16 @@ public class AutoReleaseLock implements AutoCloseable
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
-    protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock)
-    {
-        if (baseLock == null)
-        {
+    protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock) {
+        if (baseLock == null) {
             throw new NullPointerException("baseLock");
         }
 
-        if (replacedLock == null)
-        {
+        if (replacedLock == null) {
             throw new NullPointerException("replacedLock");
         }
 
-        if (!replacedLock.upgradeable)
-        {
+        if (!replacedLock.upgradeable) {
             throw new IllegalArgumentException("replacedLock is not upgradeable.");
         }
 
@@ -100,12 +90,10 @@ public class AutoReleaseLock implements AutoCloseable
         this.replacedLock = replacedLock;
         replacedLock.surrender();
 
-        try
-        {
+        try {
             this.lock.lock();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             this.replacedLock.reacquire();
             throw ex;
         }
@@ -123,20 +111,16 @@ public class AutoReleaseLock implements AutoCloseable
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
-    protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock, Duration acquireTimeout) throws TimeoutException, InterruptedException
-    {
-        if (baseLock == null)
-        {
+    protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock, Duration acquireTimeout) throws TimeoutException, InterruptedException {
+        if (baseLock == null) {
             throw new NullPointerException("baseLock");
         }
 
-        if (replacedLock == null)
-        {
+        if (replacedLock == null) {
             throw new NullPointerException("replacedLock");
         }
 
-        if (!replacedLock.upgradeable)
-        {
+        if (!replacedLock.upgradeable) {
             throw new IllegalArgumentException("replacedLock is not upgradeable.");
         }
 
@@ -145,15 +129,12 @@ public class AutoReleaseLock implements AutoCloseable
         this.replacedLock = replacedLock;
         replacedLock.surrender();
 
-        try
-        {
-            if (!this.lock.tryLock(acquireTimeout.toMillis(), TimeUnit.MILLISECONDS))
-            {
+        try {
+            if (!this.lock.tryLock(acquireTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 throw new TimeoutException("Unable to acquire lock within specified time frame.");
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             this.replacedLock.reacquire();
             throw ex;
         }
@@ -164,17 +145,14 @@ public class AutoReleaseLock implements AutoCloseable
     //region AutoCloseable Implementation
 
     @Override
-    public void close()
-    {
-        if (this.closed)
-        {
+    public void close() {
+        if (this.closed) {
             // Nothing to do.
             return;
         }
 
         this.lock.unlock();
-        if (this.replacedLock != null)
-        {
+        if (this.replacedLock != null) {
             this.replacedLock.reacquire();
         }
 
@@ -185,25 +163,20 @@ public class AutoReleaseLock implements AutoCloseable
 
     //region Lock Operations
 
-    public boolean isUpgradeable()
-    {
+    public boolean isUpgradeable() {
         return this.upgradeable;
     }
 
-    private void surrender()
-    {
-        if (this.closed)
-        {
+    private void surrender() {
+        if (this.closed) {
             throw new ObjectClosedException(this);
         }
 
         this.lock.unlock();
     }
 
-    private void reacquire()
-    {
-        if (this.closed)
-        {
+    private void reacquire() {
+        if (this.closed) {
             throw new ObjectClosedException(this);
         }
 

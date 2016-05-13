@@ -10,8 +10,7 @@ import java.util.concurrent.ExecutionException;
  *
  * @param <T> The type of the items in the queue.
  */
-public class BlockingDrainingQueue<T>
-{
+public class BlockingDrainingQueue<T> {
     //region Members
 
     private Queue<T> currentQueue;
@@ -25,8 +24,7 @@ public class BlockingDrainingQueue<T>
     /**
      * Creates a new instance of the BlockingDrainingQueue class.
      */
-    public BlockingDrainingQueue()
-    {
+    public BlockingDrainingQueue() {
         swapQueue();
     }
 
@@ -39,23 +37,19 @@ public class BlockingDrainingQueue<T>
      *
      * @param item The item to add.
      */
-    public void add(T item)
-    {
+    public void add(T item) {
         CompletableFuture<Boolean> notEmpty = null;
-        synchronized (QueueLock)
-        {
+        synchronized (QueueLock) {
             this.currentQueue.add(item);
 
             // See if we have someone waiting for the queue not to be empty anymore. If so, signal them.
-            if (this.notEmpty != null)
-            {
+            if (this.notEmpty != null) {
                 notEmpty = this.notEmpty;
                 this.notEmpty = null;
             }
         }
 
-        if (notEmpty != null)
-        {
+        if (notEmpty != null) {
             notEmpty.complete(true);
         }
     }
@@ -67,38 +61,29 @@ public class BlockingDrainingQueue<T>
      * @return All the items currently in the queue.
      * @throws InterruptedException If the call had to be blocked and it got cancelled in the meanwhile.
      */
-    public Queue<T> takeAllEntries() throws InterruptedException
-    {
+    public Queue<T> takeAllEntries() throws InterruptedException {
         Queue<T> result;
-        do
-        {
+        do {
             CompletableFuture<Boolean> toWait = null;
-            synchronized (QueueLock)
-            {
+            synchronized (QueueLock) {
                 // If we don't have any elements yet, setup a waiter until we have something.
-                if (this.currentQueue.isEmpty())
-                {
-                    if (this.notEmpty != null)
-                    {
+                if (this.currentQueue.isEmpty()) {
+                    if (this.notEmpty != null) {
                         // Someone else was waiting. Let's wait together.
                         toWait = this.notEmpty;
                     }
-                    else
-                    {
+                    else {
                         // Nobody else was waiting. Create a new waiter and set it globally.
                         this.notEmpty = toWait = new CompletableFuture<>();
                     }
                 }
             }
 
-            if (toWait != null)
-            {
-                try
-                {
+            if (toWait != null) {
+                try {
                     toWait.get();
                 }
-                catch (ExecutionException ex)
-                {
+                catch (ExecutionException ex) {
                     // We never complete this future exceptionally, so don't bother others with it.
                 }
             }
@@ -115,12 +100,10 @@ public class BlockingDrainingQueue<T>
      *
      * @return The current (previous) queue.
      */
-    private Queue<T> swapQueue()
-    {
+    private Queue<T> swapQueue() {
         Queue<T> newQueue = new LinkedList<>();
         Queue<T> oldQueue;
-        synchronized (QueueLock)
-        {
+        synchronized (QueueLock) {
             oldQueue = this.currentQueue;
             this.currentQueue = newQueue;
         }

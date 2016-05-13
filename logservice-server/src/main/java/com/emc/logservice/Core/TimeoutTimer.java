@@ -5,8 +5,7 @@ import java.time.Duration;
 /**
  * Helps figuring out how much time is left from a particular (initial) timeout.
  */
-public class TimeoutTimer
-{
+public class TimeoutTimer {
     private final Duration initialTimeout;
     private final long initialNanos;
 
@@ -15,8 +14,7 @@ public class TimeoutTimer
      *
      * @param initialTimeout The initial timeout.
      */
-    public TimeoutTimer(Duration initialTimeout)
-    {
+    public TimeoutTimer(Duration initialTimeout) {
         this.initialTimeout = initialTimeout;
         this.initialNanos = System.nanoTime();
     }
@@ -26,8 +24,7 @@ public class TimeoutTimer
      *
      * @return The remaining time.
      */
-    public Duration getRemaining()
-    {
+    public Duration getRemaining() {
         return this.initialTimeout.minusNanos(System.nanoTime() - initialNanos);
     }
 }

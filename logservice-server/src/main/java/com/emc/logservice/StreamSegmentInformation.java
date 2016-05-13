@@ -5,8 +5,7 @@ import java.util.Date;
 /**
  * General Stream Segment Information.
  */
-public class StreamSegmentInformation
-{
+public class StreamSegmentInformation {
     //region Members
 
     private final long length;
@@ -28,8 +27,7 @@ public class StreamSegmentInformation
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
      * @param lastModified      The last time the StreamSegment was modified.
      */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified)
-    {
+    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
         this.length = length;
         this.sealed = isSealed;
         this.deleted = isDeleted;
@@ -46,8 +44,7 @@ public class StreamSegmentInformation
      *
      * @return
      */
-    public long getLength()
-    {
+    public long getLength() {
         return this.length;
     }
 
@@ -56,8 +53,7 @@ public class StreamSegmentInformation
      *
      * @return
      */
-    public boolean isSealed()
-    {
+    public boolean isSealed() {
         return this.sealed;
     }
 
@@ -66,8 +62,7 @@ public class StreamSegmentInformation
      *
      * @return
      */
-    public boolean isDeleted()
-    {
+    public boolean isDeleted() {
         return this.deleted;
     }
 
@@ -76,8 +71,7 @@ public class StreamSegmentInformation
      *
      * @return
      */
-    public Date getLastModified()
-    {
+    public Date getLastModified() {
         return this.lastModified;
     }
 
@@ -86,14 +80,12 @@ public class StreamSegmentInformation
      *
      * @return
      */
-    public String getStreamSegmentName()
-    {
+    public String getStreamSegmentName() {
         return this.streamSegmentName;
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getStreamSegmentName(), getLength(), isSealed(), isDeleted(), getLastModified());
     }
 

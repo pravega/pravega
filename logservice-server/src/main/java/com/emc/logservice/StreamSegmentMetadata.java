@@ -3,8 +3,7 @@ package com.emc.logservice;
 /**
  * Metadata for a particular Stream Segment.
  */
-public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
-{
+public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
     //region Members
 
     private final String name;
@@ -26,27 +25,24 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
      * @param streamSegmentId   The Id of the StreamSegment.
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId)
-    {
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId) {
         this(streamSegmentName, streamSegmentId, StreamSegmentContainerMetadata.NoStreamSegmentId);
     }
 
     /**
      * Creates a new instance of the StreamSegmentMetadata class for a child (batch) StreamSegment.
-     * @param streamSegmentName The name of the StreamSegment.
-     * @param streamSegmentId   The Id of the StreamSegment.
+     *
+     * @param streamSegmentName     The name of the StreamSegment.
+     * @param streamSegmentId       The Id of the StreamSegment.
      * @param parentStreamSegmentId The Id of the Parent StreamSegment.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId)
-    {
-        if (streamSegmentName == null)
-        {
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+        if (streamSegmentName == null) {
             throw new IllegalArgumentException("streamSegmentName");
         }
 
-        if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId)
-        {
+        if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
             throw new IllegalArgumentException("streamSegmentId");
         }
 
@@ -63,26 +59,22 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
     //region ReadOnlyStreamSegmentMetadata Implementation
 
     @Override
-    public String getName()
-    {
+    public String getName() {
         return this.name;
     }
 
     @Override
-    public long getId()
-    {
+    public long getId() {
         return this.streamSegmentId;
     }
 
     @Override
-    public long getParentId()
-    {
+    public long getParentId() {
         return this.parentStreamSegmentId;
     }
 
     @Override
-    public long getStorageLength()
-    {
+    public long getStorageLength() {
         return this.storageLength;
     }
 
@@ -92,15 +84,12 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
      * @param value The StorageLength to set.
      * @throws IllegalArgumentException If the value is invalid.
      */
-    public void setStorageLength(long value)
-    {
-        if (value < 0)
-        {
+    public void setStorageLength(long value) {
+        if (value < 0) {
             throw new IllegalArgumentException("Storage Length must be a non-negative number.");
         }
 
-        if (value < this.storageLength)
-        {
+        if (value < this.storageLength) {
             throw new IllegalArgumentException("New Storage Length cannot be smaller than the previous one.");
         }
 
@@ -108,8 +97,7 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
     }
 
     @Override
-    public long getDurableLogLength()
-    {
+    public long getDurableLogLength() {
         return this.durableLogLength;
     }
 
@@ -119,15 +107,12 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
      * @param value
      * @throws IllegalArgumentException If the value is invalid.
      */
-    public void setDurableLogLength(long value)
-    {
-        if (value < 0)
-        {
+    public void setDurableLogLength(long value) {
+        if (value < 0) {
             throw new IllegalArgumentException(String.format("Durable Log Length must be a non-negative number. Given: %d.", value));
         }
 
-        if (value < this.durableLogLength)
-        {
+        if (value < this.durableLogLength) {
             throw new IllegalArgumentException(String.format("New Durable Log Length cannot be smaller than the previous one. Previous: %d, Given: %d.", this.durableLogLength, value));
         }
 
@@ -135,36 +120,31 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata
     }
 
     @Override
-    public boolean isSealed()
-    {
+    public boolean isSealed() {
         return this.sealed;
     }
 
     /**
      * Marks this StreamSegment as sealed for modifications.
      */
-    public void markSealed()
-    {
+    public void markSealed() {
         this.sealed = true;
     }
 
     @Override
-    public boolean isDeleted()
-    {
+    public boolean isDeleted() {
         return this.deleted;
     }
 
     /**
      * Marks this StreamSegment as deleted.
      */
-    public void markDeleted()
-    {
+    public void markDeleted() {
         this.deleted = true;
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("Id = %d, StorageLength = %d, DLOffset = %d, Sealed = %s, Deleted = %s, Name = %s", getId(), getStorageLength(), getDurableLogLength(), isSealed(), isDeleted(), getName());
     }
 

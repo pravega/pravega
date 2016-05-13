@@ -8,8 +8,7 @@ import java.util.function.Consumer;
 /**
  * Binds a Operation with success and failure callbacks that will be invoked based on its outcome..
  */
-public class CompletableOperation
-{
+public class CompletableOperation {
     //region Members
 
     private final Operation operation;
@@ -28,12 +27,10 @@ public class CompletableOperation
      * @param callbackFuture A CompletableFuture that will be used to indicate the outcome of this operation.
      *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation as its payload.
      */
-    public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture)
-    {
+    public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture) {
         this(operation, callbackFuture::complete, callbackFuture::completeExceptionally);
 
-        if (callbackFuture.isDone())
-        {
+        if (callbackFuture.isDone()) {
             throw new IllegalArgumentException("CallbackFuture is already done.");
         }
     }
@@ -45,8 +42,7 @@ public class CompletableOperation
      * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided is the Sequence Number of the Operation.
      * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the causing Exception for the failure.
      */
-    public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler)
-    {
+    public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler) {
         this.operation = operation;
         this.failureHandler = failureHandler;
         this.successHandler = successHandler;
@@ -61,25 +57,21 @@ public class CompletableOperation
      *
      * @return
      */
-    public Operation getOperation()
-    {
+    public Operation getOperation() {
         return this.operation;
     }
 
     /**
      * Indicates that the Log Operation has completed successfully.
      */
-    public void complete()
-    {
+    public void complete() {
         long seqNo = this.operation.getSequenceNumber();
-        if (seqNo < 0)
-        {
+        if (seqNo < 0) {
             throw new IllegalStateException("About to complete a CompletableOperation that has no sequence number.");
         }
 
         this.done = true;
-        if (this.successHandler != null)
-        {
+        if (this.successHandler != null) {
             CallbackHelpers.invokeSafely(this.successHandler, seqNo, null);
         }
     }
@@ -89,11 +81,9 @@ public class CompletableOperation
      *
      * @param ex The causing exception.
      */
-    public void fail(Throwable ex)
-    {
+    public void fail(Throwable ex) {
         this.done = true;
-        if (this.failureHandler != null)
-        {
+        if (this.failureHandler != null) {
             CallbackHelpers.invokeSafely(this.failureHandler, ex, null);
         }
     }
@@ -103,8 +93,7 @@ public class CompletableOperation
      *
      * @return True if finished, false otherwise.
      */
-    public boolean isDone()
-    {
+    public boolean isDone() {
         return this.done;
     }
 

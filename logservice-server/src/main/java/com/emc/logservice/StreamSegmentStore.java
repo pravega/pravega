@@ -6,8 +6,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines all operations that are supported on a StreamSegment.
  */
-public interface StreamSegmentStore
-{
+public interface StreamSegmentStore {
     /**
      * Appends a range of bytes at the end of a StreamSegment. The byte range will be appended as a contiguous block,
      * however there is no guarantee of ordering between different calls to this method.
@@ -32,8 +31,8 @@ public interface StreamSegmentStore
      * @param maxLength         The maximum number of bytes to read.
      * @param timeout           Timeout for the operation.
      * @return A ReadResult instance that can be used to consume the read data.
-     * @throws NullPointerException      If any of the arguments are null.
-     * @throws IllegalArgumentException  If any of the arguments are invalid.
+     * @throws NullPointerException     If any of the arguments are null.
+     * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     ReadResult read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 

@@ -2,15 +2,12 @@ package com.emc.logservice.Logs.Operations;
 
 import com.emc.logservice.Logs.SerializationException;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 /**
  * Log Operation that indicates a Batch StreamSegment is merged into its parent StreamSegment.
  */
-public class MergeBatchOperation extends StorageOperation
-{
+public class MergeBatchOperation extends StorageOperation {
     //region Members
 
     public static final byte OperationType = 3;
@@ -29,16 +26,14 @@ public class MergeBatchOperation extends StorageOperation
      * @param streamSegmentId      The Id of the Parent StreamSegment (the StreamSegment to merge into).
      * @param batchStreamSegmentId The Id of the Batch StreamSegment (the StreamSegment to be merged).
      */
-    public MergeBatchOperation(long streamSegmentId, long batchStreamSegmentId)
-    {
+    public MergeBatchOperation(long streamSegmentId, long batchStreamSegmentId) {
         super(streamSegmentId);
         this.batchStreamSegmentId = batchStreamSegmentId;
         this.batchStreamSegmentLength = -1;
         this.targetStreamSegmentOffset = -1;
     }
 
-    protected MergeBatchOperation(OperationHeader header, DataInputStream source) throws SerializationException
-    {
+    protected MergeBatchOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
     }
 
@@ -51,8 +46,7 @@ public class MergeBatchOperation extends StorageOperation
      *
      * @return The Id.
      */
-    public long getBatchStreamSegmentId()
-    {
+    public long getBatchStreamSegmentId() {
         return this.batchStreamSegmentId;
     }
 
@@ -61,8 +55,7 @@ public class MergeBatchOperation extends StorageOperation
      *
      * @return
      */
-    public long getBatchStreamSegmentLength()
-    {
+    public long getBatchStreamSegmentLength() {
         return this.batchStreamSegmentLength;
     }
 
@@ -71,8 +64,7 @@ public class MergeBatchOperation extends StorageOperation
      *
      * @param value The length.
      */
-    public void setBatchStreamSegmentLength(long value)
-    {
+    public void setBatchStreamSegmentLength(long value) {
         // No need for parameter validation here. We will check for them upon serialization.
         this.batchStreamSegmentLength = value;
     }
@@ -82,8 +74,7 @@ public class MergeBatchOperation extends StorageOperation
      *
      * @return The offset.
      */
-    public long getTargetStreamSegmentOffset()
-    {
+    public long getTargetStreamSegmentOffset() {
         return this.targetStreamSegmentOffset;
     }
 
@@ -92,8 +83,7 @@ public class MergeBatchOperation extends StorageOperation
      *
      * @param value The offset.
      */
-    public void setTargetStreamSegmentOffset(long value)
-    {
+    public void setTargetStreamSegmentOffset(long value) {
         // No need for parameter validation here. We will check for them upon serialization.
         this.targetStreamSegmentOffset = value;
     }
@@ -103,14 +93,12 @@ public class MergeBatchOperation extends StorageOperation
     //region Operation Implementation
 
     @Override
-    protected byte getOperationType()
-    {
+    protected byte getOperationType() {
         return OperationType;
     }
 
     @Override
-    protected void serializeContent(DataOutputStream target) throws IOException
-    {
+    protected void serializeContent(DataOutputStream target) throws IOException {
         ensureSerializationCondition(this.batchStreamSegmentLength >= 0, "Batch Stream Length has not been assigned for this entry.");
         ensureSerializationCondition(this.targetStreamSegmentOffset >= 0, "Target Stream Offset has not been assigned for this entry.");
 
@@ -122,8 +110,7 @@ public class MergeBatchOperation extends StorageOperation
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException
-    {
+    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
         byte version = readVersion(source, Version);
         setStreamSegmentId(source.readLong());
         this.batchStreamSegmentId = source.readLong();
@@ -132,8 +119,7 @@ public class MergeBatchOperation extends StorageOperation
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s, BatchStreamId = %d, BatchLength = %d, TargetStreamOffset = %d", super.toString(), getBatchStreamSegmentId(), getBatchStreamSegmentLength(), getTargetStreamSegmentOffset());
     }
 

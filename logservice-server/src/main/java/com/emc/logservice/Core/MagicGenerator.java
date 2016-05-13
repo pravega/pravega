@@ -5,8 +5,7 @@ import java.util.Random;
 /**
  * Generates Magic Numbers, which can be used for sequencing elements.
  */
-public class MagicGenerator
-{
+public class MagicGenerator {
     /**
      * Default value for a Magic Number. This indicates no Magic Number has been assigned.
      */
@@ -18,11 +17,9 @@ public class MagicGenerator
      *
      * @return The newly generated number.
      */
-    public static int newMagic()
-    {
+    public static int newMagic() {
         int value;
-        do
-        {
+        do {
             value = Generator.nextInt();
         } while (value == NoMagic);
         return value;

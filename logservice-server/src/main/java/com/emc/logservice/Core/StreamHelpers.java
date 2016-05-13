@@ -6,8 +6,7 @@ import java.io.InputStream;
 /**
  * Miscellaneous operations on Streams.
  */
-public class StreamHelpers
-{
+public class StreamHelpers {
     /**
      * Reads at most 'maxLength' bytes from the given input stream, as long as the stream still has data to serve.
      *
@@ -18,14 +17,11 @@ public class StreamHelpers
      * @return The number of bytes copied.
      * @throws IOException
      */
-    public static int readAll(InputStream stream, byte[] target, int startOffset, int maxLength) throws IOException
-    {
+    public static int readAll(InputStream stream, byte[] target, int startOffset, int maxLength) throws IOException {
         int totalBytesRead = 0;
-        while (totalBytesRead < maxLength)
-        {
+        while (totalBytesRead < maxLength) {
             int bytesRead = stream.read(target, startOffset + totalBytesRead, maxLength - totalBytesRead);
-            if (bytesRead <= 0)
-            {
+            if (bytesRead <= 0) {
                 //TODO: the contract says that only -1 is end of stream. What do we do when we get 0 back? How can we block?
                 // End of stream
                 break;

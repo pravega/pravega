@@ -1,14 +1,11 @@
 package com.emc.logservice.Core;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 
 /**
  * Allows segmenting a byte array and operating only on that segment.
  */
-public class ByteArraySegment
-{
+public class ByteArraySegment {
     //region Members
 
     private final byte[] array;
@@ -26,8 +23,7 @@ public class ByteArraySegment
      * @param array The array to wrap.
      * @throws NullPointerException If the array is null.
      */
-    public ByteArraySegment(byte[] array)
-    {
+    public ByteArraySegment(byte[] array) {
         this(array, 0, array.length);
     }
 
@@ -40,8 +36,7 @@ public class ByteArraySegment
      * @throws NullPointerException           If the array is null.
      * @throws ArrayIndexOutOfBoundsException If StartOffset or Length have invalid values.
      */
-    public ByteArraySegment(byte[] array, int startOffset, int length)
-    {
+    public ByteArraySegment(byte[] array, int startOffset, int length) {
         this(array, startOffset, length, false);
     }
 
@@ -55,20 +50,16 @@ public class ByteArraySegment
      * @throws NullPointerException           If the array is null.
      * @throws ArrayIndexOutOfBoundsException If StartOffset or Length have invalid values.
      */
-    public ByteArraySegment(byte[] array, int startOffset, int length, boolean readOnly)
-    {
-        if (array == null)
-        {
+    public ByteArraySegment(byte[] array, int startOffset, int length, boolean readOnly) {
+        if (array == null) {
             throw new NullPointerException("array");
         }
 
-        if (startOffset < 0 || startOffset > array.length)
-        {
+        if (startOffset < 0 || startOffset > array.length) {
             throw new ArrayIndexOutOfBoundsException("startOffset must be non-negative and less than the length of the array.");
         }
 
-        if (length < 0 || startOffset + length > array.length)
-        {
+        if (length < 0 || startOffset + length > array.length) {
             throw new ArrayIndexOutOfBoundsException("length must be non-negative and 'startOffset + length' must be less than the length of the array.");
         }
 
@@ -87,8 +78,7 @@ public class ByteArraySegment
      *
      * @return The value.
      */
-    public boolean isReadOnly()
-    {
+    public boolean isReadOnly() {
         return this.readOnly;
     }
 
@@ -99,10 +89,8 @@ public class ByteArraySegment
      * @return The result.
      * @throws ArrayIndexOutOfBoundsException If index is invalid.
      */
-    public byte get(int index)
-    {
-        if (index < 0 || index >= length)
-        {
+    public byte get(int index) {
+        if (index < 0 || index >= length) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
 
@@ -117,15 +105,12 @@ public class ByteArraySegment
      * @throws IllegalStateException          If the ByteArraySegment is readonly.
      * @throws ArrayIndexOutOfBoundsException If index is invalid.
      */
-    public void set(int index, byte value)
-    {
-        if (this.readOnly)
-        {
+    public void set(int index, byte value) {
+        if (this.readOnly) {
             throw new IllegalStateException("Cannot modify a read-only ByteArraySegment.");
         }
 
-        if (index < 0 || index >= length)
-        {
+        if (index < 0 || index >= length) {
             throw new ArrayIndexOutOfBoundsException(index);
         }
 
@@ -140,15 +125,12 @@ public class ByteArraySegment
      * @throws IllegalStateException          If the ByteArraySegment is readonly.
      * @throws ArrayIndexOutOfBoundsException If index is invalid or the items to be added cannot fit.
      */
-    public void setSequence(int index, byte... values)
-    {
-        if (this.readOnly)
-        {
+    public void setSequence(int index, byte... values) {
+        if (this.readOnly) {
             throw new IllegalStateException("Cannot modify a read-only ByteArraySegment.");
         }
 
-        if (index < 0 || index + values.length >= length)
-        {
+        if (index < 0 || index + values.length >= length) {
             throw new ArrayIndexOutOfBoundsException("Index must be non-negative and index+values.length must be less than the size of the ByteArraySegment.");
         }
 
@@ -165,20 +147,16 @@ public class ByteArraySegment
      * @throws IllegalStateException          If the ByteArraySegment is readonly.
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
-    public void copyFrom(ByteArraySegment source, int targetOffset, int length)
-    {
-        if (this.readOnly)
-        {
+    public void copyFrom(ByteArraySegment source, int targetOffset, int length) {
+        if (this.readOnly) {
             throw new IllegalStateException("Cannot modify a read-only ByteArraySegment.");
         }
 
-        if (targetOffset < 0 || targetOffset >= this.array.length)
-        {
+        if (targetOffset < 0 || targetOffset >= this.array.length) {
             throw new ArrayIndexOutOfBoundsException("targetOffset must be non-negative and less than the length of the ByteArraySegment.");
         }
 
-        if (length < 0 || length > source.getLength() || targetOffset + length > this.array.length)
-        {
+        if (length < 0 || length > source.getLength() || targetOffset + length > this.array.length) {
             throw new ArrayIndexOutOfBoundsException("length must be non-negative and less than the length of the source array and 'targetOffset + length' must be less than the length of the ByteArraySegment.");
         }
 
@@ -193,20 +171,16 @@ public class ByteArraySegment
      * @param length       The number of bytes to copy.
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
-    public void copyTo(byte[] target, int targetOffset, int length)
-    {
-        if (targetOffset < 0 || targetOffset > target.length)
-        {
+    public void copyTo(byte[] target, int targetOffset, int length) {
+        if (targetOffset < 0 || targetOffset > target.length) {
             throw new ArrayIndexOutOfBoundsException("TargetOffset must be non-negative and less than the size of the target array.");
         }
 
-        if (targetOffset + length > target.length)
-        {
+        if (targetOffset + length > target.length) {
             throw new ArrayIndexOutOfBoundsException("TargetOffset + Length must be less than or equal to the length of the target array.");
         }
 
-        if (length > this.length)
-        {
+        if (length > this.length) {
             throw new ArrayIndexOutOfBoundsException("Length must be less than the ByteArraySegment length.");
         }
 
@@ -218,8 +192,7 @@ public class ByteArraySegment
      *
      * @return The length.
      */
-    public int getLength()
-    {
+    public int getLength() {
         return this.length;
     }
 
@@ -229,8 +202,7 @@ public class ByteArraySegment
      *
      * @return The InputStream.
      */
-    public InputStream getReader()
-    {
+    public InputStream getReader() {
         return new ByteArrayInputStream(this.array, this.startOffset, this.length);
     }
 
@@ -242,21 +214,17 @@ public class ByteArraySegment
      * @param length The length of the section to read.
      * @return The InputStream.
      */
-    public InputStream getReader(int offset, int length)
-    {
-        if (offset < 0 || offset >= this.length)
-        {
+    public InputStream getReader(int offset, int length) {
+        if (offset < 0 || offset >= this.length) {
             throw new ArrayIndexOutOfBoundsException("offset must be non-negative and less than the length of the ByteArraySegment.");
         }
 
-        if (length < 0 || offset + length > this.length)
-        {
+        if (length < 0 || offset + length > this.length) {
             throw new ArrayIndexOutOfBoundsException("length must be non-negative and 'offset + length' must be less than the length of the ByteArraySegment.");
         }
 
         return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
     }
-
 
     /**
      * Creates an OutputStream that can be used to write contents to this ByteArraySegment. The OutputStream returned
@@ -265,10 +233,8 @@ public class ByteArraySegment
      * @return The OutputStream.
      * @throws IllegalStateException If the ByteArraySegment is readonly.
      */
-    public OutputStream getWriter()
-    {
-        if (this.readOnly)
-        {
+    public OutputStream getWriter() {
+        if (this.readOnly) {
             throw new IllegalStateException("Cannot modify a read-only ByteArraySegment.");
         }
 
@@ -284,8 +250,7 @@ public class ByteArraySegment
      * @return The new ByteArraySegment.
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */
-    public ByteArraySegment subSegment(int offset, int length)
-    {
+    public ByteArraySegment subSegment(int offset, int length) {
         return subSegment(offset, length, this.readOnly);
     }
 
@@ -301,21 +266,17 @@ public class ByteArraySegment
      * @return The new ByteArraySegment.
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */
-    public ByteArraySegment subSegment(int offset, int length, boolean readOnly)
-    {
-        if (offset < 0 || offset >= this.length)
-        {
+    public ByteArraySegment subSegment(int offset, int length, boolean readOnly) {
+        if (offset < 0 || offset >= this.length) {
             throw new ArrayIndexOutOfBoundsException("startOffset must be non-negative and less than the length of the ByteArraySegment.");
         }
 
-        if (length < 0 || offset + length > this.length)
-        {
+        if (length < 0 || offset + length > this.length) {
             throw new ArrayIndexOutOfBoundsException("length must be non-negative and 'offset + length' must be less than the length of the ByteArraySegment.");
         }
 
         return new ByteArraySegment(this.array, this.startOffset + offset, length, readOnly || this.readOnly);
     }
-
 
     /**
      * Returns a new ByteArraySegment that wraps the same underlying array that this ByteSegmentDoes, except that the
@@ -324,14 +285,11 @@ public class ByteArraySegment
      *
      * @return The result.
      */
-    public ByteArraySegment asReadOnly()
-    {
-        if (isReadOnly())
-        {
+    public ByteArraySegment asReadOnly() {
+        if (isReadOnly()) {
             return this;
         }
-        else
-        {
+        else {
             return new ByteArraySegment(this.array, this.startOffset, this.length, true);
         }
     }

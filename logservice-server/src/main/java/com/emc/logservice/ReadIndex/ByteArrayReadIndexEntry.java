@@ -3,8 +3,7 @@ package com.emc.logservice.ReadIndex;
 /**
  * A ReadIndexEntry that has actual data in memory.
  */
-public class ByteArrayReadIndexEntry extends ReadIndexEntry
-{
+public class ByteArrayReadIndexEntry extends ReadIndexEntry {
     //region Members
 
     private final byte[] data;
@@ -21,8 +20,7 @@ public class ByteArrayReadIndexEntry extends ReadIndexEntry
      * @throws NullPointerException     If data is null.
      * @throws IllegalArgumentException if the offset is a negative number.
      */
-    protected ByteArrayReadIndexEntry(long streamSegmentOffset, byte[] data)
-    {
+    protected ByteArrayReadIndexEntry(long streamSegmentOffset, byte[] data) {
         super(streamSegmentOffset, data.length);
         this.data = data;
     }
@@ -36,8 +34,7 @@ public class ByteArrayReadIndexEntry extends ReadIndexEntry
      *
      * @return
      */
-    public byte[] getData()
-    {
+    public byte[] getData() {
         return this.data;
     }
 

@@ -12,20 +12,17 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Created by padura on 4/15/16.
  */
-public class InMemoryDataFrameLog implements DataFrameLog
-{
+public class InMemoryDataFrameLog implements DataFrameLog {
     private final LinkedList<Entry> entries;
     private long offset;
     private int lastMagic;
     private final long delayMillisPerMB;
 
-    public InMemoryDataFrameLog()
-    {
+    public InMemoryDataFrameLog() {
         this(0);
     }
 
-    public InMemoryDataFrameLog(long delayMillisPerMB)
-    {
+    public InMemoryDataFrameLog(long delayMillisPerMB) {
         this.entries = new LinkedList<>();
         this.offset = 0;
         this.lastMagic = -1;
@@ -33,14 +30,11 @@ public class InMemoryDataFrameLog implements DataFrameLog
     }
 
     @Override
-    public CompletableFuture<Long> add(DataFrame dataFrame, Duration timeout)
-    {
+    public CompletableFuture<Long> add(DataFrame dataFrame, Duration timeout) {
         long offset;
         ByteArraySegment bytes = dataFrame.getData();
-        synchronized (this.entries)
-        {
-            if (this.entries.size() > 0 && dataFrame.getStartMagic() != this.lastMagic)
-            {
+        synchronized (this.entries) {
+            if (this.entries.size() > 0 && dataFrame.getStartMagic() != this.lastMagic) {
                 throw new IllegalArgumentException("Given DataFrame StartMagic does not match the last received frame's EndMagic.");
             }
 
@@ -53,14 +47,11 @@ public class InMemoryDataFrameLog implements DataFrameLog
         dataFrame.setFrameSequence(offset);
 
         long delayMillis = this.delayMillisPerMB * bytes.getLength() / 1024 / 1024;
-        if (delayMillis > 0)
-        {
-            try
-            {
+        if (delayMillis > 0) {
+            try {
                 Thread.sleep(delayMillis);
             }
-            catch (InterruptedException ex)
-            {
+            catch (InterruptedException ex) {
             }
         }
 
@@ -68,17 +59,14 @@ public class InMemoryDataFrameLog implements DataFrameLog
     }
 
     @Override
-    public CompletableFuture<Void> truncate(Long offset, Duration timeout)
-    {
+    public CompletableFuture<Void> truncate(Long offset, Duration timeout) {
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
         // Run in a new thread to "simulate" asynchronous behavior.
         Thread t = new Thread(() ->
         {
-            synchronized (this.entries)
-            {
-                while (this.entries.size() > 0 && this.entries.getFirst().offset + this.entries.getFirst().data.length <= offset)
-                {
+            synchronized (this.entries) {
+                while (this.entries.size() > 0 && this.entries.getFirst().offset + this.entries.getFirst().data.length <= offset) {
                     this.entries.removeFirst();
                 }
             }
@@ -91,34 +79,27 @@ public class InMemoryDataFrameLog implements DataFrameLog
     }
 
     @Override
-    public CompletableFuture<Iterator<DataFrame>> read(Long afterOffset, int maxCount, Duration timeout)
-    {
+    public CompletableFuture<Iterator<DataFrame>> read(Long afterOffset, int maxCount, Duration timeout) {
         CompletableFuture<Iterator<DataFrame>> resultFuture = new CompletableFuture<>();
 
         // Run in a new thread to "simulate" asynchronous behavior.
         Thread t = new Thread(() -> {
             // TODO: should we block if we have no data?
             LinkedList<DataFrame> result = new LinkedList<>();
-            synchronized (this.entries)
-            {
-                for (Entry e : this.entries)
-                {
-                    if (e.offset > afterOffset)
-                    {
-                        try
-                        {
+            synchronized (this.entries) {
+                for (Entry e : this.entries) {
+                    if (e.offset > afterOffset) {
+                        try {
                             DataFrame d = new DataFrame(e.data);
                             d.setFrameSequence(e.offset);
                             result.add(d);
                         }
-                        catch (Exception ex)
-                        {
+                        catch (Exception ex) {
                             resultFuture.completeExceptionally(ex);
                             return;
                         }
 
-                        if (result.size() >= maxCount)
-                        {
+                        if (result.size() >= maxCount) {
                             break;
                         }
                     }
@@ -133,24 +114,20 @@ public class InMemoryDataFrameLog implements DataFrameLog
     }
 
     @Override
-    public CompletableFuture<Void> recover(Duration timeout)
-    {
+    public CompletableFuture<Void> recover(Duration timeout) {
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public int getLastMagic()
-    {
+    public int getLastMagic() {
         return this.lastMagic;
     }
 
-    private class Entry
-    {
+    private class Entry {
         public final long offset;
         public final byte[] data;
 
-        public Entry(long offset, ByteArraySegment data)
-        {
+        public Entry(long offset, ByteArraySegment data) {
             this.offset = offset;
             this.data = new byte[data.getLength()];
             data.copyTo(this.data, 0, this.data.length);

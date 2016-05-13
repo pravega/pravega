@@ -5,8 +5,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Base class for an Entry that makes up a ReadResult.
  */
-public abstract class ReadResultEntry
-{
+public abstract class ReadResultEntry {
     //region Members
 
     private long streamSegmentOffset;
@@ -22,8 +21,7 @@ public abstract class ReadResultEntry
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
      * @param requestedReadLength The maximum number of bytes requested for read.
      */
-    protected ReadResultEntry(long streamSegmentOffset, int requestedReadLength)
-    {
+    protected ReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
         this.streamSegmentOffset = streamSegmentOffset;
         this.requestedReadLength = requestedReadLength;
     }
@@ -37,8 +35,7 @@ public abstract class ReadResultEntry
      *
      * @return
      */
-    public long getStreamSegmentOffset()
-    {
+    public long getStreamSegmentOffset() {
         return this.streamSegmentOffset;
     }
 
@@ -48,8 +45,7 @@ public abstract class ReadResultEntry
      *
      * @return
      */
-    public int getRequestedReadLength()
-    {
+    public int getRequestedReadLength() {
         return this.requestedReadLength;
     }
 
@@ -58,8 +54,7 @@ public abstract class ReadResultEntry
      *
      * @return
      */
-    public boolean isEndOfStreamSegment()
-    {
+    public boolean isEndOfStreamSegment() {
         return false;
     }
 
@@ -69,11 +64,9 @@ public abstract class ReadResultEntry
      * @param delta The amount to adjust by.
      * @throws IllegalArgumentException If the new offset would be negative.
      */
-    public void adjustOffset(long delta)
-    {
+    public void adjustOffset(long delta) {
         long newOffset = this.streamSegmentOffset + delta;
-        if (newOffset < 0)
-        {
+        if (newOffset < 0) {
             throw new IllegalArgumentException("Given delta would result in a negative offset.");
         }
 
@@ -89,8 +82,7 @@ public abstract class ReadResultEntry
     public abstract CompletableFuture<ReadResultEntryContents> getContent();
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         CompletableFuture<ReadResultEntryContents> contentFuture = getContent();
         return String.format("Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s,",
                 getStreamSegmentOffset(),

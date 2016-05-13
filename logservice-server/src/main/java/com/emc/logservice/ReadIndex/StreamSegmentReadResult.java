@@ -1,9 +1,7 @@
 package com.emc.logservice.ReadIndex;
 
 import com.emc.logservice.Core.ObjectClosedException;
-import com.emc.logservice.ReadResult;
-import com.emc.logservice.ReadResultEntry;
-import com.emc.logservice.ReadResultEntryContents;
+import com.emc.logservice.*;
 
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -12,8 +10,7 @@ import java.util.function.BiFunction;
 /**
  * Represents a Read Result from a Stream Segment. This is essentially an Iterator over smaller, continuous ReadResultEntries.
  */
-public class StreamSegmentReadResult implements ReadResult
-{
+public class StreamSegmentReadResult implements ReadResult {
     //region Members
 
     private final long streamSegmentStartOffset;
@@ -37,20 +34,16 @@ public class StreamSegmentReadResult implements ReadResult
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    protected StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem)
-    {
-        if (streamSegmentStartOffset < 0)
-        {
+    protected StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem) {
+        if (streamSegmentStartOffset < 0) {
             throw new IllegalArgumentException("streamSegmentStartOffset must be a non-negative number.");
         }
 
-        if (maxResultLength < 0)
-        {
+        if (maxResultLength < 0) {
             throw new IllegalArgumentException("maxResultLength must be a non-negative number.");
         }
 
-        if (getNextItem == null)
-        {
+        if (getNextItem == null) {
             throw new NullPointerException("getNextItem");
         }
 
@@ -65,32 +58,27 @@ public class StreamSegmentReadResult implements ReadResult
     //region ReadResult Implementation
 
     @Override
-    public long getStreamSegmentStartOffset()
-    {
+    public long getStreamSegmentStartOffset() {
         return this.streamSegmentStartOffset;
     }
 
     @Override
-    public int getMaxResultLength()
-    {
+    public int getMaxResultLength() {
         return this.maxResultLength;
     }
 
     @Override
-    public int getConsumedLength()
-    {
+    public int getConsumedLength() {
         return this.consumedLength;
     }
 
     @Override
-    public boolean isClosed()
-    {
+    public boolean isClosed() {
         return this.closed || !hasNext();
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("Offset = %d, MaxLength = %d, Consumed = %d", getStreamSegmentStartOffset(), getMaxResultLength(), getConsumedLength());
     }
 
@@ -99,8 +87,7 @@ public class StreamSegmentReadResult implements ReadResult
     //region AutoCloseable Implementation
 
     @Override
-    public void close()
-    {
+    public void close() {
         //TODO: should we also cancel any pending ReadResults?
         this.closed = true;
     }
@@ -116,8 +103,7 @@ public class StreamSegmentReadResult implements ReadResult
      * @return
      */
     @Override
-    public boolean hasNext()
-    {
+    public boolean hasNext() {
         return this.closed || this.consumedLength < this.maxResultLength;
     }
 
@@ -130,26 +116,21 @@ public class StreamSegmentReadResult implements ReadResult
      * @throws java.util.NoSuchElementException If hasNext() returns false.
      */
     @Override
-    public ReadResultEntry next()
-    {
-        if (this.closed)
-        {
+    public ReadResultEntry next() {
+        if (this.closed) {
             throw new ObjectClosedException(this);
         }
 
-        if (!hasNext())
-        {
+        if (!hasNext()) {
             throw new NoSuchElementException("StreamSegmentReadResult has been read in its entirety.");
         }
 
         // If the previous entry hasn't finished yet, we cannot proceed.
-        if (this.lastEntryFuture != null && !this.lastEntryFuture.isDone())
-        {
+        if (this.lastEntryFuture != null && !this.lastEntryFuture.isDone()) {
             throw new IllegalStateException("Cannot request a new entry when the previous one hasn't completed retrieval yet.");
         }
 
-        if (this.lastEntryFutureFollowup != null && !this.lastEntryFutureFollowup.isDone())
-        {
+        if (this.lastEntryFutureFollowup != null && !this.lastEntryFutureFollowup.isDone()) {
             // This is the follow-up code that we have from the previous execution. Even though the previous future may
             // have finished executing, the follow-up may not have, so wait for that as well.
             this.lastEntryFutureFollowup.join();
@@ -160,31 +141,26 @@ public class StreamSegmentReadResult implements ReadResult
         int remainingLength = this.maxResultLength - this.consumedLength;
         ReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength);
 
-        if (entry == null)
-        {
-            if (remainingLength > 0)
-            {
+        if (entry == null) {
+            if (remainingLength > 0) {
                 // We expected something but got nothing back.
                 throw new AssertionError(String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength));
             }
 
             this.lastEntryFuture = null;
         }
-        else if (entry.getStreamSegmentOffset() != startOffset)
-        {
+        else if (entry.getStreamSegmentOffset() != startOffset) {
             // We got back a different offset than requested.
             throw new AssertionError(String.format("Invalid ReadResultEntry. Expected offset %d, given %d.", startOffset, entry.getStreamSegmentOffset()));
         }
-        else if (entry.isEndOfStreamSegment())
-        {
+        else if (entry.isEndOfStreamSegment()) {
             // StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment length.
             // We cannot continue reading; close the ReadResult and return the appropriate EndOfStream Result Entry.
             this.lastEntryFuture = null;
             this.lastEntryFutureFollowup = null;
             close();
         }
-        else
-        {
+        else {
             // After the previous entry is done, update the consumedLength value.
             this.lastEntryFuture = entry.getContent();
             this.lastEntryFutureFollowup = this.lastEntryFuture.thenAccept(contents -> this.consumedLength += contents.getLength());
@@ -197,8 +173,7 @@ public class StreamSegmentReadResult implements ReadResult
 
     //region NextEntrySupplier
 
-    public interface NextEntrySupplier extends BiFunction<Long, Integer, ReadResultEntry>
-    {
+    public interface NextEntrySupplier extends BiFunction<Long, Integer, ReadResultEntry> {
     }
 
     //endregion

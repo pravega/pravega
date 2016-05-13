@@ -28,8 +28,7 @@ import java.util.Iterator;
  * timeout expires or StreamSegmentSealedException if the StreamSegment has been sealed at or before its offset.
  * </ul>
  */
-public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable
-{
+public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
     /**
      * Gets a value indicating the Offset within the StreamSegment where this ReadResult starts at.
      *

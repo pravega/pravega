@@ -2,16 +2,13 @@ package com.emc.logservice.Core;
 
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.*;
 
 /**
  * Simplified version of the ReentrantReadWriteLock that keeps track internally of all different locks.
  * Also allows "Upgrading" from one lock to another.
  */
-public class ReadWriteAutoReleaseLock
-{
+public class ReadWriteAutoReleaseLock {
     //region Members
 
     private final ReadWriteLock readWriteLock;
@@ -25,8 +22,7 @@ public class ReadWriteAutoReleaseLock
     /**
      * Creates a new instance of the ReadWriteAutoReleaseLock with a (default) non-fair ordering policy.
      */
-    public ReadWriteAutoReleaseLock()
-    {
+    public ReadWriteAutoReleaseLock() {
         this(false);
     }
 
@@ -35,8 +31,7 @@ public class ReadWriteAutoReleaseLock
      *
      * @param fair true if this lock should use a fair ordering policy (ReentrantReadWriteLock constructor).
      */
-    public ReadWriteAutoReleaseLock(boolean fair)
-    {
+    public ReadWriteAutoReleaseLock(boolean fair) {
         this.readWriteLock = new ReentrantReadWriteLock(fair);
         this.readLock = this.readWriteLock.readLock();
         this.writeLock = this.readWriteLock.writeLock();
@@ -52,8 +47,7 @@ public class ReadWriteAutoReleaseLock
      *
      * @return An AutoReleaseLock, that, when closed, releases the lock.
      */
-    public AutoReleaseLock acquireReadLock()
-    {
+    public AutoReleaseLock acquireReadLock() {
         return acquireLock(this.readLock, true);
     }
 
@@ -67,8 +61,7 @@ public class ReadWriteAutoReleaseLock
      * @throws InterruptedException If the thread got interrupted while waiting.
      * @throws TimeoutException     If the timeout expired prior to completing this operation.
      */
-    public AutoReleaseLock acquireReadLock(Duration timeout) throws InterruptedException, TimeoutException
-    {
+    public AutoReleaseLock acquireReadLock(Duration timeout) throws InterruptedException, TimeoutException {
         return acquireLock(this.readLock, true, timeout);
     }
 
@@ -78,8 +71,7 @@ public class ReadWriteAutoReleaseLock
      *
      * @return An AutoReleaseLock, that, when closed, releases the lock.
      */
-    public AutoReleaseLock acquireWriteLock()
-    {
+    public AutoReleaseLock acquireWriteLock() {
         return acquireLock(this.writeLock, false);
     }
 
@@ -93,8 +85,7 @@ public class ReadWriteAutoReleaseLock
      * @throws InterruptedException If the thread got interrupted while waiting.
      * @throws TimeoutException     If the timeout expired prior to completing this operation.
      */
-    public AutoReleaseLock acquireWriteLock(Duration timeout) throws InterruptedException, TimeoutException
-    {
+    public AutoReleaseLock acquireWriteLock(Duration timeout) throws InterruptedException, TimeoutException {
         return acquireLock(this.writeLock, false, timeout);
     }
 
@@ -106,8 +97,7 @@ public class ReadWriteAutoReleaseLock
      * @return An AutoReleaseLock, that, when closed, releases the lock.
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
-    public AutoReleaseLock upgradeToWriteLock(AutoReleaseLock replacedLock)
-    {
+    public AutoReleaseLock upgradeToWriteLock(AutoReleaseLock replacedLock) {
         return upgradeToLock(replacedLock, this.writeLock);
     }
 
@@ -123,29 +113,24 @@ public class ReadWriteAutoReleaseLock
      * @throws TimeoutException         If the timeout expired prior to completing this operation.
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
-    public AutoReleaseLock upgradeToWriteLock(AutoReleaseLock replacedLock, Duration timeout) throws InterruptedException, TimeoutException
-    {
+    public AutoReleaseLock upgradeToWriteLock(AutoReleaseLock replacedLock, Duration timeout) throws InterruptedException, TimeoutException {
         return upgradeToLock(replacedLock, this.writeLock, timeout);
     }
 
-    private AutoReleaseLock acquireLock(Lock lock, boolean upgradeable)
-    {
+    private AutoReleaseLock acquireLock(Lock lock, boolean upgradeable) {
         return new AutoReleaseLock(lock, upgradeable);
     }
 
-    private AutoReleaseLock acquireLock(Lock lock, boolean upgradeable, Duration timeout) throws InterruptedException, TimeoutException
-    {
+    private AutoReleaseLock acquireLock(Lock lock, boolean upgradeable, Duration timeout) throws InterruptedException, TimeoutException {
         return new AutoReleaseLock(lock, upgradeable, timeout);
     }
 
-    private AutoReleaseLock upgradeToLock(AutoReleaseLock replacedLock, Lock lock)
-    {
+    private AutoReleaseLock upgradeToLock(AutoReleaseLock replacedLock, Lock lock) {
         // AutoReleaseLock constructor will check & throw if replacedLock is not upgradeable.
         return new AutoReleaseLock(replacedLock, lock);
     }
 
-    private AutoReleaseLock upgradeToLock(AutoReleaseLock replacedLock, Lock lock, Duration timeout) throws InterruptedException, TimeoutException
-    {
+    private AutoReleaseLock upgradeToLock(AutoReleaseLock replacedLock, Lock lock, Duration timeout) throws InterruptedException, TimeoutException {
         // AutoReleaseLock constructor will check & throw if replacedLock is not upgradeable.
         return new AutoReleaseLock(replacedLock, lock, timeout);
     }

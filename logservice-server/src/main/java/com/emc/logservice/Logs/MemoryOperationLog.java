@@ -6,6 +6,5 @@ import com.emc.logservice.Logs.Operations.Operation;
 /**
  * In-Memory Operation Log.
  */
-public class MemoryOperationLog extends TruncateableList<Operation>
-{
+public class MemoryOperationLog extends TruncateableList<Operation> {
 }

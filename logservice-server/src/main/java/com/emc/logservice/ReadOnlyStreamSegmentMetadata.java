@@ -3,8 +3,7 @@ package com.emc.logservice;
 /**
  * Defines an immutable StreamSegment Metadata.
  */
-public interface ReadOnlyStreamSegmentMetadata
-{
+public interface ReadOnlyStreamSegmentMetadata {
     /**
      * Gets a value indicating the name of this StreamSegment.
      *

@@ -1,20 +1,15 @@
 package com.emc.logservice.Logs;
 
-import com.emc.logservice.Core.ByteArraySegment;
-import com.emc.logservice.Core.IteratorWithException;
-import com.emc.logservice.Core.MagicGenerator;
+import com.emc.logservice.Core.*;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.NoSuchElementException;
 
 /**
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a record
  * across multiple frames.
  */
-public class DataFrame
-{
+public class DataFrame {
     //region Members
 
     private static final byte CurrentVersion = 0;
@@ -42,10 +37,8 @@ public class DataFrame
      *                   may use to organize records.
      * @throws IllegalArgumentException When the value for startMagic is invalid.
      */
-    public DataFrame(int startMagic, int maxSize)
-    {
-        if (startMagic == MagicGenerator.NoMagic)
-        {
+    public DataFrame(int startMagic, int maxSize) {
+        if (startMagic == MagicGenerator.NoMagic) {
             throw new IllegalArgumentException("Invalid startMagic.");
         }
 
@@ -64,8 +57,7 @@ public class DataFrame
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    public DataFrame(byte[] source) throws SerializationException
-    {
+    public DataFrame(byte[] source) throws SerializationException {
         this(new ByteArraySegment(source, 0, source.length));
     }
 
@@ -76,8 +68,7 @@ public class DataFrame
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    public DataFrame(ByteArraySegment source) throws SerializationException
-    {
+    public DataFrame(ByteArraySegment source) throws SerializationException {
         this.data = source.asReadOnly();
         this.writeEntryStartIndex = -1;
         this.writePosition = -1;
@@ -96,8 +87,7 @@ public class DataFrame
      *
      * @return
      */
-    public long getFrameSequence()
-    {
+    public long getFrameSequence() {
         return this.frameSequence;
     }
 
@@ -108,8 +98,7 @@ public class DataFrame
      *
      * @param value The Sequence Number to set.
      */
-    public void setFrameSequence(long value)
-    {
+    public void setFrameSequence(long value) {
         this.frameSequence = value;
     }
 
@@ -120,8 +109,7 @@ public class DataFrame
      *
      * @return
      */
-    public int getStartMagic()
-    {
+    public int getStartMagic() {
         return this.header.getStartMagic();
     }
 
@@ -132,8 +120,7 @@ public class DataFrame
      *
      * @return
      */
-    public int getEndMagic()
-    {
+    public int getEndMagic() {
         return this.header.getEndMagic();
     }
 
@@ -146,8 +133,7 @@ public class DataFrame
      *
      * @return
      */
-    public int getLength()
-    {
+    public int getLength() {
         return this.header.getSerializationLength() + this.header.getContentLength();
     }
 
@@ -156,14 +142,11 @@ public class DataFrame
      *
      * @return
      */
-    public ByteArraySegment getData()
-    {
-        if (this.data.isReadOnly())
-        {
+    public ByteArraySegment getData() {
+        if (this.data.isReadOnly()) {
             return this.data;
         }
-        else
-        {
+        else {
             // We have just created this frame. Only return the segment of the buffer that contains data.
             return this.data.subSegment(0, this.header.getSerializationLength() + this.header.getContentLength(), true);
         }
@@ -174,8 +157,7 @@ public class DataFrame
      *
      * @return
      */
-    public boolean isEmpty()
-    {
+    public boolean isEmpty() {
         // TODO: should we check for anything else?
         return this.header.getContentLength() == 0;
     }
@@ -185,8 +167,7 @@ public class DataFrame
      *
      * @return
      */
-    public boolean isSealed()
-    {
+    public boolean isSealed() {
         return this.sealed || this.contents.isReadOnly();
     }
 
@@ -204,17 +185,14 @@ public class DataFrame
      * If the frame is full, the new entry will need to be started on a new Frame.
      * @throws IllegalStateException If the entry is sealed.
      */
-    public boolean startNewEntry(boolean firstRecordEntry)
-    {
-        if (this.sealed)
-        {
+    public boolean startNewEntry(boolean firstRecordEntry) {
+        if (this.sealed) {
             throw new IllegalStateException("WriteFrame is sealed.");
         }
 
         endEntry(true);
 
-        if (getAvailableLength() < MinEntryLengthNeeded)
-        {
+        if (getAvailableLength() < MinEntryLengthNeeded) {
             // If we cannot fit at least entry header + 1 byte, we cannot record anything in this write frame anymore.
             return false;
         }
@@ -229,10 +207,8 @@ public class DataFrame
     /**
      * Discards the currently started entry and deletes any data associated with it.
      */
-    public void discardEntry()
-    {
-        if (this.writeEntryStartIndex < 0)
-        {
+    public void discardEntry() {
+        if (this.writeEntryStartIndex < 0) {
             // Nothing to do.
         }
 
@@ -250,11 +226,9 @@ public class DataFrame
      *                    the right DataFrame Entry).
      * @return True if we have any more space (to start a new record) in this DataFrame, false otherwise.
      */
-    public boolean endEntry(boolean endOfRecord)
-    {
+    public boolean endEntry(boolean endOfRecord) {
         // Check to see if we actually have an entry started.
-        if (this.writeEntryStartIndex >= 0)
-        {
+        if (this.writeEntryStartIndex >= 0) {
             int entryLength = this.writePosition - this.writeEntryStartIndex - EntryHeader.HeaderSize;
 
             //TODO: assert that entryLength >= 0
@@ -276,17 +250,14 @@ public class DataFrame
      * @return The number of bytes written. If zero, then the frame is full and we cannot write anything anymore.
      * @throws IllegalStateException If the frame is sealed or no entry has been started.
      */
-    public int append(byte b)
-    {
+    public int append(byte b) {
         ensureAppendConditions();
-        if (getAvailableLength() >= 1)
-        {
+        if (getAvailableLength() >= 1) {
             this.contents.set(writePosition, b);
             writePosition++;
             return 1;
         }
-        else
-        {
+        else {
             // Current DataFrame is full. we can't write anymore.
             return 0;
         }
@@ -300,13 +271,11 @@ public class DataFrame
      * write anything anymore. The remaining bytes will need to be written to a new frame.
      * @throws IllegalStateException If the frame is sealed or no entry has been started.
      */
-    public int append(ByteArraySegment data)
-    {
+    public int append(ByteArraySegment data) {
         ensureAppendConditions();
 
         int actualLength = Math.min(data.getLength(), getAvailableLength());
-        if (actualLength > 0)
-        {
+        if (actualLength > 0) {
             this.contents.copyFrom(data, writePosition, actualLength);
             writePosition += actualLength;
         }
@@ -320,12 +289,9 @@ public class DataFrame
      *
      * @throws IllegalStateException If an open entry exists (entries must be closed prior to sealing).
      */
-    public void seal() throws SerializationException
-    {
-        if (!this.sealed && !this.contents.isReadOnly())
-        {
-            if (writeEntryStartIndex >= 0)
-            {
+    public void seal() throws SerializationException {
+        if (!this.sealed && !this.contents.isReadOnly()) {
+            if (writeEntryStartIndex >= 0) {
                 throw new IllegalStateException("An open entry exists. All open entries must be closed prior to sealing.");
             }
 
@@ -340,8 +306,7 @@ public class DataFrame
      *
      * @return
      */
-    private int getAvailableLength()
-    {
+    private int getAvailableLength() {
         return this.contents.getLength() - writePosition;
     }
 
@@ -350,10 +315,8 @@ public class DataFrame
      *
      * @param startMagic
      */
-    private void formatForWriting(int startMagic)
-    {
-        if (this.header != null || this.contents != null)
-        {
+    private void formatForWriting(int startMagic) {
+        if (this.header != null || this.contents != null) {
             throw new IllegalStateException("DataFrame already contains data; cannot re-format.");
         }
 
@@ -367,15 +330,12 @@ public class DataFrame
         this.contents = this.data.subSegment(FrameHeader.SerializationLength, sourceLength - FrameHeader.SerializationLength);
     }
 
-    private void ensureAppendConditions()
-    {
-        if (this.sealed)
-        {
+    private void ensureAppendConditions() {
+        if (this.sealed) {
             throw new IllegalStateException("WriteFrame is sealed.");
         }
 
-        if (writeEntryStartIndex < 0)
-        {
+        if (writeEntryStartIndex < 0) {
             throw new IllegalStateException("No entry started.");
         }
     }
@@ -389,22 +349,19 @@ public class DataFrame
      *
      * @return
      */
-    public IteratorWithException<DataFrameEntry, SerializationException> getEntries()
-    {
+    public IteratorWithException<DataFrameEntry, SerializationException> getEntries() {
         // The true max length differs based on whether we are still writing this frame or if it's read-only.
         int maxLength = this.writePosition >= 0 ? this.writePosition : this.contents.getLength();
         return new DataFrameEntryIterator(this.contents, this.getFrameSequence(), maxLength);
     }
 
-    private void parse() throws SerializationException
-    {
+    private void parse() throws SerializationException {
         // Used for Reading.
         // FrameHeader will validate that the header is indeed a DataFrame header.
         this.header = new FrameHeader(this.data);
 
         // Check to see that we have enough bytes in the array.
-        if (this.data.getLength() < this.header.getSerializationLength() + this.header.getContentLength())
-        {
+        if (this.data.getLength() < this.header.getSerializationLength() + this.header.getContentLength()) {
             throw new SerializationException("DataFrame.deserialize", String.format("Given buffer has insufficient number of bytes for this DataFrame. Expected %d, actual %d.", this.header.getSerializationLength() + this.header.getContentLength(), this.contents.getLength()));
         }
 
@@ -418,8 +375,7 @@ public class DataFrame
     /**
      * Header for a DataFrameEntry.
      */
-    private class EntryHeader
-    {
+    private class EntryHeader {
         //region Members
 
         public static final int HeaderSize = Integer.BYTES + Byte.BYTES; // Length(int) + Flags(byte)
@@ -442,23 +398,19 @@ public class DataFrame
          *                       for deserialization, otherwise it will be used to serialize the header later on.
          * @throws IllegalArgumentException If the size of the headerContents ByteArraySegment is incorrect.
          */
-        public EntryHeader(ByteArraySegment headerContents)
-        {
-            if (headerContents.getLength() != HeaderSize)
-            {
+        public EntryHeader(ByteArraySegment headerContents) {
+            if (headerContents.getLength() != HeaderSize) {
                 throw new IllegalArgumentException(String.format("Invalid headerContents size. Expected %d, given %d.", HeaderSize, headerContents.getLength()));
             }
 
-            if (headerContents.isReadOnly())
-            {
+            if (headerContents.isReadOnly()) {
                 // We are reading.
                 this.entryLength = readInt(headerContents, 0);
                 byte flags = headerContents.get(FlagsOffset);
                 this.firstRecordEntry = (flags & FirstEntryMask) == FirstEntryMask;
                 this.lastRecordEntry = (flags & LastEntryMask) == LastEntryMask;
             }
-            else
-            {
+            else {
                 // We are creating a new one.
                 this.entryLength = 0;
                 this.firstRecordEntry = this.lastRecordEntry = false;
@@ -475,10 +427,8 @@ public class DataFrame
          *
          * @throws IllegalStateException If this EntryHeader was deserialized (and not new).
          */
-        public void serialize()
-        {
-            if (this.data == null || this.data.isReadOnly())
-            {
+        public void serialize() {
+            if (this.data == null || this.data.isReadOnly()) {
                 throw new IllegalStateException("Cannot serialize a read-only EntryHeader.");
             }
 
@@ -496,8 +446,7 @@ public class DataFrame
          *
          * @return
          */
-        public int getEntryLength()
-        {
+        public int getEntryLength() {
             return this.entryLength;
         }
 
@@ -506,8 +455,7 @@ public class DataFrame
          *
          * @param value The length of the Entry, in bytes.
          */
-        public void setEntryLength(int value)
-        {
+        public void setEntryLength(int value) {
             this.entryLength = value;
         }
 
@@ -516,8 +464,7 @@ public class DataFrame
          *
          * @return
          */
-        public boolean isFirstRecordEntry()
-        {
+        public boolean isFirstRecordEntry() {
             return this.firstRecordEntry;
         }
 
@@ -526,8 +473,7 @@ public class DataFrame
          *
          * @param value
          */
-        public void setFirstRecordEntry(boolean value)
-        {
+        public void setFirstRecordEntry(boolean value) {
             this.firstRecordEntry = value;
         }
 
@@ -536,8 +482,7 @@ public class DataFrame
          *
          * @return
          */
-        public boolean isLastRecordEntry()
-        {
+        public boolean isLastRecordEntry() {
             return this.lastRecordEntry;
         }
 
@@ -546,14 +491,12 @@ public class DataFrame
          *
          * @param value
          */
-        public void setLastRecordEntry(boolean value)
-        {
+        public void setLastRecordEntry(boolean value) {
             this.lastRecordEntry = value;
         }
 
         @Override
-        public String toString()
-        {
+        public String toString() {
             return String.format("Length = %d, FirstEntry = %s, LastEntry = %s", getEntryLength(), isFirstRecordEntry(), isLastRecordEntry());
         }
 
@@ -561,8 +504,7 @@ public class DataFrame
 
         //region Helpers
 
-        private void writeInt(ByteArraySegment target, int offset, int value)
-        {
+        private void writeInt(ByteArraySegment target, int offset, int value) {
             target.setSequence(
                     offset,
                     (byte) (value >>> 24),
@@ -571,8 +513,7 @@ public class DataFrame
                     (byte) value);
         }
 
-        private int readInt(ByteArraySegment source, int position)
-        {
+        private int readInt(ByteArraySegment source, int position) {
             return (source.get(position) & 0xFF) << 24
                     | (source.get(position + 1) & 0xFF) << 16
                     | (source.get(position + 2) & 0xFF) << 8
@@ -589,8 +530,7 @@ public class DataFrame
     /**
      * Header for the DataFrame.
      */
-    private class FrameHeader
-    {
+    private class FrameHeader {
         //region Members
 
         public static final int SerializationLength = Byte.BYTES + Integer.BYTES + Integer.BYTES + Integer.BYTES + Byte.BYTES;
@@ -614,10 +554,8 @@ public class DataFrame
          * @throws NullPointerException     If the target buffer is null.
          * @throws IllegalArgumentException If the target buffer has an incorrect length.
          */
-        public FrameHeader(byte version, int startMagic, ByteArraySegment target)
-        {
-            if (target.getLength() != SerializationLength)
-            {
+        public FrameHeader(byte version, int startMagic, ByteArraySegment target) {
+            if (target.getLength() != SerializationLength) {
                 throw new IllegalArgumentException(String.format("Unexpected length for target buffer. Expected %d, given %d.", SerializationLength, target.getLength()));
             }
 
@@ -635,19 +573,15 @@ public class DataFrame
          * @param source The source ByteArraySegment to read from.
          * @throws SerializationException If we are unable to deserialize the header.
          */
-        public FrameHeader(ByteArraySegment source) throws SerializationException
-        {
-            if (source == null || source.getLength() == 0)
-            {
+        public FrameHeader(ByteArraySegment source) throws SerializationException {
+            if (source == null || source.getLength() == 0) {
                 throw new SerializationException("DataFrame.Header.deserialize", "Null or empty source buffer.");
             }
 
-            try (DataInputStream input = new DataInputStream(source.getReader()))
-            {
+            try (DataInputStream input = new DataInputStream(source.getReader())) {
                 this.version = input.readByte();
                 this.actualSerializationLength = SerializationLength; //TODO: this will change based on serialization version.
-                if (source.getLength() < this.actualSerializationLength)
-                {
+                if (source.getLength() < this.actualSerializationLength) {
                     throw new SerializationException("DataFrame.Header.deserialize", "DataFrame.Header has insufficient number of bytes given its serialization version.");
                 }
 
@@ -658,8 +592,7 @@ public class DataFrame
                 decodeFlags(flags, version);
                 this.buffer = null;
             }
-            catch (IOException ex)
-            {
+            catch (IOException ex) {
                 throw new SerializationException("DataFrame.Header.deserialize", "Cannot deserialize frame header.", ex);
             }
         }
@@ -674,24 +607,20 @@ public class DataFrame
          * @throws SerializationException If we are unable to serialize the header.
          * @throws IllegalStateException  If this FrameHeader was created from a read-only buffer (it was deserialized).
          */
-        public void commit() throws SerializationException
-        {
-            if (this.buffer == null || this.buffer.isReadOnly())
-            {
+        public void commit() throws SerializationException {
+            if (this.buffer == null || this.buffer.isReadOnly()) {
                 throw new IllegalStateException("Cannot commit a read-only FrameHeader");
             }
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.
-            try (DataOutputStream output = new DataOutputStream(this.buffer.getWriter()))
-            {
+            try (DataOutputStream output = new DataOutputStream(this.buffer.getWriter())) {
                 output.writeByte(this.version);
                 output.writeInt(this.startMagic);
                 output.writeInt(this.endMagic);
                 output.writeInt(this.contentLength);
                 output.writeByte(encodeFlags());
             }
-            catch (IOException ex)
-            {
+            catch (IOException ex) {
                 throw new SerializationException("DataFrame.Header.serialize", "Cannot serialize frame header.", ex);
             }
         }
@@ -701,8 +630,7 @@ public class DataFrame
          *
          * @return
          */
-        public int getStartMagic()
-        {
+        public int getStartMagic() {
             return this.startMagic;
         }
 
@@ -711,8 +639,7 @@ public class DataFrame
          *
          * @return
          */
-        public int getEndMagic()
-        {
+        public int getEndMagic() {
             return this.endMagic;
         }
 
@@ -721,8 +648,7 @@ public class DataFrame
          *
          * @return
          */
-        public byte getVersion()
-        {
+        public byte getVersion() {
             return this.version;
         }
 
@@ -731,8 +657,7 @@ public class DataFrame
          *
          * @return
          */
-        public int getContentLength()
-        {
+        public int getContentLength() {
             return this.contentLength;
         }
 
@@ -741,8 +666,7 @@ public class DataFrame
          *
          * @param value
          */
-        public void setContentLength(int value)
-        {
+        public void setContentLength(int value) {
             this.contentLength = value;
         }
 
@@ -751,24 +675,20 @@ public class DataFrame
          *
          * @return
          */
-        public int getSerializationLength()
-        {
+        public int getSerializationLength() {
             return this.actualSerializationLength;
         }
 
         @Override
-        public String toString()
-        {
+        public String toString() {
             return String.format("Version = %d, StartMagic = %d, EndMagic = %d, ContentLength = %d", getVersion(), getStartMagic(), getEndMagic(), getContentLength());
         }
 
-        private void decodeFlags(byte flags, byte version)
-        {
+        private void decodeFlags(byte flags, byte version) {
             // Placeholder method. Nothing to do yet.
         }
 
-        private byte encodeFlags()
-        {
+        private byte encodeFlags() {
             // Placeholder method. Nothing to do yet.
             return 0;
         }
@@ -783,8 +703,7 @@ public class DataFrame
     /**
      * Represents an Entry in the DataFrame.
      */
-    public class DataFrameEntry
-    {
+    public class DataFrameEntry {
         private final boolean firstRecordEntry;
         private final boolean lastRecordEntry;
         private final boolean lastEntryInDataFrame;
@@ -799,8 +718,7 @@ public class DataFrame
          * @param dataFrameSequence
          * @param lastEntryInDataFrame
          */
-        protected DataFrameEntry(EntryHeader header, ByteArraySegment data, long dataFrameSequence, boolean lastEntryInDataFrame)
-        {
+        protected DataFrameEntry(EntryHeader header, ByteArraySegment data, long dataFrameSequence, boolean lastEntryInDataFrame) {
             this.firstRecordEntry = header.isFirstRecordEntry();
             this.lastRecordEntry = header.isLastRecordEntry();
             this.lastEntryInDataFrame = lastEntryInDataFrame;
@@ -813,8 +731,7 @@ public class DataFrame
          *
          * @return
          */
-        public boolean isFirstRecordEntry()
-        {
+        public boolean isFirstRecordEntry() {
             return this.firstRecordEntry;
         }
 
@@ -823,8 +740,7 @@ public class DataFrame
          *
          * @return
          */
-        public boolean isLastRecordEntry()
-        {
+        public boolean isLastRecordEntry() {
             return this.lastRecordEntry;
         }
 
@@ -833,8 +749,7 @@ public class DataFrame
          *
          * @return
          */
-        public boolean isLastEntryInDataFrame()
-        {
+        public boolean isLastEntryInDataFrame() {
             return this.lastEntryInDataFrame;
         }
 
@@ -843,8 +758,7 @@ public class DataFrame
          *
          * @return
          */
-        public long getDataFrameSequence()
-        {
+        public long getDataFrameSequence() {
             return this.dataFrameSequence;
         }
 
@@ -853,14 +767,12 @@ public class DataFrame
          *
          * @return
          */
-        public ByteArraySegment getData()
-        {
+        public ByteArraySegment getData() {
             return this.data;
         }
 
         @Override
-        public String toString()
-        {
+        public String toString() {
             return String.format("DataFrameSN = %d, Size = %d, First = %s, Last = %s, LastInDataFrame = %s", getDataFrameSequence(), getData().getLength(), isFirstRecordEntry(), isLastRecordEntry(), isLastEntryInDataFrame());
         }
     }
@@ -872,8 +784,7 @@ public class DataFrame
     /**
      * Represents an iterator over all entries within a DataFrame.
      */
-    private class DataFrameEntryIterator implements IteratorWithException<DataFrameEntry, SerializationException>
-    {
+    private class DataFrameEntryIterator implements IteratorWithException<DataFrameEntry, SerializationException> {
         private final ByteArraySegment contents;
         private final long dataFrameSequence;
         private int currentPosition;
@@ -886,8 +797,7 @@ public class DataFrame
          * @param dataFrameSequence The Sequence Number of the Data Frame.
          * @param maxLength         The maximum number of bytes to consider reading from the contents.
          */
-        public DataFrameEntryIterator(ByteArraySegment contents, long dataFrameSequence, int maxLength)
-        {
+        public DataFrameEntryIterator(ByteArraySegment contents, long dataFrameSequence, int maxLength) {
             this.contents = contents;
             this.dataFrameSequence = dataFrameSequence;
             this.maxLength = maxLength;
@@ -897,22 +807,18 @@ public class DataFrame
         //region IteratorWithException Implementation
 
         @Override
-        public boolean hasNext()
-        {
+        public boolean hasNext() {
             return this.currentPosition < this.maxLength;
         }
 
         @Override
-        public DataFrameEntry pollNextElement() throws SerializationException
-        {
-            if (!hasNext())
-            {
+        public DataFrameEntry pollNextElement() throws SerializationException {
+            if (!hasNext()) {
                 throw new NoSuchElementException("Reached the end of the DataFrame.");
             }
 
             // Integrity check. This means that we have a corrupt frame.
-            if (this.currentPosition + EntryHeader.HeaderSize > this.maxLength)
-            {
+            if (this.currentPosition + EntryHeader.HeaderSize > this.maxLength) {
                 throw new SerializationException("DataFrame.deserialize", String.format("Data Frame is corrupt. Expected Entry Header at position %d but it does not fit in Frame's length of %d.", this.currentPosition, this.maxLength));
             }
 
@@ -921,8 +827,7 @@ public class DataFrame
             this.currentPosition += EntryHeader.HeaderSize;
 
             // Integrity check. This means that we have a corrupt frame.
-            if (this.currentPosition + header.getEntryLength() > this.maxLength)
-            {
+            if (this.currentPosition + header.getEntryLength() > this.maxLength) {
                 throw new SerializationException("DataFrame.deserialize", String.format("Data Frame is corrupt. Found Entry Length %d at position %d which is outside of the Frame's length of %d.", header.getEntryLength(), this.currentPosition - EntryHeader.HeaderSize, this.maxLength));
             }
 
@@ -933,14 +838,11 @@ public class DataFrame
         }
 
         @Override
-        public DataFrameEntry next()
-        {
-            try
-            {
+        public DataFrameEntry next() {
+            try {
                 return pollNextElement();
             }
-            catch (SerializationException ex)
-            {
+            catch (SerializationException ex) {
                 throw new RuntimeException(ex);
             }
         }

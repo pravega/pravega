@@ -3,15 +3,12 @@ package com.emc.logservice.Logs.Operations;
 import com.emc.logservice.Logs.SerializationException;
 import com.emc.logservice.StreamSegmentInformation;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 /**
  * Log Operation that represents a mapping of StreamSegment Name to a StreamSegment Id.
  */
-public class StreamSegmentMapOperation extends MetadataOperation
-{
+public class StreamSegmentMapOperation extends MetadataOperation {
     //region Members
 
     public static final byte OperationType = 4;
@@ -32,8 +29,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
      * @param streamSegmentId          The Id of the StreamSegment.
      * @param streamSegmentInformation Information about the StreamSegment.
      */
-    public StreamSegmentMapOperation(long streamSegmentId, StreamSegmentInformation streamSegmentInformation)
-    {
+    public StreamSegmentMapOperation(long streamSegmentId, StreamSegmentInformation streamSegmentInformation) {
         super();
         this.streamSegmentId = streamSegmentId;
         this.streamSegmentName = streamSegmentInformation.getStreamSegmentName();
@@ -42,8 +38,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
         this.lastModifiedTime = streamSegmentInformation.getLastModified().getTime();
     }
 
-    protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws SerializationException
-    {
+    protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
     }
 
@@ -56,8 +51,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
      *
      * @return
      */
-    public String getStreamSegmentName()
-    {
+    public String getStreamSegmentName() {
         return this.streamSegmentName;
     }
 
@@ -66,8 +60,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
      *
      * @return
      */
-    public long getStreamSegmentId()
-    {
+    public long getStreamSegmentId() {
         return this.streamSegmentId;
     }
 
@@ -76,8 +69,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
      *
      * @return
      */
-    public long getStreamSegmentLength()
-    {
+    public long getStreamSegmentLength() {
         return this.streamSegmentLength;
     }
 
@@ -86,8 +78,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
      *
      * @return
      */
-    public boolean isSealed()
-    {
+    public boolean isSealed() {
         return this.sealed;
     }
 
@@ -96,8 +87,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
      *
      * @return
      */
-    public long getLastModifiedTime()
-    {
+    public long getLastModifiedTime() {
         return this.lastModifiedTime;
     }
 
@@ -106,14 +96,12 @@ public class StreamSegmentMapOperation extends MetadataOperation
     //region Operation Implementation
 
     @Override
-    protected byte getOperationType()
-    {
+    protected byte getOperationType() {
         return OperationType;
     }
 
     @Override
-    protected void serializeContent(DataOutputStream target) throws IOException
-    {
+    protected void serializeContent(DataOutputStream target) throws IOException {
         target.writeByte(Version);
         target.writeLong(this.streamSegmentId);
         target.writeUTF(this.streamSegmentName);
@@ -123,8 +111,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException
-    {
+    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
         byte version = readVersion(source, Version);
         this.streamSegmentId = source.readLong();
         this.streamSegmentName = source.readUTF();
@@ -134,8 +121,7 @@ public class StreamSegmentMapOperation extends MetadataOperation
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s, StreamId = %d, StreamName = %s, StreamLength = %d, Sealed = %s", super.toString(), getStreamSegmentId(), getStreamSegmentName(), getStreamSegmentLength(), isSealed());
     }
 

@@ -5,8 +5,7 @@ import java.util.StringJoiner;
 /**
  * Defines various States that a Container can be in.
  */
-public enum ContainerState
-{
+public enum ContainerState {
     /**
      * Container has just been created, but not yet initialized.
      */
@@ -29,20 +28,16 @@ public enum ContainerState
 
     private ContainerState[] validPreviousStates;
 
-    static
-    {
+    static {
         Created.validPreviousStates = new ContainerState[0];
-        Initialized.validPreviousStates = new ContainerState[] { ContainerState.Created } ;
-        Started.validPreviousStates = new ContainerState[] { ContainerState.Initialized, ContainerState.Stopped };
-        Stopped.validPreviousStates = new ContainerState[] { ContainerState.Started };
+        Initialized.validPreviousStates = new ContainerState[]{ ContainerState.Created };
+        Started.validPreviousStates = new ContainerState[]{ ContainerState.Initialized, ContainerState.Stopped };
+        Stopped.validPreviousStates = new ContainerState[]{ ContainerState.Started };
     }
 
-    public void checkValidPreviousState(ContainerState previousState)
-    {
-        for (ContainerState state : this.validPreviousStates)
-        {
-            if (previousState == state)
-            {
+    public void checkValidPreviousState(ContainerState previousState) {
+        for (ContainerState state : this.validPreviousStates) {
+            if (previousState == state) {
                 // Validation passed.
                 return;
             }
@@ -50,8 +45,7 @@ public enum ContainerState
 
         // TODO: is there a generic version of StringJoiner that calls 'toString' on target objects?
         StringJoiner joiner = new StringJoiner(", ");
-        for (ContainerState s : this.validPreviousStates)
-        {
+        for (ContainerState s : this.validPreviousStates) {
             joiner.add(s.toString());
         }
 

@@ -1,9 +1,7 @@
 package com.emc.logservice.Logs;
 
 import com.emc.logservice.*;
-import com.emc.logservice.Logs.Operations.CompletableOperation;
-import com.emc.logservice.Logs.Operations.Operation;
-import com.emc.logservice.Logs.Operations.StorageOperation;
+import com.emc.logservice.Logs.Operations.*;
 
 import java.time.Duration;
 import java.util.LinkedList;
@@ -16,8 +14,7 @@ import java.util.function.Consumer;
  * Single-thread Processor for OperationQueue. Takes all entries currently available from the OperationQueue,
  * generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
  */
-public class OperationQueueProcessor implements Container
-{
+public class OperationQueueProcessor implements Container {
     //region Members
 
     private static final Duration AutoCloseTimeout = Duration.ofSeconds(30);
@@ -44,25 +41,20 @@ public class OperationQueueProcessor implements Container
      * @param dataFrameLog    The DataFrameLog to write DataFrames to.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationQueueProcessor(OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DataFrameLog dataFrameLog)
-    {
-        if (operationQueue == null)
-        {
+    public OperationQueueProcessor(OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DataFrameLog dataFrameLog) {
+        if (operationQueue == null) {
             throw new NullPointerException("operationQueue");
         }
 
-        if (metadataUpdater == null)
-        {
+        if (metadataUpdater == null) {
             throw new NullPointerException("metadataUpdater");
         }
 
-        if (logUpdater == null)
-        {
+        if (logUpdater == null) {
             throw new NullPointerException("logUpdater");
         }
 
-        if (dataFrameLog == null)
-        {
+        if (dataFrameLog == null) {
             throw new NullPointerException("dataFrameLog");
         }
 
@@ -78,8 +70,7 @@ public class OperationQueueProcessor implements Container
     //region AutoCloseable implementation
 
     @Override
-    public void close() throws Exception
-    {
+    public void close() throws Exception {
         stop(AutoCloseTimeout).get(AutoCloseTimeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
@@ -88,10 +79,8 @@ public class OperationQueueProcessor implements Container
     //region Container Implementation
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout)
-    {
-        synchronized (StateTransitionLock)
-        {
+    public CompletableFuture<Void> initialize(Duration timeout) {
+        synchronized (StateTransitionLock) {
             ContainerState.Initialized.checkValidPreviousState(this.state);
 
             // TODO: do any initialization work.
@@ -102,15 +91,12 @@ public class OperationQueueProcessor implements Container
     }
 
     @Override
-    public CompletableFuture<Void> start(Duration timeout)
-    {
+    public CompletableFuture<Void> start(Duration timeout) {
         Thread runThread;
-        synchronized (StateTransitionLock)
-        {
+        synchronized (StateTransitionLock) {
             ContainerState.Started.checkValidPreviousState(this.state);
 
-            if (this.runThread != null)
-            {
+            if (this.runThread != null) {
                 throw new IllegalStateException("Internal error: OperationQueueProcessor was already running ");
             }
 
@@ -123,26 +109,21 @@ public class OperationQueueProcessor implements Container
     }
 
     @Override
-    public CompletableFuture<Void> stop(Duration timeout)
-    {
+    public CompletableFuture<Void> stop(Duration timeout) {
         CompletableFuture<Void> result = null;
-        synchronized (StateTransitionLock)
-        {
-            if (getState() != ContainerState.Started)
-            {
+        synchronized (StateTransitionLock) {
+            if (getState() != ContainerState.Started) {
                 // Only bother to stop if we are actually running.
                 return CompletableFuture.completedFuture(null);
             }
 
-            if (this.runThread != null)
-            {
+            if (this.runThread != null) {
                 this.stopFuture = result = new CompletableFuture<>();
                 this.runThread.interrupt();
             }
         }
 
-        if (result == null)
-        {
+        if (result == null) {
             result = CompletableFuture.completedFuture(null);
         }
 
@@ -150,14 +131,12 @@ public class OperationQueueProcessor implements Container
     }
 
     @Override
-    public void registerFaultHandler(Consumer<Throwable> handler)
-    {
+    public void registerFaultHandler(Consumer<Throwable> handler) {
         //TODO: implement
     }
 
     @Override
-    public ContainerState getState()
-    {
+    public ContainerState getState() {
         return this.state;
     }
 
@@ -168,29 +147,23 @@ public class OperationQueueProcessor implements Container
     /**
      * Main thread body. Runs in a continuous loop until interrupted.
      */
-    private void runContinuously()
-    {
-        try
-        {
-            while (true)
-            {
-                try
-                {
+    private void runContinuously() {
+        try {
+            while (true) {
+                try {
                     runOnce();
                 }
-                catch (InterruptedException ex)
-                {
+                catch (InterruptedException ex) {
                     break;
                 }
-//                catch (Exception ex)
-//                {
-//                    //TODO: TBD
-//                    System.out.println(ex);
-//                }
+                //                catch (Exception ex)
+                //                {
+                //                    //TODO: TBD
+                //                    System.out.println(ex);
+                //                }
             }
         }
-        finally
-        {
+        finally {
             // Always run cleanup.
             postRun();
         }
@@ -207,33 +180,27 @@ public class OperationQueueProcessor implements Container
      *
      * @throws InterruptedException
      */
-    private void runOnce() throws InterruptedException
-    {
+    private void runOnce() throws InterruptedException {
         Queue<CompletableOperation> operations = this.operationQueue.takeAllEntries();
-        if (operations.size() == 0)
-        {
+        if (operations.size() == 0) {
             // takeAllEntries() should have been blocking and not return unless it has data. If we get an empty response, just try again.
             return;
         }
 
         DataFrameBuildState state = new DataFrameBuildState(this.metadataUpdater, this.logUpdater, this::handleCriticalError);
-        try (DataFrameBuilder dataFrameBuilder = new DataFrameBuilder(MaxDataFrameSize, this.dataFrameLog, state::commit, state::fail))
-        {
-            for (CompletableOperation o : operations)
-            {
+        try (DataFrameBuilder dataFrameBuilder = new DataFrameBuilder(MaxDataFrameSize, this.dataFrameLog, state::commit, state::fail)) {
+            for (CompletableOperation o : operations) {
                 boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
 
                 // Add the operation as 'pending', only if we were able to successfully add it to a data frame.
                 // We only commit data frames when we attempt to start a new record (if it's full) or if we try to close it, so we will not miss out on it.
-                if (processedSuccessfully)
-                {
+                if (processedSuccessfully) {
                     state.addPending(o);
                 }
             }
         }
         // Close the frame builder and ship any unsent frames.
-        catch (SerializationException ex)
-        {
+        catch (SerializationException ex) {
             state.fail(ex);
         }
     }
@@ -254,27 +221,22 @@ public class OperationQueueProcessor implements Container
      * @param dataFrameBuilder The DataFrameBuilder to add the operation to.
      * @return True if processed successfully, false otherwise.
      */
-    private boolean processOperation(CompletableOperation operation, DataFrameBuilder dataFrameBuilder)
-    {
-        if (operation.isDone())
-        {
+    private boolean processOperation(CompletableOperation operation, DataFrameBuilder dataFrameBuilder) {
+        if (operation.isDone()) {
             throw new IllegalStateException("Entry has already been processed.");
         }
 
         // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
         Operation entry = operation.getOperation();
-        if (entry instanceof StorageOperation)
-        {
+        if (entry instanceof StorageOperation) {
             // We only need to update metadata for StorageOperations; MetadataOperations are internal and are processed by the requester.
             // We do this in two steps: first is pre-processing (updating the entry with offsets, lengths, etc.) and the second is acceptance.
             // Pre-processing does not have any effect on the metadata, but acceptance does.
             // That's why acceptance has to happen only after a successful add to the DataFrameBuilder.
-            try
-            {
+            try {
                 this.metadataUpdater.preProcessOperation((StorageOperation) entry);
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
                 operation.fail(ex);
                 return false;
@@ -284,24 +246,19 @@ public class OperationQueueProcessor implements Container
         // Entry is ready to be serialized; assign a sequence number.
         entry.setSequenceNumber(this.metadataUpdater.getNewOperationSequenceNumber());
 
-        try
-        {
+        try {
             dataFrameBuilder.append(operation.getOperation());
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             operation.fail(ex);
             return false;
         }
 
-        if (entry instanceof StorageOperation)
-        {
-            try
-            {
+        if (entry instanceof StorageOperation) {
+            try {
                 this.metadataUpdater.acceptOperation((StorageOperation) entry);
             }
-            catch (MetadataUpdateException ex)
-            {
+            catch (MetadataUpdateException ex) {
                 // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
                 operation.fail(ex);
                 return false;
@@ -314,12 +271,10 @@ public class OperationQueueProcessor implements Container
     /**
      * Post-run cleanup.
      */
-    private void postRun()
-    {
+    private void postRun() {
         // Exiting: need to cleanup
         CompletableFuture<Void> resultFuture;
-        synchronized (StateTransitionLock)
-        {
+        synchronized (StateTransitionLock) {
             // Make sure we set the container state to Stopped once we exit the main loop.
             this.runThread = null;
             resultFuture = this.stopFuture;
@@ -327,14 +282,12 @@ public class OperationQueueProcessor implements Container
             setState(ContainerState.Stopped);
         }
 
-        if (resultFuture != null)
-        {
+        if (resultFuture != null) {
             resultFuture.complete(null);
         }
     }
 
-    private void setState(ContainerState state)
-    {
+    private void setState(ContainerState state) {
         this.state = state;
     }
 
@@ -342,8 +295,7 @@ public class OperationQueueProcessor implements Container
 
     //region Helpers
 
-    private void handleCriticalError(Exception ex)
-    {
+    private void handleCriticalError(Exception ex) {
         //TODO: better...
         System.err.println(ex);
     }
@@ -355,15 +307,13 @@ public class OperationQueueProcessor implements Container
     /**
      * Temporary State for DataFrameBuilder. Keeps track of pending Operations and allows committing or failing all of them.
      */
-    private class DataFrameBuildState
-    {
+    private class DataFrameBuildState {
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryLogUpdater logUpdater;
         private final Consumer<Exception> criticalErrorHandler;
 
-        public DataFrameBuildState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler)
-        {
+        public DataFrameBuildState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler) {
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
             this.logUpdater = logUpdater;
@@ -375,8 +325,7 @@ public class OperationQueueProcessor implements Container
          *
          * @param operation The operation to add.
          */
-        public void addPending(CompletableOperation operation)
-        {
+        public void addPending(CompletableOperation operation) {
             this.pendingOperations.add(operation);
         }
 
@@ -385,23 +334,19 @@ public class OperationQueueProcessor implements Container
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          */
-        public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs)
-        {
+        public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             // Commit any changes to metadata.
             this.metadataUpdater.commit();
             this.metadataUpdater.commitTruncationMarker(new TruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence()));
 
             // TODO: consider running this on its own thread, but they must still be in the same sequence!
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
-            while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber())
-            {
+            while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
                 CompletableOperation e = this.pendingOperations.removeFirst();
-                try
-                {
+                try {
                     logUpdater.add(e.getOperation());
                 }
-                catch (DataCorruptionException ex)
-                {
+                catch (DataCorruptionException ex) {
                     this.criticalErrorHandler.accept(ex);
                     e.fail(ex);
                     return;
@@ -417,8 +362,7 @@ public class OperationQueueProcessor implements Container
          *
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
          */
-        public void fail(Exception ex)
-        {
+        public void fail(Exception ex) {
             // Discard all updates to the metadata.
             this.metadataUpdater.rollback();
 

@@ -9,8 +9,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Metadata for a Stream Segment Container.
  */
-public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSource
-{
+public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSource {
     //region Members
 
     public static final long NoStreamSegmentId = Long.MIN_VALUE;
@@ -27,8 +26,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
     /**
      * Creates a new instance of the StreamSegmentContainerMetadata.
      */
-    public StreamSegmentContainerMetadata()
-    {
+    public StreamSegmentContainerMetadata() {
         //TODO: need to define a MetadataReaderWriter class which we can pass to this. Metadata always need to be persisted somewhere.
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new ConcurrentHashMap<>();
@@ -50,8 +48,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      *
      * @throws IllegalStateException If the Metadata is already in Recovery Mode.
      */
-    public void enterRecoveryMode()
-    {
+    public void enterRecoveryMode() {
         ensureNonRecoveryMode();
         this.recoveryMode.set(true);
     }
@@ -61,8 +58,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      *
      * @throws IllegalStateException If the Metadata is not in Recovery Mode.
      */
-    public void exitRecoveryMode()
-    {
+    public void exitRecoveryMode() {
         ensureRecoveryMode();
         this.recoveryMode.set(false);
     }
@@ -72,8 +68,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      *
      * @return
      */
-    public boolean isRecoveryMode()
-    {
+    public boolean isRecoveryMode() {
         return this.recoveryMode.get();
     }
 
@@ -83,8 +78,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @return The next available Operation Sequence Number.
      * @throws IllegalStateException If the Metadata is in Recovery Mode.
      */
-    public long getNewOperationSequenceNumber()
-    {
+    public long getNewOperationSequenceNumber() {
         ensureNonRecoveryMode();
         return this.sequenceNumber.incrementAndGet();
     }
@@ -96,13 +90,11 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @throws IllegalStateException    If the Metadata is not in Recovery Mode.
      * @throws IllegalArgumentException If the new Sequence Number is not greater than the previous one.
      */
-    public void setOperationSequenceNumber(long value)
-    {
+    public void setOperationSequenceNumber(long value) {
         ensureRecoveryMode();
 
         // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this is ok.
-        if (value < this.sequenceNumber.get())
-        {
+        if (value < this.sequenceNumber.get()) {
             throw new IllegalArgumentException(String.format("Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get()));
         }
 
@@ -115,8 +107,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @param streamSegmentName The case-sensitive StreamSegment name.
      * @return The Id of the StreamSegment, or NoStreamSegmentId if the Metadata has no knowledge of it.
      */
-    public long getStreamSegmentId(String streamSegmentName)
-    {
+    public long getStreamSegmentId(String streamSegmentName) {
         return this.streamSegmentIds.getOrDefault(streamSegmentName, NoStreamSegmentId);
     }
 
@@ -126,8 +117,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @param streamSegmentName The case-sensitive name of the StreamSegment to map.
      * @param streamSegmentId   The Id of the StreamSegment.
      */
-    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId)
-    {
+    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         // TODO: atomically check that the values aren't already mapped.
         this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
         this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
@@ -142,10 +132,8 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @param parentStreamSegmentId The Id of the Parent StreamSegment.
      * @throws IllegalArgumentException If the parentStreamSegmentId refers to an unknown StreamSegment.
      */
-    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId)
-    {
-        if (!this.streamMetadata.containsKey(parentStreamSegmentId))
-        {
+    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+        if (!this.streamMetadata.containsKey(parentStreamSegmentId)) {
             throw new IllegalArgumentException("Invalid Parent Stream Id.");
         }
 
@@ -160,8 +148,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @param streamSegmentId The Id of the StreamSegment to get metadata for.
      * @return The StreamSegmentMetadata, or null if the given StreamSegment is unknown.
      */
-    public StreamSegmentMetadata getStreamSegmentMetadata(long streamSegmentId)
-    {
+    public StreamSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
         return this.streamMetadata.getOrDefault(streamSegmentId, null);
     }
 
@@ -171,8 +158,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      *
      * @param tm The Truncation Marker to set.
      */
-    public void recordTruncationMarker(TruncationMarker tm)
-    {
+    public void recordTruncationMarker(TruncationMarker tm) {
         this.truncationMarkers.put(tm.getOperationSequenceNumber(), tm);
     }
 
@@ -182,14 +168,12 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @param upToOperationSequenceNumber The Operation Sequence Number to remove Truncation Markers up to.
      * @throws IllegalStateException If the Metadata is in Recovery Mode.
      */
-    public void removeTruncationMarkers(long upToOperationSequenceNumber)
-    {
+    public void removeTruncationMarkers(long upToOperationSequenceNumber) {
         ensureNonRecoveryMode();
         ArrayList<Long> toRemove = new ArrayList<>();
         this.truncationMarkers.keySet().forEach(key ->
         {
-            if (key <= upToOperationSequenceNumber)
-            {
+            if (key <= upToOperationSequenceNumber) {
                 toRemove.add(key);
             }
         });
@@ -204,24 +188,19 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      * @return The requested Truncation Marker, or null if no such marker exists.
      * @throws IllegalStateException If the Metadata is in Recovery Mode.
      */
-    public TruncationMarker getClosestTruncationMarker(long operationSequenceNumber)
-    {
+    public TruncationMarker getClosestTruncationMarker(long operationSequenceNumber) {
         ensureNonRecoveryMode();
 
         //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
         TruncationMarker result = null;
-        for (TruncationMarker tm : this.truncationMarkers.values())
-        {
+        for (TruncationMarker tm : this.truncationMarkers.values()) {
             long seqNo = tm.getOperationSequenceNumber();
-            if (seqNo == operationSequenceNumber)
-            {
+            if (seqNo == operationSequenceNumber) {
                 // Found the best result.
                 return tm;
             }
-            else if (seqNo < operationSequenceNumber)
-            {
-                if (result == null || (result.getOperationSequenceNumber() < seqNo))
-                {
+            else if (seqNo < operationSequenceNumber) {
+                if (result == null || (result.getOperationSequenceNumber() < seqNo)) {
                     // We found a better result.
                     result = tm;
                 }
@@ -236,8 +215,7 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
      *
      * @throws IllegalStateException If the Metadata is not in Recovery Mode.
      */
-    public void reset()
-    {
+    public void reset() {
         ensureRecoveryMode();
         this.sequenceNumber.set(0);
         this.streamSegmentIds.clear();
@@ -245,18 +223,14 @@ public class StreamSegmentContainerMetadata implements StreamSegmentMetadataSour
         this.truncationMarkers.clear();
     }
 
-    private void ensureRecoveryMode()
-    {
-        if (!isRecoveryMode())
-        {
+    private void ensureRecoveryMode() {
+        if (!isRecoveryMode()) {
             throw new IllegalStateException("StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
         }
     }
 
-    private void ensureNonRecoveryMode()
-    {
-        if (isRecoveryMode())
-        {
+    private void ensureNonRecoveryMode() {
+        if (isRecoveryMode()) {
             throw new IllegalStateException("StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
         }
     }

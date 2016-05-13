@@ -1,17 +1,14 @@
 package com.emc.logservice;
 
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 /**
  * Defines a Container that can encapsulate a runnable component.
  * Has the ability to Start and Stop processing at any given time.
  */
-public interface Container extends AutoCloseable
-{
+public interface Container extends AutoCloseable {
     /**
      * Initializes the container, by executing any necessary steps before actual processing can begin.
      * Note that all thrown exceptions will be stored inside the returned CompletableFuture.

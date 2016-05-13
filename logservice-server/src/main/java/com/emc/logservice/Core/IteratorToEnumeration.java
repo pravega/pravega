@@ -8,24 +8,20 @@ import java.util.Iterator;
  *
  * @param <T> The type of the elements in the enumeration.
  */
-public class IteratorToEnumeration<T> implements Enumeration<T>
-{
+public class IteratorToEnumeration<T> implements Enumeration<T> {
     private final Iterator<T> iterator;
 
-    public IteratorToEnumeration(Iterator<T> iterator)
-    {
+    public IteratorToEnumeration(Iterator<T> iterator) {
         this.iterator = iterator;
     }
 
     @Override
-    public boolean hasMoreElements()
-    {
+    public boolean hasMoreElements() {
         return this.iterator.hasNext();
     }
 
     @Override
-    public T nextElement()
-    {
+    public T nextElement() {
         return this.iterator.next();
     }
 }

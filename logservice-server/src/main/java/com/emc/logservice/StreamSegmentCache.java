@@ -6,8 +6,7 @@ import java.util.Collection;
 /**
  * Defines a cache for StreamSegments, that allows adding data only at the end.
  */
-public interface StreamSegmentCache
-{
+public interface StreamSegmentCache {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *

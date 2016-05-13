@@ -2,16 +2,10 @@ package com.emc.logservice.ReadIndex;
 
 import com.emc.logservice.Core.AutoReleaseLock;
 import com.emc.logservice.Core.ReadWriteAutoReleaseLock;
-import com.emc.logservice.ReadOnlyStreamSegmentMetadata;
-import com.emc.logservice.ReadResult;
-import com.emc.logservice.StreamSegmentCache;
-import com.emc.logservice.StreamSegmentMetadataSource;
+import com.emc.logservice.*;
 
 import java.time.Duration;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -23,8 +17,7 @@ import java.util.Map;
  * for fast read-ahead access.
  * </ol>
  */
-public class ReadIndex implements StreamSegmentCache
-{
+public class ReadIndex implements StreamSegmentCache {
     //region Members
 
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
@@ -36,8 +29,7 @@ public class ReadIndex implements StreamSegmentCache
 
     //region Constructor
 
-    public ReadIndex(StreamSegmentMetadataSource metadata)
-    {
+    public ReadIndex(StreamSegmentMetadataSource metadata) {
         this.readIndices = new HashMap<>();
         this.metadata = metadata;
         this.recoveryMode = false;
@@ -48,12 +40,10 @@ public class ReadIndex implements StreamSegmentCache
     //region StreamSegmentCache Implementation
 
     @Override
-    public void append(long streamSegmentId, long offset, byte[] data)
-    {
+    public void append(long streamSegmentId, long offset, byte[] data) {
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
-        if(index.isMerged())
-        {
+        if (index.isMerged()) {
             throw new IllegalArgumentException("streamSegmentId refers to a StreamSegment that is merged. Cannot append to it anymore.");
         }
 
@@ -61,12 +51,10 @@ public class ReadIndex implements StreamSegmentCache
     }
 
     @Override
-    public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength)
-    {
+    public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength) {
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         StreamSegmentReadIndex sourceIndex = getReadIndex(sourceStreamSegmentId, true);
-        if(sourceIndex.isMerged())
-        {
+        if (sourceIndex.isMerged()) {
             throw new IllegalArgumentException("sourceStreamSegmentId refers to a StreamSegment that is merged. Cannot access it anymore.");
         }
 
@@ -75,19 +63,16 @@ public class ReadIndex implements StreamSegmentCache
     }
 
     @Override
-    public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId)
-    {
+    public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         targetIndex.completeMerge(sourceStreamSegmentId);
         removeReadIndex(sourceStreamSegmentId);
     }
 
     @Override
-    public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout)
-    {
+    public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
-        if(index.isMerged())
-        {
+        if (index.isMerged()) {
             throw new IllegalArgumentException("streamSegmentId refers to a StreamSegment that is merged. Cannot access it anymore.");
         }
 
@@ -95,57 +80,45 @@ public class ReadIndex implements StreamSegmentCache
     }
 
     @Override
-    public void triggerFutureReads(Collection<Long> streamSegmentIds)
-    {
+    public void triggerFutureReads(Collection<Long> streamSegmentIds) {
         HashSet<String> missingIds = new HashSet<>();
-        for (long ssId : streamSegmentIds)
-        {
+        for (long ssId : streamSegmentIds) {
             StreamSegmentReadIndex index = getReadIndex(ssId, false);
-            if (index == null)
-            {
-                if (this.metadata.getStreamSegmentMetadata(ssId) == null)
-                {
+            if (index == null) {
+                if (this.metadata.getStreamSegmentMetadata(ssId) == null) {
                     missingIds.add(Long.toString(ssId));
                 }
             }
-            else
-            {
+            else {
                 index.triggerFutureReads();
             }
         }
 
         // Throw any exception at the end - we want to make sure at least the ones that did have a valid index entry got triggered.
-        if (missingIds.size() > 0)
-        {
+        if (missingIds.size() > 0) {
             throw new IllegalArgumentException("At least one StreamSegmentId does not exist in the metadata: " + String.join(", ", missingIds));
         }
     }
 
     @Override
-    public void clear()
-    {
-        if (!this.recoveryMode)
-        {
+    public void clear() {
+        if (!this.recoveryMode) {
             throw new IllegalStateException("Read Index is not in recovery mode. Cannot clear cache.");
         }
 
-        try (AutoReleaseLock ignored = lock.acquireWriteLock())
-        {
+        try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
             this.readIndices.values().forEach(StreamSegmentReadIndex::close);
             this.readIndices.clear();
         }
     }
 
     @Override
-    public void enterRecoveryMode(StreamSegmentMetadataSource recoveryMetadataSource)
-    {
-        if (this.recoveryMode)
-        {
+    public void enterRecoveryMode(StreamSegmentMetadataSource recoveryMetadataSource) {
+        if (this.recoveryMode) {
             throw new IllegalStateException("Read Index is already in recovery mode.");
         }
 
-        if (recoveryMetadataSource == null)
-        {
+        if (recoveryMetadataSource == null) {
             throw new NullPointerException("recoveryMetadataSource");
         }
 
@@ -155,33 +128,26 @@ public class ReadIndex implements StreamSegmentCache
     }
 
     @Override
-    public void exitRecoveryMode(StreamSegmentMetadataSource finalMetadataSource, boolean success)
-    {
-        if (!this.recoveryMode)
-        {
+    public void exitRecoveryMode(StreamSegmentMetadataSource finalMetadataSource, boolean success) {
+        if (!this.recoveryMode) {
             throw new IllegalStateException("Read Index is not in recovery mode.");
         }
 
-        if (finalMetadataSource == null)
-        {
+        if (finalMetadataSource == null) {
             throw new NullPointerException("finalMetadataSource");
         }
 
-        if (success)
-        {
-            for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet())
-            {
+        if (success) {
+            for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
                 ReadOnlyStreamSegmentMetadata metadata = finalMetadataSource.getStreamSegmentMetadata(e.getKey());
-                if (metadata == null)
-                {
+                if (metadata == null) {
                     throw new IllegalArgumentException(String.format("Final Metadata has no knowledge of StreamSegment Id %d.", e.getKey()));
                 }
 
                 e.getValue().exitRecoveryMode(metadata);
             }
         }
-        else
-        {
+        else {
             // Recovery was unsuccessful. Clear the contents of the cache to avoid further issues.
             clear();
         }
@@ -201,31 +167,25 @@ public class ReadIndex implements StreamSegmentCache
      * @param createIfNotPresent If no Read Index is loaded, creates a new one.
      * @return
      */
-    private StreamSegmentReadIndex getReadIndex(long streamSegmentId, boolean createIfNotPresent)
-    {
+    private StreamSegmentReadIndex getReadIndex(long streamSegmentId, boolean createIfNotPresent) {
         StreamSegmentReadIndex index;
-        try (AutoReleaseLock readLock = lock.acquireReadLock())
-        {
+        try (AutoReleaseLock readLock = lock.acquireReadLock()) {
             // Try to see if we have the index already in memory.
-            if ((index = this.readIndices.getOrDefault(streamSegmentId, null)) != null || !createIfNotPresent)
-            {
+            if ((index = this.readIndices.getOrDefault(streamSegmentId, null)) != null || !createIfNotPresent) {
                 // If we do, or we are told not to create one if not present, then return whatever we have.
                 return index;
             }
 
-            try (AutoReleaseLock writeLock = lock.upgradeToWriteLock(readLock))
-            {
+            try (AutoReleaseLock writeLock = lock.upgradeToWriteLock(readLock)) {
                 // We don't have it; we have acquired the exclusive write lock, and check again, just in case, if someone
                 // else got it for us.
-                if ((index = this.readIndices.getOrDefault(streamSegmentId, null)) != null)
-                {
+                if ((index = this.readIndices.getOrDefault(streamSegmentId, null)) != null) {
                     return index;
                 }
 
                 // We don't have it, and nobody else got it for us.
                 ReadOnlyStreamSegmentMetadata ssm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                if (ssm == null)
-                {
+                if (ssm == null) {
                     throw new IllegalArgumentException(String.format("StreamSegmentId %d does not exist in the metadata.", streamSegmentId));
                 }
 
@@ -237,13 +197,10 @@ public class ReadIndex implements StreamSegmentCache
         return index;
     }
 
-    private boolean removeReadIndex(long streamSegmentId)
-    {
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock())
-        {
+    private boolean removeReadIndex(long streamSegmentId) {
+        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
-            if (index != null)
-            {
+            if (index != null) {
                 index.close();
             }
 

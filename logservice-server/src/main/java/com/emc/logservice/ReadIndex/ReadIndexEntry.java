@@ -3,8 +3,7 @@ package com.emc.logservice.ReadIndex;
 /**
  * An entry in the Read Index with data at a particular offset..
  */
-abstract class ReadIndexEntry
-{
+abstract class ReadIndexEntry {
     //region Members
 
     private final long streamSegmentOffset;
@@ -20,10 +19,8 @@ abstract class ReadIndexEntry
      * @param streamSegmentOffset The StreamSegment offset for this entry.
      * @throws IllegalArgumentException if the offset is a negative number.
      */
-    protected ReadIndexEntry(long streamSegmentOffset, long length)
-    {
-        if (streamSegmentOffset < 0)
-        {
+    protected ReadIndexEntry(long streamSegmentOffset, long length) {
+        if (streamSegmentOffset < 0) {
             throw new IllegalArgumentException("Offset must be a non-negative number.");
         }
 
@@ -40,8 +37,7 @@ abstract class ReadIndexEntry
      *
      * @return
      */
-    public long getStreamSegmentOffset()
-    {
+    public long getStreamSegmentOffset() {
         return this.streamSegmentOffset;
     }
 
@@ -50,8 +46,7 @@ abstract class ReadIndexEntry
      *
      * @return
      */
-    public long getLastStreamSegmentOffset()
-    {
+    public long getLastStreamSegmentOffset() {
         return this.streamSegmentOffset + this.length - 1;
     }
 
@@ -60,14 +55,12 @@ abstract class ReadIndexEntry
      *
      * @return
      */
-    public long getLength()
-    {
+    public long getLength() {
         return this.length;
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("Offset = %d, Length = %d", getStreamSegmentOffset(), getLength());
     }
 

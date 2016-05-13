@@ -6,8 +6,7 @@ import java.io.OutputStream;
 /**
  * OutputStream that writes to a fixed-size buffer (ByteArrayOutputStream auto-grows the buffer).
  */
-public class FixedByteArrayOutputStream extends OutputStream
-{
+public class FixedByteArrayOutputStream extends OutputStream {
     //region Members
 
     private final byte[] array;
@@ -20,8 +19,7 @@ public class FixedByteArrayOutputStream extends OutputStream
 
     //region Constructor
 
-    public FixedByteArrayOutputStream(byte[] array, int offset, int length)
-    {
+    public FixedByteArrayOutputStream(byte[] array, int offset, int length) {
         this.array = array;
         this.offset = offset;
         this.length = length;
@@ -33,15 +31,12 @@ public class FixedByteArrayOutputStream extends OutputStream
     //region OutputStream Implementation
 
     @Override
-    public void write(int b) throws IOException
-    {
-        if (this.isClosed)
-        {
+    public void write(int b) throws IOException {
+        if (this.isClosed) {
             throw new IOException("OutputStream is closed.");
         }
 
-        if (this.position >= this.length)
-        {
+        if (this.position >= this.length) {
             throw new IOException("Buffer capacity exceeded.");
         }
 
@@ -50,8 +45,7 @@ public class FixedByteArrayOutputStream extends OutputStream
     }
 
     @Override
-    public void close()
-    {
+    public void close() {
         this.isClosed = true;
     }
 

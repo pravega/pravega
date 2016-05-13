@@ -2,16 +2,13 @@ package com.emc.logservice.ReadIndex;
 
 import com.emc.logservice.Core.ObjectClosedException;
 
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.PriorityQueue;
+import java.util.*;
 
 /**
  * Organizes PlaceholderReadResultEntries by their starting offset and provides efficient methods for retrieving those
  * whose offsets are below certain values.
  */
-class PlaceholderReadResultEntryCollection implements AutoCloseable
-{
+class PlaceholderReadResultEntryCollection implements AutoCloseable {
     //region Members
 
     private final PriorityQueue<PlaceholderReadResultEntry> reads;
@@ -24,8 +21,7 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable
     /**
      * Creates a new instance of the PlaceholderReadResultEntryCollection class.
      */
-    public PlaceholderReadResultEntryCollection()
-    {
+    public PlaceholderReadResultEntryCollection() {
         this.reads = new PriorityQueue<>(this::entryComparator);
     }
 
@@ -34,8 +30,7 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable
     //region AutoCloseable Implementation
 
     @Override
-    public void close()
-    {
+    public void close() {
         this.closed = true;
         cancelAll();
     }
@@ -49,15 +44,12 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable
      *
      * @param entry
      */
-    public void add(PlaceholderReadResultEntry entry)
-    {
-        if (this.closed)
-        {
+    public void add(PlaceholderReadResultEntry entry) {
+        if (this.closed) {
             throw new ObjectClosedException(this);
         }
 
-        synchronized (this.reads)
-        {
+        synchronized (this.reads) {
             this.reads.add(entry);
         }
     }
@@ -69,22 +61,17 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable
      * @param offset The offset to query against.
      * @return
      */
-    public Collection<PlaceholderReadResultEntry> pollEntriesWithOffsetLessThan(long offset)
-    {
-        if (this.closed)
-        {
+    public Collection<PlaceholderReadResultEntry> pollEntriesWithOffsetLessThan(long offset) {
+        if (this.closed) {
             throw new ObjectClosedException(this);
         }
 
         LinkedList<PlaceholderReadResultEntry> result = new LinkedList<>();
-        if (this.reads.size() > 0)
-        {
-            synchronized (this.reads)
-            {
+        if (this.reads.size() > 0) {
+            synchronized (this.reads) {
                 // 'reads' is sorted by Starting Offset, in ascending order. As long as it is not empty and the
                 // first entry overlaps the given offset by at least one byte, extract and return it.
-                while (this.reads.size() > 0 && this.reads.peek().getStreamSegmentOffset() <= offset)
-                {
+                while (this.reads.size() > 0 && this.reads.peek().getStreamSegmentOffset() <= offset) {
                     result.add(this.reads.poll());
                 }
             }
@@ -96,11 +83,9 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable
     /**
      * Cancels all Reads in this collection..
      */
-    public void cancelAll()
-    {
+    public void cancelAll() {
         LinkedList<PlaceholderReadResultEntry> toCancel;
-        synchronized (this.reads)
-        {
+        synchronized (this.reads) {
             toCancel = new LinkedList<>(this.reads);
             this.reads.clear();
         }
@@ -108,14 +93,11 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable
         toCancel.forEach(PlaceholderReadResultEntry::cancel);
     }
 
-    private int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2)
-    {
-        if (e1.getStreamSegmentOffset() < e2.getStreamSegmentOffset())
-        {
+    private int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2) {
+        if (e1.getStreamSegmentOffset() < e2.getStreamSegmentOffset()) {
             return -1;
         }
-        else if (e1.getStreamSegmentOffset() > e2.getStreamSegmentOffset())
-        {
+        else if (e1.getStreamSegmentOffset() > e2.getStreamSegmentOffset()) {
             return 1;
         }
 

@@ -6,17 +6,14 @@ import com.emc.logservice.Logs.Operations.StreamSegmentMapOperation;
 
 import java.io.FileNotFoundException;
 import java.time.Duration;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
  */
-public class StreamSegmentMapper
-{
+public class StreamSegmentMapper {
     //region Members
 
     private final StreamSegmentContainerMetadata containerMetadata;
@@ -39,15 +36,12 @@ public class StreamSegmentMapper
      *                          with every stream map)
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentMapper(StreamSegmentContainerMetadata containerMetadata, OperationLog durableLog)
-    {
-        if (containerMetadata == null)
-        {
+    public StreamSegmentMapper(StreamSegmentContainerMetadata containerMetadata, OperationLog durableLog) {
+        if (containerMetadata == null) {
             throw new NullPointerException("containerMetadata");
         }
 
-        if (durableLog == null)
-        {
+        if (durableLog == null) {
             throw new NullPointerException("durableLog");
         }
 
@@ -73,12 +67,10 @@ public class StreamSegmentMapper
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
      * failed, this will contain the exception that caused the failure.
      */
-    public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout)
-    {
+    public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
         // Check to see if the metadata already knows about this stream.
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-        if (streamId >= 0)
-        {
+        if (streamId >= 0) {
             // We already have a value, just return it.
             return CompletableFuture.completedFuture(streamId);
         }
@@ -86,11 +78,9 @@ public class StreamSegmentMapper
         // See if anyone else is currently waiting to get this stream's id.
         CompletableFuture<Long> result;
         boolean needsAssignment = false;
-        synchronized (SyncRoot)
-        {
+        synchronized (SyncRoot) {
             result = this.pendingRequests.getOrDefault(streamSegmentName, null);
-            if (result == null)
-            {
+            if (result == null) {
                 needsAssignment = true;
                 result = new CompletableFuture<>();
                 this.pendingRequests.put(streamSegmentName, result);
@@ -98,8 +88,7 @@ public class StreamSegmentMapper
         }
 
         // We are the first/only ones requesting this id; go ahead and assign an id.
-        if (needsAssignment)
-        {
+        if (needsAssignment) {
             //TODO: use a better thread pool.
             CompletableFuture.runAsync(() -> assignStreamId(streamSegmentName, timeout));
         }
@@ -113,8 +102,7 @@ public class StreamSegmentMapper
      * @param streamSegmentName
      * @param timeout
      */
-    private void assignStreamId(String streamSegmentName, Duration timeout)
-    {
+    private void assignStreamId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         CompletableFuture<Void> result = getStorageStreamInfo(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()));
@@ -133,24 +121,20 @@ public class StreamSegmentMapper
      * @param timeout
      * @return
      */
-    private CompletableFuture<Void> persistInDurableLog(StreamSegmentInformation streamSegmentInfo, Duration timeout)
-    {
-        if (streamSegmentInfo.isDeleted())
-        {
+    private CompletableFuture<Void> persistInDurableLog(StreamSegmentInformation streamSegmentInfo, Duration timeout) {
+        if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
             failAssignment(streamSegmentInfo.getStreamSegmentName(), StreamSegmentContainerMetadata.NoStreamSegmentId, new FileNotFoundException("Stream does not exist."));
             return CompletableFuture.completedFuture(null);
         }
 
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getStreamSegmentName());
-        if (streamId >= 0)
-        {
+        if (streamId >= 0) {
             // Looks like someone else beat us to it.
             completeAssignment(streamSegmentInfo.getStreamSegmentName(), streamId);
             return CompletableFuture.completedFuture(null);
         }
-        else
-        {
+        else {
             final long newStreamId = generateUniqueStreamId(streamSegmentInfo.getStreamSegmentName());
             CompletableFuture<Long> logAddResult = this.durableLog.add(new StreamSegmentMapOperation(newStreamId, streamSegmentInfo), timeout);
             return logAddResult.thenAccept(seqNo ->
@@ -168,8 +152,7 @@ public class StreamSegmentMapper
      * @param timeout
      * @return
      */
-    private CompletableFuture<StreamSegmentInformation> getStorageStreamInfo(String streamSegmentName, Duration timeout)
-    {
+    private CompletableFuture<StreamSegmentInformation> getStorageStreamInfo(String streamSegmentName, Duration timeout) {
         // TODO: go to storage to figure out details (stream length, sealed, exists?)
         return CompletableFuture.completedFuture(new StreamSegmentInformation(streamSegmentName, 0, false, false, new Date()));
     }
@@ -181,18 +164,15 @@ public class StreamSegmentMapper
      * @param streamSegmentId
      * @param streamInfo
      */
-    private void updateMetadata(String streamSegmentName, long streamSegmentId, StreamSegmentInformation streamInfo)
-    {
-        synchronized (MetadataLock)
-        {
+    private void updateMetadata(String streamSegmentName, long streamSegmentId, StreamSegmentInformation streamInfo) {
+        synchronized (MetadataLock) {
             // Map it to the stream name and update the Stream Metadata.
             this.containerMetadata.mapStreamSegmentId(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
             sm.setStorageLength(streamInfo.getLength());
             sm.setDurableLogLength(streamInfo.getLength()); // TODO: this will need to be set/reset in recovery. This is the default (failback) value.
 
-            if (streamInfo.isSealed())
-            {
+            if (streamInfo.isSealed()) {
                 sm.markSealed();
             }
 
@@ -207,15 +187,12 @@ public class StreamSegmentMapper
      * @param streamSegmentName
      * @return
      */
-    private long generateUniqueStreamId(String streamSegmentName)
-    {
+    private long generateUniqueStreamId(String streamSegmentName) {
         // Get the last 32 bits of the current time (in millis), and move those to the upper portion of our ID.
         long streamId = System.currentTimeMillis() << 32;
         streamId |= streamSegmentName.hashCode() & 0xffffffffL;
-        synchronized (SyncRoot)
-        {
-            while (this.containerMetadata.getStreamSegmentMetadata(streamId) != null || this.pendingIdAssignments.contains(streamId))
-            {
+        synchronized (SyncRoot) {
+            while (this.containerMetadata.getStreamSegmentMetadata(streamId) != null || this.pendingIdAssignments.contains(streamId)) {
                 streamId++;
             }
 
@@ -231,19 +208,16 @@ public class StreamSegmentMapper
      * @param streamSegmentName
      * @param streamSegmentId
      */
-    private void completeAssignment(String streamSegmentName, long streamSegmentId)
-    {
+    private void completeAssignment(String streamSegmentName, long streamSegmentId) {
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
-        synchronized (SyncRoot)
-        {
+        synchronized (SyncRoot) {
             pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
             this.pendingRequests.remove(streamSegmentName);
             this.pendingIdAssignments.remove(streamSegmentId);
         }
 
-        if (pendingRequest != null)
-        {
+        if (pendingRequest != null) {
             pendingRequest.complete(streamSegmentId);
         }
     }
@@ -255,19 +229,16 @@ public class StreamSegmentMapper
      * @param streamSegmentId   Optional
      * @param reason
      */
-    private void failAssignment(String streamSegmentName, long streamSegmentId, Throwable reason)
-    {
+    private void failAssignment(String streamSegmentName, long streamSegmentId, Throwable reason) {
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
-        synchronized (SyncRoot)
-        {
+        synchronized (SyncRoot) {
             pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
             this.pendingRequests.remove(streamSegmentName);
             this.pendingIdAssignments.remove(streamSegmentId);
         }
 
-        if (pendingRequest != null)
-        {
+        if (pendingRequest != null) {
             pendingRequest.completeExceptionally(reason);
         }
     }

@@ -10,8 +10,7 @@ import java.util.HashMap;
 /**
  * Base class for a Log Operation.
  */
-public abstract class Operation
-{
+public abstract class Operation {
     //region Members
 
     public static final long NoSequenceNumber = Long.MIN_VALUE;
@@ -25,8 +24,7 @@ public abstract class Operation
     /**
      * Creates a new instance of the Operation class.
      */
-    public Operation()
-    {
+    public Operation() {
         this.sequenceNumber = NoSequenceNumber;
     }
 
@@ -37,8 +35,7 @@ public abstract class Operation
      * @param source A DataInputStream to deserialize from.
      * @throws SerializationException If the deserialization failed.
      */
-    protected Operation(OperationHeader header, DataInputStream source) throws SerializationException
-    {
+    protected Operation(OperationHeader header, DataInputStream source) throws SerializationException {
         this.sequenceNumber = header.sequenceNumber;
         deserialize(header, source);
     }
@@ -53,8 +50,7 @@ public abstract class Operation
      *
      * @return The Sequence Number for this Operation.
      */
-    public long getSequenceNumber()
-    {
+    public long getSequenceNumber() {
         return this.sequenceNumber;
     }
 
@@ -65,15 +61,12 @@ public abstract class Operation
      * @throws IllegalStateException    If the Sequence Number has already been set.
      * @throws IllegalArgumentException If the Sequence Number is negative.
      */
-    public void setSequenceNumber(long value)
-    {
-        if (this.sequenceNumber >= 0)
-        {
+    public void setSequenceNumber(long value) {
+        if (this.sequenceNumber >= 0) {
             throw new IllegalStateException("Sequence Number has been previously set for this entry. Cannot set a new one.");
         }
 
-        if (value < 0)
-        {
+        if (value < 0) {
             throw new IllegalArgumentException("Sequence Number must be a non-negative number.");
         }
 
@@ -88,8 +81,7 @@ public abstract class Operation
     protected abstract byte getOperationType();
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s: SequenceNumber = %d", this.getClass().getSimpleName(), getSequenceNumber());
     }
 
@@ -104,8 +96,7 @@ public abstract class Operation
      * @throws IOException           If the given OutputStream threw one.
      * @throws IllegalStateException If the serialization conditions are not met.
      */
-    public void serialize(OutputStream output) throws IOException
-    {
+    public void serialize(OutputStream output) throws IOException {
         ensureSerializationCondition(this.sequenceNumber >= 0, "Sequence Number has not been assigned for this entry.");
 
         DataOutputStream target = new DataOutputStream(output);
@@ -125,28 +116,23 @@ public abstract class Operation
      * @throws IOException            If the given DataInputStream threw one.
      * @throws SerializationException If the deserialization failed.
      */
-    private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException
-    {
-        if (header.operationType != getOperationType())
-        {
+    private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException {
+        if (header.operationType != getOperationType()) {
             throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected %d, Found %d.", getOperationType(), header.operationType));
         }
 
         int endMagic;
-        try
-        {
+        try {
             deserializeContent(source);
 
             // Read the magic value at the end. This must match the beginning magic - this way we know we reached the end properly.
             endMagic = source.readInt();
         }
-        catch (IOException ex)
-        {
+        catch (IOException ex) {
             throw new SerializationException("Operation.deserialize", "Unable to read from the InputStream.", ex);
         }
 
-        if (header.magic != endMagic)
-        {
+        if (header.magic != endMagic) {
             throw new SerializationException("Operation.deserialize", String.format("Start and End Magic values mismatch. This indicates possible data corruption. SequenceNumber = %d, EntryType = %d.", header.sequenceNumber, header.operationType));
         }
     }
@@ -160,11 +146,9 @@ public abstract class Operation
      * @throws IOException            If the input stream threw one.
      * @throws SerializationException If the versions mismatched.
      */
-    protected byte readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException
-    {
+    protected byte readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
         byte version = source.readByte();
-        if (version != expectedVersion)
-        {
+        if (version != expectedVersion) {
             throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()), String.format("Unsupported version: %d.", version));
         }
 
@@ -178,10 +162,8 @@ public abstract class Operation
      * @param message The message to include in the exception.
      * @throws IllegalStateException The exception that is thrown.
      */
-    protected void ensureSerializationCondition(boolean isTrue, String message)
-    {
-        if (!isTrue)
-        {
+    protected void ensureSerializationCondition(boolean isTrue, String message) {
+        if (!isTrue) {
             throw new IllegalStateException("Unable to serialize Operation: " + message);
         }
     }
@@ -211,8 +193,7 @@ public abstract class Operation
      * @throws IOException
      * @throws SerializationException
      */
-    public static Operation deserialize(InputStream input) throws SerializationException
-    {
+    public static Operation deserialize(InputStream input) throws SerializationException {
         DataInputStream source = new DataInputStream(input);
         OperationHeader header = new OperationHeader(source);
         return constructors.create(header, source);
@@ -225,8 +206,7 @@ public abstract class Operation
     /**
      * Header for a serialized Operation.
      */
-    protected static class OperationHeader
-    {
+    protected static class OperationHeader {
         /**
          * The type of the operation.
          */
@@ -249,8 +229,7 @@ public abstract class Operation
          * @param operationType  The type of the operation.
          * @param sequenceNumber The sequence number for the operation.
          */
-        public OperationHeader(byte operationType, long sequenceNumber)
-        {
+        public OperationHeader(byte operationType, long sequenceNumber) {
             this.operationType = operationType;
             this.sequenceNumber = sequenceNumber;
             this.magic = MagicGenerator.newMagic();
@@ -262,24 +241,19 @@ public abstract class Operation
          * @param source The DataInputStream to deserialize from.
          * @throws SerializationException If deserialization failed.
          */
-        public OperationHeader(DataInputStream source) throws SerializationException
-        {
-            try
-            {
+        public OperationHeader(DataInputStream source) throws SerializationException {
+            try {
                 byte headerVersion = source.readByte();
-                if (headerVersion == HeaderVersion)
-                {
+                if (headerVersion == HeaderVersion) {
                     this.magic = source.readInt();
                     this.operationType = source.readByte();
                     this.sequenceNumber = source.readLong();
                 }
-                else
-                {
+                else {
                     throw new SerializationException("OperationHeader.deserialize", String.format("Unsupported version: %d.", headerVersion));
                 }
             }
-            catch (IOException ex)
-            {
+            catch (IOException ex) {
                 throw new SerializationException("OperationHeader.deserialize", "Unable to deserialize Operation Header", ex);
             }
         }
@@ -290,8 +264,7 @@ public abstract class Operation
          * @param target The DataOutputStream to serialize to.
          * @throws IOException If the DataOutputStream threw one.
          */
-        public void serialize(DataOutputStream target) throws IOException
-        {
+        public void serialize(DataOutputStream target) throws IOException {
             target.writeByte(HeaderVersion);
             target.writeInt(this.magic);
             target.writeByte(this.operationType);
@@ -299,8 +272,7 @@ public abstract class Operation
         }
 
         @Override
-        public String toString()
-        {
+        public String toString() {
             return String.format("SequenceNumber = %d, EntryType = %d", this.sequenceNumber, this.operationType);
         }
     }
@@ -312,15 +284,12 @@ public abstract class Operation
     /**
      * Helps collect and invoke constructors for Log Operations.
      */
-    private static class OperationConstructors
-    {
+    private static class OperationConstructors {
         private final HashMap<Byte, OperationConstructor> constructors;
 
-        public OperationConstructors()
-        {
+        public OperationConstructors() {
             constructors = new HashMap<>();
-            try
-            {
+            try {
                 //TODO: there might be a better way to do this dynamically...
                 map(StreamSegmentAppendOperation.OperationType, StreamSegmentAppendOperation::new);
                 map(StreamSegmentSealOperation.OperationType, StreamSegmentSealOperation::new);
@@ -329,18 +298,14 @@ public abstract class Operation
                 map(StreamSegmentMapOperation.OperationType, StreamSegmentMapOperation::new);
                 map(BatchMapOperation.OperationType, BatchMapOperation::new);
             }
-            catch (StreamingException se)
-            {
+            catch (StreamingException se) {
                 throw new ExceptionInInitializerError(se);
             }
         }
 
-        public void map(byte operationType, OperationConstructor constructor) throws StreamingException
-        {
-            synchronized (constructors)
-            {
-                if (constructors.containsKey(operationType))
-                {
+        public void map(byte operationType, OperationConstructor constructor) throws StreamingException {
+            synchronized (constructors) {
+                if (constructors.containsKey(operationType)) {
                     throw new StreamingException(String.format("Duplicate Operation Type found: %d.", operationType));
                 }
 
@@ -348,11 +313,9 @@ public abstract class Operation
             }
         }
 
-        public Operation create(OperationHeader header, DataInputStream source) throws SerializationException
-        {
+        public Operation create(OperationHeader header, DataInputStream source) throws SerializationException {
             OperationConstructor constructor = constructors.get(header.operationType);
-            if (constructor == null)
-            {
+            if (constructor == null) {
                 throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type %d.", header.operationType));
             }
 
@@ -360,8 +323,7 @@ public abstract class Operation
         }
 
         @FunctionalInterface
-        private interface OperationConstructor
-        {
+        private interface OperationConstructor {
             Operation apply(OperationHeader header, DataInputStream source) throws SerializationException;
         }
     }

@@ -10,8 +10,7 @@ import java.util.concurrent.CompletableFuture;
  * @param <TEntry>    The type of the entries.
  * @param <TSequence> The type of the sequence for each entry.
  */
-public interface SequentialLog<TEntry, TSequence>
-{
+public interface SequentialLog<TEntry, TSequence> {
     /**
      * Adds a new entry to the log.
      *

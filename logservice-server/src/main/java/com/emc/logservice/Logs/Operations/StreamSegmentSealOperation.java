@@ -2,15 +2,12 @@ package com.emc.logservice.Logs.Operations;
 
 import com.emc.logservice.Logs.SerializationException;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 
 /**
  * Log Operation that indicates a StreamSegment has been sealed.
  */
-public class StreamSegmentSealOperation extends StorageOperation
-{
+public class StreamSegmentSealOperation extends StorageOperation {
     //region Members
 
     public static final byte OperationType = 2;
@@ -26,14 +23,12 @@ public class StreamSegmentSealOperation extends StorageOperation
      *
      * @param streamSegmentId The Id of the StreamSegment to seal.
      */
-    public StreamSegmentSealOperation(long streamSegmentId)
-    {
+    public StreamSegmentSealOperation(long streamSegmentId) {
         super(streamSegmentId);
         this.streamSegmentLength = -1;
     }
 
-    protected StreamSegmentSealOperation(OperationHeader header, DataInputStream source) throws SerializationException
-    {
+    protected StreamSegmentSealOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
     }
 
@@ -46,8 +41,7 @@ public class StreamSegmentSealOperation extends StorageOperation
      *
      * @return The length.
      */
-    public long getStreamSegmentLength()
-    {
+    public long getStreamSegmentLength() {
         return this.streamSegmentLength;
     }
 
@@ -56,10 +50,8 @@ public class StreamSegmentSealOperation extends StorageOperation
      *
      * @param value The length.
      */
-    public void setStreamSegmentLength(long value)
-    {
-        if (value < 0)
-        {
+    public void setStreamSegmentLength(long value) {
+        if (value < 0) {
             throw new IllegalArgumentException("Stream Segment Length must be a non-negative number.");
         }
 
@@ -71,14 +63,12 @@ public class StreamSegmentSealOperation extends StorageOperation
     //region Operation Implementation
 
     @Override
-    protected byte getOperationType()
-    {
+    protected byte getOperationType() {
         return OperationType;
     }
 
     @Override
-    protected void serializeContent(DataOutputStream target) throws IOException
-    {
+    protected void serializeContent(DataOutputStream target) throws IOException {
         ensureSerializationCondition(this.streamSegmentLength >= 0, "Stream Length has not been assigned for this entry.");
         target.writeByte(Version);
         target.writeLong(getStreamSegmentId());
@@ -86,16 +76,14 @@ public class StreamSegmentSealOperation extends StorageOperation
     }
 
     @Override
-    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException
-    {
+    protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
         byte version = readVersion(source, Version);
         setStreamSegmentId(source.readLong());
         this.streamSegmentLength = source.readLong();
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s, StreamLength = %d", super.toString(), this.streamSegmentLength);
     }
 

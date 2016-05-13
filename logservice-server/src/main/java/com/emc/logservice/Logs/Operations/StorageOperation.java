@@ -7,8 +7,7 @@ import java.io.DataInputStream;
 /**
  * Log Operation that deals with Storage Operations. This is generally the direct result of an external operation.
  */
-public abstract class StorageOperation extends Operation
-{
+public abstract class StorageOperation extends Operation {
     //region Members
 
     private long streamSegmentId;
@@ -22,14 +21,12 @@ public abstract class StorageOperation extends Operation
      *
      * @param streamSegmentId The Id of the StreamSegment this operation relates to.
      */
-    public StorageOperation(long streamSegmentId)
-    {
+    public StorageOperation(long streamSegmentId) {
         super();
         setStreamSegmentId(streamSegmentId);
     }
 
-    protected StorageOperation(OperationHeader header, DataInputStream source) throws SerializationException
-    {
+    protected StorageOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
     }
 
@@ -42,8 +39,7 @@ public abstract class StorageOperation extends Operation
      *
      * @return
      */
-    public long getStreamSegmentId()
-    {
+    public long getStreamSegmentId() {
         return this.streamSegmentId;
     }
 
@@ -52,14 +48,12 @@ public abstract class StorageOperation extends Operation
      *
      * @param streamSegmentId The id to set.
      */
-    protected void setStreamSegmentId(long streamSegmentId)
-    {
+    protected void setStreamSegmentId(long streamSegmentId) {
         this.streamSegmentId = streamSegmentId;
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return String.format("%s, StreamId = %d", super.toString(), getStreamSegmentId());
     }
 
