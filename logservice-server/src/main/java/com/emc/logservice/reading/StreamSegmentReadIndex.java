@@ -1,6 +1,6 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
-import com.emc.logservice.Core.*;
+import com.emc.logservice.core.*;
 import com.emc.logservice.*;
 
 import java.time.Duration;

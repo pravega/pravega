@@ -1,4 +1,4 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
 /**
  * An entry in the Read Index with data at a particular offset..

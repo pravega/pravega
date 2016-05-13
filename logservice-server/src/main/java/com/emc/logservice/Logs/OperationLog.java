@@ -1,6 +1,6 @@
-package com.emc.logservice.Logs;
+package com.emc.logservice.logs;
 
-import com.emc.logservice.Logs.Operations.Operation;
+import com.emc.logservice.logs.operations.Operation;
 
 /**
  * Defines a Sequential Log made of Log Operations.

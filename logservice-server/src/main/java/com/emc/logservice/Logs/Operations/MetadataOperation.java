@@ -1,6 +1,6 @@
-package com.emc.logservice.Logs.Operations;
+package com.emc.logservice.logs.operations;
 
-import com.emc.logservice.Logs.SerializationException;
+import com.emc.logservice.logs.SerializationException;
 
 import java.io.DataInputStream;
 

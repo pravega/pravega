@@ -1,7 +1,7 @@
-package com.emc.logservice.Logs;
+package com.emc.logservice.logs;
 
-import com.emc.logservice.Core.*;
-import com.emc.logservice.Logs.Operations.Operation;
+import com.emc.logservice.core.*;
+import com.emc.logservice.logs.operations.Operation;
 
 import java.io.IOException;
 import java.io.OutputStream;

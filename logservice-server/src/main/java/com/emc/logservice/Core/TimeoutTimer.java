@@ -1,4 +1,4 @@
-package com.emc.logservice.Core;
+package com.emc.logservice.core;
 
 import java.time.Duration;
 

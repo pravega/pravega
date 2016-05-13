@@ -1,6 +1,6 @@
-package com.emc.logservice.Logs;
+package com.emc.logservice.logs;
 
-import com.emc.logservice.Core.*;
+import com.emc.logservice.core.*;
 
 import java.io.*;
 import java.util.NoSuchElementException;

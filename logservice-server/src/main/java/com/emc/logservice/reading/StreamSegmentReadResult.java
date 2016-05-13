@@ -1,6 +1,6 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
-import com.emc.logservice.Core.ObjectClosedException;
+import com.emc.logservice.core.ObjectClosedException;
 import com.emc.logservice.*;
 
 import java.util.NoSuchElementException;

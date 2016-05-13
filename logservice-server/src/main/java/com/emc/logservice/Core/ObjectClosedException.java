@@ -1,4 +1,4 @@
-package com.emc.logservice.Core;
+package com.emc.logservice.core;
 
 /**
  * Thrown when an object has been closed via AutoCloseable.close().

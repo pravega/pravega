@@ -1,4 +1,4 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
 import com.emc.logservice.ReadResultEntry;
 import com.emc.logservice.ReadResultEntryContents;

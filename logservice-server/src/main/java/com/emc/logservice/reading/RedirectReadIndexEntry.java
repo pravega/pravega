@@ -1,4 +1,4 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
 /**
  * Read Index Entry that redirects to a different StreamSegment.

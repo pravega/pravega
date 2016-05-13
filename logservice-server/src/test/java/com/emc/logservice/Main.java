@@ -1,10 +1,10 @@
 package com.emc.logservice;
 
-import com.emc.logservice.Core.*;
-import com.emc.logservice.Logs.*;
-import com.emc.logservice.Logs.Operations.*;
-import com.emc.logservice.ReadIndex.ReadIndex;
-import com.emc.logservice.TestImplementations.InMemoryDataFrameLog;
+import com.emc.logservice.core.*;
+import com.emc.logservice.logs.*;
+import com.emc.logservice.logs.operations.*;
+import com.emc.logservice.reading.ReadIndex;
+import com.emc.logservice.mocks.InMemoryDataFrameLog;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

@@ -1,7 +1,7 @@
-package com.emc.logservice.Logs.Operations;
+package com.emc.logservice.logs.operations;
 
-import com.emc.logservice.Core.MagicGenerator;
-import com.emc.logservice.Logs.SerializationException;
+import com.emc.logservice.core.MagicGenerator;
+import com.emc.logservice.logs.SerializationException;
 import com.emc.logservice.StreamingException;
 
 import java.io.*;

@@ -1,7 +1,7 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
-import com.emc.logservice.Core.AutoReleaseLock;
-import com.emc.logservice.Core.ReadWriteAutoReleaseLock;
+import com.emc.logservice.core.AutoReleaseLock;
+import com.emc.logservice.core.ReadWriteAutoReleaseLock;
 import com.emc.logservice.*;
 
 import java.time.Duration;

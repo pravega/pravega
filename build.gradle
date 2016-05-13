@@ -46,7 +46,7 @@ dependencies {
 
 }
 
-def pkgs = ['clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'logservice-server']
+def pkgs = ['clients:log', 'clients:streaming:consumer', 'clients:streaming:producer', 'streaming', 'logservice-server']
 
 tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
 
@@ -67,6 +67,6 @@ project (':clients:log') {
 
 } 
 project('clients:streaming:consumer') {} 
-project('clients:streming:producer') {} 
+project('clients:streaming:producer') {} 
 project('streaming') {}
  project ('logservice-server') {}

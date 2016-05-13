@@ -1,4 +1,4 @@
-package com.emc.logservice.Logs;
+package com.emc.logservice.logs;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;

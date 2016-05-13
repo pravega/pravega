@@ -1,8 +1,8 @@
 package com.emc.logservice;
 
-import com.emc.logservice.Core.TimeoutTimer;
-import com.emc.logservice.Logs.OperationLog;
-import com.emc.logservice.Logs.Operations.StreamSegmentMapOperation;
+import com.emc.logservice.core.TimeoutTimer;
+import com.emc.logservice.logs.OperationLog;
+import com.emc.logservice.logs.operations.StreamSegmentMapOperation;
 
 import java.io.FileNotFoundException;
 import java.time.Duration;

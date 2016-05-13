@@ -1,8 +1,8 @@
-package com.emc.logservice.TestImplementations;
+package com.emc.logservice.mocks;
 
-import com.emc.logservice.Core.ByteArraySegment;
-import com.emc.logservice.Logs.DataFrame;
-import com.emc.logservice.Logs.DataFrameLog;
+import com.emc.logservice.core.ByteArraySegment;
+import com.emc.logservice.logs.DataFrame;
+import com.emc.logservice.logs.DataFrameLog;
 
 import java.time.Duration;
 import java.util.Iterator;

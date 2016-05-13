@@ -1,4 +1,4 @@
-package com.emc.logservice.ReadIndex;
+package com.emc.logservice.reading;
 
 /**
  * A ReadIndexEntry that has actual data in memory.

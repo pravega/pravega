@@ -1,7 +1,7 @@
-package com.emc.logservice.Logs;
+package com.emc.logservice.logs;
 
 import com.emc.logservice.*;
-import com.emc.logservice.Logs.Operations.*;
+import com.emc.logservice.logs.operations.*;
 
 import java.util.HashSet;
 
