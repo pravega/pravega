@@ -1,4 +1,7 @@
 .project
-/build/
+build
 .classpath
 .settings/
+.gradle
+output
+streaming/build
