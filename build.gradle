@@ -11,7 +11,6 @@
 
 allprojects {
 apply plugin: 'java'
-//apply plugin: 'scala'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
@@ -46,7 +45,7 @@ dependencies {
 
 }
 
-def pkgs = ['clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log']
+def pkgs = ['clients:log', 'clients:streaming:consumer', 'clients:streaming:producer', 'streaming', 'log']
 
 tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
 
@@ -67,6 +66,6 @@ project (':clients:log') {
 
 } 
 project('clients:streaming:consumer') {} 
-project('clients:streming:producer') {} 
+project('clients:streaming:producer') {} 
 project('streaming') {}
  project ('log') {}
