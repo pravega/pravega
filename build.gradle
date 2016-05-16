@@ -11,7 +11,7 @@
 
 allprojects {
 apply plugin: 'java'
-apply plugin: 'scala'
+//apply plugin: 'scala'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
