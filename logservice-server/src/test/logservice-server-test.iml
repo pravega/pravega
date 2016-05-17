@@ -18,5 +18,18 @@
         <SOURCES />
       </library>
     </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="file://$MODULE_DIR$/../../../../distributedlog-compiled/distributedlog-service/lib" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES>
+          <root url="file://$MODULE_DIR$/../../../../distributedlog-compiled/distributedlog-service/lib" />
+        </SOURCES>
+        <jarDirectory url="file://$MODULE_DIR$/../../../../distributedlog-compiled/distributedlog-service/lib" recursive="false" />
+        <jarDirectory url="file://$MODULE_DIR$/../../../../distributedlog-compiled/distributedlog-service/lib" recursive="false" type="SOURCES" />
+      </library>
+    </orderEntry>
   </component>
 </module>

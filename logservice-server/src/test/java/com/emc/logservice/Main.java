@@ -23,13 +23,19 @@ public class Main {
     private static final Duration Timeout = Duration.ofSeconds(30);
 
     public static void main(String[] args) throws Exception {
+        testTwitterDistributedLog();
         //testDurableLog();
-        testReadIndex();
+        //testReadIndex();
         //testOperationQueueProcessor();
         //testBlockingDrainingQueue();
         //testDataFrameBuilder();
         //testDataFrame();
         //testLogOperations();
+    }
+
+    private static void testTwitterDistributedLog() throws Exception{
+        DLogTester t = new DLogTester();
+        t.run();
     }
 
     private static void testReadIndex() throws Exception {
