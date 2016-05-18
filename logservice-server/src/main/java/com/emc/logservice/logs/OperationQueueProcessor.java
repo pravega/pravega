@@ -17,12 +17,13 @@ import java.util.function.Consumer;
 public class OperationQueueProcessor implements Container {
     //region Members
 
-    private static final Duration AutoCloseTimeout = Duration.ofSeconds(30);
+    private static final Duration CloseTimeout = Duration.ofSeconds(30);
     private static final int MaxDataFrameSize = 1024 * 1024; // 1MB
     private final OperationQueue operationQueue;
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryLogUpdater logUpdater;
     private final DataFrameLog dataFrameLog;
+    private final FaultHandlerRegistry faultRegistry;
     private final Object StateTransitionLock = new Object(); // TODO: consider using AsyncLock
     private Thread runThread;
     private ContainerState state;
@@ -62,6 +63,7 @@ public class OperationQueueProcessor implements Container {
         this.metadataUpdater = metadataUpdater;
         this.logUpdater = logUpdater;
         this.dataFrameLog = dataFrameLog;
+        this.faultRegistry = new FaultHandlerRegistry();
         setState(ContainerState.Created);
     }
 
@@ -71,7 +73,7 @@ public class OperationQueueProcessor implements Container {
 
     @Override
     public void close() throws Exception {
-        stop(AutoCloseTimeout).get(AutoCloseTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        stop(CloseTimeout).get(CloseTimeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     //endregion
@@ -132,7 +134,7 @@ public class OperationQueueProcessor implements Container {
 
     @Override
     public void registerFaultHandler(Consumer<Throwable> handler) {
-        //TODO: implement
+        this.faultRegistry.register(handler);
     }
 
     @Override
@@ -187,7 +189,7 @@ public class OperationQueueProcessor implements Container {
             return;
         }
 
-        DataFrameBuildState state = new DataFrameBuildState(this.metadataUpdater, this.logUpdater, this::handleCriticalError);
+        QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.faultRegistry::handle);
         try (DataFrameBuilder dataFrameBuilder = new DataFrameBuilder(MaxDataFrameSize, this.dataFrameLog, state::commit, state::fail)) {
             for (CompletableOperation o : operations) {
                 boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
@@ -293,27 +295,18 @@ public class OperationQueueProcessor implements Container {
 
     //endregion
 
-    //region Helpers
-
-    private void handleCriticalError(Exception ex) {
-        //TODO: better...
-        System.err.println(ex);
-    }
-
-    //endregion
-
-    //region DataFrameBuildState
+    //region QueueProcessingState
 
     /**
-     * Temporary State for DataFrameBuilder. Keeps track of pending Operations and allows committing or failing all of them.
+     * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all of them.
      */
-    private class DataFrameBuildState {
+    private class QueueProcessingState {
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryLogUpdater logUpdater;
         private final Consumer<Exception> criticalErrorHandler;
 
-        public DataFrameBuildState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler) {
+        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler) {
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
             this.logUpdater = logUpdater;

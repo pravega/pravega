@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
  */
-public class DurableLog implements OperationLog, Container {
+public class DurableLog implements OperationLog {
     //region Members
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); // TODO: make configurable.
@@ -23,9 +23,10 @@ public class DurableLog implements OperationLog, Container {
     private final OperationQueue queue;
     private final OperationQueueProcessor queueProcessor;
     private final StreamSegmentContainerMetadata metadata;
+    private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
-    private boolean isClosed;
+    private boolean closed;
 
     //endregion
 
@@ -54,10 +55,12 @@ public class DurableLog implements OperationLog, Container {
 
         this.metadata = metadata;
         this.dataFrameLog = dataFrameLog;
+        this.faultRegistry = new FaultHandlerRegistry();
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
         this.queue = new OperationQueue();
         this.queueProcessor = new OperationQueueProcessor(this.queue, new OperationMetadataUpdater(this.metadata), this.memoryLogUpdater, this.dataFrameLog);
+        this.queueProcessor.registerFaultHandler(this.faultRegistry::handle);
         setState(ContainerState.Created);
     }
 
@@ -67,14 +70,14 @@ public class DurableLog implements OperationLog, Container {
 
     @Override
     public void close() throws Exception {
-        if (!this.isClosed) {
+        if (!this.closed) {
             if (this.state == ContainerState.Started) {
                 // Stop the container if it's currently running.
                 this.stop(CloseTimeout).get();
             }
 
             this.queueProcessor.close();
-            this.isClosed = true;
+            this.closed = true;
         }
     }
 
@@ -84,26 +87,27 @@ public class DurableLog implements OperationLog, Container {
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
-        // Perform Recovery and initialize all components.
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
             ContainerState.Initialized.checkValidPreviousState(this.state);
 
-            return performRecovery(timer.getRemaining()) // Perform Recovery.
-                                                         .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
-                                                         .thenRun(() -> setState(ContainerState.Initialized)); // Update our internal state.
+            // Perform Recovery and initialize all components.
+            return this.performRecovery(timer.getRemaining()) // Perform Recovery.
+                       .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
+                       .thenRun(() -> setState(ContainerState.Initialized)); // Update our internal state.
         });
     }
 
     @Override
     public CompletableFuture<Void> start(Duration timeout) {
-        // Start the Operation Queue Processor.
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
             ContainerState.Started.checkValidPreviousState(this.state);
+
+            // Start the Operation Queue Processor.
             return this.queueProcessor.start(timeout)
                                       .thenRun(() -> setState(ContainerState.Started));
         });
@@ -111,7 +115,6 @@ public class DurableLog implements OperationLog, Container {
 
     @Override
     public CompletableFuture<Void> stop(Duration timeout) {
-        // Stop the Operation Queue Processor.
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
@@ -119,14 +122,15 @@ public class DurableLog implements OperationLog, Container {
 
             // Update the state first. TODO: figure out if we need to roll back the state if this operation failed.
             setState(ContainerState.Stopped);
+
+            // Stop the Operation Queue Processor.
             return this.queueProcessor.stop(timeout);
         });
     }
 
     @Override
     public void registerFaultHandler(Consumer<Throwable> handler) {
-        //TODO: implement more if any?
-        this.queueProcessor.registerFaultHandler(handler);
+        this.faultRegistry.register(handler);
     }
 
     @Override
@@ -276,18 +280,13 @@ public class DurableLog implements OperationLog, Container {
     }
 
     private void ensureNotClosed() {
-        if (this.isClosed) {
+        if (this.closed) {
             throw new ObjectClosedException(this);
         }
     }
 
     private void setState(ContainerState state) {
         this.state = state;
-    }
-
-    private void handleCriticalError(Exception ex) {
-        //TODO: better...
-        System.err.println(ex);
     }
 
     //endregion

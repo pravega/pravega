@@ -1,7 +1,8 @@
 package com.emc.logservice;
 
 import com.emc.logservice.core.TimeoutTimer;
-import com.emc.logservice.logs.OperationLog;
+import com.emc.logservice.logs.SequentialLog;
+import com.emc.logservice.logs.operations.Operation;
 import com.emc.logservice.logs.operations.StreamSegmentMapOperation;
 
 import java.io.FileNotFoundException;
@@ -17,7 +18,7 @@ public class StreamSegmentMapper {
     //region Members
 
     private final StreamSegmentContainerMetadata containerMetadata;
-    private final OperationLog durableLog;
+    private final SequentialLog<Operation, Long> durableLog;
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
     private final HashSet<Long> pendingIdAssignments;
     private final Object SyncRoot = new Object();
@@ -36,7 +37,7 @@ public class StreamSegmentMapper {
      *                          with every stream map)
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentMapper(StreamSegmentContainerMetadata containerMetadata, OperationLog durableLog) {
+    public StreamSegmentMapper(StreamSegmentContainerMetadata containerMetadata, SequentialLog<Operation, Long> durableLog) {
         if (containerMetadata == null) {
             throw new NullPointerException("containerMetadata");
         }

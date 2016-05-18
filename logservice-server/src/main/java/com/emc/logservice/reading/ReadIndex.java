@@ -1,8 +1,7 @@
 package com.emc.logservice.reading;
 
-import com.emc.logservice.core.AutoReleaseLock;
-import com.emc.logservice.core.ReadWriteAutoReleaseLock;
 import com.emc.logservice.*;
+import com.emc.logservice.core.*;
 
 import java.time.Duration;
 import java.util.*;
@@ -24,6 +23,7 @@ public class ReadIndex implements StreamSegmentCache {
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
     private StreamSegmentMetadataSource metadata;
     private boolean recoveryMode;
+    private boolean closed;
 
     //endregion
 
@@ -37,10 +37,28 @@ public class ReadIndex implements StreamSegmentCache {
 
     //endregion
 
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        if (!this.closed) {
+            this.closed = true;
+            try(AutoReleaseLock ignored = this.lock.acquireWriteLock()){
+                // Need to close all individual read indices in order to cancel Readers and Future Reads.
+                this.readIndices.values().forEach(StreamSegmentReadIndex::close);
+                this.readIndices.clear();
+            }
+        }
+    }
+
+    //endregion
+
     //region StreamSegmentCache Implementation
 
     @Override
     public void append(long streamSegmentId, long offset, byte[] data) {
+        ensureNotClosed();
+
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         if (index.isMerged()) {
@@ -52,6 +70,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength) {
+        ensureNotClosed();
+
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         StreamSegmentReadIndex sourceIndex = getReadIndex(sourceStreamSegmentId, true);
         if (sourceIndex.isMerged()) {
@@ -64,6 +84,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+        ensureNotClosed();
+
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         targetIndex.completeMerge(sourceStreamSegmentId);
         removeReadIndex(sourceStreamSegmentId);
@@ -71,6 +93,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
+        ensureNotClosed();
+
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         if (index.isMerged()) {
             throw new IllegalArgumentException("streamSegmentId refers to a StreamSegment that is merged. Cannot access it anymore.");
@@ -81,6 +105,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public void triggerFutureReads(Collection<Long> streamSegmentIds) {
+        ensureNotClosed();
+
         HashSet<String> missingIds = new HashSet<>();
         for (long ssId : streamSegmentIds) {
             StreamSegmentReadIndex index = getReadIndex(ssId, false);
@@ -102,6 +128,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public void clear() {
+        ensureNotClosed();
+
         if (!this.recoveryMode) {
             throw new IllegalStateException("Read Index is not in recovery mode. Cannot clear cache.");
         }
@@ -114,6 +142,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public void enterRecoveryMode(StreamSegmentMetadataSource recoveryMetadataSource) {
+        ensureNotClosed();
+
         if (this.recoveryMode) {
             throw new IllegalStateException("Read Index is already in recovery mode.");
         }
@@ -129,6 +159,8 @@ public class ReadIndex implements StreamSegmentCache {
 
     @Override
     public void exitRecoveryMode(StreamSegmentMetadataSource finalMetadataSource, boolean success) {
+        ensureNotClosed();
+
         if (!this.recoveryMode) {
             throw new IllegalStateException("Read Index is not in recovery mode.");
         }
@@ -205,6 +237,12 @@ public class ReadIndex implements StreamSegmentCache {
             }
 
             return index != null;
+        }
+    }
+
+    private void ensureNotClosed() {
+        if (this.closed) {
+            throw new ObjectClosedException(this);
         }
     }
 
