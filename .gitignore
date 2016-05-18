@@ -4,4 +4,6 @@ build
 .settings/
 .gradle
 output
-streaming/build
+target
+build
+.idea
