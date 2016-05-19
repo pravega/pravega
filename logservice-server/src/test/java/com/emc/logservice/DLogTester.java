@@ -27,16 +27,24 @@ public class DLogTester {
     }
 
     public void run() throws Exception {
-        URI uri = URI.create("distributedlog://127.0.0.1:7000/messaging/distributedlog");
+
+        //        ZooKeeperClient zkc = org.apache.bookkeeper.zookeeper.ZooKeeperClient.createConnectedZooKeeperClient("andrei-desktop-ubuntu:2181", 10000);
+        //        zkc.create("/ledgers", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        //        zkc.create("/ledgers/available", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        //DLMetadata.create(new BKDLConfig("andrei-desktop-ubuntu:2181", "/ledgers")).create(URI.create("distributedlog://andrei-desktop-ubuntu:2181/messaging/distributedlog"));
+ //       DLMetadata.create(new BKDLConfig("andrei-desktop-ubuntu:2181", "/ledgers")).create(URI.create("distributedlog://127.0.0.1:2181/messaging/distributedlog"));
+
+        URI uri = URI.create("distributedlog://andrei-desktop-ubuntu:2181/messaging/distributedlog");
         DistributedLogConfiguration conf = new DistributedLogConfiguration()
                 .setImmediateFlushEnabled(true)
                 .setOutputBufferSize(0)
                 .setPeriodicFlushFrequencyMilliSeconds(0)
-                .setLockTimeout(DistributedLogConstants.LOCK_IMMEDIATE);
-                //.setCreateStreamIfNotExists(true);
-//                .setAckQuorumSize(1)
-//                .setEnsembleSize(1)
-//                .setWriteQuorumSize(1);
+                .setLockTimeout(DistributedLogConstants.LOCK_IMMEDIATE)
+                .setCreateStreamIfNotExists(true)
+                .setAckQuorumSize(1)
+                .setEnsembleSize(1)
+                .setWriteQuorumSize(1);
+
 
         DistributedLogNamespace namespace = null;
         DistributedLogManager dlm = null;
@@ -74,27 +82,28 @@ public class DLogTester {
                 }
             });
 
+            writeFuture.get();
 
-//            System.out.println("Writing entries...");
-//            for (int i = 0; i < RecordCount; i++) {
-//                LogRecord record = new LogRecord(i, RecordData);
-//                latenciesById.put(i, System.nanoTime());
-//                final int txId = i;
-//                System.out.println("Writing record " + i);
-//                Future<DLSN> dlsn = writer.write(record);
-//                dlsn.addEventListener(new FutureEventListener<DLSN>() {
-//                    @Override
-//                    public void onSuccess(DLSN value) {
-//                        latenciesById.put(txId, System.nanoTime() - latenciesById.get(txId));
-//                    }
-//
-//                    @Override
-//                    public void onFailure(Throwable cause) {
-//                        System.err.println(cause);
-//                    }
-//                });
-//                dlsn.get();
-//            }
+            //            System.out.println("Writing entries...");
+            //            for (int i = 0; i < RecordCount; i++) {
+            //                LogRecord record = new LogRecord(i, RecordData);
+            //                latenciesById.put(i, System.nanoTime());
+            //                final int txId = i;
+            //                System.out.println("Writing record " + i);
+            //                Future<DLSN> dlsn = writer.write(record);
+            //                dlsn.addEventListener(new FutureEventListener<DLSN>() {
+            //                    @Override
+            //                    public void onSuccess(DLSN value) {
+            //                        latenciesById.put(txId, System.nanoTime() - latenciesById.get(txId));
+            //                    }
+            //
+            //                    @Override
+            //                    public void onFailure(Throwable cause) {
+            //                        System.err.println(cause);
+            //                    }
+            //                });
+            //                dlsn.get();
+            //            }
         }
         finally {
             if (writer != null) {
@@ -113,26 +122,26 @@ public class DLogTester {
             }
         }
 
-//        ArrayList<Long> latencies = new ArrayList<>(latenciesById.values());
-//        latencies.sort(Long::compare);
-//
-//        long sum = 0;
-//        for (int i = 0; i < latencies.size(); i++) {
-//            latencies.set(i, latencies.get(i) / 1000 / 1000);
-//            sum += latencies.get(i);
-//        }
-//
-//        System.out.println("Latencies");
-//        System.out.println("Count, Avg, Min, Max, 50%, 90%, 95%, 99%, 99.9%");
-//        System.out.println(String.format("%d, %f, %d, %d, %d, %d, %d, %d, %d",
-//                latencies.size(),
-//                sum * 1.0 / latencies.size(),
-//                latencies.get(0),
-//                latencies.get(latencies.size() - 1),
-//                latencies.get((int) (latencies.size() * 0.5)),
-//                latencies.get((int) (latencies.size() * 0.9)),
-//                latencies.get((int) (latencies.size() * 0.95)),
-//                latencies.get((int) (latencies.size() * 0.99)),
-//                latencies.get((int) (latencies.size() * 0.999))));
+        //        ArrayList<Long> latencies = new ArrayList<>(latenciesById.values());
+        //        latencies.sort(Long::compare);
+        //
+        //        long sum = 0;
+        //        for (int i = 0; i < latencies.size(); i++) {
+        //            latencies.set(i, latencies.get(i) / 1000 / 1000);
+        //            sum += latencies.get(i);
+        //        }
+        //
+        //        System.out.println("Latencies");
+        //        System.out.println("Count, Avg, Min, Max, 50%, 90%, 95%, 99%, 99.9%");
+        //        System.out.println(String.format("%d, %f, %d, %d, %d, %d, %d, %d, %d",
+        //                latencies.size(),
+        //                sum * 1.0 / latencies.size(),
+        //                latencies.get(0),
+        //                latencies.get(latencies.size() - 1),
+        //                latencies.get((int) (latencies.size() * 0.5)),
+        //                latencies.get((int) (latencies.size() * 0.9)),
+        //                latencies.get((int) (latencies.size() * 0.95)),
+        //                latencies.get((int) (latencies.size() * 0.99)),
+        //                latencies.get((int) (latencies.size() * 0.999))));
     }
 }
