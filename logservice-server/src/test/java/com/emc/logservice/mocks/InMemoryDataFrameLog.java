@@ -10,7 +10,7 @@ import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Created by padura on 4/15/16.
+ * In-Memory Mock for DataFrameLog.
  */
 public class InMemoryDataFrameLog implements DataFrameLog {
     private final LinkedList<Entry> entries;

@@ -1,9 +1,12 @@
-package com.emc.logservice;
+package com.emc.logservice.containers;
+
+import com.emc.logservice.SegmentMetadataCollection;
+import com.emc.logservice.UpdateableSegmentMetadata;
 
 /**
  * Metadata for a particular Stream Segment.
  */
-public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
+public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     //region Members
 
     private final String name;
@@ -26,7 +29,7 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId) {
-        this(streamSegmentName, streamSegmentId, StreamSegmentContainerMetadata.NoStreamSegmentId);
+        this(streamSegmentName, streamSegmentId, SegmentMetadataCollection.NoStreamSegmentId);
     }
 
     /**
@@ -42,7 +45,7 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
             throw new IllegalArgumentException("streamSegmentName");
         }
 
-        if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
+        if (streamSegmentId == SegmentMetadataCollection.NoStreamSegmentId) {
             throw new IllegalArgumentException("streamSegmentId");
         }
 
@@ -56,7 +59,7 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
 
     //endregion
 
-    //region ReadOnlyStreamSegmentMetadata Implementation
+    //region SegmentMetadata Implementation
 
     @Override
     public String getName() {
@@ -78,12 +81,31 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
         return this.storageLength;
     }
 
-    /**
-     * Sets the current StorageLength for this StreamSegment.
-     *
-     * @param value The StorageLength to set.
-     * @throws IllegalArgumentException If the value is invalid.
-     */
+    @Override
+    public long getDurableLogLength() {
+        return this.durableLogLength;
+    }
+
+    @Override
+    public boolean isSealed() {
+        return this.sealed;
+    }
+
+    @Override
+    public boolean isDeleted() {
+        return this.deleted;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Id = %d, StorageLength = %d, DLOffset = %d, Sealed = %s, Deleted = %s, Name = %s", getId(), getStorageLength(), getDurableLogLength(), isSealed(), isDeleted(), getName());
+    }
+
+    //endregion
+
+    //region UpdateableSegmentMetadata Implementation
+
+    @Override
     public void setStorageLength(long value) {
         if (value < 0) {
             throw new IllegalArgumentException("Storage Length must be a non-negative number.");
@@ -97,16 +119,6 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
     }
 
     @Override
-    public long getDurableLogLength() {
-        return this.durableLogLength;
-    }
-
-    /**
-     * Sets the current DurableLog Length for this StreamSegment.
-     *
-     * @param value
-     * @throws IllegalArgumentException If the value is invalid.
-     */
     public void setDurableLogLength(long value) {
         if (value < 0) {
             throw new IllegalArgumentException(String.format("Durable Log Length must be a non-negative number. Given: %d.", value));
@@ -120,32 +132,13 @@ public class StreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
     }
 
     @Override
-    public boolean isSealed() {
-        return this.sealed;
-    }
-
-    /**
-     * Marks this StreamSegment as sealed for modifications.
-     */
     public void markSealed() {
         this.sealed = true;
     }
 
     @Override
-    public boolean isDeleted() {
-        return this.deleted;
-    }
-
-    /**
-     * Marks this StreamSegment as deleted.
-     */
     public void markDeleted() {
         this.deleted = true;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Id = %d, StorageLength = %d, DLOffset = %d, Sealed = %s, Deleted = %s, Name = %s", getId(), getStorageLength(), getDurableLogLength(), isSealed(), isDeleted(), getName());
     }
 
     //endregion

@@ -1,5 +1,6 @@
-package com.emc.logservice;
+package com.emc.logservice.containers;
 
+import com.emc.logservice.*;
 import com.emc.logservice.core.TimeoutTimer;
 import com.emc.logservice.logs.SequentialLog;
 import com.emc.logservice.logs.operations.Operation;
@@ -7,7 +8,8 @@ import com.emc.logservice.logs.operations.StreamSegmentMapOperation;
 
 import java.io.FileNotFoundException;
 import java.time.Duration;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -17,8 +19,9 @@ import java.util.concurrent.CompletionException;
 public class StreamSegmentMapper {
     //region Members
 
-    private final StreamSegmentContainerMetadata containerMetadata;
+    private final UpdateableContainerMetadata containerMetadata;
     private final SequentialLog<Operation, Long> durableLog;
+    private final Storage storage;
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
     private final HashSet<Long> pendingIdAssignments;
     private final Object SyncRoot = new Object();
@@ -37,7 +40,7 @@ public class StreamSegmentMapper {
      *                          with every stream map)
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentMapper(StreamSegmentContainerMetadata containerMetadata, SequentialLog<Operation, Long> durableLog) {
+    public StreamSegmentMapper(UpdateableContainerMetadata containerMetadata, SequentialLog<Operation, Long> durableLog, Storage storage) {
         if (containerMetadata == null) {
             throw new NullPointerException("containerMetadata");
         }
@@ -45,9 +48,13 @@ public class StreamSegmentMapper {
         if (durableLog == null) {
             throw new NullPointerException("durableLog");
         }
+        if (storage == null) {
+            throw new NullPointerException("storage");
+        }
 
         this.containerMetadata = containerMetadata;
         this.durableLog = durableLog;
+        this.storage = storage;
         this.pendingRequests = new HashMap<>();
         this.pendingIdAssignments = new HashSet<>();
     }
@@ -55,6 +62,30 @@ public class StreamSegmentMapper {
     //endregion
 
     //region Operations
+
+    /**
+     * Creates a new StreamSegment with given name (in Storage) and assigns a unique internal Id to it.
+     *
+     * @param streamSegmentName The case-sensitive StreamSegment Name.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id of the new stream.
+     * If the operation failed, this will contain the exception that caused the failure.
+     */
+    public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
+
+        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
+        if (streamId >= 0) {
+            throw new IllegalArgumentException("Given StreamSegmentName is already registered internally. Most likely it already exists.");
+        }
+
+        // Create the StreamSegment, and then assign a Unique Internal Id to it.
+        // Note: this is slightly sub-optimal, as we create the stream, but getOrAssignStreamSegmentId makes another call
+        // to get the same info about the StreamSegmentId.
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        CompletableFuture<Long> result = this.storage.create(streamSegmentName, timer.getRemaining())
+                                                     .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()));
+        return CompletableFuture.allOf(result);
+    }
 
     /**
      * Attempts to get an existing StreamSegmentId for the given case-sensitive StreamSegment Name.
@@ -105,12 +136,12 @@ public class StreamSegmentMapper {
      */
     private void assignStreamId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        CompletableFuture<Void> result = getStorageStreamInfo(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()));
+        CompletableFuture<Void> result = this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+                                                     .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()));
 
         result.exceptionally(ex ->
         {
-            failAssignment(streamSegmentName, StreamSegmentContainerMetadata.NoStreamSegmentId, ex);
+            failAssignment(streamSegmentName, SegmentMetadataCollection.NoStreamSegmentId, ex);
             throw new CompletionException(ex);
         });
     }
@@ -125,37 +156,25 @@ public class StreamSegmentMapper {
     private CompletableFuture<Void> persistInDurableLog(StreamSegmentInformation streamSegmentInfo, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(streamSegmentInfo.getStreamSegmentName(), StreamSegmentContainerMetadata.NoStreamSegmentId, new FileNotFoundException("Stream does not exist."));
+            failAssignment(streamSegmentInfo.getName(), SegmentMetadataCollection.NoStreamSegmentId, new FileNotFoundException("Stream does not exist."));
             return CompletableFuture.completedFuture(null);
         }
 
-        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getStreamSegmentName());
+        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getName());
         if (streamId >= 0) {
             // Looks like someone else beat us to it.
-            completeAssignment(streamSegmentInfo.getStreamSegmentName(), streamId);
+            completeAssignment(streamSegmentInfo.getName(), streamId);
             return CompletableFuture.completedFuture(null);
         }
         else {
-            final long newStreamId = generateUniqueStreamId(streamSegmentInfo.getStreamSegmentName());
+            final long newStreamId = generateUniqueStreamId(streamSegmentInfo.getName());
             CompletableFuture<Long> logAddResult = this.durableLog.add(new StreamSegmentMapOperation(newStreamId, streamSegmentInfo), timeout);
             return logAddResult.thenAccept(seqNo ->
             {
-                updateMetadata(streamSegmentInfo.getStreamSegmentName(), newStreamId, streamSegmentInfo);
-                completeAssignment(streamSegmentInfo.getStreamSegmentName(), newStreamId);
+                updateMetadata(streamSegmentInfo.getName(), newStreamId, streamSegmentInfo);
+                completeAssignment(streamSegmentInfo.getName(), newStreamId);
             });
         }
-    }
-
-    /**
-     * Retrieves information about the StreamSegment from Storage.
-     *
-     * @param streamSegmentName
-     * @param timeout
-     * @return
-     */
-    private CompletableFuture<StreamSegmentInformation> getStorageStreamInfo(String streamSegmentName, Duration timeout) {
-        // TODO: go to storage to figure out details (stream length, sealed, exists?)
-        return CompletableFuture.completedFuture(new StreamSegmentInformation(streamSegmentName, 0, false, false, new Date()));
     }
 
     /**
@@ -169,7 +188,7 @@ public class StreamSegmentMapper {
         synchronized (MetadataLock) {
             // Map it to the stream name and update the Stream Metadata.
             this.containerMetadata.mapStreamSegmentId(streamSegmentName, streamSegmentId);
-            StreamSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+            UpdateableSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
             sm.setStorageLength(streamInfo.getLength());
             sm.setDurableLogLength(streamInfo.getLength()); // TODO: this will need to be set/reset in recovery. This is the default (failback) value.
 

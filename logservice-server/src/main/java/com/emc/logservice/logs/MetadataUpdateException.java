@@ -1,4 +1,6 @@
-package com.emc.logservice;
+package com.emc.logservice.logs;
+
+import com.emc.logservice.StreamingException;
 
 /**
  * Exception that is thrown whenever the Metadata cannot be updated.

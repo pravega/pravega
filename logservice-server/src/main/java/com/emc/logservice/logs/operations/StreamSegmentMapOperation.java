@@ -32,7 +32,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
     public StreamSegmentMapOperation(long streamSegmentId, StreamSegmentInformation streamSegmentInformation) {
         super();
         this.streamSegmentId = streamSegmentId;
-        this.streamSegmentName = streamSegmentInformation.getStreamSegmentName();
+        this.streamSegmentName = streamSegmentInformation.getName();
         this.streamSegmentLength = streamSegmentInformation.getLength();
         this.sealed = streamSegmentInformation.isSealed();
         this.lastModifiedTime = streamSegmentInformation.getLastModified().getTime();

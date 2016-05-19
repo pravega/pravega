@@ -19,6 +19,7 @@ public class OperationQueueProcessor implements Container {
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30);
     private static final int MaxDataFrameSize = 1024 * 1024; // 1MB
+    private final String containerId;
     private final OperationQueue operationQueue;
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryLogUpdater logUpdater;
@@ -36,13 +37,18 @@ public class OperationQueueProcessor implements Container {
     /**
      * Creates a new instance of the OperationQueueProcessor class.
      *
+     * @param containerId     The Id of the container this QueueProcessor belongs to.
      * @param operationQueue  The Operation Queue to work on.
      * @param metadataUpdater An OperationMetadataUpdater to work with.
      * @param logUpdater      A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param dataFrameLog    The DataFrameLog to write DataFrames to.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationQueueProcessor(OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DataFrameLog dataFrameLog) {
+    public OperationQueueProcessor(String containerId, OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DataFrameLog dataFrameLog) {
+        if (containerId == null) {
+            throw new NullPointerException("containerId");
+        }
+
         if (operationQueue == null) {
             throw new NullPointerException("operationQueue");
         }
@@ -59,6 +65,7 @@ public class OperationQueueProcessor implements Container {
             throw new NullPointerException("dataFrameLog");
         }
 
+        this.containerId = containerId;
         this.operationQueue = operationQueue;
         this.metadataUpdater = metadataUpdater;
         this.logUpdater = logUpdater;
@@ -140,6 +147,11 @@ public class OperationQueueProcessor implements Container {
     @Override
     public ContainerState getState() {
         return this.state;
+    }
+
+    @Override
+    public String getId() {
+        return this.containerId;
     }
 
     //endregion
@@ -330,7 +342,7 @@ public class OperationQueueProcessor implements Container {
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             // Commit any changes to metadata.
             this.metadataUpdater.commit();
-            this.metadataUpdater.commitTruncationMarker(new TruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence()));
+            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
 
             // TODO: consider running this on its own thread, but they must still be in the same sequence!
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.

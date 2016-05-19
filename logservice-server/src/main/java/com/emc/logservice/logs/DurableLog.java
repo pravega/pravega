@@ -1,6 +1,7 @@
 package com.emc.logservice.logs;
 
 import com.emc.logservice.*;
+import com.emc.logservice.containers.TruncationMarkerCollection;
 import com.emc.logservice.core.*;
 import com.emc.logservice.logs.operations.*;
 
@@ -22,7 +23,8 @@ public class DurableLog implements OperationLog {
     private final MemoryLogUpdater memoryLogUpdater;
     private final OperationQueue queue;
     private final OperationQueueProcessor queueProcessor;
-    private final StreamSegmentContainerMetadata metadata;
+    private final UpdateableContainerMetadata metadata;
+    private final TruncationMarkerCollection truncationMarkers;
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
@@ -35,31 +37,36 @@ public class DurableLog implements OperationLog {
     /**
      * Creates a new instance of the DurableLog class.
      *
-     * @param metadata     The StreamSegment Container Metadata for the container which this Durable Log is part of.
-     * @param dataFrameLog The DataFrameLog which is associated with this DurableLog.
-     * @param cache        An StreamSegmentCache where to store newly processed appends.
+     * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
+     * @param dataFrameLogFactory A DataFrameLogFactory which can be used to create instances of DataFrameLogs.
+     * @param cache               An Cache where to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(StreamSegmentContainerMetadata metadata, DataFrameLog dataFrameLog, StreamSegmentCache cache) {
+    public DurableLog(UpdateableContainerMetadata metadata, DataFrameLogFactory dataFrameLogFactory, Cache cache) {
         if (metadata == null) {
             throw new NullPointerException("metadata");
         }
 
-        if (dataFrameLog == null) {
-            throw new NullPointerException("dataFrameLog");
+        if (dataFrameLogFactory == null) {
+            throw new NullPointerException("dataFrameLogFactory");
         }
 
         if (cache == null) {
             throw new NullPointerException("cache");
         }
 
+        this.dataFrameLog = dataFrameLogFactory.createDataFrameLog(metadata.getContainerId());
+        if (this.dataFrameLog == null) {
+            throw new AssertionError("DataFrameLogFactory created a null DataFrameLog");
+        }
+
         this.metadata = metadata;
-        this.dataFrameLog = dataFrameLog;
+        this.truncationMarkers = new TruncationMarkerCollection();
         this.faultRegistry = new FaultHandlerRegistry();
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
         this.queue = new OperationQueue();
-        this.queueProcessor = new OperationQueueProcessor(this.queue, new OperationMetadataUpdater(this.metadata), this.memoryLogUpdater, this.dataFrameLog);
+        this.queueProcessor = new OperationQueueProcessor(this.metadata.getContainerId(), this.queue, new OperationMetadataUpdater(this.metadata, this.truncationMarkers), this.memoryLogUpdater, this.dataFrameLog);
         this.queueProcessor.registerFaultHandler(this.faultRegistry::handle);
         setState(ContainerState.Created);
     }
@@ -138,6 +145,11 @@ public class DurableLog implements OperationLog {
         return this.state;
     }
 
+    @Override
+    public String getId() {
+        return this.metadata.getContainerId();
+    }
+
     //endregion
 
     //region OperationLog Implementation
@@ -153,16 +165,16 @@ public class DurableLog implements OperationLog {
     @Override
     public CompletableFuture<Void> truncate(Long upToSequenceNumber, Duration timeout) {
         ensureStarted();
-        TruncationMarker tm = this.metadata.getClosestTruncationMarker(upToSequenceNumber);
-        if (tm == null) {
+        long dataFrameSeqNo = this.truncationMarkers.getClosestTruncationMarker(upToSequenceNumber);
+        if (dataFrameSeqNo < 0) {
             // Nothing to truncate.
             return CompletableFuture.completedFuture(null);
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.dataFrameLog.truncate(tm.getDataFrameSequenceNumber(), timer.getRemaining()) // Truncate DataFrameLog.
+        return this.dataFrameLog.truncate(dataFrameSeqNo, timer.getRemaining()) // Truncate DataFrameLog.
                                 .thenApply(r -> this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= upToSequenceNumber)) // Truncate InMemory Transaction Log.
-                                .thenRun(() -> this.metadata.removeTruncationMarkers(upToSequenceNumber)); // Remove old truncation markers.
+                                .thenRun(() -> this.truncationMarkers.removeTruncationMarkers(upToSequenceNumber)); // Remove old truncation markers.
     }
 
     @Override
@@ -183,11 +195,13 @@ public class DurableLog implements OperationLog {
 
         // Put metadata (and entire container) into 'Recovery Mode'.
         this.metadata.enterRecoveryMode();
+        this.truncationMarkers.enterRecoveryMode();
 
         // Reset metadata.
         this.metadata.reset();
+        this.truncationMarkers.reset();
 
-        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
+        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata, this.truncationMarkers);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
         CompletableFuture<Void> result = this.dataFrameLog.recover(timer.getRemaining()) // Recover DataFrameLog.
@@ -207,6 +221,7 @@ public class DurableLog implements OperationLog {
         result.whenComplete((r, ex) ->
         {
             this.metadata.exitRecoveryMode();
+            this.truncationMarkers.exitRecoveryMode();
             this.memoryLogUpdater.exitRecoveryMode(this.metadata, ex == null);
         });
         return result;
@@ -235,11 +250,11 @@ public class DurableLog implements OperationLog {
             // Determine Truncation Markers.
             if (readResult.isLastFrameEntry()) {
                 // The current Log Operation was the last one in the frame. This is a Truncation Marker.
-                metadataUpdater.commitTruncationMarker(new TruncationMarker(operation.getSequenceNumber(), readResult.getDataFrameSequence()));
+                metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), readResult.getDataFrameSequence());
             }
             else if (lastReadResult != null && !lastReadResult.isLastFrameEntry() && readResult.getDataFrameSequence() != lastReadResult.getDataFrameSequence()) {
                 // DataFrameSequence changed on this operation (and this operation spans multiple frames). The Truncation Marker is on this operation, but the previous frame.
-                metadataUpdater.commitTruncationMarker(new TruncationMarker(operation.getSequenceNumber(), lastReadResult.getDataFrameSequence()));
+                metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), lastReadResult.getDataFrameSequence());
             }
 
             lastReadResult = readResult;

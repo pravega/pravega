@@ -1,12 +1,12 @@
-package com.emc.logservice;
+package com.emc.logservice.containers;
 
+import com.emc.logservice.*;
 import com.emc.logservice.core.*;
-import com.emc.logservice.logs.*;
+import com.emc.logservice.logs.OperationLog;
 import com.emc.logservice.logs.operations.*;
-import com.emc.logservice.mocks.InMemoryDataFrameLog;
-import com.emc.logservice.reading.ReadIndex;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -19,28 +19,32 @@ import java.util.function.Consumer;
 public class StreamSegmentContainer implements StreamSegmentStore, Container {
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); //TODO: make configurable
-    private final StreamSegmentContainerMetadata metadata;
+    private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
-    private final DataFrameLog dataFrameLog;
-    private final StreamSegmentCache cache;
+    private final Cache readIndex;
+    private final Storage storage;
     private final StreamSegmentMapper segmentMapper;
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
     private boolean closed;
 
-    public StreamSegmentContainer() {
-        //TODO: figure out how to construct and read metadata from the Metadata Storage.
-        this.metadata = new StreamSegmentContainerMetadata();
-
-        // TODO: accept some sort of Factory that provides all the necessary components.
+    /**
+     * Creates a new instance of the StreamSegmentContainer class.
+     *
+     * @param streamSegmentContainerId
+     * @param metadataRepository
+     * @param durableLogFactory
+     * @param cacheFactory
+     */
+    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory) {
         this.faultRegistry = new FaultHandlerRegistry();
-        this.dataFrameLog = new InMemoryDataFrameLog();
-        this.cache = new ReadIndex(this.metadata);
-        this.durableLog = new DurableLog(metadata, dataFrameLog, cache);
+        this.storage = storageFactory.getStorageAdapter();
+        this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
+        this.readIndex = cacheFactory.createCache(this.metadata);
+        this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
         this.durableLog.registerFaultHandler(this.faultRegistry::handle);
-
-        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog);
+        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
         setState(ContainerState.Created);
     }
 
@@ -112,6 +116,11 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         return this.state;
     }
 
+    @Override
+    public String getId() {
+        return this.metadata.getContainerId();
+    }
+
     //endregion
 
     //region StreamSegmentStore Implementation
@@ -135,7 +144,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                                 .thenApply(streamSegmentId -> this.cache.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+                                 .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
     }
 
     @Override
@@ -146,7 +155,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                                  .thenApply(streamSegmentId ->
                                  {
-                                     StreamSegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                                     SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                                      return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(), sm.isDeleted(), new Date());
                                  });
     }
@@ -156,9 +165,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        //TODO: implement
-        return null;
+        return this.segmentMapper.createNewStreamSegment(streamSegmentName, timer.getRemaining());
     }
 
     @Override
@@ -172,6 +179,22 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     }
 
     @Override
+    public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
+        ensureStarted();
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        Collection<String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
+        CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
+        int count = 0;
+        for (String s : streamSegmentsToDelete) {
+            deletionFutures[count] = this.storage.delete(s, timer.getRemaining());
+            count++;
+        }
+
+        return CompletableFuture.allOf(deletionFutures);
+    }
+
+    @Override
     public CompletableFuture<Long> mergeBatch(String batchStreamSegmentName, Duration timeout) {
         ensureStarted();
 
@@ -179,7 +202,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         return this.segmentMapper.getOrAssignStreamSegmentId(batchStreamSegmentName, timer.getRemaining())
                                  .thenCompose(batchStreamSegmentId ->
                                  {
-                                     StreamSegmentMetadata batchMetadata = this.metadata.getStreamSegmentMetadata(batchStreamSegmentId);
+                                     SegmentMetadata batchMetadata = this.metadata.getStreamSegmentMetadata(batchStreamSegmentId);
                                      if (batchMetadata == null) {
                                          throw new CompletionException(new StreamingException("Batch StreamSegment does not exist."));
                                      }
@@ -200,16 +223,6 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
                                      Operation operation = new StreamSegmentSealOperation(streamSegmentId);
                                      return this.durableLog.add(operation, timer.getRemaining());
                                  });
-    }
-
-    @Override
-    public CompletableFuture<Void> deleteStreamSegment(String streamName, Duration timeout) {
-        ensureStarted();
-
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        //TODO: implement
-        return null;
     }
 
     //endregion

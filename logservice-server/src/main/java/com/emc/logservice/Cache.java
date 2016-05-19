@@ -6,7 +6,7 @@ import java.util.Collection;
 /**
  * Defines a cache for StreamSegments, that allows adding data only at the end.
  */
-public interface StreamSegmentCache extends AutoCloseable {
+public interface Cache extends AutoCloseable {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *
@@ -82,7 +82,7 @@ public interface StreamSegmentCache extends AutoCloseable {
      * @throws IllegalStateException If the Cache is already in recovery mode.
      * @throws NullPointerException  If the parameter is null.
      */
-    void enterRecoveryMode(StreamSegmentMetadataSource recoveryMetadataSource);
+    void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource);
 
     /**
      * Puts the Caceh out of Recovery Mode, enabling all operations.
@@ -96,5 +96,5 @@ public interface StreamSegmentCache extends AutoCloseable {
      *                                  the Read Index or it has conflicting information about it.
      *                                  TODO: should this be different, like DataCorruptionException.
      */
-    void exitRecoveryMode(StreamSegmentMetadataSource finalMetadataSource, boolean success);
+    void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success);
 }

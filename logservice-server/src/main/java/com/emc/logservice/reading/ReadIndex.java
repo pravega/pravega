@@ -16,12 +16,12 @@ import java.util.*;
  * for fast read-ahead access.
  * </ol>
  */
-public class ReadIndex implements StreamSegmentCache {
+public class ReadIndex implements Cache {
     //region Members
 
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
-    private StreamSegmentMetadataSource metadata;
+    private SegmentMetadataCollection metadata;
     private boolean recoveryMode;
     private boolean closed;
 
@@ -29,7 +29,7 @@ public class ReadIndex implements StreamSegmentCache {
 
     //region Constructor
 
-    public ReadIndex(StreamSegmentMetadataSource metadata) {
+    public ReadIndex(SegmentMetadataCollection metadata) {
         this.readIndices = new HashMap<>();
         this.metadata = metadata;
         this.recoveryMode = false;
@@ -53,7 +53,7 @@ public class ReadIndex implements StreamSegmentCache {
 
     //endregion
 
-    //region StreamSegmentCache Implementation
+    //region Cache Implementation
 
     @Override
     public void append(long streamSegmentId, long offset, byte[] data) {
@@ -141,7 +141,7 @@ public class ReadIndex implements StreamSegmentCache {
     }
 
     @Override
-    public void enterRecoveryMode(StreamSegmentMetadataSource recoveryMetadataSource) {
+    public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
         ensureNotClosed();
 
         if (this.recoveryMode) {
@@ -158,7 +158,7 @@ public class ReadIndex implements StreamSegmentCache {
     }
 
     @Override
-    public void exitRecoveryMode(StreamSegmentMetadataSource finalMetadataSource, boolean success) {
+    public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
         ensureNotClosed();
 
         if (!this.recoveryMode) {
@@ -171,7 +171,7 @@ public class ReadIndex implements StreamSegmentCache {
 
         if (success) {
             for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
-                ReadOnlyStreamSegmentMetadata metadata = finalMetadataSource.getStreamSegmentMetadata(e.getKey());
+                SegmentMetadata metadata = finalMetadataSource.getStreamSegmentMetadata(e.getKey());
                 if (metadata == null) {
                     throw new IllegalArgumentException(String.format("Final Metadata has no knowledge of StreamSegment Id %d.", e.getKey()));
                 }
@@ -216,7 +216,7 @@ public class ReadIndex implements StreamSegmentCache {
                 }
 
                 // We don't have it, and nobody else got it for us.
-                ReadOnlyStreamSegmentMetadata ssm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                SegmentMetadata ssm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 if (ssm == null) {
                     throw new IllegalArgumentException(String.format("StreamSegmentId %d does not exist in the metadata.", streamSegmentId));
                 }

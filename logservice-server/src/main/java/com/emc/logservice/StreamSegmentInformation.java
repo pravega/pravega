@@ -40,12 +40,12 @@ public class StreamSegmentInformation {
     //region Properties
 
     /**
-     * Gets a value indicating the length of the StreamSegment.
+     * Gets a value indicating the name of the StreamSegment.
      *
      * @return
      */
-    public long getLength() {
-        return this.length;
+    public String getName() {
+        return this.streamSegmentName;
     }
 
     /**
@@ -76,17 +76,17 @@ public class StreamSegmentInformation {
     }
 
     /**
-     * Gets a value indicating the name of the StreamSegment.
+     * Gets a value indicating the length of the StreamSegment.
      *
      * @return
      */
-    public String getStreamSegmentName() {
-        return this.streamSegmentName;
+    public long getLength() {
+        return this.length;
     }
 
     @Override
     public String toString() {
-        return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getStreamSegmentName(), getLength(), isSealed(), isDeleted(), getLastModified());
+        return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(), getLength(), isSealed(), isDeleted(), getLastModified());
     }
 
     //endregion
