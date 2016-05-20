@@ -4,8 +4,7 @@ import com.twitter.distributedlog.*;
 import com.twitter.distributedlog.namespace.DistributedLogNamespace;
 import com.twitter.distributedlog.namespace.DistributedLogNamespaceBuilder;
 import com.twitter.distributedlog.util.FutureUtils;
-import com.twitter.util.Future;
-import com.twitter.util.FutureEventListener;
+import com.twitter.util.*;
 
 import java.net.URI;
 import java.util.Random;
@@ -82,7 +81,7 @@ public class DLogTester {
                 }
             });
 
-            writeFuture.get();
+            Await.result(writeFuture);
 
             //            System.out.println("Writing entries...");
             //            for (int i = 0; i < RecordCount; i++) {

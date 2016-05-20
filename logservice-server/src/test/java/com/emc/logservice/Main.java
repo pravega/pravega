@@ -1,10 +1,12 @@
 package com.emc.logservice;
 
+import com.emc.logservice.containers.*;
 import com.emc.logservice.core.*;
 import com.emc.logservice.logs.*;
 import com.emc.logservice.logs.operations.*;
+import com.emc.logservice.mocks.*;
 import com.emc.logservice.reading.ReadIndex;
-import com.emc.logservice.mocks.InMemoryDataFrameLog;
+import com.emc.logservice.reading.ReadIndexFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -21,9 +23,11 @@ import java.util.function.Function;
 public class Main {
     private static final Random Random = new Random();
     private static final Duration Timeout = Duration.ofSeconds(30);
+    private static final String ContainerId = "123";
 
     public static void main(String[] args) throws Exception {
         testTwitterDistributedLog();
+        //testStreamSegmentContainer();
         //testDurableLog();
         //testReadIndex();
         //testOperationQueueProcessor();
@@ -31,11 +35,53 @@ public class Main {
         //testDataFrameBuilder();
         //testDataFrame();
         //testLogOperations();
+        //testInMemoryStorage();
     }
+
 
     private static void testTwitterDistributedLog() throws Exception{
         DLogTester t = new DLogTester();
         t.run();
+    }
+
+    private static void testStreamSegmentContainer() throws Exception {
+        final String containerId = "123";
+        final Duration timeout = Duration.ofSeconds(30);
+
+        int streamCount = 10;
+        int batchPerStreamCount = 10;
+
+        MetadataRepository metadataRepository = new InMemoryMetadataRepository();
+        DataFrameLogFactory dataFrameLogFactory = new InMemoryDataFrameLogFactory();
+        OperationLogFactory durableLogFactory = new DurableLogFactory(dataFrameLogFactory);
+        StorageFactory storageFactory = new InMemoryStorageFactory();
+        CacheFactory cacheFactory = new ReadIndexFactory();
+        List<String> streamNames = new ArrayList<>();
+        List<CompletableFuture> batchNameFutures = new ArrayList<>();
+        try (StreamSegmentContainer c = new StreamSegmentContainer(containerId, metadataRepository, durableLogFactory, cacheFactory, storageFactory)) {
+            c.initialize(timeout).get();
+            c.start(timeout).get();
+
+            //create some streams
+            for (int i = 0; i < streamCount; i++) {
+                String name = getStreamName(i);
+                streamNames.add(name);
+                c.createStreamSegment(name, timeout).get();
+                for (int j = 0; j < batchPerStreamCount; j++) {
+                    batchNameFutures.add(c.createBatch(name, timeout));
+                }
+            }
+
+            for (CompletableFuture<String> cf : batchNameFutures) {
+                streamNames.add(cf.get());
+            }
+
+            // more tests to be done as part of unit testing.
+
+            printMetadata(metadataRepository.getMetadata(containerId), streamNames);
+
+            c.stop(timeout).get();
+        }
     }
 
     private static void testReadIndex() throws Exception {
@@ -44,8 +90,8 @@ public class Main {
         int appendsPerStream = 100;
 
         ExecutorService executor = Executors.newFixedThreadPool(streamCount * 2 + 1);
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata();
-        ReadIndex index = new ReadIndex(metadata);
+        UpdateableContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
+        Cache index = new ReadIndex(metadata);
         index.enterRecoveryMode(metadata);
         index.exitRecoveryMode(metadata, true);
 
@@ -68,7 +114,7 @@ public class Main {
                 byte[] appendData = appendContents.getBytes();
                 perStreamData.get(streamId).add(appendData);
 
-                StreamSegmentMetadata ssm = metadata.getStreamSegmentMetadata(streamId);
+                UpdateableSegmentMetadata ssm = metadata.getStreamSegmentMetadata(streamId);
                 long appendOffset = ssm.getDurableLogLength();
                 ssm.setDurableLogLength(appendOffset + appendData.length);
                 index.append(streamId, appendOffset, appendData);
@@ -214,7 +260,7 @@ public class Main {
                     byte[] appendData = appendContents.getBytes();
                     perStreamData.get(streamId).add(appendData);
 
-                    StreamSegmentMetadata ssm = metadata.getStreamSegmentMetadata(streamId);
+                    UpdateableSegmentMetadata ssm = metadata.getStreamSegmentMetadata(streamId);
                     long appendOffset = ssm.getDurableLogLength();
                     ssm.setDurableLogLength(appendOffset + appendData.length);
                     try {
@@ -275,7 +321,7 @@ public class Main {
         long batchStreamId = streamContents.size() + 1;
         String name = getStreamName((int) batchStreamId);
         metadata.mapStreamSegmentId(name, batchStreamId, parentStreamId);
-        StreamSegmentMetadata batchMetadata = metadata.getStreamSegmentMetadata(batchStreamId);
+        UpdateableSegmentMetadata batchMetadata = metadata.getStreamSegmentMetadata(batchStreamId);
         batchMetadata.setDurableLogLength(0);
         batchMetadata.setStorageLength(0);
         perStreamData.put(batchStreamId, new ArrayList<>());
@@ -300,7 +346,7 @@ public class Main {
         metadata.getStreamSegmentMetadata(batchStreamId).markSealed();
 
         // Merge it.
-        StreamSegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(parentStreamId);
+        UpdateableSegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(parentStreamId);
         long targetOffset = parentMetadata.getDurableLogLength();
         long batchLength = batchMetadata.getDurableLogLength();
         long parentStreamLength = targetOffset + batchLength;
@@ -355,18 +401,17 @@ public class Main {
         ConcurrentHashMap<Long, Long> latencies = new ConcurrentHashMap<>();
         ArrayList<Operation> readEntries;
         ArrayList<Operation> readEntriesAfterRecovery;
-        ArrayList<TruncationMarker> truncationMarkersBeforeRecovery;
-        ArrayList<TruncationMarker> truncationMarkersAfterRecovery;
         long createStreamsElapsedNanos;
         long totalAppendSize = 0;
         long writeTimeMillis;
         long readElapsedMillis;
 
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata();
-        DataFrameLog dfl = new InMemoryDataFrameLog();
+        Storage storage = new InMemoryStorage();
+        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
+        DataFrameLogFactory dataFrameLogFactory = new InMemoryDataFrameLogFactory();
         ReadIndex readIndex = new ReadIndex(metadata);
-        try (DurableLog dl = new DurableLog(metadata, dfl, readIndex)) {
-            StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl);
+        try (DurableLog dl = new DurableLog(metadata, dataFrameLogFactory, readIndex)) {
+            StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl, storage);
 
             dl.initialize(Timeout).get();
             dl.start(Timeout).get();
@@ -454,13 +499,12 @@ public class Main {
 
             // Close DurableLog and create a new one (recover)
             dl.stop(Timeout).get();
-            truncationMarkersBeforeRecovery = getTruncationMarkers(metadata);
         }
 
         System.out.println("Performing recovery ...");
         long recoveryStartNanos = System.nanoTime();
         long recoveryElapsedMillis;
-        try (DurableLog dl = new DurableLog(metadata, dfl, readIndex)) {
+        try (DurableLog dl = new DurableLog(metadata, dataFrameLogFactory, readIndex)) {
             dl.initialize(Timeout).get();
             dl.start(Timeout).get();
 
@@ -479,24 +523,9 @@ public class Main {
             System.out.println("Read index (post recovery) check complete.");
 
             dl.stop(Timeout).get();
-            truncationMarkersAfterRecovery = getTruncationMarkers(metadata);
         }
 
-        if (truncationMarkersBeforeRecovery.size() != truncationMarkersAfterRecovery.size()) {
-            System.out.println(String.format("Truncation marker counts differ. Expected %d, actual %d.", truncationMarkersBeforeRecovery.size(), truncationMarkersAfterRecovery.size()));
-        }
-
-        for (int i = 0; i < Math.max(truncationMarkersAfterRecovery.size(), truncationMarkersBeforeRecovery.size()); i++) {
-            TruncationMarker expected = i < truncationMarkersBeforeRecovery.size() ? truncationMarkersBeforeRecovery.get(i) : null;
-            TruncationMarker actual = i < truncationMarkersAfterRecovery.size() ? truncationMarkersAfterRecovery.get(i) : null;
-            if (expected == null || actual == null || (expected.getDataFrameSequenceNumber() != actual.getDataFrameSequenceNumber()) || (expected.getOperationSequenceNumber() != actual.getOperationSequenceNumber())) {
-                System.out.println(String.format("TruncationMarker is DIFFERENT[%d]. Expected %s, actual %s.", i, expected, actual));
-            }
-        }
-
-        System.out.println("Truncation Marker check complete.");
-
-        printMetadata(metadata, streamNames, false);
+        printMetadata(metadata, streamNames);
 
         double writeOpsPerSecond = writeEntries.size() / (writeTimeMillis / 1000.0);
         double writeKbPerSecond = (totalAppendSize / 1024.0) / (writeTimeMillis / 1000.0);
@@ -528,11 +557,12 @@ public class Main {
         boolean sealAllStreams = true;
 
         OperationQueue queue = new OperationQueue();
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata();
+        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
         InMemoryDataFrameLog dataFrameLog = new InMemoryDataFrameLog();
-        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata);
+        TruncationMarkerCollection truncationMarkerCollection = new TruncationMarkerCollection();
+        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata, truncationMarkerCollection);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata));
-        OperationQueueProcessor qp = new OperationQueueProcessor(queue, metadataUpdater, logUpdater, dataFrameLog);
+        OperationQueueProcessor qp = new OperationQueueProcessor(ContainerId, queue, metadataUpdater, logUpdater, dataFrameLog);
         qp.initialize(Duration.ZERO);
         qp.start(Duration.ZERO);
 
@@ -604,7 +634,7 @@ public class Main {
         Thread.sleep(2000);
         qp.stop(Duration.ZERO).get();
 
-        printMetadata(metadata, streamNames, true);
+        printMetadata(metadata, streamNames);
 
         long processingTimeElapsedMillis = (processingEndTimeNanos.get() - produceStartNanos) / 1000 / 1000;
         double opsPerSecond = entries.size() / (processingTimeElapsedMillis / 1000.0);
@@ -860,9 +890,65 @@ public class Main {
         }
     }
 
+    private static void testInMemoryStorage() {
+        //TODO: don't delete this. Move this to some sort of self-test method in InMemoryStorage.
+        final int streamCount = 1;
+        final int appendCount = 10;
+        final int maxAppendSize = 1 * 1024 * 1024;
+        final byte[] appendSourceBuffer = new byte[maxAppendSize];
+        final Random r = new Random();
+        r.nextBytes(appendSourceBuffer);
+
+        HashMap<Integer, ByteArrayOutputStream> expectedDataStreams = new HashMap<>();
+
+        InMemoryStorage s = new InMemoryStorage();
+
+        // Do some writing (append-only).
+        System.out.println("Writing...");
+        for (int streamId = 0; streamId < streamCount; streamId++) {
+            ByteArrayOutputStream expectedData = new ByteArrayOutputStream();
+            expectedDataStreams.put(streamId, expectedData);
+            String streamName = getStreamName(streamId);
+            s.create(streamName, Duration.ZERO).join();
+
+            for (int appendId = 0; appendId < appendCount; appendId++) {
+                SegmentProperties streamInfo = s.getStreamSegmentInfo(streamName, Duration.ZERO).join();
+                if (streamInfo.getLength() != expectedData.size()) {
+                    System.out.println(String.format("Stream %d, Append %d: Expected BeforeLength = %d, Actual BeforeLength = %d.", streamId, appendId, expectedData.size(), streamInfo.getLength()));
+                }
+
+                int appendSize = r.nextInt(maxAppendSize);
+                expectedData.write(appendSourceBuffer, 0, appendSize);
+                s.write(streamName, streamInfo.getLength(), new ByteArrayInputStream(appendSourceBuffer, 0, appendSize), appendSize, Duration.ZERO).join();
+            }
+        }
+
+        // Do some reading
+        System.out.println("Reading...");
+        for (int streamId = 0; streamId < streamCount; streamId++) {
+            byte[] expectedData = expectedDataStreams.get(streamId).toByteArray();
+            String streamName = getStreamName(streamId);
+
+            int increment = Math.max(1, maxAppendSize / 1024);
+            for (int offset = 0; offset < expectedData.length / 2; offset += increment) {
+                int readLength = expectedData.length - 2 * offset;
+                byte[] readBuffer = new byte[readLength];
+                int bytesRead = s.read(streamName, offset, readBuffer, 0, readLength, Duration.ZERO).join();
+
+                if (bytesRead != readLength) {
+                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong number of bytes read (%d).", streamId, offset, readLength, bytesRead));
+                }
+
+                if (!areEqual(expectedData, offset, readBuffer, 0, readLength)) {
+                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong data read.", streamId, offset, readLength));
+                }
+            }
+        }
+    }
+
     //region Helpers
 
-    private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, ReadIndex index, String expectedContents, boolean verbose) throws Exception {
+    private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, Cache index, String expectedContents, boolean verbose) throws Exception {
         try (ReadResult readResult = index.read(streamId, offset, length, Duration.ZERO)) {
             byte[] actualData = new byte[(int) length];
             int readSoFar = 0;
@@ -971,11 +1057,11 @@ public class Main {
         return true;
     }
 
-    private static void printMetadata(StreamSegmentContainerMetadata metadata, Collection<String> streamNames, boolean includeTruncationMarkers) {
+    private static void printMetadata(UpdateableContainerMetadata metadata, Collection<String> streamNames) {
         System.out.println("Final Stream Metadata:");
         for (String streamName : streamNames) {
             long streamId = metadata.getStreamSegmentId(streamName);
-            StreamSegmentMetadata streamSegmentMetadata = metadata.getStreamSegmentMetadata(streamId);
+            SegmentMetadata streamSegmentMetadata = metadata.getStreamSegmentMetadata(streamId);
             System.out.println(String.format("Stream = %d, Name = %s, StorageLength = %d, DurableLogLength = %d, Sealed = %s",
                     streamSegmentMetadata.getId(),
                     streamSegmentMetadata.getName(),
@@ -983,33 +1069,6 @@ public class Main {
                     streamSegmentMetadata.getDurableLogLength(),
                     streamSegmentMetadata.isSealed()));
         }
-
-        if (includeTruncationMarkers) {
-            System.out.println("Final Truncation Metadata");
-            ArrayList<TruncationMarker> truncationMarkers = getTruncationMarkers(metadata);
-            for (TruncationMarker truncationMarker : truncationMarkers) {
-                System.out.println(String.format("Truncation Marker: OperationSN = %d, DataFrameSN = %d", truncationMarker.getOperationSequenceNumber(), truncationMarker.getDataFrameSequenceNumber()));
-            }
-        }
-    }
-
-    private static ArrayList<TruncationMarker> getTruncationMarkers(StreamSegmentContainerMetadata metadata) {
-        ArrayList<TruncationMarker> result = new ArrayList<>();
-        TruncationMarker lastTruncationMarker = null;
-        long maxSeqNo = metadata.getNewOperationSequenceNumber();
-        for (long i = 0; i < maxSeqNo; i++) {
-            TruncationMarker tm = metadata.getClosestTruncationMarker(i);
-            if (tm == null) {
-                continue;
-            }
-
-            if (lastTruncationMarker == null || lastTruncationMarker.getOperationSequenceNumber() != tm.getOperationSequenceNumber()) {
-                lastTruncationMarker = tm;
-                result.add(tm);
-            }
-        }
-
-        return result;
     }
 
     private static ArrayList<Function<Integer, Operation>> getOperationCreators(int maxAppendLength) {
@@ -1143,6 +1202,22 @@ public class Main {
         for (int i = 0; i < b1.length; i++) {
             if (b1[i] != b2[i]) {
                 System.out.println(String.format("b1[%d]=%d, b2[%d]=%d", i, b1[i], i, b2[i]));
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean areEqual(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
+        if (offset1 + length > b1.length || offset2 + length > b2.length) {
+            System.out.println(String.format("L1=%d, O1=%d, L2=%d, O2=%d, MinLength=%d", b1.length, offset1, b2.length, offset2, length));
+            return false;
+        }
+
+        for (int i = 0; i < length; i++) {
+            if (b1[i + offset1] != b2[i + offset2]) {
+                System.out.println(String.format("b1[%d]=%d, b2[%d]=%d", i, b1[i + offset1], i, b2[i + offset2]));
                 return false;
             }
         }

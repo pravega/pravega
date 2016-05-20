@@ -1,17 +1,21 @@
 package com.emc.logservice.logs;
 
-import com.emc.logservice.logs.operations.*;
 import com.emc.logservice.*;
+import com.emc.logservice.containers.StreamSegmentMetadata;
+import com.emc.logservice.containers.TruncationMarkerCollection;
+import com.emc.logservice.logs.operations.*;
 
+import java.util.Date;
 import java.util.HashMap;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.
  */
-public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
+public class OperationMetadataUpdater implements SegmentMetadataCollection {
     //region Members
 
-    private final StreamSegmentContainerMetadata metadata;
+    private final UpdateableContainerMetadata metadata;
+    private final TruncationMarkerCollection truncationMarkers;
     private UpdateTransaction currentTransaction;
 
     //endregion
@@ -22,14 +26,19 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
      * Creates a new instance of the OperationMetadataUpdater class.
      *
      * @param metadata The Container Metadata to update.
-     * @throws NullPointerException If the metadata is null.
+     * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationMetadataUpdater(StreamSegmentContainerMetadata metadata) {
+    public OperationMetadataUpdater(UpdateableContainerMetadata metadata, TruncationMarkerCollection truncationMarkers) {
         if (metadata == null) {
             throw new NullPointerException("metadata");
         }
 
+        if (truncationMarkers == null) {
+            throw new NullPointerException("truncationMarkers");
+        }
+
         this.metadata = metadata;
+        this.truncationMarkers = truncationMarkers;
         this.currentTransaction = null;
     }
 
@@ -60,13 +69,13 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
     }
 
     /**
-     * Commits a Truncation Marker directly to the base Metadata.
+     * Records a Truncation Marker.
      *
-     * @param truncationMarker The Truncation Marker to commit.
-     * @throws NullPointerException If the truncationMarker is null.
+     * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
+     * @param dataFrameSequenceNumber The Sequence Number of the corresponding Data Frame that can be truncated (up to, and including).
      */
-    public void commitTruncationMarker(TruncationMarker truncationMarker) {
-        this.metadata.recordTruncationMarker(truncationMarker);
+    public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        this.truncationMarkers.recordTruncationMarker(operationSequenceNumber, dataFrameSequenceNumber);
     }
 
     //endregion
@@ -74,7 +83,7 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
     //region OperationMetadataUpdater
 
     @Override
-    public ReadOnlyStreamSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
+    public SegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
         UpdateTransaction transaction = this.currentTransaction;
         if (transaction == null) {
             return null;
@@ -86,6 +95,16 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
         catch (MetadataUpdateException ex) {
             return null;
         }
+    }
+
+    @Override
+    public long getStreamSegmentId(String streamSegmentName) {
+        UpdateTransaction transaction = this.currentTransaction;
+        if (transaction == null) {
+            return ContainerMetadata.NoStreamSegmentId;
+        }
+
+        return transaction.getExistingStreamId(streamSegmentName);
     }
 
     //endregion
@@ -184,16 +203,16 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
      */
     private class UpdateTransaction {
         private final HashMap<Long, TemporaryStreamSegmentMetadata> streamUpdates;
-        private final HashMap<Long, StreamSegmentMetadata> newStreams;
+        private final HashMap<Long, UpdateableSegmentMetadata> newStreams;
         private final HashMap<String, Long> newStreamsNames;
-        private final StreamSegmentContainerMetadata containerMetadata;
+        private final UpdateableContainerMetadata containerMetadata;
 
         /**
          * Creates a new instance of the UpdateTransaction class.
          *
          * @param containerMetadata The base Container Metadata.
          */
-        public UpdateTransaction(StreamSegmentContainerMetadata containerMetadata) {
+        public UpdateTransaction(UpdateableContainerMetadata containerMetadata) {
             this.streamUpdates = new HashMap<>();
             this.containerMetadata = containerMetadata;
             if (containerMetadata.isRecoveryMode()) {
@@ -215,16 +234,16 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
 
             // If we are in recovery mode, add new stream metadata to the container metadata.
             if (this.containerMetadata.isRecoveryMode()) {
-                for (StreamSegmentMetadata newMetadata : this.newStreams.values()) {
+                for (SegmentMetadata newMetadata : this.newStreams.values()) {
                     //TODO: should we check (again?) if the container metadata has knowledge of this stream?
-                    if (newMetadata.getParentId() != StreamSegmentContainerMetadata.NoStreamSegmentId) {
+                    if (newMetadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
                         this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
                     }
                     else {
                         this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
                     }
 
-                    StreamSegmentMetadata existingMetadata = this.containerMetadata.getStreamSegmentMetadata(newMetadata.getId());
+                    UpdateableSegmentMetadata existingMetadata = this.containerMetadata.getStreamSegmentMetadata(newMetadata.getId());
                     existingMetadata.setStorageLength(newMetadata.getStorageLength());
                     existingMetadata.setDurableLogLength(newMetadata.getDurableLogLength());
                     if (newMetadata.isSealed()) {
@@ -248,7 +267,7 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
         public TemporaryStreamSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) throws MetadataUpdateException {
             TemporaryStreamSegmentMetadata tsm = this.streamUpdates.getOrDefault(streamSegmentId, null);
             if (tsm == null) {
-                StreamSegmentMetadata streamSegmentMetadata = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+                UpdateableSegmentMetadata streamSegmentMetadata = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
                 if (streamSegmentMetadata == null) {
                     if (this.newStreams != null) {
                         streamSegmentMetadata = this.newStreams.getOrDefault(streamSegmentId, null);
@@ -285,14 +304,14 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
 
         private void processMetadataOperation(StreamSegmentMapOperation operation) throws MetadataUpdateException {
             // Verify Stream does not exist.
-            StreamSegmentMetadata sm = getExistingMetadata(operation.getStreamSegmentId());
+            UpdateableSegmentMetadata sm = getExistingMetadata(operation.getStreamSegmentId());
             if (sm != null) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Stream Id that is already mapped in the metadata. Entry: %d->'%s', Metadata: %d->'%s'.", operation.getSequenceNumber(), operation.getStreamSegmentId(), operation.getStreamSegmentName(), sm.getId(), sm.getName()));
             }
 
             // Verify Stream Name is not already mapped somewhere else.
             long existingStreamId = getExistingStreamId(operation.getStreamSegmentName());
-            if (existingStreamId != StreamSegmentContainerMetadata.NoStreamSegmentId) {
+            if (existingStreamId != SegmentMetadataCollection.NoStreamSegmentId) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Stream Name that is already mapped in the metadata. Stream Name = '%s', Existing Id = %d, New Id = %d.", operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamId, operation.getStreamSegmentId()));
             }
 
@@ -306,20 +325,20 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
 
         private void processMetadataOperation(BatchMapOperation entry) throws MetadataUpdateException {
             // Verify Parent Stream Exists.
-            StreamSegmentMetadata parentMetadata = getExistingMetadata(entry.getParentStreamSegmentId());
+            UpdateableSegmentMetadata parentMetadata = getExistingMetadata(entry.getParentStreamSegmentId());
             if (parentMetadata == null) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Stream to a Parent Stream Id that does not exist. Parent Stream Id = %d, Batch Stream Id = %d, Batch Stream Name = %s.", entry.getSequenceNumber(), entry.getParentStreamSegmentId(), entry.getBatchStreamSegmentId(), entry.getBatchStreamSegmentName()));
             }
 
             // Verify Batch Stream does not exist.
-            StreamSegmentMetadata batchStreamSegmentMetadata = getExistingMetadata(entry.getBatchStreamSegmentId());
+            UpdateableSegmentMetadata batchStreamSegmentMetadata = getExistingMetadata(entry.getBatchStreamSegmentId());
             if (batchStreamSegmentMetadata != null) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Batch Stream Id that is already mapped in the metadata. Entry: %d->'%s', Metadata: %d->'%s'.", entry.getSequenceNumber(), entry.getBatchStreamSegmentId(), entry.getBatchStreamSegmentName(), batchStreamSegmentMetadata.getId(), batchStreamSegmentMetadata.getName()));
             }
 
             // Verify Stream Name is not already mapped somewhere else.
             long existingStreamId = getExistingStreamId(entry.getBatchStreamSegmentName());
-            if (existingStreamId != StreamSegmentContainerMetadata.NoStreamSegmentId) {
+            if (existingStreamId != SegmentMetadataCollection.NoStreamSegmentId) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Batch Stream Name that is already mapped in the metadata. Stream Name = '%s', Existing Id = %d, New Id = %d.", entry.getSequenceNumber(), entry.getBatchStreamSegmentName(), existingStreamId, entry.getBatchStreamSegmentId()));
             }
 
@@ -338,15 +357,15 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
 
         private long getExistingStreamId(String streamName) {
             long existingStreamId = this.containerMetadata.getStreamSegmentId(streamName);
-            if (existingStreamId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
-                existingStreamId = this.newStreamsNames.getOrDefault(streamName, StreamSegmentContainerMetadata.NoStreamSegmentId);
+            if (existingStreamId == SegmentMetadataCollection.NoStreamSegmentId) {
+                existingStreamId = this.newStreamsNames.getOrDefault(streamName, SegmentMetadataCollection.NoStreamSegmentId);
             }
 
             return existingStreamId;
         }
 
-        private StreamSegmentMetadata getExistingMetadata(long streamId) {
-            StreamSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamId);
+        private UpdateableSegmentMetadata getExistingMetadata(long streamId) {
+            UpdateableSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamId);
             if (sm == null) {
                 sm = this.newStreams.getOrDefault(streamId, null);
             }
@@ -362,9 +381,10 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
     /**
      * Pending StreamSegment Metadata.
      */
-    private class TemporaryStreamSegmentMetadata implements ReadOnlyStreamSegmentMetadata {
+    private class TemporaryStreamSegmentMetadata implements SegmentMetadata {
         //region Members
-        private final StreamSegmentMetadata streamSegmentMetadata;
+
+        private final UpdateableSegmentMetadata streamSegmentMetadata;
         private final boolean isRecoveryMode;
         private long currentDurableLogLength;
         private boolean sealed;
@@ -380,7 +400,7 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
          * @param streamSegmentMetadata The base StreamSegment Metadata.
          * @param isRecoveryMode        Whether the metadata is currently in recovery model
          */
-        public TemporaryStreamSegmentMetadata(StreamSegmentMetadata streamSegmentMetadata, boolean isRecoveryMode) {
+        public TemporaryStreamSegmentMetadata(UpdateableSegmentMetadata streamSegmentMetadata, boolean isRecoveryMode) {
             this.streamSegmentMetadata = streamSegmentMetadata;
             this.isRecoveryMode = isRecoveryMode;
             this.currentDurableLogLength = this.streamSegmentMetadata.getDurableLogLength();
@@ -390,12 +410,36 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
 
         //endregion
 
-        //region ReadOnlyStreamSegmentMetadata Implementation
+        //region StreamProperties Implementation
 
         @Override
         public String getName() {
             return this.streamSegmentMetadata.getName();
         }
+
+        @Override
+        public boolean isSealed() {
+            return this.sealed;
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public long getLength() {
+            return this.currentDurableLogLength; // ReadableLength == DurableLogLength.
+        }
+
+        @Override
+        public Date getLastModified() {
+            return new Date();//TODO: implement properly.
+        }
+
+        //endregion
+
+        //region SegmentMetadata Implementation
 
         @Override
         public long getId() {
@@ -415,16 +459,6 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
         @Override
         public long getDurableLogLength() {
             return this.currentDurableLogLength;
-        }
-
-        @Override
-        public boolean isSealed() {
-            return this.sealed;
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return false;
         }
 
         //endregion
@@ -532,7 +566,7 @@ public class OperationMetadataUpdater implements StreamSegmentMetadataSource {
                 throw new StreamSegmentSealedException(this.streamSegmentMetadata.getName());
             }
 
-            if (this.streamSegmentMetadata.getParentId() != StreamSegmentContainerMetadata.NoStreamSegmentId) {
+            if (this.streamSegmentMetadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
                 throw new MetadataUpdateException("Cannot merge a StreamSegment into a Batch StreamSegment.");
             }
 

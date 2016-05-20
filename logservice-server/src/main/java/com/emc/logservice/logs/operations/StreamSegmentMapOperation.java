@@ -1,7 +1,7 @@
 package com.emc.logservice.logs.operations;
 
+import com.emc.logservice.SegmentProperties;
 import com.emc.logservice.logs.SerializationException;
-import com.emc.logservice.StreamSegmentInformation;
 
 import java.io.*;
 
@@ -26,16 +26,16 @@ public class StreamSegmentMapOperation extends MetadataOperation {
     /**
      * Creates a new instance of the StreamSegmentMapOperation class.
      *
-     * @param streamSegmentId          The Id of the StreamSegment.
-     * @param streamSegmentInformation Information about the StreamSegment.
+     * @param streamSegmentId         The Id of the StreamSegment.
+     * @param streamSegmentProperties Information about the StreamSegment.
      */
-    public StreamSegmentMapOperation(long streamSegmentId, StreamSegmentInformation streamSegmentInformation) {
+    public StreamSegmentMapOperation(long streamSegmentId, SegmentProperties streamSegmentProperties) {
         super();
         this.streamSegmentId = streamSegmentId;
-        this.streamSegmentName = streamSegmentInformation.getStreamSegmentName();
-        this.streamSegmentLength = streamSegmentInformation.getLength();
-        this.sealed = streamSegmentInformation.isSealed();
-        this.lastModifiedTime = streamSegmentInformation.getLastModified().getTime();
+        this.streamSegmentName = streamSegmentProperties.getName();
+        this.streamSegmentLength = streamSegmentProperties.getLength();
+        this.sealed = streamSegmentProperties.isSealed();
+        this.lastModifiedTime = streamSegmentProperties.getLastModified().getTime();
     }
 
     protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {

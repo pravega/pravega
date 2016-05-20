@@ -80,6 +80,12 @@ public interface Container extends AutoCloseable {
      * @return
      */
     ContainerState getState();
+
+    /**
+     * Gets a value indicating the Id of this container.
+     * @return
+     */
+    String getId();
 }
 
 

@@ -1,7 +1,7 @@
 package com.emc.logservice.reading;
 
-import com.emc.logservice.core.*;
 import com.emc.logservice.*;
+import com.emc.logservice.core.*;
 
 import java.time.Duration;
 import java.util.*;
@@ -21,7 +21,7 @@ import java.util.*;
 class StreamSegmentReadIndex implements AutoCloseable {
     //region Members
 
-    private ReadOnlyStreamSegmentMetadata metadata;
+    private SegmentMetadata metadata;
     private final TreeMap<Long, ReadIndexEntry> entries; // Key = Last Offset of Entry, Value = Entry; TODO: we can implement a version of this that doesn't require Key
     private final PlaceholderReadResultEntryCollection futureReads;
     private final ReadWriteAutoReleaseLock lock;
@@ -40,7 +40,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      *
      * @param metadata The StreamSegmentMetadata to use.
      */
-    protected StreamSegmentReadIndex(ReadOnlyStreamSegmentMetadata metadata, boolean recoveryMode) {
+    protected StreamSegmentReadIndex(SegmentMetadata metadata, boolean recoveryMode) {
         if (metadata == null) {
             throw new NullPointerException("metaData");
         }
@@ -105,7 +105,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @throws NullPointerException     If the given metadata is null.
      * @throws IllegalArgumentException If the new metadata does not match the old one perfectly.
      */
-    public void exitRecoveryMode(ReadOnlyStreamSegmentMetadata newMetadata) {
+    public void exitRecoveryMode(SegmentMetadata newMetadata) {
         if (this.closed) {
             throw new ObjectClosedException(this);
         }
@@ -204,7 +204,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             throw new ObjectClosedException(this);
         }
 
-        if (this.metadata.getParentId() != StreamSegmentContainerMetadata.NoStreamSegmentId) {
+        if (this.metadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
             throw new IllegalStateException("Cannot merge a StreamSegment into a child StreamSegment.");
         }
 
@@ -212,7 +212,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             throw new IllegalArgumentException("Given ReadIndex is already merged.");
         }
 
-        ReadOnlyStreamSegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
+        SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
         if (sourceMetadata.getParentId() != this.metadata.getId()) {
             throw new IllegalArgumentException("Given ReadIndex refers to a StreamSegment that does not have this ReadIndex's StreamSegment as a parent.");
         }
@@ -289,7 +289,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
 
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
-        ReadOnlyStreamSegmentMetadata sourceMetadata = sourceIndex.metadata;
+        SegmentMetadata sourceMetadata = sourceIndex.metadata;
         if (!sourceMetadata.isDeleted()) {
             throw new IllegalArgumentException("Given ReadIndex refers to a StreamSegment that has not been deleted yet.");
         }
@@ -465,7 +465,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
                         // ResultStartOffset is before the Start Offset of this entry. This means either:
                         // 1. This is the first entry and ResultStartOffset is before it. OR
                         // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
-                        // We must issue a Storage Read to bring the data to us.
+                        // We must issue a Storage Read to bring the data to us (with a readLength of up to the size of the gap).
                         int readLength = (int) Math.min(maxLength, currentEntry.getStreamSegmentOffset() - resultStartOffset);
                         return createStorageRead(resultStartOffset, readLength);
                     }

@@ -11,7 +11,7 @@ import java.util.HashSet;
 public class MemoryLogUpdater {
     //region Private
 
-    private final StreamSegmentCache cache;
+    private final Cache cache;
     private final MemoryOperationLog inMemoryOperationLog;
     private HashSet<Long> recentStreamSegmentIds;
 
@@ -25,7 +25,7 @@ public class MemoryLogUpdater {
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param cache                Cache.
      */
-    public MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, StreamSegmentCache cache) {
+    public MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, Cache cache) {
         if (cache == null) {
             throw new NullPointerException("cache");
         }
@@ -48,7 +48,7 @@ public class MemoryLogUpdater {
      *
      * @param recoveryMetadataSource The metadata to use during recovery.
      */
-    public void enterRecoveryMode(StreamSegmentMetadataSource recoveryMetadataSource) {
+    public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
         this.cache.enterRecoveryMode(recoveryMetadataSource);
     }
 
@@ -59,7 +59,7 @@ public class MemoryLogUpdater {
      * @param success             Indicates whether recovery was successful. If not, the operations may be reverted and
      *                            the contents of the memory structures may be cleared out.
      */
-    public void exitRecoveryMode(StreamSegmentMetadataSource finalMetadataSource, boolean success) {
+    public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
         this.cache.exitRecoveryMode(finalMetadataSource, success);
     }
 

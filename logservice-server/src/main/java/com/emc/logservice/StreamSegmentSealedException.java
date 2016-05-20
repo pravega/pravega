@@ -1,10 +1,11 @@
 package com.emc.logservice;
 
 /**
- * Created by padura on 4/17/16.
+ * Represents an exception that is thrown when an operation that is incompatible with a sealed StreamSegment is attempted on
+ * a sealed StreamSegment.
  */
-public class StreamSegmentSealedException extends StreamingException {
+public class StreamSegmentSealedException extends StreamSegmentException {
     public StreamSegmentSealedException(String streamName) {
-        super(String.format("Stream '%s' is closed for appends.", streamName));
+        super(streamName, "The StreamSegment is closed for appends.");
     }
 }

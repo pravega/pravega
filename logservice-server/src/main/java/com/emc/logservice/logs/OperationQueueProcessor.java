@@ -17,12 +17,14 @@ import java.util.function.Consumer;
 public class OperationQueueProcessor implements Container {
     //region Members
 
-    private static final Duration AutoCloseTimeout = Duration.ofSeconds(30);
+    private static final Duration CloseTimeout = Duration.ofSeconds(30);
     private static final int MaxDataFrameSize = 1024 * 1024; // 1MB
+    private final String containerId;
     private final OperationQueue operationQueue;
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryLogUpdater logUpdater;
     private final DataFrameLog dataFrameLog;
+    private final FaultHandlerRegistry faultRegistry;
     private final Object StateTransitionLock = new Object(); // TODO: consider using AsyncLock
     private Thread runThread;
     private ContainerState state;
@@ -35,13 +37,18 @@ public class OperationQueueProcessor implements Container {
     /**
      * Creates a new instance of the OperationQueueProcessor class.
      *
+     * @param containerId     The Id of the container this QueueProcessor belongs to.
      * @param operationQueue  The Operation Queue to work on.
      * @param metadataUpdater An OperationMetadataUpdater to work with.
      * @param logUpdater      A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param dataFrameLog    The DataFrameLog to write DataFrames to.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationQueueProcessor(OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DataFrameLog dataFrameLog) {
+    public OperationQueueProcessor(String containerId, OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DataFrameLog dataFrameLog) {
+        if (containerId == null) {
+            throw new NullPointerException("containerId");
+        }
+
         if (operationQueue == null) {
             throw new NullPointerException("operationQueue");
         }
@@ -58,10 +65,12 @@ public class OperationQueueProcessor implements Container {
             throw new NullPointerException("dataFrameLog");
         }
 
+        this.containerId = containerId;
         this.operationQueue = operationQueue;
         this.metadataUpdater = metadataUpdater;
         this.logUpdater = logUpdater;
         this.dataFrameLog = dataFrameLog;
+        this.faultRegistry = new FaultHandlerRegistry();
         setState(ContainerState.Created);
     }
 
@@ -71,7 +80,7 @@ public class OperationQueueProcessor implements Container {
 
     @Override
     public void close() throws Exception {
-        stop(AutoCloseTimeout).get(AutoCloseTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        stop(CloseTimeout).get(CloseTimeout.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     //endregion
@@ -132,12 +141,17 @@ public class OperationQueueProcessor implements Container {
 
     @Override
     public void registerFaultHandler(Consumer<Throwable> handler) {
-        //TODO: implement
+        this.faultRegistry.register(handler);
     }
 
     @Override
     public ContainerState getState() {
         return this.state;
+    }
+
+    @Override
+    public String getId() {
+        return this.containerId;
     }
 
     //endregion
@@ -187,7 +201,7 @@ public class OperationQueueProcessor implements Container {
             return;
         }
 
-        DataFrameBuildState state = new DataFrameBuildState(this.metadataUpdater, this.logUpdater, this::handleCriticalError);
+        QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.faultRegistry::handle);
         try (DataFrameBuilder dataFrameBuilder = new DataFrameBuilder(MaxDataFrameSize, this.dataFrameLog, state::commit, state::fail)) {
             for (CompletableOperation o : operations) {
                 boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
@@ -293,27 +307,18 @@ public class OperationQueueProcessor implements Container {
 
     //endregion
 
-    //region Helpers
-
-    private void handleCriticalError(Exception ex) {
-        //TODO: better...
-        System.err.println(ex);
-    }
-
-    //endregion
-
-    //region DataFrameBuildState
+    //region QueueProcessingState
 
     /**
-     * Temporary State for DataFrameBuilder. Keeps track of pending Operations and allows committing or failing all of them.
+     * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all of them.
      */
-    private class DataFrameBuildState {
+    private class QueueProcessingState {
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryLogUpdater logUpdater;
         private final Consumer<Exception> criticalErrorHandler;
 
-        public DataFrameBuildState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler) {
+        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler) {
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
             this.logUpdater = logUpdater;
@@ -337,7 +342,7 @@ public class OperationQueueProcessor implements Container {
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
             // Commit any changes to metadata.
             this.metadataUpdater.commit();
-            this.metadataUpdater.commitTruncationMarker(new TruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence()));
+            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
 
             // TODO: consider running this on its own thread, but they must still be in the same sequence!
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.

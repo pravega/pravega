@@ -30,11 +30,12 @@ public interface StreamSegmentStore {
      * @param offset            The offset within the stream to start reading at.
      * @param maxLength         The maximum number of bytes to read.
      * @param timeout           Timeout for the operation.
-     * @return A ReadResult instance that can be used to consume the read data.
+     * @return A CompletableFuture that, when completed normally, will contain a ReadResult instance that can be used to
+     * consume the read data. If the operation failed, it will contain the exception that caused the failure.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    ReadResult read(String streamSegmentName, long offset, int maxLength, Duration timeout);
+     CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
     /**
      * Gets information about a StreamSegment.
@@ -45,7 +46,7 @@ public interface StreamSegmentStore {
      * will contain the exception that caused the failure.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<StreamSegmentInformation> getStreamInfo(String streamSegmentName, Duration timeout);
+    CompletableFuture<StreamSegmentInformation> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 
     /**
      * Creates a new StreamSegment.
