@@ -17,7 +17,7 @@ public interface Storage {
      * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
      * failure.
      */
-    CompletableFuture<StreamSegmentInformation> create(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
 
     /**
      * Writes the given data to the StreamSegment.
@@ -57,7 +57,7 @@ public interface Storage {
      * StreamSegmentInformation with the final state of the StreamSegment). If the operation failed, it will contain the
      * cause of the failure.
      */
-    CompletableFuture<StreamSegmentInformation> seal(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout);
 
     /**
      * Gets current information about a StreamSegment.
@@ -67,7 +67,7 @@ public interface Storage {
      * @return A CompletableFuture that, when completed, will contain the information requested about the StreamSegment.
      * If the operation failed, it will contain the cause of the failure.
      */
-    CompletableFuture<StreamSegmentInformation> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 
     /**
      * Concatenates two StreamSegments together.

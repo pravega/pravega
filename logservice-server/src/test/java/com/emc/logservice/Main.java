@@ -4,9 +4,9 @@ import com.emc.logservice.containers.*;
 import com.emc.logservice.core.*;
 import com.emc.logservice.logs.*;
 import com.emc.logservice.logs.operations.*;
-import com.emc.logservice.mocks.InMemoryDataFrameLog;
-import com.emc.logservice.mocks.InMemoryDataFrameLogFactory;
+import com.emc.logservice.mocks.*;
 import com.emc.logservice.reading.ReadIndex;
+import com.emc.logservice.reading.ReadIndexFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -26,13 +26,56 @@ public class Main {
     private static final String ContainerId = "123";
 
     public static void main(String[] args) throws Exception {
-        testDurableLog();
+
+        testStreamSegmentContainer();
+        //testDurableLog();
         //testReadIndex();
         //testOperationQueueProcessor();
         //testBlockingDrainingQueue();
         //testDataFrameBuilder();
         //testDataFrame();
         //testLogOperations();
+        //testInMemoryStorage();
+    }
+
+    private static void testStreamSegmentContainer() throws Exception {
+        final String containerId = "123";
+        final Duration timeout = Duration.ofSeconds(30);
+
+        int streamCount = 10;
+        int batchPerStreamCount = 10;
+
+        MetadataRepository metadataRepository = new InMemoryMetadataRepository();
+        DataFrameLogFactory dataFrameLogFactory = new InMemoryDataFrameLogFactory();
+        OperationLogFactory durableLogFactory = new DurableLogFactory(dataFrameLogFactory);
+        StorageFactory storageFactory = new InMemoryStorageFactory();
+        CacheFactory cacheFactory = new ReadIndexFactory();
+        List<String> streamNames = new ArrayList<>();
+        List<CompletableFuture> batchNameFutures = new ArrayList<>();
+        try (StreamSegmentContainer c = new StreamSegmentContainer(containerId, metadataRepository, durableLogFactory, cacheFactory, storageFactory)) {
+            c.initialize(timeout).get();
+            c.start(timeout).get();
+
+            //create some streams
+            for (int i = 0; i < streamCount; i++) {
+                String name = getStreamName(i);
+                streamNames.add(name);
+                c.createStreamSegment(name, timeout).get();
+                for (int j = 0; j < batchPerStreamCount; j++) {
+                    batchNameFutures.add(c.createBatch(name, timeout));
+                }
+            }
+
+            for (CompletableFuture<String> cf : batchNameFutures) {
+                streamNames.add(cf.get());
+            }
+
+            // more tests to be done as part of unit testing.
+
+            printMetadata(metadataRepository.getMetadata(containerId), streamNames);
+
+            c.stop(timeout).get();
+        }
     }
 
     private static void testReadIndex() throws Exception {
@@ -357,11 +400,12 @@ public class Main {
         long writeTimeMillis;
         long readElapsedMillis;
 
+        Storage storage = new InMemoryStorage();
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
         DataFrameLogFactory dataFrameLogFactory = new InMemoryDataFrameLogFactory();
         ReadIndex readIndex = new ReadIndex(metadata);
         try (DurableLog dl = new DurableLog(metadata, dataFrameLogFactory, readIndex)) {
-            StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl);
+            StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl, storage);
 
             dl.initialize(Timeout).get();
             dl.start(Timeout).get();
@@ -449,7 +493,7 @@ public class Main {
 
             // Close DurableLog and create a new one (recover)
             dl.stop(Timeout).get();
-         }
+        }
 
         System.out.println("Performing recovery ...");
         long recoveryStartNanos = System.nanoTime();
@@ -840,6 +884,62 @@ public class Main {
         }
     }
 
+    private static void testInMemoryStorage() {
+        //TODO: don't delete this. Move this to some sort of self-test method in InMemoryStorage.
+        final int streamCount = 1;
+        final int appendCount = 10;
+        final int maxAppendSize = 1 * 1024 * 1024;
+        final byte[] appendSourceBuffer = new byte[maxAppendSize];
+        final Random r = new Random();
+        r.nextBytes(appendSourceBuffer);
+
+        HashMap<Integer, ByteArrayOutputStream> expectedDataStreams = new HashMap<>();
+
+        InMemoryStorage s = new InMemoryStorage();
+
+        // Do some writing (append-only).
+        System.out.println("Writing...");
+        for (int streamId = 0; streamId < streamCount; streamId++) {
+            ByteArrayOutputStream expectedData = new ByteArrayOutputStream();
+            expectedDataStreams.put(streamId, expectedData);
+            String streamName = getStreamName(streamId);
+            s.create(streamName, Duration.ZERO).join();
+
+            for (int appendId = 0; appendId < appendCount; appendId++) {
+                SegmentProperties streamInfo = s.getStreamSegmentInfo(streamName, Duration.ZERO).join();
+                if (streamInfo.getLength() != expectedData.size()) {
+                    System.out.println(String.format("Stream %d, Append %d: Expected BeforeLength = %d, Actual BeforeLength = %d.", streamId, appendId, expectedData.size(), streamInfo.getLength()));
+                }
+
+                int appendSize = r.nextInt(maxAppendSize);
+                expectedData.write(appendSourceBuffer, 0, appendSize);
+                s.write(streamName, streamInfo.getLength(), new ByteArrayInputStream(appendSourceBuffer, 0, appendSize), appendSize, Duration.ZERO).join();
+            }
+        }
+
+        // Do some reading
+        System.out.println("Reading...");
+        for (int streamId = 0; streamId < streamCount; streamId++) {
+            byte[] expectedData = expectedDataStreams.get(streamId).toByteArray();
+            String streamName = getStreamName(streamId);
+
+            int increment = Math.max(1, maxAppendSize / 1024);
+            for (int offset = 0; offset < expectedData.length / 2; offset += increment) {
+                int readLength = expectedData.length - 2 * offset;
+                byte[] readBuffer = new byte[readLength];
+                int bytesRead = s.read(streamName, offset, readBuffer, 0, readLength, Duration.ZERO).join();
+
+                if (bytesRead != readLength) {
+                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong number of bytes read (%d).", streamId, offset, readLength, bytesRead));
+                }
+
+                if (!areEqual(expectedData, offset, readBuffer, 0, readLength)) {
+                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong data read.", streamId, offset, readLength));
+                }
+            }
+        }
+    }
+
     //region Helpers
 
     private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, Cache index, String expectedContents, boolean verbose) throws Exception {
@@ -951,7 +1051,7 @@ public class Main {
         return true;
     }
 
-    private static void printMetadata(StreamSegmentContainerMetadata metadata, Collection<String> streamNames) {
+    private static void printMetadata(UpdateableContainerMetadata metadata, Collection<String> streamNames) {
         System.out.println("Final Stream Metadata:");
         for (String streamName : streamNames) {
             long streamId = metadata.getStreamSegmentId(streamName);
@@ -964,7 +1064,6 @@ public class Main {
                     streamSegmentMetadata.isSealed()));
         }
     }
-
 
     private static ArrayList<Function<Integer, Operation>> getOperationCreators(int maxAppendLength) {
         ArrayList<Function<Integer, Operation>> creators = new ArrayList<>();
@@ -1097,6 +1196,22 @@ public class Main {
         for (int i = 0; i < b1.length; i++) {
             if (b1[i] != b2[i]) {
                 System.out.println(String.format("b1[%d]=%d, b2[%d]=%d", i, b1[i], i, b2[i]));
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean areEqual(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
+        if (offset1 + length > b1.length || offset2 + length > b2.length) {
+            System.out.println(String.format("L1=%d, O1=%d, L2=%d, O2=%d, MinLength=%d", b1.length, offset1, b2.length, offset2, length));
+            return false;
+        }
+
+        for (int i = 0; i < length; i++) {
+            if (b1[i + offset1] != b2[i + offset2]) {
+                System.out.println(String.format("b1[%d]=%d, b2[%d]=%d", i, b1[i + offset1], i, b2[i + offset2]));
                 return false;
             }
         }

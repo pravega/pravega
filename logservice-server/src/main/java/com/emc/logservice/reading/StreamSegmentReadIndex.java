@@ -465,7 +465,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
                         // ResultStartOffset is before the Start Offset of this entry. This means either:
                         // 1. This is the first entry and ResultStartOffset is before it. OR
                         // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
-                        // We must issue a Storage Read to bring the data to us.
+                        // We must issue a Storage Read to bring the data to us (with a readLength of up to the size of the gap).
                         int readLength = (int) Math.min(maxLength, currentEntry.getStreamSegmentOffset() - resultStartOffset);
                         return createStorageRead(resultStartOffset, readLength);
                     }

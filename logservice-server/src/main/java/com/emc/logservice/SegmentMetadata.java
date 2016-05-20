@@ -3,28 +3,7 @@ package com.emc.logservice;
 /**
  * Defines an immutable StreamSegment Metadata.
  */
-public interface SegmentMetadata {
-    /**
-     * Gets a value indicating the name of this StreamSegment.
-     *
-     * @return
-     */
-    String getName();
-
-    /**
-     * Gets a value indicating whether this StreamSegment is sealed for modifications.
-     *
-     * @return
-     */
-    boolean isSealed();
-
-    /**
-     * Gets a value indicating whether this StreamSegment is deleted (does not exist).
-     *
-     * @return
-     */
-    boolean isDeleted();
-
+public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating the id of this StreamSegment.
      *

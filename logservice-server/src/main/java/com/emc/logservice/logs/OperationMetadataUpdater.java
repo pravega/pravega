@@ -5,6 +5,7 @@ import com.emc.logservice.containers.StreamSegmentMetadata;
 import com.emc.logservice.containers.TruncationMarkerCollection;
 import com.emc.logservice.logs.operations.*;
 
+import java.util.Date;
 import java.util.HashMap;
 
 /**
@@ -409,12 +410,36 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         //endregion
 
-        //region SegmentMetadata Implementation
+        //region StreamProperties Implementation
 
         @Override
         public String getName() {
             return this.streamSegmentMetadata.getName();
         }
+
+        @Override
+        public boolean isSealed() {
+            return this.sealed;
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public long getLength() {
+            return this.currentDurableLogLength; // ReadableLength == DurableLogLength.
+        }
+
+        @Override
+        public Date getLastModified() {
+            return new Date();//TODO: implement properly.
+        }
+
+        //endregion
+
+        //region SegmentMetadata Implementation
 
         @Override
         public long getId() {
@@ -434,16 +459,6 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         @Override
         public long getDurableLogLength() {
             return this.currentDurableLogLength;
-        }
-
-        @Override
-        public boolean isSealed() {
-            return this.sealed;
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return false;
         }
 
         //endregion

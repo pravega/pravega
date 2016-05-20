@@ -173,9 +173,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        //TODO: implement
-        return null;
+        return this.segmentMapper.createNewBatchStreamSegment(parentStreamName, timer.getRemaining());
     }
 
     @Override
@@ -191,6 +189,8 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
             count++;
         }
 
+        // Remove from Read Index.
+        this.readIndex.performGarbageCollection();
         return CompletableFuture.allOf(deletionFutures);
     }
 

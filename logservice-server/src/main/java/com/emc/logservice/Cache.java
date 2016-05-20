@@ -71,9 +71,15 @@ public interface Cache extends AutoCloseable {
     /**
      * Clears the entire contents of the Cache.
      *
-     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system.
+     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system (for example,
+     *                               if the system is in Recovery Mode).
      */
     void clear();
+
+    /**
+     * Removes all internal indices that point to StreamSegments that do not exist anymore (i.e., have been deleted).
+     */
+    void performGarbageCollection();
 
     /**
      * Puts the cache in Recovery Mode. Some operations may not be available in Recovery Mode.

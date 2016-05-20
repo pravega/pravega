@@ -43,7 +43,7 @@ public class ReadIndex implements Cache {
     public void close() {
         if (!this.closed) {
             this.closed = true;
-            try(AutoReleaseLock ignored = this.lock.acquireWriteLock()){
+            try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
                 // Need to close all individual read indices in order to cancel Readers and Future Reads.
                 this.readIndices.values().forEach(StreamSegmentReadIndex::close);
                 this.readIndices.clear();
@@ -137,6 +137,23 @@ public class ReadIndex implements Cache {
         try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
             this.readIndices.values().forEach(StreamSegmentReadIndex::close);
             this.readIndices.clear();
+        }
+    }
+
+    @Override
+    public void performGarbageCollection() {
+        ensureNotClosed();
+
+        try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
+            List<Long> toRemove = new ArrayList<>();
+            for (Long streamSegmentId : this.readIndices.keySet()) {
+                SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                if (segmentMetadata == null || segmentMetadata.isDeleted()) {
+                    toRemove.add(streamSegmentId);
+                }
+            }
+
+            toRemove.forEach(streamSegmentId -> this.readIndices.remove(streamSegmentId).close());
         }
     }
 

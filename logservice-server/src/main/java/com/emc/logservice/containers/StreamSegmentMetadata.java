@@ -3,6 +3,8 @@ package com.emc.logservice.containers;
 import com.emc.logservice.SegmentMetadataCollection;
 import com.emc.logservice.UpdateableSegmentMetadata;
 
+import java.util.Date;
+
 /**
  * Metadata for a particular Stream Segment.
  */
@@ -59,12 +61,36 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     //endregion
 
-    //region SegmentMetadata Implementation
+    //region SegmentProperties Implementation
 
     @Override
     public String getName() {
         return this.name;
     }
+
+    @Override
+    public boolean isSealed() {
+        return this.sealed;
+    }
+
+    @Override
+    public boolean isDeleted() {
+        return this.deleted;
+    }
+
+    @Override
+    public long getLength() {
+        return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
+    }
+
+    @Override
+    public Date getLastModified() {
+        return new Date(); // TODO: implement properly; maybe change everytime durableLogLength changes...
+    }
+
+    //endregion
+
+    //region SegmentMetadata Implementation
 
     @Override
     public long getId() {
@@ -84,16 +110,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public long getDurableLogLength() {
         return this.durableLogLength;
-    }
-
-    @Override
-    public boolean isSealed() {
-        return this.sealed;
-    }
-
-    @Override
-    public boolean isDeleted() {
-        return this.deleted;
     }
 
     @Override

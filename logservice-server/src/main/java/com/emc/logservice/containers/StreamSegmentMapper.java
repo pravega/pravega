@@ -68,7 +68,7 @@ public class StreamSegmentMapper {
      *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id of the new stream.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally.
      * If the operation failed, this will contain the exception that caused the failure.
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
@@ -85,6 +85,54 @@ public class StreamSegmentMapper {
         CompletableFuture<Long> result = this.storage.create(streamSegmentName, timer.getRemaining())
                                                      .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()));
         return CompletableFuture.allOf(result);
+    }
+
+    /**
+     * Creates a new Batch StreamSegment for an existing Parent StreamSegment and assigns a unique internal Id to it.
+     *
+     * @param parentStreamSegmentName The case-sensitive StreamSegment Name of the Parent StreamSegment.
+     * @param timeout                 Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Batch StreamSegment.
+     * If the operation failed, this will contain the exception that caused the failure.
+     * @throws IllegalArgumentException If the given parent StreamSegment is invalid to have a batch (deleted, sealed, inexistent).
+     */
+    public CompletableFuture<String> createNewBatchStreamSegment(String parentStreamSegmentName, Duration timeout) {
+        if (StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) != null) {
+            //We cannot create a Batch StreamSegment for a what looks like a parent StreamSegment.
+            throw new IllegalArgumentException("Given Parent StreamSegmentName looks like a Batch StreamSegment Name. Cannot create a batch for a batch.");
+        }
+
+        // Validate that Parent StreamSegment exists.
+        CompletableFuture<SegmentProperties> parentPropertiesFuture = null;
+        long parentStreamSegmentId = this.containerMetadata.getStreamSegmentId(parentStreamSegmentName);
+        if (parentStreamSegmentId >= 0) {
+            SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
+            if (parentMetadata != null) {
+                if (parentMetadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
+                    throw new IllegalArgumentException("Given Parent StreamSegment is a Batch StreamSegment. Cannot create a batch for a batch.");
+                }
+
+                if (parentMetadata.isDeleted() || parentMetadata.isSealed()) {
+                    throw new IllegalArgumentException("Given Parent StreamSegment is deleted or sealed. Cannot create a batch for it.");
+                }
+
+                parentPropertiesFuture = CompletableFuture.completedFuture(parentMetadata);
+            }
+        }
+
+        //TODO: verify the batch name doesn't already exist;
+        String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentStreamSegmentName);
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        if (parentPropertiesFuture == null) {
+            // We were unable to find this StreamSegment in our metadata. Check in Storage. If the parent streamsegment
+            // does not exist, this will throw an exception (and place it on the resulting future).
+            parentPropertiesFuture = this.storage.getStreamSegmentInfo(parentStreamSegmentName, timer.getRemaining());
+        }
+
+        return parentPropertiesFuture
+                .thenCompose(parentInfo -> createNewStreamSegment(batchName, timer.getRemaining()))
+                .thenApply(id -> batchName);
     }
 
     /**
@@ -153,7 +201,7 @@ public class StreamSegmentMapper {
      * @param timeout
      * @return
      */
-    private CompletableFuture<Void> persistInDurableLog(StreamSegmentInformation streamSegmentInfo, Duration timeout) {
+    private CompletableFuture<Void> persistInDurableLog(SegmentProperties streamSegmentInfo, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
             failAssignment(streamSegmentInfo.getName(), SegmentMetadataCollection.NoStreamSegmentId, new FileNotFoundException("Stream does not exist."));
@@ -184,7 +232,7 @@ public class StreamSegmentMapper {
      * @param streamSegmentId
      * @param streamInfo
      */
-    private void updateMetadata(String streamSegmentName, long streamSegmentId, StreamSegmentInformation streamInfo) {
+    private void updateMetadata(String streamSegmentName, long streamSegmentId, SegmentProperties streamInfo) {
         synchronized (MetadataLock) {
             // Map it to the stream name and update the Stream Metadata.
             this.containerMetadata.mapStreamSegmentId(streamSegmentName, streamSegmentId);

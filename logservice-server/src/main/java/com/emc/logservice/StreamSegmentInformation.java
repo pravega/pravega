@@ -5,7 +5,7 @@ import java.util.Date;
 /**
  * General Stream Segment Information.
  */
-public class StreamSegmentInformation {
+public class StreamSegmentInformation implements SegmentProperties {
     //region Members
 
     private final long length;
@@ -37,52 +37,36 @@ public class StreamSegmentInformation {
 
     //endregion
 
-    //region Properties
+    //region SegmentProperties Implementation
 
-    /**
-     * Gets a value indicating the name of the StreamSegment.
-     *
-     * @return
-     */
+    @Override
     public String getName() {
         return this.streamSegmentName;
     }
 
-    /**
-     * Gets a value indicating whether the StreamSegment is sealed (for modifications).
-     *
-     * @return
-     */
+    @Override
     public boolean isSealed() {
         return this.sealed;
     }
 
-    /**
-     * Gets a value indicating whether the StreamSegment is deleted (not exists).
-     *
-     * @return
-     */
+    @Override
     public boolean isDeleted() {
         return this.deleted;
     }
 
-    /**
-     * Gets a value indicating the last modification time of the StreamSegment.
-     *
-     * @return
-     */
+    @Override
     public Date getLastModified() {
         return this.lastModified;
     }
 
-    /**
-     * Gets a value indicating the length of the StreamSegment.
-     *
-     * @return
-     */
+    @Override
     public long getLength() {
         return this.length;
     }
+
+    //endregion
+
+    //region Properties
 
     @Override
     public String toString() {

@@ -265,6 +265,7 @@ public class DurableLog implements OperationLog {
                     metadataUpdater.processMetadataOperation((MetadataOperation) operation);
                 }
                 else if (operation instanceof StorageOperation) {
+                    //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
                     metadataUpdater.preProcessOperation((StorageOperation) operation);
                     metadataUpdater.acceptOperation((StorageOperation) operation);
                 }
