@@ -46,7 +46,7 @@ public interface StreamSegmentStore {
      * will contain the exception that caused the failure.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<StreamSegmentInformation> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 
     /**
      * Creates a new StreamSegment.

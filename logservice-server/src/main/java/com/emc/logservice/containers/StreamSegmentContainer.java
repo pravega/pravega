@@ -148,7 +148,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     }
 
     @Override
-    public CompletableFuture<StreamSegmentInformation> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
