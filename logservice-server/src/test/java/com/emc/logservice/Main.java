@@ -34,7 +34,6 @@ public class Main {
         //testBlockingDrainingQueue();
         //testDataFrameBuilder();
         //testDataFrame();
-        //testLogOperations();
         //testInMemoryStorage();
     }
 
@@ -858,38 +857,6 @@ public class Main {
         }
     }
 
-    private static void testLogOperations() throws Exception {
-        final int count = 10;
-        AtomicLong seqNo = new AtomicLong();
-
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-
-        ArrayList<Function<Integer, Operation>> creators = getOperationCreators(1024 * 1024);
-
-        ArrayList<Operation> writtenEntries = new ArrayList<>();
-
-        for (Function<Integer, Operation> creator : creators) {
-            for (int i = 0; i < count; i++) {
-                Operation le = creator.apply(i);
-                le.setSequenceNumber(seqNo.getAndIncrement());
-                writtenEntries.add(le);
-                le.serialize(os);
-                //System.out.println("Wrote: " + le.toString());
-            }
-        }
-
-        os.flush();
-        byte[] data = os.toByteArray();
-        ByteArrayInputStream is = new ByteArrayInputStream(data);
-
-        for (int i = 0; i < writtenEntries.size(); i++) {
-            Operation actualEntry = Operation.deserialize(is);
-            Operation expectedEntry = writtenEntries.get(i);
-            System.out.println(String.format("Expected[%d]: %s", i, getEntryString(expectedEntry)));
-            System.out.println(String.format("Actual[%d]  : %s", i, getEntryString(actualEntry)));
-        }
-    }
-
     private static void testInMemoryStorage() {
         //TODO: don't delete this. Move this to some sort of self-test method in InMemoryStorage.
         final int streamCount = 1;
@@ -1116,11 +1083,6 @@ public class Main {
 
     private static String getAppendString(byte[] data) {
         return new String(data);
-    }
-
-    private static String getEntryString(Operation le) {
-        StreamSegmentAppendOperation sae = (le instanceof StreamSegmentAppendOperation) ? (StreamSegmentAppendOperation) le : null;
-        return le.toString() + ((sae == null) ? "" : ", Data = " + getAppendString(sae.getData()));
     }
 
     private static <T extends Operation> void sortOperationList(ArrayList<T> operations) {
