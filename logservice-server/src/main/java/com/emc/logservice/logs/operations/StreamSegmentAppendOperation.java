@@ -28,6 +28,10 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      */
     public StreamSegmentAppendOperation(long streamSegmentId, byte[] data) {
         super(streamSegmentId);
+        if (data == null) {
+            throw new NullPointerException("data");
+        }
+
         this.data = data;
         this.streamSegmentOffset = -1;
     }

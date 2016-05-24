@@ -41,8 +41,12 @@ public class CompletableOperation {
      * @param operation      The operation to wrap.
      * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided is the Sequence Number of the Operation.
      * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the causing Exception for the failure.
+     * @throws NullPointerException If operation is null.
      */
     public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler) {
+        if (operation == null) {
+            throw new NullPointerException("operation");
+        }
         this.operation = operation;
         this.failureHandler = failureHandler;
         this.successHandler = successHandler;

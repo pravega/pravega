@@ -1,4 +1,4 @@
-package com.emc.logservice;
+package com.emc.logservice.containers;
 
 /**
  * Unit tests for StreamSegmentMetadata class.
