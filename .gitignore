@@ -1,9 +1,9 @@
 .project
 build
 .classpath
-.settings/
+.settings
 .gradle
 output
-streaming/build
 .idea
+.iml
 target

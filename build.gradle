@@ -11,7 +11,7 @@
 
 allprojects {
 apply plugin: 'java'
-apply plugin: 'scala'
+//apply plugin: 'scala'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
@@ -42,6 +42,7 @@ dependencies {
     // testCompile dependency to testCompile 'org.testng:testng:6.8.1' and add
     // 'test.useTestNG()' to your build script.
     testCompile 'junit:junit:4.12'
+	// put maven reference for twitter DL
 }
 
 }
@@ -66,7 +67,40 @@ tasks.create(name: "uploadArchivesAll", dependsOn: [''] + pkgs.collect { it + ":
 project (':clients:log') {
 
 } 
+
 project('clients:streaming:consumer') {} 
+
 project('clients:streaming:producer') {} 
+
 project('streaming') {}
- project ('logservice-server') {}
+
+project ('logservice:contracts') {}
+
+project ('logservice:storageabstraction') {
+	dependencies {
+		compile project (':logservice:contracts')
+	}
+}
+
+project ('logservice:storageimplementation') {
+	dependencies {
+		compile project (':logservice:storageabstraction')
+	}
+}
+
+project ('logservice:server') {
+	dependencies {
+		compile project (':logservice:contracts')
+		compile project (':logservice:storageabstraction')
+	}
+}
+
+project ('logservice:serverhost') {
+	dependencies {
+		compile project (':logservice:contracts')
+		compile project (':logservice:storageabstraction')
+		compile project (':logservice:storageimplementation')
+		compile project (':logservice:server')
+	}
+}
+
