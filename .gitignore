@@ -3,3 +3,4 @@
 .classpath
 .settings/
 /.gradle/
+clients/streaming/bin/
