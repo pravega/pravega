@@ -25,6 +25,11 @@ apply plugin: 'checkstyle'
     mavenCentral()
  }
 
+ checkstyle {
+   configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+   configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+ }
+
 // In this section you declare the dependencies for your production and test code
 dependencies {
     // The production code uses the SLF4J logging API at compile time
@@ -38,11 +43,12 @@ dependencies {
     compile group: 'com.google.guava', name: 'guava', version: '19.0'
     compile 'org.projectlombok:lombok:1.16.8'
     compile 'io.netty:netty-all:4.0.36.Final'
+	// put maven reference for twitter DL
 }
 
 }
 
-def pkgs = ['common', 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log']
+def pkgs = ['common', 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'logservice-server']
 
 tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
 
@@ -59,8 +65,42 @@ tasks.create(name: "releaseTarGzAll", dependsOn: ['']) { }
 tasks.create(name: "uploadArchivesAll", dependsOn: [''] + pkgs.collect { it + ":uploadArchives" }) { }
 
 project('common') {} 
+
 project('clients:log') {} 
+
 project('clients:streaming:consumer') {} 
-project('clients:streming:producer') {} 
+
+project('clients:streaming:producer') {} 
+
 project('streaming') {}
-project('log') {}
+
+project ('logservice:contracts') {}
+
+project ('logservice:storageabstraction') {
+	dependencies {
+		compile project (':logservice:contracts')
+	}
+}
+
+project ('logservice:storageimplementation') {
+	dependencies {
+		compile project (':logservice:storageabstraction')
+	}
+}
+
+project ('logservice:server') {
+	dependencies {
+		compile project (':logservice:contracts')
+		compile project (':logservice:storageabstraction')
+	}
+}
+
+project ('logservice:serverhost') {
+	dependencies {
+		compile project (':logservice:contracts')
+		compile project (':logservice:storageabstraction')
+		compile project (':logservice:storageimplementation')
+		compile project (':logservice:server')
+	}
+}
+

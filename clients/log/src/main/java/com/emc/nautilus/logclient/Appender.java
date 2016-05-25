@@ -1,3 +1,5 @@
+/**
+*/
 package com.emc.nautilus.logclient;
 
 //Defines methods for an Append-only entity.

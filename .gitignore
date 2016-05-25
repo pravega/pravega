@@ -1,6 +1,10 @@
 .project
-/build/
+build
 .classpath
-.settings/
-/.gradle/
 clients/streaming/bin/
+.settings
+.gradle
+output
+.idea
+.iml
+target
