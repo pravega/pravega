@@ -11,7 +11,6 @@
 
 allprojects {
 apply plugin: 'java'
-apply plugin: 'scala'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 apply plugin: 'maven'
@@ -25,7 +24,6 @@ apply plugin: 'checkstyle'
     jcenter()
     mavenCentral()
  }
-}
 
 // In this section you declare the dependencies for your production and test code
 dependencies {
@@ -37,9 +35,14 @@ dependencies {
     // testCompile dependency to testCompile 'org.testng:testng:6.8.1' and add
     // 'test.useTestNG()' to your build script.
     testCompile 'junit:junit:4.12'
+    compile group: 'com.google.guava', name: 'guava', version: '19.0'
+    compile 'org.projectlombok:lombok:1.16.8'
+    compile 'io.netty:netty-all:4.0.36.Final'
 }
 
-def pkgs = ['clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log']
+}
+
+def pkgs = ['common', 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log']
 
 tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
 
@@ -55,11 +58,9 @@ tasks.create(name: "releaseTarGzAll", dependsOn: ['']) { }
 
 tasks.create(name: "uploadArchivesAll", dependsOn: [''] + pkgs.collect { it + ":uploadArchives" }) { }
 
-
-project (':clients:log') {
-
-} 
+project('common') {} 
+project('clients:log') {} 
 project('clients:streaming:consumer') {} 
 project('clients:streming:producer') {} 
 project('streaming') {}
- project ('log') {}
+project('log') {}

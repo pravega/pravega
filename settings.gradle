@@ -11,5 +11,5 @@
 
 // To declare projects as part of a multi-project build use the 'include' method
 
-include 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log'
+include 'common', 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'log'
 
