@@ -1,11 +1,14 @@
 package com.emc.logservice.storageabstraction.mocks;
 
+import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
@@ -38,25 +41,34 @@ public class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Long> append(byte[] data, Duration timeout) {
-        long offset;
-        synchronized (this.entries) {
-            offset = this.offset;
-            this.offset += data.length;
-            this.entries.add(new Entry(offset, data));
-            this.lastAppendSequence = offset;
-        }
-
-        long delayMillis = this.delayMillisPerMB * data.length / 1024 / 1024;
-        if (delayMillis > 0) {
+    public CompletableFuture<Long> append(InputStream data, Duration timeout) {
+        return CompletableFuture.supplyAsync(() -> {
+            Entry entry;
             try {
-                Thread.sleep(delayMillis);
+                entry = new Entry(data);
             }
-            catch (InterruptedException ex) {
+            catch (IOException ex) {
+                throw new CompletionException(ex);
             }
-        }
 
-        return CompletableFuture.completedFuture(offset);
+            synchronized (this.entries) {
+                entry.offset = this.offset;
+                this.offset += entry.data.length;
+                this.entries.add(entry);
+                this.lastAppendSequence = entry.offset;
+            }
+
+            long delayMillis = this.delayMillisPerMB * entry.data.length / 1024 / 1024;
+            if (delayMillis > 0) {
+                try {
+                    Thread.sleep(delayMillis);
+                }
+                catch (InterruptedException ex) {
+                }
+            }
+
+            return entry.offset;
+        });
     }
 
     @Override
@@ -131,24 +143,24 @@ public class InMemoryDurableDataLog implements DurableDataLog {
         public long getSequence() {
             return sequence;
         }
+
         @Override
-        public String toString(){
+        public String toString() {
             return String.format("Sequence = %d, Length = %d", sequence, payload.length);
         }
     }
 
     private static class Entry {
-        public final long offset;
+        public long offset;
         public final byte[] data;
 
-        public Entry(long offset, byte[] data) {
-            this.offset = offset;
-            this.data = new byte[data.length];
-            System.arraycopy(data, 0, this.data, 0, data.length);
+        public Entry(InputStream inputData) throws IOException {
+            this.data = new byte[inputData.available()];
+            StreamHelpers.readAll(inputData, this.data, 0, this.data.length);
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return String.format("Offset = %d, Length = %d", offset, data.length);
         }
     }

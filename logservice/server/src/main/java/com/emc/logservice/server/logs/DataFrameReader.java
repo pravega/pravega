@@ -1,7 +1,7 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.server.core.*;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.logs.operations.Operation;
 

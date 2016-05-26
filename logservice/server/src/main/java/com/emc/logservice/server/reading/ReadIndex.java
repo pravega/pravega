@@ -1,8 +1,8 @@
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.server.*;
-import com.emc.logservice.server.core.*;
 
 import java.time.Duration;
 import java.util.*;

@@ -1,5 +1,6 @@
 package com.emc.logservice.contracts;
 
+import com.emc.logservice.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -19,13 +20,7 @@ public class ReadResultEntryTests {
         final int positiveDelta = 8976;
         final int negativeDelta = 76;
         TestReadResultEntry e = new TestReadResultEntry(originalOffset, originalLength);
-        try {
-            e.adjustOffset(-originalOffset - 1);
-            Assert.fail("adjustOffset allowed changing to a negative offset.");
-        }
-        catch (IllegalArgumentException ex) {
-            //OK
-        }
+        AssertExtensions.assertThrows("adjustOffset allowed changing to a negative offset.", () -> e.adjustOffset(-originalOffset - 1), ex -> ex instanceof IllegalArgumentException);
 
         // Adjust up.
         e.adjustOffset(positiveDelta);

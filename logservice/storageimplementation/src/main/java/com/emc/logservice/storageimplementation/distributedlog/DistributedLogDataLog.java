@@ -2,6 +2,7 @@ package com.emc.logservice.storageimplementation.distributedlog;
 
 import com.emc.logservice.storageabstraction.DurableDataLog;
 
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -10,8 +11,13 @@ import java.util.concurrent.CompletableFuture;
  * Twitter DistributedLog implementation for DurableDataLog.
  */
 public class DistributedLogDataLog implements DurableDataLog {
+    /**
+     * Maximum append length, as specified by DistributedLog (this is hardcoded inside DLog's code).
+     */
+    private static final int MaxAppendLength = 1024*1024 - 8 *1024;
+
     @Override
-    public CompletableFuture<Long> append(byte[] data, Duration timeout) {
+    public CompletableFuture<Long> append(InputStream data, Duration timeout) {
         return null;
     }
 
@@ -27,7 +33,7 @@ public class DistributedLogDataLog implements DurableDataLog {
 
     @Override
     public int getMaxAppendLength() {
-        return 0;
+        return MaxAppendLength;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.emc.logservice.storageabstraction;
 
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
@@ -12,12 +13,14 @@ public interface DurableDataLog {
     /**
      * Adds a new entry to the log.
      *
-     * @param data    The data to append.
+     * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
+     *                where the data should be read from. The InputStream's available() method must also specify the number
+     *                of bytes to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the Sequence within the log for the entry. If the entry
      * failed to be added, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Long> append(byte[] data, Duration timeout);
+    CompletableFuture<Long> append(InputStream data, Duration timeout);
 
     /**
      * Truncates the log up to the given sequence.
@@ -51,6 +54,7 @@ public interface DurableDataLog {
     /**
      * Gets a value indicating the start offset of the last data that was committed. This is the value returned by
      * the last call to append().
+     *
      * @return The requested value, or -1 if the information is unknown.
      */
     long getLastAppendSequence();

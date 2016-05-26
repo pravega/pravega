@@ -1,11 +1,12 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
-import com.emc.logservice.server.core.AsyncLock;
-import com.emc.logservice.server.core.TimeoutTimer;
+import com.emc.logservice.common.AsyncLock;
+import com.emc.logservice.common.TimeoutTimer;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
@@ -237,13 +238,13 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private void ensureStarted() {
         ensureNotClosed();
         if (this.state != ContainerState.Started) {
-            throw new com.emc.logservice.server.core.ObjectClosedException(this);
+            throw new ObjectClosedException(this);
         }
     }
 
     private void ensureNotClosed() {
         if (this.closed) {
-            throw new com.emc.logservice.server.core.ObjectClosedException(this);
+            throw new ObjectClosedException(this);
         }
     }
 

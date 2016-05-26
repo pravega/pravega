@@ -1,7 +1,7 @@
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.server.core.AutoReleaseLock;
-import com.emc.logservice.server.core.ReadWriteAutoReleaseLock;
+import com.emc.logservice.common.AutoReleaseLock;
+import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.server.*;
 
 import java.util.*;

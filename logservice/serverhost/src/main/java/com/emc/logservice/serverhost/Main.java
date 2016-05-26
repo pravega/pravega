@@ -1,18 +1,17 @@
 package com.emc.logservice.serverhost;
 
-import com.emc.logservice.storageabstraction.*;
-import com.emc.logservice.storageabstraction.mocks.*;
+import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.*;
-import com.emc.logservice.server.core.*;
 import com.emc.logservice.server.logs.*;
 import com.emc.logservice.server.logs.operations.*;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
+import com.emc.logservice.storageabstraction.*;
+import com.emc.logservice.storageabstraction.mocks.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -29,7 +28,6 @@ public class Main {
     private static final String ContainerId = "123";
 
     public static void main(String[] args) throws Exception {
-        //testTwitterDistributedLog();
         testStreamSegmentContainer();
         //testDurableLog();
         //testReadIndex();
@@ -37,11 +35,6 @@ public class Main {
         //testDataFrameBuilder();
         //testDataFrame();
         //testInMemoryStorage();
-    }
-
-    private static void testTwitterDistributedLog() throws Exception {
-        DLogTester t = new DLogTester();
-        //t.run();
     }
 
     private static void testStreamSegmentContainer() throws Exception {
@@ -738,7 +731,6 @@ public class Main {
     private static void testDataFrame() throws Exception {
         int maxFrameSize = 1024;
         ArrayList<byte[]> records = new ArrayList<>();
-        ByteArraySegment frameData = null;
         long wfPrevSequence;
         long wfEndMagic;
         long wfLength;
@@ -764,10 +756,12 @@ public class Main {
         wfPrevSequence = wf.getPreviousFrameSequence();
         wfLength = wf.getLength();
 
-        frameData = wf.getData();
+        InputStream frameData = wf.getData();
+        byte[] frameBuffer = new byte[frameData.available()];
+        StreamHelpers.readAll(frameData, frameBuffer, 0, frameBuffer.length);
 
         // TODO: We are reading a new Data Frame. Make sure we can also readDurableLog a writeable data frame.
-        DataFrame rf = new DataFrame(frameData);
+        DataFrame rf = new DataFrame(frameBuffer);
         System.out.println(String.format("PrefSequence: W=%d, R=%d.", wfPrevSequence, rf.getPreviousFrameSequence()));
         System.out.println(String.format("Length: W=%d, R=%d.", wfLength, rf.getLength()));
 

@@ -1,6 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.server.core.StreamHelpers;
+import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.server.logs.SerializationException;
 
 import java.io.*;

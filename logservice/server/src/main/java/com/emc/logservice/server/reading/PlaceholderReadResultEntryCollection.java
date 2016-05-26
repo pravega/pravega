@@ -1,6 +1,6 @@
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.server.core.ObjectClosedException;
+import com.emc.logservice.common.ObjectClosedException;
 
 import java.util.*;
 

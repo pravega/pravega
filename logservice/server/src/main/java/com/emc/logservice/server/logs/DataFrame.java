@@ -1,6 +1,7 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.core.*;
+import com.emc.logservice.common.ByteArraySegment;
+import com.emc.logservice.common.IteratorWithException;
 
 import java.io.*;
 import java.util.NoSuchElementException;
@@ -123,17 +124,17 @@ public class DataFrame {
     }
 
     /**
-     * Gets a ByteArraySegment representing the serialized form of this frame. The returned ByteArraySegment is read-only.
+     * Returns a new InputStream representing the serialized form of this frame.
      *
      * @return
      */
-    public ByteArraySegment getData() {
+    public InputStream getData() {
         if (this.data.isReadOnly()) {
-            return this.data;
+            return this.data.getReader();
         }
         else {
             // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.subSegment(0, this.header.getSerializationLength() + this.header.getContentLength(), true);
+            return this.data.getReader(0, this.header.getSerializationLength() + this.header.getContentLength());
         }
     }
 

@@ -1,6 +1,6 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.core.BlockingDrainingQueue;
+import com.emc.logservice.common.BlockingDrainingQueue;
 import com.emc.logservice.server.logs.operations.CompletableOperation;
 
 /**
