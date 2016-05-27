@@ -1,8 +1,5 @@
 package com.emc.nautilus.streaming.impl;
 
-import java.io.DataInputStream;
-import java.io.EOFException;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import com.emc.nautilus.logclient.EndOfLogException;
@@ -15,31 +12,21 @@ public class LogConsumerImpl<Type> implements LogConsumer<Type> {
 	private final LogId logId;
 	private final LogInputStream in;
 	private final Serializer<Type> deserializer;
-	private final DataInputStream dataReader;
 
 	LogConsumerImpl(LogId logId, LogInputStream in, Serializer<Type> deserializer) {
 		this.logId = logId;
 		this.in = in;
-		this.dataReader = new DataInputStream(in);
 		this.deserializer = deserializer;
 	}
 
 	@Override
 	public Type getNextEvent(long timeout) throws EndOfLogException {
-		try {
-			ByteBuffer buffer;
-			synchronized (in) {
-				int length = dataReader.readInt();
-				buffer = ByteBuffer.allocate(length);
-				in.read(buffer.array());
-			}
-			return deserializer.deserialize(buffer);
-		} catch (EOFException e) {
-			close();
-			throw new EndOfLogException();
-		} catch (IOException e) {
-			throw new RuntimeException(e);
+		ByteBuffer buffer;
+		synchronized (in) {
+			int length = in.read(4).getInt();
+			buffer = in.read(length);
 		}
+		return deserializer.deserialize(buffer);
 	}
 
 	@Override
@@ -58,12 +45,8 @@ public class LogConsumerImpl<Type> implements LogConsumer<Type> {
 
 	@Override
 	public void close() {
-		try {
-			synchronized (in) {
-				in.close();
-			}
-		} catch (IOException e) {
-			// TODO: Log and suppress
+		synchronized (in) {
+			in.close();
 		}
 	}
 

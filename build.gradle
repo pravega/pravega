@@ -48,7 +48,7 @@ dependencies {
 
 }
 
-def pkgs = ['common', 'clients:log', 'clients:streaming:consumer', 'clients:streming:producer', 'streaming', 'logservice-server']
+def pkgs = ['common', 'clients:log', 'clients:streming', 'streaming', 'logservice-server']
 
 tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
 
@@ -66,11 +66,17 @@ tasks.create(name: "uploadArchivesAll", dependsOn: [''] + pkgs.collect { it + ":
 
 project('common') {} 
 
-project('clients:log') {} 
+project('clients:log') {
+	dependencies {
+		compile project (':common')
+	}
+} 
 
-project('clients:streaming:consumer') {} 
-
-project('clients:streaming:producer') {} 
+project('clients:streaming') {
+	dependencies {
+		compile project (':clients:log')
+	}
+} 
 
 project('streaming') {}
 
