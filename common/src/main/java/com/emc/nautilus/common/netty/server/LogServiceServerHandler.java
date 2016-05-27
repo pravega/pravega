@@ -48,7 +48,7 @@ public class LogServiceServerHandler extends ChannelInboundHandlerAdapter implem
 	}
 	
 	@Override
-	public void asyncSend(WireCommand cmd) {
+	public void sendAsync(WireCommand cmd) {
 		getChannel().write(cmd);
 	}
 

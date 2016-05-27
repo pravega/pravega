@@ -8,9 +8,7 @@ import com.emc.nautilus.common.netty.WireCommands.DeleteSegment;
 import com.emc.nautilus.common.netty.WireCommands.GetStreamInfo;
 import com.emc.nautilus.common.netty.WireCommands.MergeBatch;
 import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
-import com.emc.nautilus.common.netty.WireCommands.ReadSetup;
 import com.emc.nautilus.common.netty.WireCommands.SealSegment;
-import com.emc.nautilus.common.netty.WireCommands.SetupRead;
 
 public class LogServiceCommandProcessor extends DelegatingCommandProcessor {
 
@@ -18,16 +16,6 @@ public class LogServiceCommandProcessor extends DelegatingCommandProcessor {
 	
 	LogServiceCommandProcessor(CommandProcessor next) {
 		this.next = next;
-	}
-	
-	@Override
-	public void setupRead(SetupRead setupRead) {
-		getNextCommandProcessor().setupRead(setupRead);
-	}
-
-	@Override
-	public void readSetup(ReadSetup readSetup) {
-		getNextCommandProcessor().readSetup(readSetup);
 	}
 
 	@Override

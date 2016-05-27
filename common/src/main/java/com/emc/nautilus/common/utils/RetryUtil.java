@@ -8,7 +8,7 @@ public class RetryUtil {
 
 	public static interface RecoverableTask<RetryableException extends Exception> 
 			extends Task<RetryableException> {
-		void recover();
+		void recover() throws RetryableException;
 	}
 
 	public static <ExceptionType extends Exception> void retryWithBackoff(Task<ExceptionType> task) {

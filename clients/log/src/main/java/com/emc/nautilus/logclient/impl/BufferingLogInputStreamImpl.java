@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BufferingLogInputStreamImpl extends LogInputStream {
 
+	private final AsyncLogInputStream asyncLogInput;
+	
+	private static final long READ_LENGTH = 1024*1024;
 	private final LogInputStream input;
 	
 	@Override

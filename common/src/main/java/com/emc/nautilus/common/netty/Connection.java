@@ -14,7 +14,7 @@ public interface Connection {
 	/**
 	 * Send the provided command. This operation is guarenteed not to block.
 	 */
-	void asyncSend(WireCommand cmd);
+	void sendAsync(WireCommand cmd);
 
 	/**
 	 * @param cp Sets the command processor to receive incoming commands from

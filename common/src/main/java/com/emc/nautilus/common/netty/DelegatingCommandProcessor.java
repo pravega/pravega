@@ -8,7 +8,6 @@ import com.emc.nautilus.common.netty.WireCommands.CreateBatch;
 import com.emc.nautilus.common.netty.WireCommands.CreateStreamsSegment;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.DeleteSegment;
-import com.emc.nautilus.common.netty.WireCommands.EndOfStream;
 import com.emc.nautilus.common.netty.WireCommands.GetStreamInfo;
 import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.MergeBatch;
@@ -16,14 +15,12 @@ import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchStream;
 import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
-import com.emc.nautilus.common.netty.WireCommands.ReadSetup;
 import com.emc.nautilus.common.netty.WireCommands.SealSegment;
-import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
+import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.SegmentSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
-import com.emc.nautilus.common.netty.WireCommands.SetupRead;
 import com.emc.nautilus.common.netty.WireCommands.StreamInfo;
 import com.emc.nautilus.common.netty.WireCommands.StreamsSegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
@@ -42,10 +39,10 @@ public abstract class DelegatingCommandProcessor implements CommandProcessor {
 		getNextCommandProcessor().segmentIsSealed(segmentIsSealed);
 	}
 
-	@Override
-	public void endOfStream(EndOfStream endOfStream) {
-		getNextCommandProcessor().endOfStream(endOfStream);
-	}
+//	@Override
+//	public void endOfStream(EndOfStream endOfStream) {
+//		getNextCommandProcessor().endOfStream(endOfStream);
+//	}
 
 	@Override
 	public void noSuchStream(NoSuchStream noSuchStream) {
@@ -82,16 +79,16 @@ public abstract class DelegatingCommandProcessor implements CommandProcessor {
 		getNextCommandProcessor().dataAppended(dataAppended);
 	}
 
-	@Override
-	public void setupRead(SetupRead setupRead) {
-		getNextCommandProcessor().setupRead(setupRead);
-	}
-	
-
-	@Override
-	public void readSetup(ReadSetup readSetup) {
-		getNextCommandProcessor().readSetup(readSetup);
-	}
+//	@Override
+//	public void setupRead(SetupRead setupRead) {
+//		getNextCommandProcessor().setupRead(setupRead);
+//	}
+//	
+//
+//	@Override
+//	public void readSetup(ReadSetup readSetup) {
+//		getNextCommandProcessor().readSetup(readSetup);
+//	}
 
 	@Override
 	public void readSegment(ReadSegment readSegment) {

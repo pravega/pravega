@@ -2,6 +2,7 @@ package com.emc.nautilus.common.netty.server;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import com.emc.nautilus.common.netty.CommandProcessor;
 import com.emc.nautilus.common.netty.Connection;
@@ -41,7 +42,7 @@ public class AppendProcessor extends DelegatingCommandProcessor {
 		final long ackOffset;
 
 		public void complete() {
-			connection.asyncSend(new DataAppended(segment, ackOffset));
+			connection.sendAsync(new DataAppended(segment, ackOffset));
 			pauseOrResumeReading();
 			synchronized (lock) {
 				outstandingWrite = null;
@@ -54,13 +55,25 @@ public class AppendProcessor extends DelegatingCommandProcessor {
 	public void setupAppend(SetupAppend setupAppend) {
 		String segment = setupAppend.getSegment();
 		if (!ownSegment(segment)) {
-			connection.asyncSend(new WrongHost());
+			connection.sendAsync(new WrongHost());
+			return;
 		}
+		UUID connectionId = setupAppend.getConnectionId();
+		Long offset = getConnectionOffset(connectionId);
 		synchronized (lock) {
 			this.segment = segment;
-			connectionOffset = 0L;
+			if (offset == null) {
+				connectionOffset = 0L;
+			} else {
+				connectionOffset = offset;
+			}
 		}
-		connection.asyncSend(new AppendSetup(segment));
+		connection.sendAsync(new AppendSetup(segment,connectionId,connectionOffset));
+	}
+
+	private Long getConnectionOffset(UUID connectionId) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 	public void performNextWrite() {

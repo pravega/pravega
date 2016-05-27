@@ -6,6 +6,7 @@ import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.Test;
 
@@ -113,7 +114,7 @@ public class AppendEncodeDecodeTest {
 	}
 
 	private ArrayList<Object> setupAppend(ByteBuf fakeNetwork) throws Exception {
-		SetupAppend setupAppend = new SetupAppend(testStream);
+		SetupAppend setupAppend = new SetupAppend(new UUID(0, 0), testStream);
 		encoder.encode(null, setupAppend, fakeNetwork);
 		ArrayList<Object> received = new ArrayList<>();
 		decoder.decode(null, fakeNetwork, received);

@@ -3,9 +3,11 @@ package com.emc.nautilus.common.netty;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import io.netty.buffer.ByteBuf;
 import lombok.Data;
@@ -34,7 +36,7 @@ public final class WireCommands {
 	enum Type {
 		WRONG_HOST(0, WrongHost::readFrom),
 		SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
-		END_OF_STREAM(-2, EndOfStream::readFrom),
+//		END_OF_STREAM(-2, EndOfStream::readFrom),
 		NO_SUCH_STREAM(-3, NoSuchStream::readFrom),
 		NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
 		NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
@@ -43,15 +45,15 @@ public final class WireCommands {
 		APPEND_SETUP(2, AppendSetup::readFrom),
 
 		APPEND_DATA(-100, null),//Splits into the two below for the wire.
-		APPEND_DATA_HEADER(3, null),
-		APPEND_DATA_FOOTER(4, null),
+		APPEND_DATA_HEADER(3, null), //Handled in the encoder/decoder directly
+		APPEND_DATA_FOOTER(4, null), //Handled in the encoder/decoder directly
 		DATA_APPENDED(5, DataAppended::readFrom),
 
-		SETUP_READ(6, SetupRead::readFrom),
-		READ_SETUP(7, ReadSetup::readFrom),
+//		SETUP_READ(6, SetupRead::readFrom),
+//		READ_SETUP(7, ReadSetup::readFrom),
 
 		READ_SEGMENT(8, ReadSegment::readFrom),
-		SEGMENT_READ(9, SegmentRead::readFrom),
+		SEGMENT_READ(9, null), //Handled in the encoder/decoder directly
 
 		GET_STREAM_INFO(10, GetStreamInfo::readFrom),
 		STREAM_INFO(11, StreamInfo::readFrom),
@@ -131,94 +133,59 @@ public final class WireCommands {
 		}
 	}
 
-	@Data
-	public static final class EndOfStream implements WireCommand {
-		final WireCommands.Type type = Type.END_OF_STREAM;
-
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.endOfStream(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
-		}
-	}
+//	@Data
+//	public static final class EndOfStream implements WireCommand {
+//		final WireCommands.Type type = Type.END_OF_STREAM;
+//
+//		@Override
+//		public void process(CommandProcessor cp) {
+//			cp.endOfStream(this);
+//		}
+//
+//		@Override
+//		public void writeFields(DataOutput out) {
+//			// TODO Auto-generated method stub
+//
+//		}
+//
+//		public static WireCommand readFrom(DataInput in) {
+//			return null;
+//		}
+//	}
 
 	@Data
 	public static final class NoSuchStream implements WireCommand {
 		final WireCommands.Type type = Type.NO_SUCH_STREAM;
-
+		final String stream;
+		
 		@Override
 		public void process(CommandProcessor cp) {
 			cp.noSuchStream(this);
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(stream);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String stream = in.readUTF();
+			return new NoSuchStream(stream);
+		}
+		@Override
+		public String toString() {
+			return "No such stream: " + stream;
 		}
 	}
 
 	@Data
 	public static final class NoSuchSegment implements WireCommand {
 		final WireCommands.Type type = Type.NO_SUCH_SEGMENT;
-
+		final String segment;
+		
 		@Override
 		public void process(CommandProcessor cp) {
 			cp.noSuchSegment(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
-		}
-	}
-
-	@Data
-	public static final class NoSuchBatch implements WireCommand {
-		final WireCommands.Type type = Type.NO_SUCH_BATCH;
-
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.noSuchBatch(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
-		}
-	}
-
-	@Data
-	public static final class SetupAppend implements WireCommand {
-		final WireCommands.Type type = Type.SETUP_APPEND;
-		final String segment;
-
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.setupAppend(this);
 		}
 
 		@Override
@@ -228,7 +195,61 @@ public final class WireCommands {
 
 		public static WireCommand readFrom(DataInput in) throws IOException {
 			String segment = in.readUTF();
-			return new SetupAppend(segment);
+			return new NoSuchSegment(segment);
+		}
+		@Override
+		public String toString() {
+			return "No such segment: " + segment;
+		}
+	}
+
+	@Data
+	public static final class NoSuchBatch implements WireCommand {
+		final WireCommands.Type type = Type.NO_SUCH_BATCH;
+		final String batch;
+
+		@Override
+		public void process(CommandProcessor cp) {
+			cp.noSuchBatch(this);
+		}
+
+		@Override
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(batch);
+		}
+
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String batch = in.readUTF();
+			return new NoSuchBatch(batch);
+		}
+		@Override
+		public String toString() {
+			return "No such batch: " + batch;
+		}
+	}
+
+	@Data
+	public static final class SetupAppend implements WireCommand {
+		final WireCommands.Type type = Type.SETUP_APPEND;
+		final UUID connectionId;
+		final String segment;
+
+		@Override
+		public void process(CommandProcessor cp) {
+			cp.setupAppend(this);
+		}
+
+		@Override
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeLong(connectionId.getMostSignificantBits());
+			out.writeLong(connectionId.getLeastSignificantBits());
+			out.writeUTF(segment);
+		}
+
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			UUID uuid = new UUID(in.readLong(), in.readLong());
+			String segment = in.readUTF();
+			return new SetupAppend(uuid, segment);
 		}
 	}
 
@@ -236,6 +257,8 @@ public final class WireCommands {
 	public static final class AppendSetup implements WireCommand {
 		final WireCommands.Type type = Type.APPEND_SETUP;
 		final String segment;
+		final UUID connectionId;
+		final long connectionOffsetAckLevel;
 
 		@Override
 		public void process(CommandProcessor cp) {
@@ -254,7 +277,7 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class AppendData implements WireCommand {
+	public static final class AppendData implements WireCommand, Comparable<AppendData> {
 		final WireCommands.Type type = Type.APPEND_DATA;
 		final String segment;
 		final long connectionOffset;
@@ -268,6 +291,11 @@ public final class WireCommands {
 		@Override
 		public void writeFields(DataOutput out) {
 			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public int compareTo(AppendData other) {
+			return Long.compare(connectionOffset, other.connectionOffset);
 		}
 	}
 
@@ -293,69 +321,81 @@ public final class WireCommands {
 		}
 	}
 
-	@Data
-	public static final class SetupRead implements WireCommand {
-		final WireCommands.Type type = Type.SETUP_READ;
-
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.setupRead(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
-		}
-	}
-
-	@Data
-	public static final class ReadSetup implements WireCommand {
-		final WireCommands.Type type = Type.READ_SETUP;
-
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.readSetup(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
-		}
-	}
+//	@Data
+//	public static final class SetupRead implements WireCommand {
+//		final WireCommands.Type type = Type.SETUP_READ;
+//
+//		@Override
+//		public void process(CommandProcessor cp) {
+//			cp.setupRead(this);
+//		}
+//
+//		@Override
+//		public void writeFields(DataOutput out) {
+//			// TODO Auto-generated method stub
+//
+//		}
+//
+//		public static WireCommand readFrom(DataInput in) {
+//			return null;
+//		}
+//	}
+//
+//	@Data
+//	public static final class ReadSetup implements WireCommand {
+//		final WireCommands.Type type = Type.READ_SETUP;
+//
+//		@Override
+//		public void process(CommandProcessor cp) {
+//			cp.readSetup(this);
+//		}
+//
+//		@Override
+//		public void writeFields(DataOutput out) {
+//			// TODO Auto-generated method stub
+//
+//		}
+//
+//		public static WireCommand readFrom(DataInput in) {
+//			return null;
+//		}
+//	}
 
 	@Data
 	public static final class ReadSegment implements WireCommand {
 		final WireCommands.Type type = Type.READ_SEGMENT;
-
+		final String segment;
+		final long offset;
+		final long suggestedLength;
+		
 		@Override
 		public void process(CommandProcessor cp) {
 			cp.readSegment(this);
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
+			out.writeLong(offset);
+			out.writeLong(suggestedLength);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			long offset = in.readLong();
+			long suggestedLength = in.readLong();
+			return new ReadSegment(segment, offset, suggestedLength);
 		}
 	}
 
 	@Data
 	public static final class SegmentRead implements WireCommand {
 		final WireCommands.Type type = Type.SEGMENT_READ;
+		final String segment;
+		final long offset;
+		final ByteBuffer data;
+		final boolean atTail;
+		final boolean endOfStream;
 
 		@Override
 		public void process(CommandProcessor cp) {
@@ -364,12 +404,7 @@ public final class WireCommands {
 
 		@Override
 		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+			throw new UnsupportedOperationException();
 		}
 	}
 
