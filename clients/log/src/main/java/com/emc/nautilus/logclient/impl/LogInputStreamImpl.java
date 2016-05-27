@@ -8,12 +8,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.emc.nautilus.common.netty.Connection;
+import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ConnectionFailedException;
-import com.emc.nautilus.common.netty.FailingCommandProcessor;
+import com.emc.nautilus.common.netty.FailingResponseProcessor;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchStream;
 import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
@@ -23,17 +22,14 @@ public class LogInputStreamImpl extends AsyncLogInputStream {
 	private final ConnectionFactory connectionFactory;
 	private final String endpoint;
 	private final String segment;
-	private final AtomicReference<Connection> connection = new AtomicReference<>();
+	private final AtomicReference<ClientConnection> connection = new AtomicReference<>();
 	private final ConcurrentHashMap<Long, CompletableFuture<SegmentRead>> outstandingRequests = new ConcurrentHashMap<>();
-
-	private final class ResponseProcessor extends FailingCommandProcessor {
+	private final ResponseProcessor responseProcessor = new ResponseProcessor();
+	
+	private final class ResponseProcessor extends FailingResponseProcessor {
 
 		public void wrongHost(WrongHost wrongHost) {
 			reconnect(new ConnectionFailedException(wrongHost.toString()));
-		}
-
-		public void noSuchStream(NoSuchStream noSuchStream) {
-			reconnect(new IllegalArgumentException(noSuchStream.toString()));
 		}
 
 		public void noSuchSegment(NoSuchSegment noSuchSegment) {
@@ -57,8 +53,9 @@ public class LogInputStreamImpl extends AsyncLogInputStream {
 	}
 
 	private void reconnect(Exception e) { //TODO: we need backoff
-		Connection newConnection = connectionFactory.establishConnection(endpoint);
-		Connection oldConnection = connection.getAndSet(newConnection);
+		ClientConnection newConnection = connectionFactory.establishConnection(endpoint);
+		newConnection.setResponseProcessor(responseProcessor);
+		ClientConnection oldConnection = connection.getAndSet(newConnection);
 		if (oldConnection != null) {
 			oldConnection.drop();
 		}
@@ -72,7 +69,7 @@ public class LogInputStreamImpl extends AsyncLogInputStream {
 
 	@Override
 	public void close() {
-		Connection c = connection.getAndSet(null);
+		ClientConnection c = connection.getAndSet(null);
 		if (c != null) {
 			c.drop();
 		}
@@ -80,7 +77,7 @@ public class LogInputStreamImpl extends AsyncLogInputStream {
 
 	@Override
 	public Future<SegmentRead> read(long offset, int length) {
-		Connection c = connection.get();
+		ClientConnection c = connection.get();
 		if (c == null) {
 			throw new IllegalStateException("Not connected");
 		}

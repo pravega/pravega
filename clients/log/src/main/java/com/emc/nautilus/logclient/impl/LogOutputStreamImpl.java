@@ -1,6 +1,7 @@
 package com.emc.nautilus.logclient.impl;
 
 import java.nio.ByteBuffer;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -8,16 +9,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 
-import com.emc.nautilus.common.netty.Connection;
+import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ConnectionFailedException;
-import com.emc.nautilus.common.netty.FailingCommandProcessor;
+import com.emc.nautilus.common.netty.FailingResponseProcessor;
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchStream;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
@@ -46,7 +46,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 		private final Object lock = new Object();
 		private boolean closed = false;
 		private AckListener ackListener; // Held but never called
-		private Connection connection;
+		private ClientConnection connection;
 		private Exception exception = null;
 		private final ReusableLatch connectionSetup = new ReusableLatch();
 		private final ConcurrentSkipListSet<AppendData> inflight = new ConcurrentSkipListSet<>();
@@ -61,7 +61,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			connectionSetup.release();
 		}
 
-		private void newConnection(Connection newConnection) {
+		private void newConnection(ClientConnection newConnection) {
 			synchronized (lock) {
 				connectionSetup.reset();
 				exception = null;
@@ -78,7 +78,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			connectionSetupComplete();
 		}
 
-		private Connection waitForConnection() throws ConnectionFailedException, LogSealedExcepetion {
+		private ClientConnection waitForConnection() throws ConnectionFailedException, LogSealedExcepetion {
 			try {
 				connectionSetup.await();
 				synchronized (lock) {
@@ -161,7 +161,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 		}
 	}
 
-	private final class ResponseProcessor extends FailingCommandProcessor {
+	private final class ResponseProcessor extends FailingResponseProcessor {
 
 		public void wrongHost(WrongHost wrongHost) {
 			state.failConnection(new ConnectionFailedException());// TODO: Probably something else.
@@ -169,10 +169,6 @@ public class LogOutputStreamImpl extends LogOutputStream {
 
 		public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
 			state.failConnection(new LogSealedExcepetion());
-		}
-
-		public void noSuchStream(NoSuchStream noSuchStream) {
-			state.failConnection(new IllegalArgumentException(noSuchStream.toString()));
 		}
 
 		public void noSuchSegment(NoSuchSegment noSuchSegment) {
@@ -204,7 +200,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 
 		private void retransmitInflight() {
 			try {
-				Connection connection = state.waitForConnection();
+				ClientConnection connection = state.waitForConnection();
 				for (AppendData append : state.getAllInflight()) {
 					connection.sendAsync(append);
 				}
@@ -232,14 +228,14 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			@Override
 			@SneakyThrows(LogSealedExcepetion.class)
 			public void attempt() throws ConnectionFailedException {
-				Connection connection = state.waitForConnection();
+				ClientConnection connection = state.waitForConnection();
 				connection.send(append);
 			}
 
 			@Override
 			public void recover() throws ConnectionFailedException {
-				Connection connection = connectionFactory.establishConnection(endpoint);
-				connection.setCommandProcessor(responseProcessor);
+				ClientConnection connection = connectionFactory.establishConnection(endpoint);
+				connection.setResponseProcessor(responseProcessor);
 				state.newConnection(connection);
 				SetupAppend cmd = new SetupAppend(connectionId, segment);
 				connection.send(cmd);

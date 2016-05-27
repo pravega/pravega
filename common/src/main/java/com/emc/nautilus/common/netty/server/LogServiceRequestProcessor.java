@@ -1,60 +1,60 @@
 package com.emc.nautilus.common.netty.server;
 
-import com.emc.nautilus.common.netty.CommandProcessor;
-import com.emc.nautilus.common.netty.DelegatingCommandProcessor;
+import com.emc.nautilus.common.netty.DelegatingRequestProcessor;
+import com.emc.nautilus.common.netty.RequestProcessor;
 import com.emc.nautilus.common.netty.WireCommands.CreateBatch;
-import com.emc.nautilus.common.netty.WireCommands.CreateStreamsSegment;
+import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.DeleteSegment;
 import com.emc.nautilus.common.netty.WireCommands.GetStreamInfo;
 import com.emc.nautilus.common.netty.WireCommands.MergeBatch;
 import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
 import com.emc.nautilus.common.netty.WireCommands.SealSegment;
 
-public class LogServiceCommandProcessor extends DelegatingCommandProcessor {
+public class LogServiceRequestProcessor extends DelegatingRequestProcessor {
 
-	private final CommandProcessor next;
+	private final RequestProcessor next;
 	
-	LogServiceCommandProcessor(CommandProcessor next) {
+	LogServiceRequestProcessor(RequestProcessor next) {
 		this.next = next;
 	}
 
 	@Override
 	public void readSegment(ReadSegment readSegment) {
-		getNextCommandProcessor().readSegment(readSegment);
+		getNextRequestProcessor().readSegment(readSegment);
 	}
 
 	@Override
 	public void getStreamInfo(GetStreamInfo getStreamInfo) {
-		getNextCommandProcessor().getStreamInfo(getStreamInfo);
+		getNextRequestProcessor().getStreamInfo(getStreamInfo);
 	}
 
 	@Override
-	public void createStreamsSegment(CreateStreamsSegment createStreamsSegment) {
-		getNextCommandProcessor().createStreamsSegment(createStreamsSegment);
+	public void createSegment(CreateSegment createStreamsSegment) {
+		getNextRequestProcessor().createSegment(createStreamsSegment);
 	}
 	
 	@Override
 	public void createBatch(CreateBatch createBatch) {
-		getNextCommandProcessor().createBatch(createBatch);
+		getNextRequestProcessor().createBatch(createBatch);
 	}
 
 	@Override
 	public void mergeBatch(MergeBatch mergeBatch) {
-		getNextCommandProcessor().mergeBatch(mergeBatch);
+		getNextRequestProcessor().mergeBatch(mergeBatch);
 	}
 
 	@Override
 	public void sealSegment(SealSegment sealSegment) {
-		getNextCommandProcessor().sealSegment(sealSegment);
+		getNextRequestProcessor().sealSegment(sealSegment);
 	}
 
 	@Override
 	public void deleteSegment(DeleteSegment deleteSegment) {
-		getNextCommandProcessor().deleteSegment(deleteSegment);
+		getNextRequestProcessor().deleteSegment(deleteSegment);
 	}
 
 	@Override
-	public CommandProcessor getNextCommandProcessor() {
+	public RequestProcessor getNextRequestProcessor() {
 		return next;
 	}
 	

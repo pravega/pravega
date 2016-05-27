@@ -36,10 +36,9 @@ public final class WireCommands {
 	enum Type {
 		WRONG_HOST(0, WrongHost::readFrom),
 		SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
-//		END_OF_STREAM(-2, EndOfStream::readFrom),
-		NO_SUCH_STREAM(-3, NoSuchStream::readFrom),
 		NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
 		NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
+		
 
 		SETUP_APPEND(1, SetupAppend::readFrom),
 		APPEND_SETUP(2, AppendSetup::readFrom),
@@ -49,17 +48,14 @@ public final class WireCommands {
 		APPEND_DATA_FOOTER(4, null), //Handled in the encoder/decoder directly
 		DATA_APPENDED(5, DataAppended::readFrom),
 
-//		SETUP_READ(6, SetupRead::readFrom),
-//		READ_SETUP(7, ReadSetup::readFrom),
-
 		READ_SEGMENT(8, ReadSegment::readFrom),
 		SEGMENT_READ(9, null), //Handled in the encoder/decoder directly
 
 		GET_STREAM_INFO(10, GetStreamInfo::readFrom),
 		STREAM_INFO(11, StreamInfo::readFrom),
 
-		CREATE_STREAMS_SEGMENT(12, CreateStreamsSegment::readFrom),
-		STREAMS_SEGMENT_CREATED(13, StreamsSegmentCreated::readFrom),
+		CREATE_SEGMENT(12, CreateSegment::readFrom),
+		SEGMENT_CREATED(13, SegmentCreated::readFrom),
 
 		CREATE_BATCH(14, CreateBatch::readFrom),
 		BATCH_CREATED(15, BatchCreated::readFrom),
@@ -94,11 +90,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class WrongHost implements WireCommand {
+	public static final class WrongHost implements Reply {
 		final WireCommands.Type type = Type.WRONG_HOST;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.wrongHost(this);
 		}
 
@@ -114,11 +110,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class SegmentIsSealed implements WireCommand {
+	public static final class SegmentIsSealed implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_IS_SEALED;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.segmentIsSealed(this);
 		}
 
@@ -133,58 +129,13 @@ public final class WireCommands {
 		}
 	}
 
-//	@Data
-//	public static final class EndOfStream implements WireCommand {
-//		final WireCommands.Type type = Type.END_OF_STREAM;
-//
-//		@Override
-//		public void process(CommandProcessor cp) {
-//			cp.endOfStream(this);
-//		}
-//
-//		@Override
-//		public void writeFields(DataOutput out) {
-//			// TODO Auto-generated method stub
-//
-//		}
-//
-//		public static WireCommand readFrom(DataInput in) {
-//			return null;
-//		}
-//	}
-
 	@Data
-	public static final class NoSuchStream implements WireCommand {
-		final WireCommands.Type type = Type.NO_SUCH_STREAM;
-		final String stream;
-		
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.noSuchStream(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) throws IOException {
-			out.writeUTF(stream);
-		}
-
-		public static WireCommand readFrom(DataInput in) throws IOException {
-			String stream = in.readUTF();
-			return new NoSuchStream(stream);
-		}
-		@Override
-		public String toString() {
-			return "No such stream: " + stream;
-		}
-	}
-
-	@Data
-	public static final class NoSuchSegment implements WireCommand {
+	public static final class NoSuchSegment implements Reply {
 		final WireCommands.Type type = Type.NO_SUCH_SEGMENT;
 		final String segment;
 		
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.noSuchSegment(this);
 		}
 
@@ -204,12 +155,12 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class NoSuchBatch implements WireCommand {
+	public static final class NoSuchBatch implements Reply {
 		final WireCommands.Type type = Type.NO_SUCH_BATCH;
 		final String batch;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.noSuchBatch(this);
 		}
 
@@ -229,13 +180,13 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class SetupAppend implements WireCommand {
+	public static final class SetupAppend implements Request {
 		final WireCommands.Type type = Type.SETUP_APPEND;
 		final UUID connectionId;
 		final String segment;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.setupAppend(this);
 		}
 
@@ -254,14 +205,14 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class AppendSetup implements WireCommand {
+	public static final class AppendSetup implements Reply {
 		final WireCommands.Type type = Type.APPEND_SETUP;
 		final String segment;
 		final UUID connectionId;
 		final long connectionOffsetAckLevel;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.appendSetup(this);
 		}
 
@@ -277,14 +228,14 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class AppendData implements WireCommand, Comparable<AppendData> {
+	public static final class AppendData implements Request, Comparable<AppendData> {
 		final WireCommands.Type type = Type.APPEND_DATA;
 		final String segment;
 		final long connectionOffset;
 		final ByteBuf data;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.appendData(this);
 		}
 
@@ -300,13 +251,13 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class DataAppended implements WireCommand {
+	public static final class DataAppended implements Reply {
 		final WireCommands.Type type = Type.DATA_APPENDED;
 		final String segment;
 		final long connectionOffset;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.dataAppended(this);
 		}
 
@@ -321,55 +272,15 @@ public final class WireCommands {
 		}
 	}
 
-//	@Data
-//	public static final class SetupRead implements WireCommand {
-//		final WireCommands.Type type = Type.SETUP_READ;
-//
-//		@Override
-//		public void process(CommandProcessor cp) {
-//			cp.setupRead(this);
-//		}
-//
-//		@Override
-//		public void writeFields(DataOutput out) {
-//			// TODO Auto-generated method stub
-//
-//		}
-//
-//		public static WireCommand readFrom(DataInput in) {
-//			return null;
-//		}
-//	}
-//
-//	@Data
-//	public static final class ReadSetup implements WireCommand {
-//		final WireCommands.Type type = Type.READ_SETUP;
-//
-//		@Override
-//		public void process(CommandProcessor cp) {
-//			cp.readSetup(this);
-//		}
-//
-//		@Override
-//		public void writeFields(DataOutput out) {
-//			// TODO Auto-generated method stub
-//
-//		}
-//
-//		public static WireCommand readFrom(DataInput in) {
-//			return null;
-//		}
-//	}
-
 	@Data
-	public static final class ReadSegment implements WireCommand {
+	public static final class ReadSegment implements Request {
 		final WireCommands.Type type = Type.READ_SEGMENT;
 		final String segment;
 		final long offset;
 		final long suggestedLength;
 		
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.readSegment(this);
 		}
 
@@ -389,7 +300,7 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class SegmentRead implements WireCommand {
+	public static final class SegmentRead implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_READ;
 		final String segment;
 		final long offset;
@@ -398,7 +309,7 @@ public final class WireCommands {
 		final boolean endOfStream;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.segmentRead(this);
 		}
 
@@ -409,11 +320,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class GetStreamInfo implements WireCommand {
+	public static final class GetStreamInfo implements Request {
 		final WireCommands.Type type = Type.GET_STREAM_INFO;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.getStreamInfo(this);
 		}
 
@@ -429,11 +340,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class StreamInfo implements WireCommand {
+	public static final class StreamInfo implements Reply {
 		final WireCommands.Type type = Type.STREAM_INFO;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.streamInfo(this);
 		}
 
@@ -449,32 +360,12 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class CreateStreamsSegment implements WireCommand {
-		final WireCommands.Type type = Type.CREATE_STREAMS_SEGMENT;
+	public static final class CreateSegment implements Request {
+		final WireCommands.Type type = Type.CREATE_SEGMENT;
 
 		@Override
-		public void process(CommandProcessor cp) {
-			cp.createStreamsSegment(this);
-		}
-
-		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
-		}
-
-		public static WireCommand readFrom(DataInput in) {
-			return null;
-		}
-	}
-
-	@Data
-	public static final class StreamsSegmentCreated implements WireCommand {
-		final WireCommands.Type type = Type.STREAMS_SEGMENT_CREATED;
-
-		@Override
-		public void process(CommandProcessor cp) {
-			cp.streamsSegmentCreated(this);
+		public void process(RequestProcessor cp) {
+			cp.createSegment(this);
 		}
 
 		@Override
@@ -489,11 +380,31 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class CreateBatch implements WireCommand {
+	public static final class SegmentCreated implements Reply {
+		final WireCommands.Type type = Type.SEGMENT_CREATED;
+
+		@Override
+		public void process(ReplyProcessor cp) {
+			cp.segmentCreated(this);
+		}
+
+		@Override
+		public void writeFields(DataOutput out) {
+			// TODO Auto-generated method stub
+
+		}
+
+		public static WireCommand readFrom(DataInput in) {
+			return null;
+		}
+	}
+
+	@Data
+	public static final class CreateBatch implements Request {
 		final WireCommands.Type type = Type.CREATE_BATCH;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.createBatch(this);
 		}
 
@@ -509,11 +420,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class BatchCreated implements WireCommand {
+	public static final class BatchCreated implements Reply {
 		final WireCommands.Type type = Type.BATCH_CREATED;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.batchCreated(this);
 		}
 
@@ -529,11 +440,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class MergeBatch implements WireCommand {
+	public static final class MergeBatch implements Request {
 		final WireCommands.Type type = Type.MERGE_BATCH;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.mergeBatch(this);
 		}
 
@@ -549,11 +460,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class BatchMerged implements WireCommand {
+	public static final class BatchMerged implements Reply {
 		final WireCommands.Type type = Type.BATCH_MERGED;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.batchMerged(this);
 		}
 
@@ -569,11 +480,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class SealSegment implements WireCommand {
+	public static final class SealSegment implements Request {
 		final WireCommands.Type type = Type.SEAL_SEGMENT;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.sealSegment(this);
 		}
 
@@ -589,11 +500,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class SegmentSealed implements WireCommand {
+	public static final class SegmentSealed implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_SEALED;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.segmentSealed(this);
 		}
 
@@ -609,11 +520,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class DeleteSegment implements WireCommand {
+	public static final class DeleteSegment implements Request {
 		final WireCommands.Type type = Type.DELETE_SEGMENT;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(RequestProcessor cp) {
 			cp.deleteSegment(this);
 		}
 
@@ -629,11 +540,11 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class SegmentDeleted implements WireCommand {
+	public static final class SegmentDeleted implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_DELETED;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
 			cp.segmentDeleted(this);
 		}
 
@@ -649,11 +560,16 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class KeepAlive implements WireCommand {
+	public static final class KeepAlive implements Request, Reply {
 		final WireCommands.Type type = Type.KEEP_ALIVE;
 
 		@Override
-		public void process(CommandProcessor cp) {
+		public void process(ReplyProcessor cp) {
+			cp.keepAlive(this);
+		}
+		
+		@Override
+		public void process(RequestProcessor cp) {
 			cp.keepAlive(this);
 		}
 

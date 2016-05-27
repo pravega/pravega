@@ -2,7 +2,7 @@ package com.emc.nautilus.common.netty.server;
 
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
-import com.emc.nautilus.common.netty.FailingCommandProcessor;
+import com.emc.nautilus.common.netty.FailingRequestProcessor;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -60,8 +60,8 @@ public final class LogSerivceServer {
 						          	new LengthFieldBasedFrameDecoder(1024*1024, 4, 4),
 									new CommandDecoder(),
 									lsh);
-						lsh.setCommandProcessor(new AppendProcessor(lsh,
-								new LogServiceCommandProcessor(new FailingCommandProcessor())));
+						lsh.setRequestProcessor(new AppendProcessor(lsh,
+								new LogServiceRequestProcessor(new FailingRequestProcessor())));
 					}
 				});
 

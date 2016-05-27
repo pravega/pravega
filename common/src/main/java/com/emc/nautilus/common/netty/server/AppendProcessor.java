@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.emc.nautilus.common.netty.CommandProcessor;
-import com.emc.nautilus.common.netty.Connection;
-import com.emc.nautilus.common.netty.DelegatingCommandProcessor;
+import com.emc.nautilus.common.netty.DelegatingRequestProcessor;
+import com.emc.nautilus.common.netty.RequestProcessor;
+import com.emc.nautilus.common.netty.ServerConnection;
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
@@ -16,13 +16,13 @@ import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 import io.netty.buffer.ByteBuf;
 import lombok.Data;
 
-public class AppendProcessor extends DelegatingCommandProcessor {
+public class AppendProcessor extends DelegatingRequestProcessor {
 
 	static final int HIGH_WATER_MARK = 1024*1024;
 	static final int LOW_WATER_MARK = 512*1024;
 	
-	private final CommandProcessor next;
-	private final Connection connection;
+	private final RequestProcessor next;
+	private final ServerConnection connection;
 	
 	private final Object lock = new Object();
 	private String segment;
@@ -30,7 +30,7 @@ public class AppendProcessor extends DelegatingCommandProcessor {
 	private List<ByteBuf> waiting = new ArrayList<>();
 	private OutstandingWrite outstandingWrite = null;
 
-	AppendProcessor(Connection connection, CommandProcessor next) {
+	AppendProcessor(ServerConnection connection, RequestProcessor next) {
 		this.connection = connection;
 		this.next = next;
 	}
@@ -127,7 +127,7 @@ public class AppendProcessor extends DelegatingCommandProcessor {
 	}
 
 	@Override
-	public CommandProcessor getNextCommandProcessor() {
+	public RequestProcessor getNextRequestProcessor() {
 		return next;
 	}
 	

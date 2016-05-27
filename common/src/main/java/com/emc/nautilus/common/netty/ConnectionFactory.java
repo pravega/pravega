@@ -2,6 +2,6 @@ package com.emc.nautilus.common.netty;
 
 public interface ConnectionFactory {
 
-	Connection establishConnection(String endpoint);
+	ClientConnection establishConnection(String endpoint);
 	
 }

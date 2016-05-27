@@ -2,9 +2,10 @@ package com.emc.nautilus.common.netty.server;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.emc.nautilus.common.netty.CommandProcessor;
-import com.emc.nautilus.common.netty.Connection;
 import com.emc.nautilus.common.netty.ConnectionFailedException;
+import com.emc.nautilus.common.netty.Request;
+import com.emc.nautilus.common.netty.RequestProcessor;
+import com.emc.nautilus.common.netty.ServerConnection;
 import com.emc.nautilus.common.netty.WireCommand;
 
 import io.netty.channel.Channel;
@@ -14,9 +15,9 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 /**
  * Handler implementation for the echo server.
  */
-public class LogServiceServerHandler extends ChannelInboundHandlerAdapter implements Connection {
+public class LogServiceServerHandler extends ChannelInboundHandlerAdapter implements ServerConnection {
 
-	private AtomicReference<CommandProcessor> processor = new AtomicReference<>();
+	private AtomicReference<RequestProcessor> processor = new AtomicReference<>();
 	private AtomicReference<Channel> channel = new AtomicReference<>();
 	
 	@Override
@@ -27,12 +28,12 @@ public class LogServiceServerHandler extends ChannelInboundHandlerAdapter implem
 
 	@Override
 	public void channelRead(ChannelHandlerContext ctx, Object msg) {
-		WireCommand cmd = (WireCommand) msg;
-		CommandProcessor commandProcessor = processor.get();
-		if (commandProcessor == null) {
+		Request cmd = (Request) msg;
+		RequestProcessor requestProcessor = processor.get();
+		if (requestProcessor == null) {
 			throw new IllegalStateException("No command processor set for connection");
 		}
-		cmd.process(commandProcessor);
+		cmd.process(requestProcessor);
 	}
 
 	@Override
@@ -53,8 +54,8 @@ public class LogServiceServerHandler extends ChannelInboundHandlerAdapter implem
 	}
 
 	@Override
-	public void setCommandProcessor(CommandProcessor cp) {
-		processor.set(cp);
+	public void setRequestProcessor(RequestProcessor rp) {
+		processor.set(rp);
 	}
 
 	@Override

@@ -1,6 +1,6 @@
 package com.emc.nautilus.common.netty;
 
-public interface Connection {
+public interface ServerConnection {
 
 	/**
 	 * Sends the provided command. This operation may block. (Though buffering
@@ -18,10 +18,10 @@ public interface Connection {
 
 	/**
 	 * @param cp Sets the command processor to receive incoming commands from
-	 *            the other side of the connection. This method may only be
+	 *            the client. This method may only be
 	 *            called once.
 	 */
-	void setCommandProcessor(CommandProcessor cp);
+	void setRequestProcessor(RequestProcessor cp);
 
 	void pauseReading();
 	
