@@ -2,7 +2,9 @@ package com.emc.nautilus.logclient.impl;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
-import com.emc.nautilus.common.netty.FailingResponseProcessor;
+import com.emc.nautilus.common.netty.FailingReplyProcessor;
+import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
+import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 import com.emc.nautilus.logclient.LogAppender;
@@ -19,19 +21,26 @@ public class LogClientImpl implements LogClient {
 	@Override
 	public boolean createLog(String name, long timeoutMillis) {
 		ClientConnection connection = connectionFactory.establishConnection(endpoint);
-		connection.setResponseProcessor(new FailingResponseProcessor() {
+		
+		connection.setResponseProcessor(new FailingReplyProcessor() {
 			@Override
 			public void wrongHost(WrongHost wrongHost) {
 				// TODO Auto-generated method stub
 				
 			}
+			@Override
+			public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
+				// TODO Auto-generated method stub
+				
+			}
 			
 			@Override
-			public void segmentCreated(SegmentCreated streamsSegmentCreated) {
+			public void segmentCreated(SegmentCreated segmentCreated) {
 				// TODO Auto-generated method stub
 				
 			}
 		});
+		connection.sendAsync(new CreateSegment(name));
 		return false;
 	}
 

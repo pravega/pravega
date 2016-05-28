@@ -7,6 +7,7 @@ import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
+import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
@@ -27,6 +28,11 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
 	@Override
 	public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
 		getNextReplyProcessor().segmentIsSealed(segmentIsSealed);
+	}
+	
+	@Override
+	public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
+		getNextReplyProcessor().segmentAlreadyExists(segmentAlreadyExists);
 	}
 
 	@Override

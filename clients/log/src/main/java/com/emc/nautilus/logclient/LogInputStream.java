@@ -11,7 +11,7 @@ public abstract class LogInputStream implements AutoCloseable {
 	
 	public abstract int available();
 	
-	public abstract ByteBuffer read(int length) throws EndOfLogException;
+	public abstract void read(ByteBuffer toFill) throws EndOfLogException;
 
 	@Override
 	public abstract void close();

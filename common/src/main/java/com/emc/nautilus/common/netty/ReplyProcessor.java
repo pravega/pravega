@@ -7,6 +7,7 @@ import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
+import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
@@ -17,6 +18,7 @@ import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
 public interface ReplyProcessor {
 	void wrongHost(WrongHost wrongHost);
+	void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists);
 	void segmentIsSealed(SegmentIsSealed segmentIsSealed);
 	void noSuchSegment(NoSuchSegment noSuchSegment);
 	void noSuchBatch(NoSuchBatch noSuchBatch);

@@ -7,6 +7,7 @@ import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
+import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
@@ -15,7 +16,7 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentSealed;
 import com.emc.nautilus.common.netty.WireCommands.StreamInfo;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
-public class FailingResponseProcessor implements ReplyProcessor {
+public class FailingReplyProcessor implements ReplyProcessor {
 
 	@Override
 	public void wrongHost(WrongHost wrongHost) {
@@ -24,6 +25,11 @@ public class FailingResponseProcessor implements ReplyProcessor {
 
 	@Override
 	public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
+		throw new IllegalStateException("Unexpected operation");
+	}
+	
+	@Override
+	public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
 		throw new IllegalStateException("Unexpected operation");
 	}
 

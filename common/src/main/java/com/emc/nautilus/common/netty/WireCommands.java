@@ -36,6 +36,7 @@ public final class WireCommands {
 	enum Type {
 		WRONG_HOST(0, WrongHost::readFrom),
 		SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
+		SEGMENT_ALREADY_EXISTS(-3, SegmentAlreadyExists::readFrom),
 		NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
 		NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
 		
@@ -126,6 +127,31 @@ public final class WireCommands {
 
 		public static WireCommand readFrom(DataInput in) {
 			return null;
+		}
+	}
+	
+	@Data
+	public static final class SegmentAlreadyExists implements Reply {
+		final WireCommands.Type type = Type.SEGMENT_ALREADY_EXISTS;
+		final String segment;
+		
+		@Override
+		public void process(ReplyProcessor cp) {
+			cp.segmentAlreadyExists(this);
+		}
+
+		@Override
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
+		}
+
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			return new NoSuchSegment(segment);
+		}
+		@Override
+		public String toString() {
+			return "Segment already exists: " + segment;
 		}
 	}
 
@@ -362,6 +388,7 @@ public final class WireCommands {
 	@Data
 	public static final class CreateSegment implements Request {
 		final WireCommands.Type type = Type.CREATE_SEGMENT;
+		final String segment;
 
 		@Override
 		public void process(RequestProcessor cp) {
@@ -369,13 +396,13 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			return new CreateSegment(segment);
 		}
 	}
 

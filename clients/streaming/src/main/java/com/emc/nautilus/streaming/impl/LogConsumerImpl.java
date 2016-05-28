@@ -22,9 +22,12 @@ public class LogConsumerImpl<Type> implements LogConsumer<Type> {
 	@Override
 	public Type getNextEvent(long timeout) throws EndOfLogException {
 		ByteBuffer buffer;
-		synchronized (in) {
-			int length = in.read(4).getInt();
-			buffer = in.read(length);
+		synchronized (in) { //TODO: This implementation sucks.
+			buffer = ByteBuffer.allocate(4);
+			in.read(buffer);
+			int length = buffer.getInt();
+			buffer = ByteBuffer.allocate(length);
+			in.read(buffer);
 		}
 		return deserializer.deserialize(buffer);
 	}

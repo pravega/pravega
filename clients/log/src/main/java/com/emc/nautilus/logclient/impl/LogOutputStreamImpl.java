@@ -12,7 +12,7 @@ import java.util.concurrent.ExecutionException;
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ConnectionFailedException;
-import com.emc.nautilus.common.netty.FailingResponseProcessor;
+import com.emc.nautilus.common.netty.FailingReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
@@ -161,7 +161,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 		}
 	}
 
-	private final class ResponseProcessor extends FailingResponseProcessor {
+	private final class ResponseProcessor extends FailingReplyProcessor {
 
 		public void wrongHost(WrongHost wrongHost) {
 			state.failConnection(new ConnectionFailedException());// TODO: Probably something else.

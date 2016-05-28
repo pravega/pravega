@@ -1,90 +1,95 @@
 package com.emc.nautilus.logclient.impl;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
 
-import com.emc.nautilus.common.netty.ClientConnection;
-import com.emc.nautilus.common.netty.ConnectionFactory;
-import com.emc.nautilus.common.netty.ConnectionFailedException;
-import com.emc.nautilus.common.netty.FailingResponseProcessor;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
-import com.emc.nautilus.common.netty.WireCommands.WrongHost;
+import com.emc.nautilus.common.utils.CircularBuffer;
+import com.emc.nautilus.logclient.EndOfLogException;
+import com.emc.nautilus.logclient.LogInputStream;
 
-public class LogInputStreamImpl extends AsyncLogInputStream {
+import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
 
-	private final ConnectionFactory connectionFactory;
-	private final String endpoint;
-	private final String segment;
-	private final AtomicReference<ClientConnection> connection = new AtomicReference<>();
-	private final ConcurrentHashMap<Long, CompletableFuture<SegmentRead>> outstandingRequests = new ConcurrentHashMap<>();
-	private final ResponseProcessor responseProcessor = new ResponseProcessor();
-	
-	private final class ResponseProcessor extends FailingResponseProcessor {
+@RequiredArgsConstructor
+public class LogInputStreamImpl extends LogInputStream {
 
-		public void wrongHost(WrongHost wrongHost) {
-			reconnect(new ConnectionFailedException(wrongHost.toString()));
-		}
+	private final AsyncLogInputStream asyncLogInput;
+	private static final int READ_LENGTH = 1024 * 1024;
+	private final LogInputStream input;
+	private final CircularBuffer buffer = new CircularBuffer(2 * READ_LENGTH);
+	private long offset = 0;
+	private boolean receivedEndOfStream = false;
+	private Future<SegmentRead> outstandingRequest = null;
 
-		public void noSuchSegment(NoSuchSegment noSuchSegment) {
-			reconnect(new IllegalArgumentException(noSuchSegment.toString()));
-		}
+	@Override
+	@Synchronized
+	public void setOffset(long offset) {
+		this.offset = offset;
+		buffer.clear();
+		receivedEndOfStream = false;
+	}
 
-		public void segmentRead(SegmentRead segmentRead) {
-			CompletableFuture<SegmentRead> future = outstandingRequests.remove(segmentRead.getOffset());
-			if (future != null) {
-				future.complete(segmentRead);
+	@Override
+	@Synchronized
+	public long getOffset() {
+		return offset;
+	}
+
+	@Override
+	@Synchronized
+	public int available() {
+		return buffer.dataAvailable();
+	}
+
+	@Override
+	@Synchronized
+	public void read(ByteBuffer toFill) throws EndOfLogException {
+		issueRequestIfNeeded();
+		if (outstandingRequest.isDone() || buffer.dataAvailable() <= 0) {
+			try {
+				handleRequest();
+			} catch (ExecutionException e) {
+				throw new RuntimeException(e.getCause());
 			}
 		}
-	}
-
-	public LogInputStreamImpl(ConnectionFactory connectionFactory, String endpoint, String segment) {
-		super();
-		this.connectionFactory = connectionFactory;
-		this.endpoint = endpoint;
-		this.segment = segment;
-		reconnect(null);
-	}
-
-	private void reconnect(Exception e) { //TODO: we need backoff
-		ClientConnection newConnection = connectionFactory.establishConnection(endpoint);
-		newConnection.setResponseProcessor(responseProcessor);
-		ClientConnection oldConnection = connection.getAndSet(newConnection);
-		if (oldConnection != null) {
-			oldConnection.drop();
+		if (buffer.dataAvailable() <= 0 && receivedEndOfStream) {
+			throw new EndOfLogException();
 		}
-		List<Entry<Long, CompletableFuture<SegmentRead>>> outstanding = new ArrayList<>(
-				outstandingRequests.entrySet()); //TODO: Is there a way not to copy this without a race?
-		for (Entry<Long, CompletableFuture<SegmentRead>> read : outstanding) {
-			read.getValue().completeExceptionally(e);
-			outstandingRequests.remove(read.getKey(), read.getValue());
+		offset += buffer.read(toFill);
+	}
+
+	private void handleRequest() throws ExecutionException {
+		SegmentRead segmentRead;
+		try {
+			segmentRead = outstandingRequest.get();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException(e);
+		}
+		if (segmentRead.getData().hasRemaining()) {
+			buffer.fill(segmentRead.getData());
+		}
+		if (segmentRead.isEndOfStream()) {
+			receivedEndOfStream = true;
+		}
+		if (!segmentRead.getData().hasRemaining()) {
+			outstandingRequest = null;
+			issueRequestIfNeeded();
+		}
+	}
+
+	private void issueRequestIfNeeded() {
+		if (!receivedEndOfStream && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
+			outstandingRequest = asyncLogInput.read(offset + buffer.dataAvailable(), READ_LENGTH);
 		}
 	}
 
 	@Override
+	@Synchronized
 	public void close() {
-		ClientConnection c = connection.getAndSet(null);
-		if (c != null) {
-			c.drop();
-		}
-	}
-
-	@Override
-	public Future<SegmentRead> read(long offset, int length) {
-		ClientConnection c = connection.get();
-		if (c == null) {
-			throw new IllegalStateException("Not connected");
-		}
-		CompletableFuture<SegmentRead> future = new CompletableFuture<>();
-		outstandingRequests.put(offset, future);
-		c.sendAsync(new ReadSegment(segment, offset, length));
-		return future;
+		input.close();
 	}
 
 }
