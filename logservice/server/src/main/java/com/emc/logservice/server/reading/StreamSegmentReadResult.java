@@ -29,7 +29,7 @@ public class StreamSegmentReadResult implements ReadResult {
      * Creates a new instance of the StreamSegmentReadResult class.
      *
      * @param streamSegmentStartOffset The StreamSegment Offset where the ReadResult starts at.
-     * @param maxResultLength          The maximum number of bytes to read.
+     * @param maxResultLength          The maximum number of bytes to getReader.
      * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume.
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
@@ -97,7 +97,7 @@ public class StreamSegmentReadResult implements ReadResult {
     //region Iterator Implementation
 
     /**
-     * Gets a value indicating whether we have further elements to process - which happens when we have at least one more byte to read.
+     * Gets a value indicating whether we have further elements to process - which happens when we have at least one more byte to getReader.
      * If the ReadResult is closed, then this method will return false.
      *
      * @return
@@ -122,7 +122,7 @@ public class StreamSegmentReadResult implements ReadResult {
         }
 
         if (!hasNext()) {
-            throw new NoSuchElementException("StreamSegmentReadResult has been read in its entirety.");
+            throw new NoSuchElementException("StreamSegmentReadResult has been getReader in its entirety.");
         }
 
         // If the previous entry hasn't finished yet, we cannot proceed.

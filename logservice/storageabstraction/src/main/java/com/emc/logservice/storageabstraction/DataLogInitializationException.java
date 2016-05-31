@@ -1,14 +1,14 @@
 package com.emc.logservice.storageabstraction;
 
 /**
- * Exception that is thrown whenever the Durable Data Log (or one its components) is unavailable.
+ * Exception that is thrown whenever an initialization problem occurred with the DurableDataLog.
  */
-public class DataLogNotAvailableException extends DurableDataLogException {
+public class DataLogInitializationException extends DurableDataLogException  {
     /**
      * Creates a new instance of the DataLogNotAvailable class.
      * @param message
      */
-    public DataLogNotAvailableException(String message) {
+    public DataLogInitializationException(String message) {
         super(message);
     }
 
@@ -17,7 +17,7 @@ public class DataLogNotAvailableException extends DurableDataLogException {
      * @param message
      * @param cause
      */
-    public DataLogNotAvailableException(String message, Throwable cause) {
+    public DataLogInitializationException(String message, Throwable cause) {
         super(message, cause);
     }
 }

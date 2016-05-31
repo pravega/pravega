@@ -1,20 +1,29 @@
 package com.emc.logservice.storageabstraction;
 
+import com.emc.logservice.common.AsyncIterator;
+
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines a Sequential Log that contains contiguous ranges of bytes.
  */
-public interface DurableDataLog {
+public interface DurableDataLog extends AutoCloseable {
+    /**
+     * Initializes the DurableDataLog and performs any recovery steps that may be required.
+     *
+     * @param timeout
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed. If the operation
+     * failed, this Future will complete with the appropriate exception.
+     */
+    CompletableFuture<Void> initialize(Duration timeout);
 
     /**
      * Adds a new entry to the log.
      *
      * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
-     *                where the data should be read from. The InputStream's available() method must also specify the number
+     *                where the data should be getReader from. The InputStream's available() method must also specify the number
      *                of bytes to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the Sequence within the log for the entry. If the entry
@@ -26,7 +35,7 @@ public interface DurableDataLog {
      * Truncates the log up to the given sequence.
      *
      * @param upToSequence The Sequence up to where to truncate. This is the value returned either by append() or obtained
-     *                     via read().
+     *                     via getReader().
      * @param timeout      The timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the truncation completed. If the operation
      * failed, this Future will complete with the appropriate exception.
@@ -36,13 +45,11 @@ public interface DurableDataLog {
     /**
      * Reads a number of entries from the log.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to read.
-     * @param maxCount      The maximum number of entries to read.
-     * @param timeout       Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain an Iterator with the result. If the operation
-     * failed, this Future will complete with the appropriate exception.
+     * @param afterSequence The Sequence of the last entry before the first one to getReader.
+     * @return An AsyncIterator with the result.
+     * @throws DurableDataLogException If the operation was unable to open a reader.
      */
-    CompletableFuture<Iterator<ReadItem>> read(long afterSequence, int maxCount, Duration timeout);
+    AsyncIterator<ReadItem> getReader(long afterSequence) throws DurableDataLogException;
 
     /**
      * Gets the maximum number of bytes allowed for a single append.
@@ -60,12 +67,12 @@ public interface DurableDataLog {
     long getLastAppendSequence();
 
     /**
-     * Performs any recovery steps required for this log.
+     * Closes this instance of a DurableDataLog and releases any resources it holds.
      *
-     * @param timeout
-     * @return
+     * @throws DurableDataLogException When an error occurred during the close.
      */
-    CompletableFuture<Void> recover(Duration timeout);
+    @Override
+    void close() throws DurableDataLogException;
 
     /**
      * Defines a single item in a Read Result.

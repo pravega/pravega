@@ -14,7 +14,7 @@ import java.util.*;
  * <ol>
  * <li> The tail-end part of the StreamSegment (the part that is in DurableLog, but not yet in Storage).
  * <li> The part of the StreamSegment that is in Storage, but not in DurableLog. This data will be brought into memory
- * for fast read-ahead access.
+ * for fast getReader-ahead access.
  * </ol>
  */
 public class ReadIndex implements Cache {
@@ -45,7 +45,7 @@ public class ReadIndex implements Cache {
         if (!this.closed) {
             this.closed = true;
             try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-                // Need to close all individual read indices in order to cancel Readers and Future Reads.
+                // Need to close all individual getReader indices in order to cancel Readers and Future Reads.
                 this.readIndices.values().forEach(StreamSegmentReadIndex::close);
                 this.readIndices.clear();
             }
