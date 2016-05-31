@@ -4,7 +4,7 @@ import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.CreateBatch;
 import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.DeleteSegment;
-import com.emc.nautilus.common.netty.WireCommands.GetStreamInfo;
+import com.emc.nautilus.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.MergeBatch;
 import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
@@ -29,7 +29,7 @@ public class FailingRequestProcessor implements RequestProcessor {
 	}
 
 	@Override
-	public void getStreamInfo(GetStreamInfo getStreamInfo) {
+	public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo) {
 		throw new IllegalStateException("Unexpected operation");
 	}
 

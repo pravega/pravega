@@ -1,7 +1,10 @@
 package com.emc.logservice.contracts;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * Defines all operations that are supported on a StreamSegment.
@@ -20,7 +23,7 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, byte[] data, Duration timeout);
+    CompletableFuture<Long> append(String streamSegmentName, ByteBuf data, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
@@ -102,4 +105,21 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If any of the arguments are invalid
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
+
+	/**
+	 * @param streamSegmentName The name of the segment the connection is associated with. (appending to)
+ 	 * @param connectionId A unique identifier for the connection.
+	 * @return The Info for the connection. This should include info pertaining to all appends made by this connection previously. 
+	 * 			If there are any outstanding appends this future should not be available until they have completed. 
+	 */
+    //NOTE: If it is easier to implement, that could be changed to be synchronous and throw if there is an outstanding write.
+    CompletableFuture<ConnectionInfo> getConnectionInfo(String streamSegmentName, UUID connectionId);
+
+	/**
+	 * @return The name of the other host that is believed to own the
+	 *         streamSegmentName. Null if the stream segment is owned by this
+	 *         host.
+	 */
+	String whoOwnStreamSegment(String streamSegmentName);
+      
 }

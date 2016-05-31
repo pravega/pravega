@@ -96,6 +96,7 @@ project ('logservice:storageimplementation') {
 
 project ('logservice:server') {
 	dependencies {
+		compile project (':common')
 		compile project (':logservice:contracts')
 		compile project (':logservice:storageabstraction')
 	}

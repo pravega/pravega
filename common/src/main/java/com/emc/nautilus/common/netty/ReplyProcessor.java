@@ -13,7 +13,7 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.SegmentSealed;
-import com.emc.nautilus.common.netty.WireCommands.StreamInfo;
+import com.emc.nautilus.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
 public interface ReplyProcessor {
@@ -26,7 +26,7 @@ public interface ReplyProcessor {
 	void appendSetup(AppendSetup appendSetup);
 	void dataAppended(DataAppended dataAppended);
 	void segmentRead(SegmentRead segmentRead);
-	void streamInfo(StreamInfo streamInfo);
+	void streamSegmentInfo(StreamSegmentInfo streamInfo);
 	void segmentCreated(SegmentCreated segmentCreated);
 	void batchCreated(BatchCreated batchCreated);
 	void batchMerged(BatchMerged batchMerged);

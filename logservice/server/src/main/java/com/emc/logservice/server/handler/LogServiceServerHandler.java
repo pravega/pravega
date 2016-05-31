@@ -1,4 +1,4 @@
-package com.emc.nautilus.common.netty.server;
+package com.emc.logservice.server.handler;
 
 import java.util.concurrent.atomic.AtomicReference;
 

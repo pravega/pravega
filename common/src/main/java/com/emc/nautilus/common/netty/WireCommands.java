@@ -34,44 +34,37 @@ public final class WireCommands {
 	}
 
 	enum Type {
-		WRONG_HOST(0, WrongHost::readFrom),
-		SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
-		SEGMENT_ALREADY_EXISTS(-3, SegmentAlreadyExists::readFrom),
-		NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
-		NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
-		
+		WRONG_HOST(0, WrongHost::readFrom), SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom), SEGMENT_ALREADY_EXISTS(-3,
+				SegmentAlreadyExists::readFrom), NO_SUCH_SEGMENT(-4,
+						NoSuchSegment::readFrom), NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
 
-		SETUP_APPEND(1, SetupAppend::readFrom),
-		APPEND_SETUP(2, AppendSetup::readFrom),
+		SETUP_APPEND(1, SetupAppend::readFrom), APPEND_SETUP(2, AppendSetup::readFrom),
 
-		APPEND_DATA(-100, null),//Splits into the two below for the wire.
-		APPEND_DATA_HEADER(3, null), //Handled in the encoder/decoder directly
-		APPEND_DATA_FOOTER(4, null), //Handled in the encoder/decoder directly
+		APPEND_DATA(-100, null), // Splits into the two below for the wire.
+		APPEND_DATA_HEADER(3, null), // Handled in the encoder/decoder directly
+		APPEND_DATA_FOOTER(4, null), // Handled in the encoder/decoder directly
 		DATA_APPENDED(5, DataAppended::readFrom),
 
-		READ_SEGMENT(8, ReadSegment::readFrom),
-		SEGMENT_READ(9, null), //Handled in the encoder/decoder directly
+		READ_SEGMENT(8, ReadSegment::readFrom), SEGMENT_READ(9, null), // Handled
+																		// in
+																		// the
+																		// encoder/decoder
+																		// directly
 
-		GET_STREAM_INFO(10, GetStreamInfo::readFrom),
-		STREAM_INFO(11, StreamInfo::readFrom),
+		GET_STREAM_SEGMENT_INFO(10, GetStreamSegmentInfo::readFrom), STREAM_SEGMENT_INFO(11,
+				StreamSegmentInfo::readFrom),
 
-		CREATE_SEGMENT(12, CreateSegment::readFrom),
-		SEGMENT_CREATED(13, SegmentCreated::readFrom),
+		CREATE_SEGMENT(12, CreateSegment::readFrom), SEGMENT_CREATED(13, SegmentCreated::readFrom),
 
-		CREATE_BATCH(14, CreateBatch::readFrom),
-		BATCH_CREATED(15, BatchCreated::readFrom),
+		CREATE_BATCH(14, CreateBatch::readFrom), BATCH_CREATED(15, BatchCreated::readFrom),
 
-		MERGE_BATCH(16, MergeBatch::readFrom),
-		BATCH_MERGED(17, BatchMerged::readFrom),
+		MERGE_BATCH(16, MergeBatch::readFrom), BATCH_MERGED(17, BatchMerged::readFrom),
 
-		SEAL_SEGMENT(18, SealSegment::readFrom),
-		SEGMENT_SEALED(19, SegmentSealed::readFrom),
+		SEAL_SEGMENT(18, SealSegment::readFrom), SEGMENT_SEALED(19, SegmentSealed::readFrom),
 
-		DELETE_SEGMENT(20, DeleteSegment::readFrom),
-		SEGMENT_DELETED(21, SegmentDeleted::readFrom),
+		DELETE_SEGMENT(20, DeleteSegment::readFrom), SEGMENT_DELETED(21, SegmentDeleted::readFrom),
 
-		KEEP_ALIVE(100, KeepAlive::readFrom),
-		;
+		KEEP_ALIVE(100, KeepAlive::readFrom),;
 
 		private final int code;
 		private final Constructor factory;
@@ -93,6 +86,8 @@ public final class WireCommands {
 	@Data
 	public static final class WrongHost implements Reply {
 		final WireCommands.Type type = Type.WRONG_HOST;
+		final String segment;
+		final String correctHost;
 
 		@Override
 		public void process(ReplyProcessor cp) {
@@ -100,19 +95,22 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
+			out.writeUTF(correctHost);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			String correctHost = in.readUTF();
+			return new WrongHost(segment, correctHost);
 		}
 	}
 
 	@Data
 	public static final class SegmentIsSealed implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_IS_SEALED;
+		final String segment;
 
 		@Override
 		public void process(ReplyProcessor cp) {
@@ -120,21 +118,21 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			return new SegmentIsSealed(segment);
 		}
 	}
-	
+
 	@Data
 	public static final class SegmentAlreadyExists implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_ALREADY_EXISTS;
 		final String segment;
-		
+
 		@Override
 		public void process(ReplyProcessor cp) {
 			cp.segmentAlreadyExists(this);
@@ -149,6 +147,7 @@ public final class WireCommands {
 			String segment = in.readUTF();
 			return new NoSuchSegment(segment);
 		}
+
 		@Override
 		public String toString() {
 			return "Segment already exists: " + segment;
@@ -159,7 +158,7 @@ public final class WireCommands {
 	public static final class NoSuchSegment implements Reply {
 		final WireCommands.Type type = Type.NO_SUCH_SEGMENT;
 		final String segment;
-		
+
 		@Override
 		public void process(ReplyProcessor cp) {
 			cp.noSuchSegment(this);
@@ -174,6 +173,7 @@ public final class WireCommands {
 			String segment = in.readUTF();
 			return new NoSuchSegment(segment);
 		}
+
 		@Override
 		public String toString() {
 			return "No such segment: " + segment;
@@ -199,6 +199,7 @@ public final class WireCommands {
 			String batch = in.readUTF();
 			return new NoSuchBatch(batch);
 		}
+
 		@Override
 		public String toString() {
 			return "No such batch: " + batch;
@@ -288,13 +289,15 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
+			out.writeLong(connectionOffset);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			long offset = in.readLong();
+			return new DataAppended(segment, offset);
 		}
 	}
 
@@ -303,8 +306,8 @@ public final class WireCommands {
 		final WireCommands.Type type = Type.READ_SEGMENT;
 		final String segment;
 		final long offset;
-		final long suggestedLength;
-		
+		final int suggestedLength;
+
 		@Override
 		public void process(RequestProcessor cp) {
 			cp.readSegment(this);
@@ -314,13 +317,13 @@ public final class WireCommands {
 		public void writeFields(DataOutput out) throws IOException {
 			out.writeUTF(segment);
 			out.writeLong(offset);
-			out.writeLong(suggestedLength);
+			out.writeInt(suggestedLength);
 		}
 
 		public static WireCommand readFrom(DataInput in) throws IOException {
 			String segment = in.readUTF();
 			long offset = in.readLong();
-			long suggestedLength = in.readLong();
+			int suggestedLength = in.readInt();
 			return new ReadSegment(segment, offset, suggestedLength);
 		}
 	}
@@ -346,42 +349,59 @@ public final class WireCommands {
 	}
 
 	@Data
-	public static final class GetStreamInfo implements Request {
-		final WireCommands.Type type = Type.GET_STREAM_INFO;
+	public static final class GetStreamSegmentInfo implements Request {
+		final WireCommands.Type type = Type.GET_STREAM_SEGMENT_INFO;
+		final String segmentName;
 
 		@Override
 		public void process(RequestProcessor cp) {
-			cp.getStreamInfo(this);
+			cp.getStreamSegmentInfo(this);
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segmentName);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			return new GetStreamSegmentInfo(segment);
 		}
 	}
 
 	@Data
-	public static final class StreamInfo implements Reply {
-		final WireCommands.Type type = Type.STREAM_INFO;
+	public static final class StreamSegmentInfo implements Reply {
+		final WireCommands.Type type = Type.STREAM_SEGMENT_INFO;
+		final String segmentName;
+		final boolean exists;
+		final boolean isSealed;
+		final boolean isDeleted;
+		final long lastModified;
+		final long length;
 
 		@Override
 		public void process(ReplyProcessor cp) {
-			cp.streamInfo(this);
+			cp.streamSegmentInfo(this);
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segmentName);
+			out.writeBoolean(exists);
+			out.writeBoolean(isSealed);
+			out.writeBoolean(isDeleted);
+			out.writeLong(lastModified);
+			out.writeLong(length);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segmentName = in.readUTF();
+			boolean exists = in.readBoolean();
+			boolean isSealed = in.readBoolean();
+			boolean isDeleted = in.readBoolean();
+			long lastModified = in.readLong();
+			long length = in.readLong();
+			return new StreamSegmentInfo(segmentName, exists, isSealed, isDeleted, lastModified, length);
 		}
 	}
 
@@ -594,7 +614,7 @@ public final class WireCommands {
 		public void process(ReplyProcessor cp) {
 			cp.keepAlive(this);
 		}
-		
+
 		@Override
 		public void process(RequestProcessor cp) {
 			cp.keepAlive(this);

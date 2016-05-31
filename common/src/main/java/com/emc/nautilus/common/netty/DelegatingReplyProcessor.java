@@ -13,7 +13,7 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.SegmentSealed;
-import com.emc.nautilus.common.netty.WireCommands.StreamInfo;
+import com.emc.nautilus.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
 public abstract class DelegatingReplyProcessor implements ReplyProcessor {
@@ -61,8 +61,8 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
 	}
 
 	@Override
-	public void streamInfo(StreamInfo streamInfo) {
-		getNextReplyProcessor().streamInfo(streamInfo);
+	public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
+		getNextReplyProcessor().streamSegmentInfo(streamInfo);
 	}
 
 	@Override

@@ -1,8 +1,8 @@
-package com.emc.nautilus.common.netty.server;
+package com.emc.logservice.server.handler;
 
+import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
-import com.emc.nautilus.common.netty.FailingRequestProcessor;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -27,7 +27,9 @@ public final class LogSerivceServer {
 
 	static final boolean SSL = System.getProperty("ssl") != null;
 	static final int PORT = Integer.parseInt(System.getProperty("port", "8007"));
-
+	static final StreamSegmentStore store; //TODO: How do we get one?
+	
+	
 	public static void main(String[] args) throws Exception {
 		// Configure SSL.
 		final SslContext sslCtx;
@@ -60,8 +62,8 @@ public final class LogSerivceServer {
 						          	new LengthFieldBasedFrameDecoder(1024*1024, 4, 4),
 									new CommandDecoder(),
 									lsh);
-						lsh.setRequestProcessor(new AppendProcessor(lsh,
-								new LogServiceRequestProcessor(new FailingRequestProcessor())));
+						lsh.setRequestProcessor(new AppendProcessor(store, lsh,
+								new LogServiceRequestProcessor(store, lsh)));
 					}
 				});
 
