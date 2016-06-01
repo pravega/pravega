@@ -2,7 +2,6 @@ package com.emc.logservice.server.handler;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.emc.nautilus.common.netty.ConnectionFailedException;
 import com.emc.nautilus.common.netty.Request;
 import com.emc.nautilus.common.netty.RequestProcessor;
 import com.emc.nautilus.common.netty.ServerConnection;
@@ -44,13 +43,8 @@ public class LogServiceServerHandler extends ChannelInboundHandlerAdapter implem
 	}
 
 	@Override
-	public void send(WireCommand cmd) throws ConnectionFailedException {
+	public void send(WireCommand cmd) {
 		getChannel().writeAndFlush(cmd);
-	}
-	
-	@Override
-	public void sendAsync(WireCommand cmd) {
-		getChannel().write(cmd);
 	}
 
 	@Override

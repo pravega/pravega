@@ -34,35 +34,40 @@ public final class WireCommands {
 	}
 
 	enum Type {
-		WRONG_HOST(0, WrongHost::readFrom), SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom), SEGMENT_ALREADY_EXISTS(-3,
-				SegmentAlreadyExists::readFrom), NO_SUCH_SEGMENT(-4,
-						NoSuchSegment::readFrom), NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
+		WRONG_HOST(0, WrongHost::readFrom),
+		SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
+		SEGMENT_ALREADY_EXISTS(-3, SegmentAlreadyExists::readFrom),
+		NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
+		NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
 
-		SETUP_APPEND(1, SetupAppend::readFrom), APPEND_SETUP(2, AppendSetup::readFrom),
+		SETUP_APPEND(1, SetupAppend::readFrom),
+		APPEND_SETUP(2, AppendSetup::readFrom),
 
 		APPEND_DATA(-100, null), // Splits into the two below for the wire.
 		APPEND_DATA_HEADER(3, null), // Handled in the encoder/decoder directly
 		APPEND_DATA_FOOTER(4, null), // Handled in the encoder/decoder directly
 		DATA_APPENDED(5, DataAppended::readFrom),
 
-		READ_SEGMENT(8, ReadSegment::readFrom), SEGMENT_READ(9, null), // Handled
-																		// in
-																		// the
-																		// encoder/decoder
-																		// directly
+		READ_SEGMENT(8, ReadSegment::readFrom),
+		SEGMENT_READ(9, null), // Handled in the encoder/decoder directly
 
-		GET_STREAM_SEGMENT_INFO(10, GetStreamSegmentInfo::readFrom), STREAM_SEGMENT_INFO(11,
-				StreamSegmentInfo::readFrom),
+		GET_STREAM_SEGMENT_INFO(10, GetStreamSegmentInfo::readFrom),
+		STREAM_SEGMENT_INFO(11, StreamSegmentInfo::readFrom),
 
-		CREATE_SEGMENT(12, CreateSegment::readFrom), SEGMENT_CREATED(13, SegmentCreated::readFrom),
+		CREATE_SEGMENT(12, CreateSegment::readFrom),
+		SEGMENT_CREATED(13, SegmentCreated::readFrom),
 
-		CREATE_BATCH(14, CreateBatch::readFrom), BATCH_CREATED(15, BatchCreated::readFrom),
+		CREATE_BATCH(14, CreateBatch::readFrom),
+		BATCH_CREATED(15, BatchCreated::readFrom),
 
-		MERGE_BATCH(16, MergeBatch::readFrom), BATCH_MERGED(17, BatchMerged::readFrom),
+		MERGE_BATCH(16, MergeBatch::readFrom),
+		BATCH_MERGED(17, BatchMerged::readFrom),
 
-		SEAL_SEGMENT(18, SealSegment::readFrom), SEGMENT_SEALED(19, SegmentSealed::readFrom),
+		SEAL_SEGMENT(18, SealSegment::readFrom),
+		SEGMENT_SEALED(19, SegmentSealed::readFrom),
 
-		DELETE_SEGMENT(20, DeleteSegment::readFrom), SEGMENT_DELETED(21, SegmentDeleted::readFrom),
+		DELETE_SEGMENT(20, DeleteSegment::readFrom),
+		SEGMENT_DELETED(21, SegmentDeleted::readFrom),
 
 		KEEP_ALIVE(100, KeepAlive::readFrom),;
 
@@ -244,13 +249,18 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
+			out.writeLong(connectionId.getMostSignificantBits());
+			out.writeLong(connectionId.getLeastSignificantBits());
+			out.writeLong(connectionOffsetAckLevel);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			UUID connectionId = new UUID(in.readLong(), in.readLong());
+			long connectionOffsetAckLevel = in.readLong();
+			return new AppendSetup(segment, connectionId, connectionOffsetAckLevel);
 		}
 	}
 
@@ -429,6 +439,7 @@ public final class WireCommands {
 	@Data
 	public static final class SegmentCreated implements Reply {
 		final WireCommands.Type type = Type.SEGMENT_CREATED;
+		final String segment;
 
 		@Override
 		public void process(ReplyProcessor cp) {
@@ -436,13 +447,13 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			return new SegmentCreated(segment);
 		}
 	}
 
@@ -622,7 +633,7 @@ public final class WireCommands {
 
 		@Override
 		public void writeFields(DataOutput out) {
-			
+
 		}
 
 		public static WireCommand readFrom(DataInput in) {

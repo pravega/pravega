@@ -5,9 +5,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.BiFunction;
 
 import com.emc.logservice.contracts.ConnectionInfo;
+import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.contracts.StreamSegmentStore;
@@ -19,6 +21,7 @@ import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
+import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
@@ -61,7 +64,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 		String newSegment = setupAppend.getSegment();
 		String owner = store.whoOwnStreamSegment(newSegment);
 		if (owner != null) {
-			connection.sendAsync(new WrongHost(newSegment, owner));
+			connection.send(new WrongHost(newSegment, owner));
 			return;
 		}
 		UUID connectionId = setupAppend.getConnectionId();
@@ -81,7 +84,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 					segment = newSegment;
 					connectionOffset = offset;
 				}
-				connection.sendAsync(new AppendSetup(newSegment, connectionId, connectionOffset));
+				connection.send(new AppendSetup(newSegment, connectionId, connectionOffset));
 				return null;
 			}
 		});
@@ -123,7 +126,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 				if (t == null) {
 					handleException(toWrite.getSegment(), u);
 				} else {
-					connection.sendAsync(new DataAppended(toWrite.segment, toWrite.ackOffset));
+					connection.send(new DataAppended(toWrite.segment, toWrite.ackOffset));
 				}
 				pauseOrResumeReading();
 				performNextWrite();
@@ -133,17 +136,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 		});
 	}
 	
+	//TODO: Duplicated in LogServiceRequestProcessor.
 	private void handleException(String segment, Throwable u) {
 		if (u == null) {
 			throw new IllegalStateException("Neither offset nor exception!?");
 		}
-		if (u instanceof StreamSegmentNotExistsException) {
-			connection.sendAsync(new NoSuchSegment(segment));
+		if (u instanceof CompletionException) {
+			u = u.getCause();
+		}
+		if (u instanceof StreamSegmentExistsException) {
+			connection.send(new SegmentAlreadyExists(segment));
+		} else if (u instanceof StreamSegmentNotExistsException) {
+			connection.send(new NoSuchSegment(segment));
 		} else if (u instanceof StreamSegmentSealedException) {
-			connection.sendAsync(new SegmentIsSealed(segment));
+			connection.send(new SegmentIsSealed(segment));
 		} else if (u instanceof WrongHostException) {
 			WrongHostException wrongHost = (WrongHostException) u;
-			connection.sendAsync(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+			connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
 		} else {
 			//TODO: don't know what to do here...
 			connection.drop();

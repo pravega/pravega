@@ -5,6 +5,7 @@ import java.util.List;
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.Type;
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -26,6 +27,11 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+		decode(in, out);
+	}
+	
+	@VisibleForTesting
+	public void decode(ByteBuf in, List<Object> out) throws Exception {
 		@Cleanup
 		ByteBufInputStream is = new ByteBufInputStream(in);
 		int t = is.readInt();
