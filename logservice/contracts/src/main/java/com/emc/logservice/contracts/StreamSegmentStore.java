@@ -1,6 +1,7 @@
 package com.emc.logservice.contracts;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -13,6 +14,7 @@ public interface StreamSegmentStore {
      *
      * @param streamSegmentName The name of the StreamSegment to add to.
      * @param data              The data to add.
+     * @param appendContext     Append context for this append.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will contain the offset within the StreamSegment where
      * the add was added. If the operation failed, it will contain the exception that caused the failure.
@@ -20,7 +22,7 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, byte[] data, Duration timeout);
+    CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
@@ -35,7 +37,7 @@ public interface StreamSegmentStore {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-     CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
+    CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
     /**
      * Gets information about a StreamSegment.
@@ -99,7 +101,21 @@ public interface StreamSegmentStore {
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, it will contain the exception that caused the failure.
-     * @throws IllegalArgumentException If any of the arguments are invalid
+     * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
+
+    /**
+     * Gets the Append Context for the last received append. This includes all appends made with the given connection id,
+     * regardless of whether they were committed or are still in flight. If the last append for this StreamSegment/ConnectionId
+     * is still in flight, this method will wait until it is processed (or failed) and return the appropriate result/code.
+     *
+     * @param streamSegmentName The name of the StreamSegment to inquire about.
+     * @param connectionId      A UUID representing the Connection Id to inquire about.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the requested information. If any exception
+     * occurred during processing, or if the append failed to process, or if the timeout expired, the Future will contain
+     * the exception that caused the failure.
+     */
+    CompletableFuture<AppendContext> getAppendContext(String streamSegmentName, UUID connectionId, Duration timeout);
 }

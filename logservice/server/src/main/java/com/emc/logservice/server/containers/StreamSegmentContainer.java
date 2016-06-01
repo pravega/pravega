@@ -1,14 +1,13 @@
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.storageabstraction.Storage;
-import com.emc.logservice.storageabstraction.StorageFactory;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.core.AsyncLock;
 import com.emc.logservice.server.core.TimeoutTimer;
 import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.operations.MergeBatchOperation;
-import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storageabstraction.StorageFactory;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -131,14 +130,14 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                                  .thenCompose(streamSegmentId ->
                                  {
-                                     com.emc.logservice.server.logs.operations.Operation operation = new StreamSegmentAppendOperation(streamSegmentId, data);
+                                     Operation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
                                      return this.durableLog.add(operation, timer.getRemaining());
                                  });
     }
@@ -212,7 +211,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
                                          throw new CompletionException(new StreamingException("Batch StreamSegment does not exist."));
                                      }
 
-                                     com.emc.logservice.server.logs.operations.Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
+                                     Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
                                      return this.durableLog.add(op, timer.getRemaining());
                                  });
     }
@@ -225,7 +224,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                                  .thenCompose(streamSegmentId ->
                                  {
-                                     com.emc.logservice.server.logs.operations.Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
+                                     Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
                                      return this.durableLog.add(operation, timer.getRemaining());
                                  });
     }
