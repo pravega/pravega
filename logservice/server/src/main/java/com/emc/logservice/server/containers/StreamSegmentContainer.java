@@ -135,7 +135,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, ByteBuf data, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, Duration timeout) {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -257,8 +257,9 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
 
 	@Override
 	public CompletableFuture<ConnectionInfo> getConnectionInfo(String streamSegmentName, UUID connectionId) {
-		// TODO Auto-generated method stub
-		return null;
+		CompletableFuture<ConnectionInfo> result = new CompletableFuture<>();
+		result.complete(new ConnectionInfo(streamSegmentName, connectionId, 0));
+		return result;
 	}
 
 	@Override

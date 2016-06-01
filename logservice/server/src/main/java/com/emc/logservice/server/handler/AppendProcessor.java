@@ -101,8 +101,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 	}
 
 	private void write(OutstandingWrite toWrite) {
-		ByteBuf data = Unpooled.unmodifiableBuffer(toWrite.getDataToBeAppended());
-		CompletableFuture<Long> future = store.append(toWrite.getSegment(), data, TIMEOUT);
+		ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getDataToBeAppended());
+		byte[] bytes = new byte[buf.readableBytes()];
+		buf.readBytes(bytes);
+		CompletableFuture<Long> future = store.append(toWrite.getSegment(), bytes, TIMEOUT);
 		future.handle(new BiFunction<Long, Throwable, Void>() {
 			@Override
 			public Void apply(Long t, Throwable u) {

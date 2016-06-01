@@ -1,6 +1,17 @@
 package com.emc.logservice.server.handler;
 
 import com.emc.logservice.contracts.StreamSegmentStore;
+import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.MetadataRepository;
+import com.emc.logservice.server.OperationLogFactory;
+import com.emc.logservice.server.containers.StreamSegmentContainer;
+import com.emc.logservice.server.logs.DurableLogFactory;
+import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
+import com.emc.logservice.server.reading.ReadIndexFactory;
+import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storageabstraction.StorageFactory;
+import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
+import com.emc.logservice.storageabstraction.mocks.InMemoryStorageFactory;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
 
@@ -27,7 +38,17 @@ public final class LogSerivceServer {
 
 	static final boolean SSL = System.getProperty("ssl") != null;
 	static final int PORT = Integer.parseInt(System.getProperty("port", "8007"));
-	static final StreamSegmentStore store; //TODO: How do we get one?
+	static final StreamSegmentStore store = createStore("FooBar");
+	
+	public static final StreamSegmentContainer createStore(String containerId) {
+		MetadataRepository metadataRepository = new InMemoryMetadataRepository();
+		DurableDataLogFactory dataFrameLogFactory = new InMemoryDurableDataLogFactory();
+		OperationLogFactory durableLogFactory = new DurableLogFactory(dataFrameLogFactory);
+		StorageFactory storageFactory = new InMemoryStorageFactory();
+		CacheFactory cacheFactory = new ReadIndexFactory();
+		return new StreamSegmentContainer(containerId, metadataRepository, durableLogFactory, cacheFactory,
+				storageFactory);
+	}
 	
 	
 	public static void main(String[] args) throws Exception {

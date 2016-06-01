@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
+import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 
 import io.netty.buffer.ByteBuf;
@@ -28,13 +29,13 @@ public class AppendEncodeDecodeTest {
 	private Level origionalLevel;
 	
 	@Before
-	void setup() {
+	public void setup() {
 		origionalLevel = ResourceLeakDetector.getLevel();
 		ResourceLeakDetector.setLevel(Level.PARANOID);
 	}
 	
 	@After
-	void teardown() {
+	public void teardown() {
 		ResourceLeakDetector.setLevel(origionalLevel);
 	}
 
@@ -57,6 +58,7 @@ public class AppendEncodeDecodeTest {
 	@Test(expected = IllegalStateException.class)
 	public void testAppendWithoutSetup() throws Exception {
 		int size = 10;
+		@Cleanup("release")
 		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
 		append(0, 1, size, fakeNetwork);
 	}
@@ -67,18 +69,38 @@ public class AppendEncodeDecodeTest {
 	}
 
 	@Test
-	public void testFlushBeforeEndOfBlock() {
-		fail();
+	public void testFlushBeforeEndOfBlock() throws Exception {
+		testFlush(WireCommands.APPEND_BLOCK_SIZE/2);
 	}
 
 	@Test
-	public void testFlushWhenAtBlockBoundry() {
-		fail();
+	public void testFlushWhenAtBlockBoundry() throws Exception {
+		testFlush(WireCommands.APPEND_BLOCK_SIZE);
+	}
+
+	private void testFlush(int size) throws Exception {
+		@Cleanup("release")
+		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+		ArrayList<Object> received = setupAppend(fakeNetwork);
+
+		append(size , 0, size, fakeNetwork);
+		read(fakeNetwork, received);
+		
+		KeepAlive keepAlive = new KeepAlive();
+		encoder.encode(null, keepAlive, fakeNetwork);
+		read(fakeNetwork, received);
+		assertEquals(2, received.size());
+		
+		AppendData one = (AppendData) received.get(0);
+		assertEquals(size, one.data.readableBytes());
+		KeepAlive two = (KeepAlive) received.get(1);
+		assertEquals(keepAlive, two);
 	}
 
 	@Test
 	public void testSmallAppends() throws Exception {
 		int size = 10;
+		@Cleanup("release")
 		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
 		ArrayList<Object> received = setupAppend(fakeNetwork);
 		for (int i = 0; i < WireCommands.APPEND_BLOCK_SIZE; i++) {
@@ -90,30 +112,63 @@ public class AppendEncodeDecodeTest {
 	}
 
 	@Test
-	public void testMediumAppends() throws Exception {
-		int size = 30000;
+	public void testAppendSpanningBlockBound() throws Exception {
+		int size = (WireCommands.APPEND_BLOCK_SIZE * 3)/4;
 		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
 		ArrayList<Object> received = setupAppend(fakeNetwork);
-		for (int i = 0; i < 5; i++) {
+		for (int i = 0; i < 4; i++) {
 			append(size * (i + 1), i, size, fakeNetwork);
 			read(fakeNetwork, received);
 		}
-		verify(received, 5, size);
+		verify(received, 4, size);
 	}
 
 	@Test
-	public void testAppendAtBlockBound() {
-		fail();
+	public void testBlockSizeAppend() throws Exception {
+		int size = WireCommands.APPEND_BLOCK_SIZE;
+		@Cleanup("release")
+		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+		ArrayList<Object> received = setupAppend(fakeNetwork);
+		for (int i = 0; i < 4; i++) {
+			append(size * (i + 1), i, size, fakeNetwork);
+			read(fakeNetwork, received);
+		}
+		assertEquals(4, received.size());
+		verify(received, 4, size);
 	}
-
+	
 	@Test
-	public void testAppendSpanningBlockBound() {
-		fail();
+	public void testAppendAtBlockBound() throws Exception {
+		int size = WireCommands.APPEND_BLOCK_SIZE;
+		@Cleanup("release")
+		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+		ArrayList<Object> received = setupAppend(fakeNetwork);
+
+		append(size, 1, size, fakeNetwork);
+		read(fakeNetwork, received);
+		assertEquals(1, received.size());
+		
+		append(size+size/2, 2, size/2, fakeNetwork);
+		read(fakeNetwork, received);
+		assertEquals(1, received.size());
+		
+		KeepAlive keepAlive = new KeepAlive();
+		encoder.encode(null, keepAlive, fakeNetwork);
+		read(fakeNetwork, received);
+		assertEquals(3, received.size());
+		
+		AppendData one = (AppendData) received.get(0);
+		AppendData two = (AppendData) received.get(1);
+		assertEquals(size, one.data.readableBytes());
+		assertEquals(size/2, two.data.readableBytes());
+		KeepAlive three = (KeepAlive) received.get(2);
+		assertEquals(keepAlive, three);
 	}
 
 	@Test
 	public void testLargeAppend() throws Exception {
 		int size = 10 * WireCommands.APPEND_BLOCK_SIZE;
+		@Cleanup("release")
 		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
 		ArrayList<Object> received = setupAppend(fakeNetwork);
 		for (int i = 0; i < 2; i++) {

@@ -16,7 +16,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     private static final byte Version = 0;
     public static final byte OperationType = 1;
     private long streamSegmentOffset;
-    private ByteBuf data;
+    private byte[] data;
 
     //endregion
 
@@ -28,7 +28,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      * @param streamSegmentId The Id of the StreamSegment to append to.
      * @param data            The payload to append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, ByteBuf data) {
+    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data) {
         super(streamSegmentId);
         if (data == null) {
             throw new NullPointerException("data");

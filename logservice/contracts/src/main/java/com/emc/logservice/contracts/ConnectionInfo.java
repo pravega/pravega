@@ -2,10 +2,13 @@ package com.emc.logservice.contracts;
 
 import java.util.UUID;
 
-public interface ConnectionInfo {
+import lombok.Data;
 
-	String getSegment();
-	UUID getConnectionId();
-	long getBytesWrittenSuccessfully();
+@Data
+public class ConnectionInfo {
+
+	private final String segment;
+	private final UUID connectionId;
+	private final long bytesWrittenSuccessfully;
 	
 }

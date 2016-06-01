@@ -622,12 +622,11 @@ public final class WireCommands {
 
 		@Override
 		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+			
 		}
 
 		public static WireCommand readFrom(DataInput in) {
-			return null;
+			return new KeepAlive();
 		}
 	}
 }
