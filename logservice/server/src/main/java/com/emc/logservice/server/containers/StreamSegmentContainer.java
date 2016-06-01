@@ -2,6 +2,9 @@ package com.emc.logservice.server.containers;
 
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
+
+import io.netty.buffer.ByteBuf;
+
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.core.AsyncLock;
@@ -13,6 +16,7 @@ import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Date;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
@@ -131,7 +135,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, ByteBuf data, Duration timeout) {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -250,6 +254,18 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private void setState(ContainerState state) {
         this.state = state;
     }
+
+	@Override
+	public CompletableFuture<ConnectionInfo> getConnectionInfo(String streamSegmentName, UUID connectionId) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public String whoOwnStreamSegment(String streamSegmentName) {
+		// TODO Auto-generated method stub
+		return null;
+	}
 
     //endregion
 }

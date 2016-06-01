@@ -17,7 +17,6 @@ public class LogInputStreamImpl extends LogInputStream {
 
 	private final AsyncLogInputStream asyncLogInput;
 	private static final int READ_LENGTH = 1024 * 1024;
-	private final LogInputStream input;
 	private final CircularBuffer buffer = new CircularBuffer(2 * READ_LENGTH);
 	private long offset = 0;
 	private boolean receivedEndOfStream = false;
@@ -89,7 +88,7 @@ public class LogInputStreamImpl extends LogInputStream {
 	@Override
 	@Synchronized
 	public void close() {
-		input.close();
+		asyncLogInput.close();
 	}
 
 }

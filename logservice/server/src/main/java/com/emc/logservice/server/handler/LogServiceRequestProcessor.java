@@ -22,7 +22,7 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 
 	private final ServerConnection connection;
 
-	LogServiceRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
+	public LogServiceRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
 		this.segmentStore = segmentStore;
 		this.connection = connection;
 	}

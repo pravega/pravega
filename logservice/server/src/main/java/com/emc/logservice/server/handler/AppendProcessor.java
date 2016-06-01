@@ -43,7 +43,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 	private List<ByteBuf> waiting = new ArrayList<>();
 	private OutstandingWrite outstandingWrite = null;
 
-	AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
+	public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
 		this.store = store;
 		this.connection = connection;
 		this.next = next;

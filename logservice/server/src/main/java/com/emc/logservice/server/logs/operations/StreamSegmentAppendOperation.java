@@ -3,6 +3,8 @@ package com.emc.logservice.server.logs.operations;
 import com.emc.logservice.server.core.StreamHelpers;
 import com.emc.logservice.server.logs.SerializationException;
 
+import io.netty.buffer.ByteBuf;
+
 import java.io.*;
 
 /**
@@ -14,7 +16,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     private static final byte Version = 0;
     public static final byte OperationType = 1;
     private long streamSegmentOffset;
-    private byte[] data;
+    private ByteBuf data;
 
     //endregion
 
@@ -26,7 +28,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      * @param streamSegmentId The Id of the StreamSegment to append to.
      * @param data            The payload to append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data) {
+    public StreamSegmentAppendOperation(long streamSegmentId, ByteBuf data) {
         super(streamSegmentId);
         if (data == null) {
             throw new NullPointerException("data");

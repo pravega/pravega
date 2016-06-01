@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
@@ -23,8 +25,17 @@ import lombok.Cleanup;
 
 public class AppendEncodeDecodeTest {
 
-	static {
-		ResourceLeakDetector.setLevel(Level.ADVANCED);
+	private Level origionalLevel;
+	
+	@Before
+	void setup() {
+		origionalLevel = ResourceLeakDetector.getLevel();
+		ResourceLeakDetector.setLevel(Level.PARANOID);
+	}
+	
+	@After
+	void teardown() {
+		ResourceLeakDetector.setLevel(origionalLevel);
 	}
 
 	private final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
