@@ -53,7 +53,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 				if (append.getConnectionOffset() != connectionOffset) {
 					throw new IllegalStateException("Internal connectionOffset tracking error");
 				}
-				writeFooter(data, out);
+				writeFooter(data, data.readableBytes(), out);
 				headerOnNextAppend = true;
 			}
 			break;
@@ -88,34 +88,38 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 	}
 
 	@SneakyThrows(IOException.class)
-	private void writeFooter(ByteBuf data, ByteBuf out) {
+	private void writeFooter(ByteBuf data, int dataLength, ByteBuf out) {
 		int startIdx = out.writerIndex();
 		ByteBufOutputStream bout = new ByteBufOutputStream(out);
 		bout.writeInt(Type.APPEND_DATA_FOOTER.getCode());
 		bout.write(LENGTH_PLACEHOLDER);
 		bout.writeLong(connectionOffset);
+		bout.writeInt(dataLength);
 		bout.writeUTF(segment);
 		bout.flush();
 		bout.close();
 		int endIdx = out.writerIndex();
-		int dataLength;
+		int dataWritten;
 		if (data == null) {
-			dataLength = 0;
+			dataWritten = 0;
 		} else {
-			dataLength = data.readableBytes();
-			out.writeBytes(data, data.readerIndex(), dataLength);
-			data.skipBytes(dataLength);
+			dataWritten = data.readableBytes();
+			if (dataLength != dataWritten) {
+				throw new IllegalStateException("Data length is wrong.");
+			}
+			out.writeBytes(data, data.readerIndex(), dataWritten);
+			data.skipBytes(dataWritten);
 		}
-		out.setInt(startIdx + 4, endIdx + dataLength - startIdx - 8);
+		out.setInt(startIdx + 4, endIdx + dataWritten - startIdx - 8);
 	}
 
 	private void breakFromAppend(ByteBuf out) throws IOException {
 		if (!headerOnNextAppend) {
 			long dataInBlock = connectionOffset - (connectionOffset / APPEND_BLOCK_SIZE) * (APPEND_BLOCK_SIZE);
 			if (dataInBlock > 0) {
-				long remainingInBlock = APPEND_BLOCK_SIZE - dataInBlock;
+				int remainingInBlock = (int) (APPEND_BLOCK_SIZE - dataInBlock);
 				writeZeros(remainingInBlock, out);
-				writeFooter(null, out);
+				writeFooter(null, -remainingInBlock, out);
 			}
 			headerOnNextAppend = true;
 		}
@@ -123,7 +127,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 		connectionOffset = 0;
 	}
 
-	private void writeZeros(long remainingInBlock, ByteBuf out) {
+	private void writeZeros(int remainingInBlock, ByteBuf out) {
 		for (int i = 0; i < remainingInBlock; i++) {
 			out.writeByte(0);
 		}

@@ -52,18 +52,23 @@ public class CommandDecoder extends ByteToMessageDecoder {
 		}
 		case APPEND_DATA_FOOTER: {
 			long readOffset = is.readLong();
+			int dataLength = is.readInt();
 			String readSegment = is.readUTF();
-			int footerDataLength = length - (in.readerIndex() - dataStart);
 			if (appendHeader == null) {
 				throw new IllegalStateException("Footer not following header.");
 			}
-			int appendLength = appendHeader.readableBytes() + footerDataLength;
+			long appendLength = appendHeader.readableBytes() + dataLength;
 			checkSegment(readSegment);
 			checkOffset(connectionOffset + appendLength, readOffset);
-			ByteBuf footerData = in.readBytes(footerDataLength);
-			out.add(new AppendData(appendingSegment,
-					connectionOffset,
-					Unpooled.wrappedBuffer(appendHeader, footerData)));
+			if (dataLength > 0) {
+				ByteBuf footerData = in.readBytes(dataLength);
+				out.add(new AppendData(appendingSegment, connectionOffset,
+						Unpooled.wrappedBuffer(appendHeader, footerData)));
+			} else {
+				int offset = appendHeader.writerIndex();
+				appendHeader.writerIndex(offset + dataLength);
+				out.add(new AppendData(appendingSegment, connectionOffset, appendHeader));
+			}
 			connectionOffset += appendLength;
 			appendHeader = null;
 			break;
