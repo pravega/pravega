@@ -48,7 +48,7 @@ dependencies {
 
 }
 
-def pkgs = ['common', 'clients:log', 'clients:streming', 'streaming', 'logservice-server']
+def pkgs = ['common', 'clients:log', 'clients:streming', 'streaming', 'logservice-server', 'integrationtests']
 
 tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
 
@@ -110,4 +110,15 @@ project ('logservice:serverhost') {
 		compile project (':logservice:server')
 	}
 }
+
+project ('integrationtests') {
+	dependencies {
+		compile project (':common')
+		compile project (':clients:log')
+		compile project (':clients:streaming')
+		compile project (':logservice:server')
+		
+	}
+}
+
 
