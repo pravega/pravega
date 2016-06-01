@@ -7,23 +7,23 @@ import org.junit.Test;
 public class LogInputStreamTest {
 
 	@Test
-	void testConfigChange() {
+	public void testConfigChange() {
 		fail();
 	}
 	@Test
-	void testOffsetIncrements() {
+	public void testOffsetIncrements() {
 		fail();
 	}
 	@Test
-	void testSetOffset() {
+	public void testSetOffset() {
 		fail();
 	}
 	@Test
-	void testClose() {
+	public void testClose() {
 		fail();
 	}
 	@Test
-	void testAutoClose() {
+	public void testAutoClose() {
 		fail();
 	}
 }

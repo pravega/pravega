@@ -6,39 +6,39 @@ import org.junit.Test;
 
 public class LogOutputStreamTest {
 	@Test
-	void testConfigChange() {
+	public void testConfigChange() {
 		fail();
 	}
 	@Test
-	void testAckListener() {
+	public void testAckListener() {
 		fail();
 	}
 	@Test
-	void testChangingAckListener() {
+	public void testChangingAckListener() {
 		fail();
 	}
 	@Test
-	void testClose() {
+	public void testClose() {
 		fail();
 	}
 	@Test
-	void testFlush() {
+	public void testFlush() {
 		fail();
 	}
 	@Test
-	void testAutoClose() {
+	public void testAutoClose() {
 		fail();
 	}
 	@Test
-	void testFailOnAutoClose() {
+	public void testFailOnAutoClose() {
 		fail();
 	}
 	@Test
-	void testOutOfOrderAcks() {
+	public void testOutOfOrderAcks() {
 		fail();
 	}
 	@Test
-	void testLargeWrite() {
+	public void testLargeWrite() {
 		fail();
 	}
 }

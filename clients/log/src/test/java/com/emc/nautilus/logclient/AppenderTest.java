@@ -7,7 +7,7 @@ import org.junit.Test;
 public class AppenderTest {
 	
 	@Test
-	void testAutocloses() {
+	public void testAutocloses() {
 		fail();
 	}
 }

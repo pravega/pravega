@@ -6,15 +6,15 @@ import org.junit.Test;
 
 public class LogClientTest {
 	@Test
-	void testTimeouts() {
+	public void testTimeouts() {
 		fail();
 	}
 	@Test
-	void testCreateLog() {
+	public void testCreateLog() {
 		fail();
 	}
 	@Test
-	void testLogExists() {
+	public void testLogExists() {
 		fail();
 	}
 }

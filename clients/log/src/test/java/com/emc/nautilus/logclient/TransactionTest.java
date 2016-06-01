@@ -7,37 +7,37 @@ import org.junit.Test;
 public class TransactionTest {
 
 	@Test
-	void testTimeoutDropsTxn() {
+	public void testTimeoutDropsTxn() {
 		fail();
 	}
 	
 	@Test
-	void testCommitTwice() {
+	public void testCommitTwice() {
 		fail();
 	}
 	
 	@Test
-	void testDropThenCommit() {
+	public void testDropThenCommit() {
 		fail();
 	}
 	
 	@Test
-	void testDropTwice() {
+	public void testDropTwice() {
 		fail();
 	}
 	
 	@Test
-	void testCommitThenDrop() {
+	public void testCommitThenDrop() {
 		fail();
 	}
 	
 	@Test
-	void testGetTxStatus() {
+	public void testGetTxStatus() {
 		fail();
 	}
 	
 	@Test
-	void testLogCloses() {
+	public void testLogCloses() {
 		fail();
 	}
 }
