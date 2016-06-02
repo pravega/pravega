@@ -83,7 +83,7 @@ public class AsyncLogInputStreamImpl extends AsyncLogInputStream {
 		}
 		CompletableFuture<SegmentRead> future = new CompletableFuture<>();
 		outstandingRequests.put(offset, future);
-		c.sendAsync(new ReadSegment(segment, offset, length));
+		c.send(new ReadSegment(segment, offset, length));
 		return future;
 	}
 

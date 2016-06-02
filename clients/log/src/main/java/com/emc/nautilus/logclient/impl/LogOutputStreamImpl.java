@@ -1,7 +1,6 @@
 package com.emc.nautilus.logclient.impl;
 
 import java.nio.ByteBuffer;
-import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -21,18 +20,17 @@ import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
-import com.emc.nautilus.common.utils.RetryUtil;
-import com.emc.nautilus.common.utils.RetryUtil.RecoverableTask;
 import com.emc.nautilus.common.utils.ReusableLatch;
 import com.emc.nautilus.logclient.LogOutputStream;
 import com.emc.nautilus.logclient.LogSealedExcepetion;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
+@Slf4j
 public class LogOutputStreamImpl extends LogOutputStream {
 
 	private final ConnectionFactory connectionFactory;
@@ -59,6 +57,10 @@ public class LogOutputStreamImpl extends LogOutputStream {
 
 		private void connectionSetupComplete() {
 			connectionSetup.release();
+		}
+		
+		private boolean hasConnetion() {
+			return connection != null && connection.isConnected();
 		}
 
 		private void newConnection(ClientConnection newConnection) {
@@ -202,7 +204,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			try {
 				ClientConnection connection = state.waitForConnection();
 				for (AppendData append : state.getAllInflight()) {
-					connection.sendAsync(append);
+					connection.send(append);
 				}
 			} catch (LogSealedExcepetion e) {
 				state.failConnection(e);
@@ -224,24 +226,33 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			throw new IllegalStateException("LogOutputStream was already closed");
 		}
 		AppendData append = state.createNewInflightAppend(segment, buff);
-		RetryUtil.retryWithBackoff(new RecoverableTask<ConnectionFailedException>() {
-			@Override
-			@SneakyThrows(LogSealedExcepetion.class)
-			public void attempt() throws ConnectionFailedException {
-				ClientConnection connection = state.waitForConnection();
-				connection.send(append);
+		
+		//TODO: This really needs to be fixed to have proper retry with backoff.
+		while (true) {
+			if (state.hasConnetion()) {
+				try {
+					ClientConnection connection = state.waitForConnection();
+					connection.send(append);
+					break;
+				} catch (ConnectionFailedException e) {
+					state.failConnection(e);
+					log.warn("Connection failed due to",e);
+				}
+			} 
+			ClientConnection connection = connectionFactory.establishConnection(endpoint);
+			connection.setResponseProcessor(responseProcessor);
+			state.newConnection(connection);
+			SetupAppend cmd = new SetupAppend(connectionId, segment);
+			connection.send(cmd);
+			try {
+				connection = state.waitForConnection();
+			} catch (ConnectionFailedException e) {
+				state.failConnection(e);
+				log.warn("Connection failed due to",e);
 			}
+		}
+		
 
-			@Override
-			public void recover() throws ConnectionFailedException {
-				ClientConnection connection = connectionFactory.establishConnection(endpoint);
-				connection.setResponseProcessor(responseProcessor);
-				state.newConnection(connection);
-				SetupAppend cmd = new SetupAppend(connectionId, segment);
-				connection.send(cmd);
-			}
-
-		});
 		return append.getConnectionOffset();
 	}
 

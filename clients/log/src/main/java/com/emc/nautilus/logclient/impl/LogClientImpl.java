@@ -2,8 +2,10 @@ package com.emc.nautilus.logclient.impl;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
@@ -20,16 +22,18 @@ import com.emc.nautilus.logclient.LogInputStream;
 import com.emc.nautilus.logclient.LogOutputConfiguration;
 import com.emc.nautilus.logclient.LogOutputStream;
 
+import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
+@RequiredArgsConstructor
 public class LogClientImpl implements LogClient {
 
-	ConnectionFactory connectionFactory;
-	String endpoint;
+	private final String endpoint;
+	private final ConnectionFactory connectionFactory;
 	
 	@Override
 	@Synchronized
-	public boolean createLog(String name, long timeoutMillis) {
+	public boolean createLog(String name, long timeoutMillis) throws TimeoutException {
 		ClientConnection connection = connectionFactory.establishConnection(endpoint);
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
 		connection.setResponseProcessor(new FailingReplyProcessor() {
@@ -47,8 +51,15 @@ public class LogClientImpl implements LogClient {
 				result.complete(true);
 			}
 		});
-		connection.sendAsync(new CreateSegment(name));
-		return result.get(timeoutMillis, TimeUnit.MILLISECONDS);
+		connection.send(new CreateSegment(name));
+		try {
+			return result.get(timeoutMillis, TimeUnit.MILLISECONDS);
+		} catch (ExecutionException e) {
+			throw new RuntimeException(e.getCause());
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException(e);
+		}
 	}
 
 	@Override

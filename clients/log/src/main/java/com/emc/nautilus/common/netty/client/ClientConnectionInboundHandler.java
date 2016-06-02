@@ -1,52 +1,71 @@
 package com.emc.nautilus.common.netty.client;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.emc.nautilus.common.netty.ClientConnection;
+import com.emc.nautilus.common.netty.Reply;
+import com.emc.nautilus.common.netty.ReplyProcessor;
+import com.emc.nautilus.common.netty.WireCommand;
+
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import lombok.extern.slf4j.Slf4j;
 
 
-/**
- * Handler implementation for the echo client.  It initiates the ping-pong
- * traffic between the echo client and server by sending the first message to
- * the server.
- */
-public class EchoClientHandler extends ChannelInboundHandlerAdapter {
+@Slf4j
+public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
+	private AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
+	private AtomicReference<Channel> channel = new AtomicReference<>();
 
-    private final List<Integer> firstMessage;
-
-    /**
-     * Creates a client-side handler.
-     */
-    public EchoClientHandler() {
-        firstMessage = new ArrayList<Integer>(EchoClient.SIZE);
-        for (int i = 0; i < EchoClient.SIZE; i ++) {
-            firstMessage.add(Integer.valueOf(i));
-        }
-    }
-
-    @Override
-    public void channelActive(ChannelHandlerContext ctx) {
-        ctx.writeAndFlush(firstMessage);
-    }
+	@Override
+	public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+		super.channelRegistered(ctx);
+		channel.set(ctx.channel());
+	}
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-    	System.out.println(msg);
-        ctx.write(msg);
-    }
-
-    @Override
-    public void channelReadComplete(ChannelHandlerContext ctx) {
-       ctx.flush();
+    	Reply cmd = (Reply) msg;
+		ReplyProcessor replyProcessor = processor.get();
+		if (replyProcessor == null) {
+			throw new IllegalStateException("No command processor set for connection");
+		}
+		cmd.process(replyProcessor);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         // Close the connection when an exception is raised.
-        cause.printStackTrace();
+        log.error("Caught exception on connection: ", cause);
         ctx.close();
     }
+
+	@Override
+	public void send(WireCommand cmd) {
+		getChannel().writeAndFlush(cmd);
+	}
+
+	@Override
+	public void setResponseProcessor(ReplyProcessor cp) {
+		processor.set(cp);
+	}
+
+	@Override
+	public void drop() {
+		Channel ch = channel.get();
+		if (ch != null) {
+			ch.close();
+		}
+	}
+	
+	private Channel getChannel() {
+		Channel ch = channel.get();
+		if (ch == null) {
+			throw new IllegalStateException("Connection not yet established.");
+		}
+		return ch;
+	}
+	
 }

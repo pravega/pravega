@@ -3,9 +3,14 @@ package com.emc.nautilus.integrationtests;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -13,11 +18,12 @@ import org.junit.Test;
 
 import com.emc.logservice.server.containers.StreamSegmentContainer;
 import com.emc.logservice.server.handler.AppendProcessor;
-import com.emc.logservice.server.handler.LogSerivceServer;
+import com.emc.logservice.server.handler.LogSerivceConnectionListener;
 import com.emc.logservice.server.handler.LogServiceRequestProcessor;
-import com.emc.logservice.server.handler.LogServiceServerHandler;
+import com.emc.logservice.server.handler.ServerConnectionInboundHandler;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
+import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.Request;
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
@@ -27,6 +33,11 @@ import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
+import com.emc.nautilus.logclient.LogAppender;
+import com.emc.nautilus.logclient.LogOutputStream;
+import com.emc.nautilus.logclient.LogOutputStream.AckListener;
+import com.emc.nautilus.logclient.LogSealedExcepetion;
 import com.emc.nautilus.logclient.impl.LogClientImpl;
 
 import io.netty.buffer.ByteBuf;
@@ -50,13 +61,13 @@ public class AppendTest {
 	public void teardown() {
 		ResourceLeakDetector.setLevel(origionalLevel);
 	}
-	
+
 	@Test
 	public void testSetupOnNonExistentSegment() throws Exception {
 		String segment = "123";
 		ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
 		@Cleanup
-		StreamSegmentContainer store = LogSerivceServer.createStore("ABC");
+		StreamSegmentContainer store = LogSerivceConnectionListener.createStore("ABC");
 		store.initialize(Duration.ofMinutes(1)).get();
 		store.start(Duration.ofMinutes(1)).get();
 
@@ -74,24 +85,23 @@ public class AppendTest {
 		String segment = "123";
 		ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
 		@Cleanup
-		StreamSegmentContainer store = LogSerivceServer.createStore("ABC");
-		store.initialize(Duration.ofMinutes(1)).get();
-		store.start(Duration.ofMinutes(1)).get();
+		StreamSegmentContainer store = LogSerivceConnectionListener.createStore("ABC");
 
 		EmbeddedChannel channel = createChannel(store);
 		CommandDecoder decoder = new CommandDecoder();
 
 		SegmentCreated created = (SegmentCreated) sendRequest(channel, decoder, new CreateSegment(segment));
 		assertEquals(segment, created.getSegment());
-		
+
 		UUID uuid = UUID.randomUUID();
 		AppendSetup setup = (AppendSetup) sendRequest(channel, decoder, new SetupAppend(uuid, segment));
 
 		assertEquals(segment, setup.getSegment());
 		assertEquals(uuid, setup.getConnectionId());
 
-		DataAppended ack = (DataAppended) sendRequest(channel, decoder,
-				new AppendData(segment, data.readableBytes(), data));
+		DataAppended ack = (DataAppended) sendRequest(	channel,
+														decoder,
+														new AppendData(segment, data.readableBytes(), data));
 		assertEquals(segment, ack.getSegment());
 		assertEquals(data.readableBytes(), ack.getConnectionOffset());
 	}
@@ -113,10 +123,12 @@ public class AppendTest {
 	}
 
 	private EmbeddedChannel createChannel(StreamSegmentContainer store) {
-		LogServiceServerHandler lsh = new LogServiceServerHandler();
+		ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
 		lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
 		EmbeddedChannel channel = new EmbeddedChannel(new CommandEncoder(),
-				new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4), new CommandDecoder(), lsh);
+				new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
+				new CommandDecoder(),
+				lsh);
 		return channel;
 	}
 
@@ -126,9 +138,30 @@ public class AppendTest {
 	}
 
 	@Test
-	public void appendThroughLogClient() {
-		LogClientImpl logClient = new LogClientImpl();
-		fail();
+	public void appendThroughLogClient()
+			throws LogSealedExcepetion, TimeoutException, InterruptedException, ExecutionException {
+		String endpoint = "localhost";
+		String logName = "abc";
+		int port = 8765;
+		String testString = "Hello world\n";
+		@Cleanup("shutdown")
+		LogSerivceConnectionListener server = new LogSerivceConnectionListener(false, port, "My ContainerId");
+		server.startListening();
+
+		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
+		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);
+		logClient.createLog(logName, 5000);
+		LogAppender appender = logClient.openLogForAppending(logName, null);
+		LogOutputStream out = appender.getOutputStream();
+		CompletableFuture<Long> ack = new CompletableFuture<Long>();
+		out.setWriteAckListener(new AckListener() {
+			@Override
+			public void ack(long connectionOffset) {
+				ack.complete(connectionOffset);
+			}
+		});
+		out.write(ByteBuffer.wrap(testString.getBytes()));
+		assertEquals(testString.length(), ack.get(5, TimeUnit.SECONDS).longValue());
 	}
 
 	@Test
