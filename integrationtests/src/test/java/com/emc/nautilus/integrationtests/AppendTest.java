@@ -68,8 +68,6 @@ public class AppendTest {
 		ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
 		@Cleanup
 		StreamSegmentContainer store = LogSerivceConnectionListener.createStore("ABC");
-		store.initialize(Duration.ofMinutes(1)).get();
-		store.start(Duration.ofMinutes(1)).get();
 
 		EmbeddedChannel channel = createChannel(store);
 		CommandDecoder decoder = new CommandDecoder();
@@ -133,13 +131,7 @@ public class AppendTest {
 	}
 
 	@Test
-	public void sendAppendOverWire() {
-		fail();
-	}
-
-	@Test
-	public void appendThroughLogClient()
-			throws LogSealedExcepetion, TimeoutException, InterruptedException, ExecutionException {
+	public void appendThroughLogClient() throws Exception {
 		String endpoint = "localhost";
 		String logName = "abc";
 		int port = 8765;
@@ -151,7 +143,9 @@ public class AppendTest {
 		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
 		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);
 		logClient.createLog(logName, 5000);
+		@Cleanup("close")
 		LogAppender appender = logClient.openLogForAppending(logName, null);
+		@Cleanup("close")
 		LogOutputStream out = appender.getOutputStream();
 		CompletableFuture<Long> ack = new CompletableFuture<Long>();
 		out.setWriteAckListener(new AckListener() {
@@ -161,11 +155,13 @@ public class AppendTest {
 			}
 		});
 		out.write(ByteBuffer.wrap(testString.getBytes()));
+		out.flush();
 		assertEquals(testString.length(), ack.get(5, TimeUnit.SECONDS).longValue());
 	}
 
 	@Test
 	public void appendThroughStreamingClient() {
-		fail();
+
+		
 	}
 }

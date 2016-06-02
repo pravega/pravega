@@ -26,8 +26,15 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 	}
 
     @Override
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+    	channel.set(null);
+    	super.channelUnregistered(ctx);
+    }
+	
+    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
     	Reply cmd = (Reply) msg;
+    	log.debug("Processing reply: {}",cmd);
 		ReplyProcessor replyProcessor = processor.get();
 		if (replyProcessor == null) {
 			throw new IllegalStateException("No command processor set for connection");
@@ -36,9 +43,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         // Close the connection when an exception is raised.
         log.error("Caught exception on connection: ", cause);
+        super.exceptionCaught(ctx, cause);
         ctx.close();
     }
 
@@ -66,6 +74,12 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 			throw new IllegalStateException("Connection not yet established.");
 		}
 		return ch;
+	}
+
+	@Override
+	public boolean isConnected() {
+		Channel c = channel.get();
+		return c!=null && c.isOpen();
 	}
 	
 }

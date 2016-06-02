@@ -6,4 +6,6 @@ package com.emc.nautilus.logclient;
 public interface Appender extends AutoCloseable {
 	// Gets a LogOutputStream that can be used to append to the log.
 	LogOutputStream getOutputStream();
+	
+	void close();
 }

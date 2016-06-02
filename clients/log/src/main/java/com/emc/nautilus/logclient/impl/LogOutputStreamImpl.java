@@ -15,6 +15,7 @@ import com.emc.nautilus.common.netty.FailingReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
+import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
@@ -201,15 +202,8 @@ public class LogOutputStreamImpl extends LogOutputStream {
 		}
 
 		private void retransmitInflight() {
-			try {
-				ClientConnection connection = state.waitForConnection();
-				for (AppendData append : state.getAllInflight()) {
-					connection.send(append);
-				}
-			} catch (LogSealedExcepetion e) {
-				state.failConnection(e);
-			} catch (ConnectionFailedException e) {
-				state.failConnection(e);
+			for (AppendData append : state.getAllInflight()) {
+				state.connection.send(append);
 			}
 		}
 	}
@@ -225,34 +219,28 @@ public class LogOutputStreamImpl extends LogOutputStream {
 		if (state.isClosed()) {
 			throw new IllegalStateException("LogOutputStream was already closed");
 		}
-		AppendData append = state.createNewInflightAppend(segment, buff);
 		
 		//TODO: This really needs to be fixed to have proper retry with backoff.
+		ClientConnection connection;
 		while (true) {
-			if (state.hasConnetion()) {
-				try {
-					ClientConnection connection = state.waitForConnection();
-					connection.send(append);
-					break;
-				} catch (ConnectionFailedException e) {
-					state.failConnection(e);
-					log.warn("Connection failed due to",e);
-				}
-			} 
-			ClientConnection connection = connectionFactory.establishConnection(endpoint);
-			connection.setResponseProcessor(responseProcessor);
-			state.newConnection(connection);
-			SetupAppend cmd = new SetupAppend(connectionId, segment);
-			connection.send(cmd);
+			if (!state.hasConnetion()) {
+				connection = connectionFactory.establishConnection(endpoint);
+				connection.setResponseProcessor(responseProcessor);
+				state.newConnection(connection);
+				SetupAppend cmd = new SetupAppend(connectionId, segment);
+				connection.send(cmd);
+			}
 			try {
 				connection = state.waitForConnection();
+				break;
 			} catch (ConnectionFailedException e) {
 				state.failConnection(e);
 				log.warn("Connection failed due to",e);
 			}
 		}
+		AppendData append = state.createNewInflightAppend(segment, buff);
+		connection.send(append);
 		
-
 		return append.getConnectionOffset();
 	}
 
@@ -272,6 +260,9 @@ public class LogOutputStreamImpl extends LogOutputStream {
 	@Synchronized
 	public void flush() throws LogSealedExcepetion {
 		try {
+			if (state.hasConnetion()) {
+				state.connection.send(new KeepAlive());
+			}
 			state.waitForEmptyInflight();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();

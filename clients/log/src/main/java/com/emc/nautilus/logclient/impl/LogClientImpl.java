@@ -72,8 +72,8 @@ public class LogClientImpl implements LogClient {
 	public LogAppender openLogForAppending(String name, LogOutputConfiguration config) {
 		return new LogAppender() {
 			@Override
-			public void close() throws Exception {
-				throw new UnsupportedOperationException("TODO");
+			public void close() {
+				//TODO: Does this method need to exist?
 			}
 			@Override
 			public LogOutputStream getOutputStream() {

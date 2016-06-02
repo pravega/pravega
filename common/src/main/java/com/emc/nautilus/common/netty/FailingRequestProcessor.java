@@ -11,6 +11,9 @@ import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
 import com.emc.nautilus.common.netty.WireCommands.SealSegment;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class FailingRequestProcessor implements RequestProcessor {
 
 	@Override
@@ -60,7 +63,7 @@ public class FailingRequestProcessor implements RequestProcessor {
 
 	@Override
 	public void keepAlive(KeepAlive keepAlive) {
-		throw new IllegalStateException("Unexpected operation");
+		log.debug("Received KeepAlive");
 	}
 
 }

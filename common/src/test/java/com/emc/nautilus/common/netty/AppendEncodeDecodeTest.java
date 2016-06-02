@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,7 @@ import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
@@ -27,13 +29,13 @@ import lombok.Cleanup;
 public class AppendEncodeDecodeTest {
 
 	private Level origionalLevel;
-	
+
 	@Before
 	public void setup() {
 		origionalLevel = ResourceLeakDetector.getLevel();
 		ResourceLeakDetector.setLevel(Level.PARANOID);
 	}
-	
+
 	@After
 	public void teardown() {
 		ResourceLeakDetector.setLevel(origionalLevel);
@@ -70,7 +72,7 @@ public class AppendEncodeDecodeTest {
 
 	@Test
 	public void testFlushBeforeEndOfBlock() throws Exception {
-		testFlush(WireCommands.APPEND_BLOCK_SIZE/2);
+		testFlush(WireCommands.APPEND_BLOCK_SIZE / 2);
 	}
 
 	@Test
@@ -83,14 +85,14 @@ public class AppendEncodeDecodeTest {
 		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
 		ArrayList<Object> received = setupAppend(fakeNetwork);
 
-		append(size , 0, size, fakeNetwork);
+		append(size, 0, size, fakeNetwork);
 		read(fakeNetwork, received);
-		
+
 		KeepAlive keepAlive = new KeepAlive();
 		encoder.encode(null, keepAlive, fakeNetwork);
 		read(fakeNetwork, received);
 		assertEquals(2, received.size());
-		
+
 		AppendData one = (AppendData) received.get(0);
 		assertEquals(size, one.data.readableBytes());
 		KeepAlive two = (KeepAlive) received.get(1);
@@ -113,7 +115,8 @@ public class AppendEncodeDecodeTest {
 
 	@Test
 	public void testAppendSpanningBlockBound() throws Exception {
-		int size = (WireCommands.APPEND_BLOCK_SIZE * 3)/4;
+		int size = (WireCommands.APPEND_BLOCK_SIZE * 3) / 4;
+		@Cleanup("release")
 		ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
 		ArrayList<Object> received = setupAppend(fakeNetwork);
 		for (int i = 0; i < 4; i++) {
@@ -136,7 +139,7 @@ public class AppendEncodeDecodeTest {
 		assertEquals(4, received.size());
 		verify(received, 4, size);
 	}
-	
+
 	@Test
 	public void testAppendAtBlockBound() throws Exception {
 		int size = WireCommands.APPEND_BLOCK_SIZE;
@@ -147,20 +150,20 @@ public class AppendEncodeDecodeTest {
 		append(size, 1, size, fakeNetwork);
 		read(fakeNetwork, received);
 		assertEquals(1, received.size());
-		
-		append(size+size/2, 2, size/2, fakeNetwork);
+
+		append(size + size / 2, 2, size / 2, fakeNetwork);
 		read(fakeNetwork, received);
 		assertEquals(1, received.size());
-		
+
 		KeepAlive keepAlive = new KeepAlive();
 		encoder.encode(null, keepAlive, fakeNetwork);
 		read(fakeNetwork, received);
 		assertEquals(3, received.size());
-		
+
 		AppendData one = (AppendData) received.get(0);
 		AppendData two = (AppendData) received.get(1);
 		assertEquals(size, one.data.readableBytes());
-		assertEquals(size/2, two.data.readableBytes());
+		assertEquals(size / 2, two.data.readableBytes());
 		KeepAlive three = (KeepAlive) received.get(2);
 		assertEquals(keepAlive, three);
 	}
@@ -190,11 +193,9 @@ public class AppendEncodeDecodeTest {
 	}
 
 	private long append(long offset, int contentValue, int length, ByteBuf out) throws Exception {
-		@Cleanup("release")
-		ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer();
-		for (int i = 0; i < length; i++) {
-			buffer.writeByte((byte) contentValue);
-		}
+		byte[] content = new byte[length];
+		Arrays.fill(content, (byte) contentValue);
+		ByteBuf buffer = Unpooled.wrappedBuffer(content);
 		AppendData msg = new AppendData(testStream, offset, buffer);
 		encoder.encode(null, msg, out);
 		return offset + length;
@@ -211,11 +212,14 @@ public class AppendEncodeDecodeTest {
 	}
 
 	private void verify(List<Object> results, int numValues, int sizeOfEachValue) {
+		int readSoFar = 0;
 		int currentValue = -1;
 		int currentCount = sizeOfEachValue;
 		for (Object r : results) {
 			AppendData append = (AppendData) r;
 			assertEquals("Append split mid event", sizeOfEachValue, currentCount);
+			readSoFar += append.getData().readableBytes();
+			assertEquals(readSoFar, append.getConnectionOffset());
 			while (append.data.isReadable()) {
 				byte readByte = append.data.readByte();
 				if (currentCount == sizeOfEachValue) {

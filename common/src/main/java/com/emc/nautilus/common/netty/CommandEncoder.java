@@ -118,19 +118,13 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 			long dataInBlock = connectionOffset - (connectionOffset / APPEND_BLOCK_SIZE) * (APPEND_BLOCK_SIZE);
 			if (dataInBlock > 0) {
 				int remainingInBlock = (int) (APPEND_BLOCK_SIZE - dataInBlock);
-				writeZeros(remainingInBlock, out);
+				out.writeZero(remainingInBlock);
 				writeFooter(null, -remainingInBlock, out);
 			}
 			headerOnNextAppend = true;
 		}
 		segment = null;
 		connectionOffset = 0;
-	}
-
-	private void writeZeros(int remainingInBlock, ByteBuf out) {
-		for (int i = 0; i < remainingInBlock; i++) {
-			out.writeByte(0);
-		}
 	}
 
 	@SneakyThrows(IOException.class)

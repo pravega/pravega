@@ -13,7 +13,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class CommandDecoder extends ByteToMessageDecoder {
 
 	private String appendingSegment;
@@ -27,6 +29,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+		log.debug("Decoding a message");
 		decode(in, out);
 	}
 	
@@ -65,7 +68,8 @@ public class CommandDecoder extends ByteToMessageDecoder {
 			}
 			long appendLength = appendHeader.readableBytes() + dataLength;
 			checkSegment(readSegment);
-			checkOffset(connectionOffset + appendLength, readOffset);
+			connectionOffset += appendLength;
+			checkOffset(connectionOffset, readOffset);
 			if (dataLength > 0) {
 				ByteBuf footerData = in.readBytes(dataLength);
 				out.add(new AppendData(appendingSegment, connectionOffset,
@@ -75,7 +79,6 @@ public class CommandDecoder extends ByteToMessageDecoder {
 				appendHeader.writerIndex(offset + dataLength);
 				out.add(new AppendData(appendingSegment, connectionOffset, appendHeader));
 			}
-			connectionOffset += appendLength;
 			appendHeader = null;
 			break;
 		}
