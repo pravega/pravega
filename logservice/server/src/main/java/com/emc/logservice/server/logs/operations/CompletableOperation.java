@@ -1,6 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.server.core.CallbackHelpers;
+import com.emc.logservice.common.CallbackHelpers;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;

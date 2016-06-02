@@ -14,7 +14,7 @@ public class EndOfStreamSegmentReadResultEntry extends ReadResultEntry {
      * Constructor.
      *
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
-     * @param requestedReadLength The maximum number of bytes requested for read.
+     * @param requestedReadLength The maximum number of bytes requested for getReader.
      */
     public EndOfStreamSegmentReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
         super(streamSegmentOffset, requestedReadLength);

@@ -1,14 +1,15 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storageabstraction.StorageFactory;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
-import com.emc.logservice.server.core.AsyncLock;
-import com.emc.logservice.server.core.TimeoutTimer;
+import com.emc.logservice.common.AsyncLock;
+import com.emc.logservice.common.TimeoutTimer;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.PendingAppendsCollection;
 import com.emc.logservice.server.logs.operations.*;
-import com.emc.logservice.storageabstraction.Storage;
-import com.emc.logservice.storageabstraction.StorageFactory;
 
 import java.time.Duration;
 import java.util.*;
@@ -115,7 +116,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
             // Update the state first. TODO: figure out if we need to roll back the state if this operation failed.
             setState(ContainerState.Stopped);
 
-            // Stop the Operation Queue Processor. TODO: should we also stop the read index? Or are the checks in this class enough?
+            // Stop the Operation Queue Processor. TODO: should we also stop the getReader index? Or are the checks in this class enough?
             return this.durableLog.stop(timeout);
         });
     }
@@ -272,13 +273,13 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private void ensureStarted() {
         ensureNotClosed();
         if (this.state != ContainerState.Started) {
-            throw new com.emc.logservice.server.core.ObjectClosedException(this);
+            throw new ObjectClosedException(this);
         }
     }
 
     private void ensureNotClosed() {
         if (this.closed) {
-            throw new com.emc.logservice.server.core.ObjectClosedException(this);
+            throw new ObjectClosedException(this);
         }
     }
 

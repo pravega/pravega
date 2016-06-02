@@ -1,6 +1,6 @@
 package com.emc.logservice.server;
 
-import com.emc.logservice.server.core.CallbackHelpers;
+import com.emc.logservice.common.CallbackHelpers;
 
 import java.util.ArrayList;
 import java.util.List;

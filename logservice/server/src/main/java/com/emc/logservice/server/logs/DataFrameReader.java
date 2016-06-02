@@ -1,9 +1,10 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.server.core.*;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.storageabstraction.DurableDataLogException;
 
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -18,7 +19,7 @@ import java.util.stream.Stream;
  * it in order from the beginning, and returns all successfully serialized Log Operations from them in the order in which
  * they were serialized.
  */
-public class DataFrameReader {
+public class DataFrameReader implements AutoCloseable {
     //region Members
 
     private final FrameEntryEnumerator frameContentsEnumerator;
@@ -31,12 +32,22 @@ public class DataFrameReader {
     /**
      * Creates a new instance of the DataFrameReader class.
      *
-     * @param log The DataFrameLog to read data frames from.
-     * @throws NullPointerException If the log is null.
+     * @param log The DataFrameLog to getReader data frames from.
+     * @throws NullPointerException    If log is null.
+     * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
-    public DataFrameReader(DurableDataLog log) {
+    public DataFrameReader(DurableDataLog log) throws DurableDataLogException {
         this.frameContentsEnumerator = new FrameEntryEnumerator(log);
         this.lastReadOperationSequenceNumber = Operation.NoSequenceNumber;
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        this.frameContentsEnumerator.close();
     }
 
     //endregion
@@ -137,7 +148,7 @@ public class DataFrameReader {
     /**
      * Represents a DataFrame Read Result, wrapping a Log Operation.
      */
-    public class ReadResult {
+    public static class ReadResult {
         private final Operation operation;
         private final long dataFrameSequence;
         private final boolean lastFrameEntry;
@@ -197,7 +208,7 @@ public class DataFrameReader {
     /**
      * A collection of ByteArraySegments that, together, make up the serialization for a Log Operation.
      */
-    private class SegmentCollection {
+    private static class SegmentCollection {
         private final LinkedList<ByteArraySegment> segments;
         private long dataFrameSequence;
         private boolean lastFrameEntry;
@@ -290,7 +301,7 @@ public class DataFrameReader {
     /**
      * Enumerates DataFrameEntries from all frames, in sequence.
      */
-    private class FrameEntryEnumerator {
+    private static class FrameEntryEnumerator implements AutoCloseable {
         //region Members
 
         private final DataFrameEnumerator dataFrameEnumerator;
@@ -303,10 +314,21 @@ public class DataFrameReader {
         /**
          * Creates a new instance of the FrameEntryEnumerator class.
          *
-         * @param log The DataFrameLog to read from.
+         * @param log The DataFrameLog to getReader from.
+         * @throws NullPointerException    If log is null.
+         * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */
-        public FrameEntryEnumerator(DurableDataLog log) {
+        public FrameEntryEnumerator(DurableDataLog log) throws DurableDataLogException {
             this.dataFrameEnumerator = new DataFrameEnumerator(log);
+        }
+
+        //endregion
+
+        //region AutoCloseable Implementation
+
+        @Override
+        public void close() {
+            this.dataFrameEnumerator.close();
         }
 
         //endregion
@@ -337,8 +359,7 @@ public class DataFrameReader {
             }
 
             // We need to fetch a new frame.
-            return this.dataFrameEnumerator.getNext(timeout).thenApply(dataFrame ->
-            {
+            return this.dataFrameEnumerator.getNext(timeout).thenApply(dataFrame -> {
                 if (dataFrame == null) {
                     // No more frames to retrieve
                     this.currentFrameContents = null;
@@ -374,15 +395,13 @@ public class DataFrameReader {
     /**
      * Enumerates DataFrames from a DataFrameLog.
      */
-    private class DataFrameEnumerator {
+    private static class DataFrameEnumerator implements AutoCloseable {
         //region Members
 
         private static final long InitialLastReadFrameSequence = -1;
-        private static final int FramesToReadAtOnce = 10; // TODO: make configurable.
         private final DurableDataLog log;
-        private final ArrayList<DataFrame> currentFrames;
-        private int currentFrameIndex;
         private long lastReadFrameSequence;
+        private AsyncIterator<DurableDataLog.ReadItem> reader;
 
         //endregion
 
@@ -391,17 +410,32 @@ public class DataFrameReader {
         /**
          * Creates a new instance of the DataFrameEnumerator class.
          *
-         * @param log The DataFrameLog to read from.
-         * @throws NullPointerException If log is null.
+         * @param log The DataFrameLog to getReader from.
+         * @throws NullPointerException    If log is null.
+         * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */
-        public DataFrameEnumerator(DurableDataLog log) {
+        public DataFrameEnumerator(DurableDataLog log) throws DurableDataLogException {
             if (log == null) {
                 throw new NullPointerException("log");
             }
 
             this.log = log;
-            this.currentFrames = new ArrayList<>();
             this.lastReadFrameSequence = InitialLastReadFrameSequence;
+            if (this.reader == null) {
+                // We start from the beginning.
+                this.reader = this.log.getReader(InitialLastReadFrameSequence);
+            }
+        }
+
+        //endregion
+
+        //region AutoCloseable Implementation
+
+        @Override
+        public void close() {
+            if (this.reader != null) {
+                this.reader.close();
+            }
         }
 
         //endregion
@@ -416,76 +450,33 @@ public class DataFrameReader {
          * frame exists, it will contain a null value.
          */
         public CompletableFuture<DataFrame> getNext(Duration timeout) {
-            this.currentFrameIndex++;
-            if (this.currentFrameIndex < this.currentFrames.size()) {
-                // We were able to move next inside the current batch.
-                return CompletableFuture.completedFuture(this.currentFrames.get(this.currentFrameIndex));
-            }
-
-            // Reached the end of the current batch. Get a new one.
-            return getNewBatch(timeout).thenApply(f ->
-            {
-                DataFrame resultFrame = null;
-                if (this.currentFrames.size() > 0) {
-                    // Got a batch of new frames.
-                    this.currentFrameIndex = 0;
-                    resultFrame = this.currentFrames.get(this.currentFrameIndex);
+            return this.reader.getNext(timeout).thenApply(nextItem -> {
+                if (nextItem == null) {
+                    // We have reached the end. Stop here.
+                    return null;
                 }
 
-                return resultFrame;
-            });
-        }
-
-        private CompletableFuture<Void> getNewBatch(Duration timeout) {
-            TimeoutTimer timer = new TimeoutTimer(timeout);
-
-            return CompletableFuture.runAsync(() ->
-            {
-                while (true) {
-                    Iterator<DurableDataLog.ReadItem> readResult = this.log.read(this.lastReadFrameSequence, FramesToReadAtOnce, timer.getRemaining()).join();
-
-                    int frameCount = 0;
-                    this.currentFrames.clear();
-                    while (readResult.hasNext()) {
-                        DurableDataLog.ReadItem nextItem = readResult.next();
-                        DataFrame frame;
-                        try {
-                            frame = new DataFrame(nextItem.getPayload());
-                            frame.setFrameSequence(nextItem.getSequence());
-                        }
-                        catch (SerializationException ex) {
-                            throw new CompletionException(new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex));
-                        }
-
-                        if (frame.getFrameSequence() <= this.lastReadFrameSequence) {
-                            // FrameSequence must be a strictly monotonically increasing number.
-                            throw new CompletionException(new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.", this.lastReadFrameSequence, frame.getFrameSequence())));
-                        }
-
-                        if (this.lastReadFrameSequence != InitialLastReadFrameSequence && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
-                            // Previous Frame Sequence is not match what the Current Frame claims it is.
-                            throw new CompletionException(new DataCorruptionException(String.format("DataFrame with Sequence %d has a PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).", frame.getFrameSequence(), frame.getPreviousFrameSequence(), this.lastReadFrameSequence)));
-                        }
-
-                        this.lastReadFrameSequence = frame.getFrameSequence();
-                        frameCount++;
-
-                        if (!frame.isEmpty()) {
-                            // Only include a frame if it has any meaningful data.
-                            this.currentFrames.add(frame);
-                        }
-                    }
-
-                    this.currentFrameIndex = 0;
-                    if (frameCount == 0 || this.currentFrames.size() != 0) {
-                        // We found a batch with at least one valid DataFrame.
-                        break;
-                    }
-
-                    // If we get here ... we received frames, but we excluded all of them (likely because they were empty).
-                    // We must not return an empty result - that indicates we have reached the end of the Log
-                    // We need to reissue a getBatch until we get something good (or nothing at all).
+                DataFrame frame;
+                try {
+                    frame = new DataFrame(nextItem.getPayload());
+                    frame.setFrameSequence(nextItem.getSequence());
                 }
+                catch (SerializationException ex) {
+                    throw new CompletionException(new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex));
+                }
+
+                if (frame.getFrameSequence() <= this.lastReadFrameSequence) {
+                    // FrameSequence must be a strictly monotonically increasing number.
+                    throw new CompletionException(new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.", this.lastReadFrameSequence, frame.getFrameSequence())));
+                }
+
+                if (this.lastReadFrameSequence != InitialLastReadFrameSequence && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
+                    // Previous Frame Sequence is not match what the Current Frame claims it is.
+                    throw new CompletionException(new DataCorruptionException(String.format("DataFrame with Sequence %d has a PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).", frame.getFrameSequence(), frame.getPreviousFrameSequence(), this.lastReadFrameSequence)));
+                }
+
+                this.lastReadFrameSequence = frame.getFrameSequence();
+                return frame;
             });
         }
 

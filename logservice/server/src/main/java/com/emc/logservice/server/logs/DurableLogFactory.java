@@ -7,18 +7,18 @@ import com.emc.logservice.server.*;
  * Default Factory for DurableLogs.
  */
 public class DurableLogFactory implements OperationLogFactory {
-    private final DurableDataLogFactory dataFrameLogFactory;
+    private final DurableDataLogFactory dataLogFactory;
 
-    public DurableLogFactory(DurableDataLogFactory dataFrameLogFactory){
-        if(dataFrameLogFactory == null){
-            throw new NullPointerException("dataFrameLogFactory");
+    public DurableLogFactory(DurableDataLogFactory dataLogFactory){
+        if(dataLogFactory == null){
+            throw new NullPointerException("dataLogFactory");
         }
 
-        this.dataFrameLogFactory = dataFrameLogFactory;
+        this.dataLogFactory = dataLogFactory;
     }
 
     @Override
     public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, Cache cache) {
-        return new DurableLog(containerMetadata, this.dataFrameLogFactory, cache);
+        return new DurableLog(containerMetadata, this.dataLogFactory, cache);
     }
 }

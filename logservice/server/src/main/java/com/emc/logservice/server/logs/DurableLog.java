@@ -2,7 +2,8 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
-import com.emc.logservice.server.core.*;
+import com.emc.logservice.common.*;
+import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.server.logs.operations.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
@@ -103,9 +104,9 @@ public class DurableLog implements OperationLog {
             ContainerState.Initialized.checkValidPreviousState(this.state);
 
             // Perform Recovery and initialize all components.
-            return this.performRecovery(timer.getRemaining()) // Perform Recovery.
-                       .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
-                       .thenRun(() -> setState(ContainerState.Initialized)); // Update our internal state.
+            return performRecovery(timer.getRemaining()) // Perform Recovery.
+                                                         .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
+                                                         .thenRun(() -> setState(ContainerState.Initialized)); // Update our internal state.
         });
     }
 
@@ -208,14 +209,14 @@ public class DurableLog implements OperationLog {
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata, this.truncationMarkers);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
-        CompletableFuture<Void> result = this.dataFrameLog.recover(timer.getRemaining()) // Recover DataFrameLog.
+        CompletableFuture<Void> result = this.dataFrameLog.initialize(timer.getRemaining()) // Iniialize DataFrameLog.
                                                           .thenRun(() ->
                                                           {
                                                               // Recover from DataFrameLog.
                                                               try {
                                                                   recoverFromDataFrameLog(metadataUpdater, timer.getRemaining());
                                                               }
-                                                              catch (DataCorruptionException ex) {
+                                                              catch (DurableDataLogException | DataCorruptionException ex) {
                                                                   throw new CompletionException(ex);
                                                               }
                                                           });
@@ -231,56 +232,57 @@ public class DurableLog implements OperationLog {
         return result;
     }
 
-    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater, Duration timeout) throws DataCorruptionException {
+    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater, Duration timeout) throws DataCorruptionException, DurableDataLogException {
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        DataFrameReader reader = new DataFrameReader(this.dataFrameLog);
-        DataFrameReader.ReadResult lastReadResult = null;
-        while (true) {
-            // Fetch the next operation.
-            DataFrameReader.ReadResult readResult = reader.getNextOperation(timer.getRemaining()).join();
-            if (readResult == null) {
-                // We have reached the end.
-                break;
-            }
-
-            Operation operation = readResult.getOperation();
-
-            // Update Metadata Sequence Number.
-            this.metadata.setOperationSequenceNumber(operation.getSequenceNumber());
-
-            // Determine Truncation Markers.
-            if (readResult.isLastFrameEntry()) {
-                // The current Log Operation was the last one in the frame. This is a Truncation Marker.
-                metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), readResult.getDataFrameSequence());
-            }
-            else if (lastReadResult != null && !lastReadResult.isLastFrameEntry() && readResult.getDataFrameSequence() != lastReadResult.getDataFrameSequence()) {
-                // DataFrameSequence changed on this operation (and this operation spans multiple frames). The Truncation Marker is on this operation, but the previous frame.
-                metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), lastReadResult.getDataFrameSequence());
-            }
-
-            lastReadResult = readResult;
-
-            // Process the operation.
-            try {
-                if (operation instanceof MetadataOperation) {
-                    metadataUpdater.processMetadataOperation((MetadataOperation) operation);
+        try (DataFrameReader reader = new DataFrameReader(this.dataFrameLog)) {
+            DataFrameReader.ReadResult lastReadResult = null;
+            while (true) {
+                // Fetch the next operation.
+                DataFrameReader.ReadResult readResult = reader.getNextOperation(timer.getRemaining()).join();
+                if (readResult == null) {
+                    // We have reached the end.
+                    break;
                 }
-                else if (operation instanceof StorageOperation) {
-                    //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
-                    metadataUpdater.preProcessOperation((StorageOperation) operation);
-                    metadataUpdater.acceptOperation((StorageOperation) operation);
-                }
-            }
-            catch (Exception ex) {
-                // MetadataUpdater can throw StreamSegmentSealedException or MetadataUpdateException.
-                throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
-            }
 
-            // Add to InMemory Operation Log.
-            this.memoryLogUpdater.add(operation);
+                Operation operation = readResult.getOperation();
+
+                // Update Metadata Sequence Number.
+                this.metadata.setOperationSequenceNumber(operation.getSequenceNumber());
+
+                // Determine Truncation Markers.
+                if (readResult.isLastFrameEntry()) {
+                    // The current Log Operation was the last one in the frame. This is a Truncation Marker.
+                    metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), readResult.getDataFrameSequence());
+                }
+                else if (lastReadResult != null && !lastReadResult.isLastFrameEntry() && readResult.getDataFrameSequence() != lastReadResult.getDataFrameSequence()) {
+                    // DataFrameSequence changed on this operation (and this operation spans multiple frames). The Truncation Marker is on this operation, but the previous frame.
+                    metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), lastReadResult.getDataFrameSequence());
+                }
+
+                lastReadResult = readResult;
+
+                // Process the operation.
+                try {
+                    if (operation instanceof MetadataOperation) {
+                        metadataUpdater.processMetadataOperation((MetadataOperation) operation);
+                    }
+                    else if (operation instanceof StorageOperation) {
+                        //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
+                        metadataUpdater.preProcessOperation((StorageOperation) operation);
+                        metadataUpdater.acceptOperation((StorageOperation) operation);
+                    }
+                }
+                catch (Exception ex) {
+                    // MetadataUpdater can throw StreamSegmentSealedException or MetadataUpdateException.
+                    throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
+                }
+
+                // Add to InMemory Operation Log.
+                this.memoryLogUpdater.add(operation);
+            }
         }
 
         // Commit whatever changes we have in the metadata updater to the Container Metadata.

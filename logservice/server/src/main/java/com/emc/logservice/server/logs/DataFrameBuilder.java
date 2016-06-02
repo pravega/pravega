@@ -1,7 +1,7 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.server.core.*;
 import com.emc.logservice.server.logs.operations.Operation;
 
 import java.io.IOException;
@@ -122,12 +122,7 @@ public class DataFrameBuilder implements AutoCloseable {
             // TODO: if we want to do double buffering, we need to be careful not to break logic in this class and in OperationQueueProcessor,
             //       which assumes that frames are committed before it moves on processing new elements. Doing Double Buffering will make that
             //       class more complex.
-            // TODO: this is a very unnecessary array copy. We need to figure a better way that reduces all this copying around
-            //       See what we can do in our code and what we can do in the DLog code (but don't assume Dlog does anything here).
-            ByteArraySegment frameSerialization = dataFrame.getData();
-            byte[] buffer = new byte[frameSerialization.getLength()];
-            frameSerialization.copyTo(buffer, 0, buffer.length);
-            this.targetLog.append(buffer, DataFrameWriteTimeout).get();
+            this.targetLog.append(dataFrame.getData(), DataFrameWriteTimeout).get();
         }
         catch (Exception ex) {
             // Unable to write the Data Frame that contained all pending entries. The Target Log did try to repeat,

@@ -6,7 +6,6 @@ package com.emc.logservice.storageabstraction;
 public interface DurableDataLogFactory {
     /**
      * Creates a new instance of a DurableDataLog class.
-     * TODO: append configuration.
      *
      * @return The result.
      */

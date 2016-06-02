@@ -1,11 +1,16 @@
 package com.emc.logservice.storageabstraction.mocks;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.DurableDataLogException;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
@@ -15,6 +20,8 @@ public class InMemoryDurableDataLog implements DurableDataLog {
     private long offset;
     private long lastAppendSequence;
     private final long delayMillisPerMB;
+    private boolean closed;
+    private boolean initialized;
 
     public InMemoryDurableDataLog() {
         this(0);
@@ -28,39 +35,63 @@ public class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
+    public void close() throws DurableDataLogException {
+        this.closed = true;
+    }
+
+    @Override
+    public CompletableFuture<Void> initialize(Duration timeout) {
+        this.initialized = true;
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public int getMaxAppendLength() {
+        ensurePreconditions();
         return 1024 * 1024 - 8 * 1024;
     }
 
     @Override
     public long getLastAppendSequence() {
+        ensurePreconditions();
         return this.lastAppendSequence;
     }
 
     @Override
-    public CompletableFuture<Long> append(byte[] data, Duration timeout) {
-        long offset;
-        synchronized (this.entries) {
-            offset = this.offset;
-            this.offset += data.length;
-            this.entries.add(new Entry(offset, data));
-            this.lastAppendSequence = offset;
-        }
-
-        long delayMillis = this.delayMillisPerMB * data.length / 1024 / 1024;
-        if (delayMillis > 0) {
+    public CompletableFuture<Long> append(InputStream data, Duration timeout) {
+        ensurePreconditions();
+        return CompletableFuture.supplyAsync(() -> {
+            Entry entry;
             try {
-                Thread.sleep(delayMillis);
+                entry = new Entry(data);
             }
-            catch (InterruptedException ex) {
+            catch (IOException ex) {
+                throw new CompletionException(ex);
             }
-        }
 
-        return CompletableFuture.completedFuture(offset);
+            synchronized (this.entries) {
+                entry.offset = this.offset;
+                this.offset += entry.data.length;
+                this.entries.add(entry);
+                this.lastAppendSequence = entry.offset;
+            }
+
+            long delayMillis = this.delayMillisPerMB * entry.data.length / 1024 / 1024;
+            if (delayMillis > 0) {
+                try {
+                    Thread.sleep(delayMillis);
+                }
+                catch (InterruptedException ex) {
+                }
+            }
+
+            return entry.offset;
+        });
     }
 
     @Override
     public CompletableFuture<Void> truncate(long offset, Duration timeout) {
+        ensurePreconditions();
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
         // Run in a new thread to "simulate" asynchronous behavior.
@@ -80,35 +111,49 @@ public class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Iterator<DurableDataLog.ReadItem>> read(long afterOffset, int maxCount, Duration timeout) {
-        CompletableFuture<Iterator<DurableDataLog.ReadItem>> resultFuture = new CompletableFuture<>();
-
-        // Run in a new thread to "simulate" asynchronous behavior.
-        Thread t = new Thread(() -> {
-            // TODO: should we block if we have no data?
-            LinkedList<DurableDataLog.ReadItem> result = new LinkedList<>();
-            synchronized (this.entries) {
-                for (Entry e : this.entries) {
-                    if (e.offset > afterOffset) {
-                        result.add(new ReadResultItem(e));
-
-                        if (result.size() >= maxCount) {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            resultFuture.complete(result.iterator());
-        });
-
-        t.start();
-        return resultFuture;
+    public AsyncIterator<ReadItem> getReader(long afterSequence) {
+        ensurePreconditions();
+        return new ReadResultIterator(this.entries.iterator(), afterSequence);
     }
 
-    @Override
-    public CompletableFuture<Void> recover(Duration timeout) {
-        return CompletableFuture.completedFuture(null);
+    private static class ReadResultIterator implements AsyncIterator<ReadItem> {
+        private final Iterator<Entry> entryIterator;
+        private final long afterSequence;
+
+        public ReadResultIterator(Iterator<Entry> entryIterator, long afterSequence) {
+            this.entryIterator = entryIterator;
+            this.afterSequence = afterSequence;
+        }
+
+        @Override
+        public CompletableFuture<ReadItem> getNext(Duration timeout) {
+            ReadItem result = null;
+            while (this.entryIterator.hasNext() && result == null) {
+                Entry e = this.entryIterator.next();
+                if (e.offset <= afterSequence) {
+                    continue;
+                }
+
+                result = new ReadResultItem(e);
+            }
+
+            return CompletableFuture.completedFuture(result);
+        }
+
+        @Override
+        public void close() {
+
+        }
+    }
+
+    private void ensurePreconditions() {
+        if (this.closed) {
+            throw new ObjectClosedException(this);
+        }
+
+        if (!this.initialized) {
+            throw new IllegalStateException("InMemoryDurableDataLog is not initialized.");
+        }
     }
 
     private static class ReadResultItem implements DurableDataLog.ReadItem {
@@ -131,24 +176,24 @@ public class InMemoryDurableDataLog implements DurableDataLog {
         public long getSequence() {
             return sequence;
         }
+
         @Override
-        public String toString(){
+        public String toString() {
             return String.format("Sequence = %d, Length = %d", sequence, payload.length);
         }
     }
 
     private static class Entry {
-        public final long offset;
+        public long offset;
         public final byte[] data;
 
-        public Entry(long offset, byte[] data) {
-            this.offset = offset;
-            this.data = new byte[data.length];
-            System.arraycopy(data, 0, this.data, 0, data.length);
+        public Entry(InputStream inputData) throws IOException {
+            this.data = new byte[inputData.available()];
+            StreamHelpers.readAll(inputData, this.data, 0, this.data.length);
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return String.format("Offset = %d, Length = %d", offset, data.length);
         }
     }
