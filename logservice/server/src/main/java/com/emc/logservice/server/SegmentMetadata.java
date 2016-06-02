@@ -3,6 +3,7 @@ package com.emc.logservice.server;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.SegmentProperties;
 
+import java.util.Collection;
 import java.util.UUID;
 
 /**
@@ -45,4 +46,11 @@ public interface SegmentMetadata extends SegmentProperties {
      * @return
      */
     AppendContext getLastAppendContext(UUID clientId);
+
+    /**
+     * Gets a collection of all known Client Ids (mapped to AppendContexts).
+     *
+     * @return
+     */
+    Collection<UUID> getKnownClientIds();
 }

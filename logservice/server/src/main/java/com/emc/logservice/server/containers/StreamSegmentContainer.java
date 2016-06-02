@@ -21,6 +21,7 @@ import java.util.function.Consumer;
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
  */
 public class StreamSegmentContainer implements StreamSegmentStore, Container {
+    //region Members
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); //TODO: make configurable
     private final UpdateableContainerMetadata metadata;
@@ -33,6 +34,10 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
     private boolean closed;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the StreamSegmentContainer class.
@@ -53,6 +58,8 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
         setState(ContainerState.Created);
     }
+
+    //endregion
 
     //region AutoCloseable Implementation
 
@@ -237,24 +244,25 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     }
 
     @Override
-    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
+    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
         ensureStarted();
 
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                                 .thenCompose(streamSegmentId ->
-                                 {
-                                     CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
-                                     if (result == null) {
-                                         // No appends pending for this StreamSegment/ClientId combination; check metadata.
-                                         SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                                         if (segmentMetadata != null) {
-                                             result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
-                                         }
-                                     }
+        long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
+        if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
+            // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
+            return null;
+        }
 
-                                     return result;
-                                 });
+        CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
+        if (result == null) {
+            // No appends pending for this StreamSegment/ClientId combination; check metadata.
+            SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            if (segmentMetadata != null) {
+                result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
+            }
+        }
+
+        return result;
     }
 
     //endregion

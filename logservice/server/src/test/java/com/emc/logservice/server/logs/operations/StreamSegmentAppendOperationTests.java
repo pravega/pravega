@@ -1,8 +1,10 @@
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.contracts.AppendContext;
 import org.junit.Assert;
 
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * Unit tests for StreamSegmentAppendOperation class.
@@ -15,7 +17,8 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
     protected StreamSegmentAppendOperation createOperation(Random random) {
         byte[] data = new byte[random.nextInt(MaxAppendData - MinAppendData) + MinAppendData];
         random.nextBytes(data);
-        return new StreamSegmentAppendOperation(random.nextLong(), data);
+        AppendContext context = new AppendContext(new UUID(random.nextLong(), random.nextLong()), random.nextLong());
+        return new StreamSegmentAppendOperation(random.nextLong(), data, context);
     }
 
     @Override

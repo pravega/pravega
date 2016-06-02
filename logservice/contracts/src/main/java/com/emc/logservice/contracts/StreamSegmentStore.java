@@ -112,10 +112,8 @@ public interface StreamSegmentStore {
      *
      * @param streamSegmentName The name of the StreamSegment to inquire about.
      * @param clientId          A UUID representing the Client Id to inquire about.
-     * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the requested information. If any exception
-     * occurred during processing, or if the append failed to process, or if the timeout expired, the Future will contain
-     * the exception that caused the failure.
+     * occurred during processing, or if the append failed to process, the Future will contain the exception that caused the failure.
      */
-    CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout);
+    CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId);
 }

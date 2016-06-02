@@ -1,11 +1,9 @@
 package com.emc.logservice.server.containers;
 
 import com.emc.logservice.contracts.AppendContext;
-import com.emc.logservice.server.SegmentMetadataCollection;
-import com.emc.logservice.server.UpdateableSegmentMetadata;
+import com.emc.logservice.server.*;
 
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -16,6 +14,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final String name;
     private final long streamSegmentId;
     private final long parentStreamSegmentId;
+    private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
     private long storageLength;
     private long durableLogLength;
     private boolean sealed;
@@ -59,6 +58,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.sealed = false;
         this.deleted = false;
         this.storageLength = this.durableLogLength = -1;
+        this.lastCommittedAppends = new HashMap<>();
     }
 
     //endregion
@@ -116,7 +116,12 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public AppendContext getLastAppendContext(UUID clientId) {
-        return null;
+        return this.lastCommittedAppends.getOrDefault(clientId, null);
+    }
+
+    @Override
+    public Collection<UUID> getKnownClientIds() {
+        return this.lastCommittedAppends.keySet();
     }
 
     @Override
@@ -166,7 +171,32 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void recordAppendContext(AppendContext appendContext) {
+        this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
+    }
 
+    @Override
+    public void copyFrom(SegmentMetadata base) {
+        if (this.getId() != base.getId()) {
+            throw new IllegalArgumentException("Given SegmentMetadata refers to a different StreamSegment than this one.");
+        }
+
+        if (this.getParentId() != base.getParentId()) {
+            throw new IllegalArgumentException("Given SegmentMetadata has a different parent StreamSegment than this one.");
+        }
+
+        setStorageLength(base.getStorageLength());
+        setDurableLogLength(base.getDurableLogLength());
+        for (UUID clientId : base.getKnownClientIds()) {
+            recordAppendContext(base.getLastAppendContext(clientId));
+        }
+
+        if (base.isSealed()) {
+            markSealed();
+        }
+
+        if (base.isDeleted()) {
+            markDeleted();
+        }
     }
 
     //endregion

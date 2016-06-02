@@ -1,7 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.server.core.CallbackHelpers;
-import com.emc.logservice.server.logs.SimpleCallback;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -9,7 +8,7 @@ import java.util.function.Consumer;
 /**
  * Binds a Operation with success and failure callbacks that will be invoked based on its outcome..
  */
-public class CompletableOperation implements SimpleCallback{
+public class CompletableOperation {
     //region Members
 
     private final Operation operation;
@@ -66,11 +65,9 @@ public class CompletableOperation implements SimpleCallback{
         return this.operation;
     }
 
-    //endregion
-
-    //region SimpleCallback Implementation
-
-    @Override
+    /**
+     * Completes the operation (no exception).
+     */
     public void complete() {
         long seqNo = this.operation.getSequenceNumber();
         if (seqNo < 0) {
@@ -83,7 +80,11 @@ public class CompletableOperation implements SimpleCallback{
         }
     }
 
-    @Override
+    /**
+     * Completes the operation with failure.
+     *
+     * @param ex The causing exception.
+     */
     public void fail(Throwable ex) {
         this.done = true;
         if (this.failureHandler != null) {
@@ -91,7 +92,11 @@ public class CompletableOperation implements SimpleCallback{
         }
     }
 
-    @Override
+    /**
+     * Gets a value indicating whether this operation has finished, regardless of outcome.
+     *
+     * @return True if finished, false otherwise.
+     */
     public boolean isDone() {
         return this.done;
     }

@@ -34,7 +34,16 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
 
     /**
      * Records the given Append Context and marks it as the one for the last committed Append Context.
+     *
      * @param appendContext The AppendContext to record.
      */
     void recordAppendContext(AppendContext appendContext);
+
+    /**
+     * Updates this instance of the UpdateableSegmentMetadata to have the same information as the other one.
+     *
+     * @param other The SegmentMetadata to copy from.
+     * @throws IllegalArgumentException If the other SegmentMetadata refers to a different StreamSegment.
+     */
+    void copyFrom(SegmentMetadata other);
 }
