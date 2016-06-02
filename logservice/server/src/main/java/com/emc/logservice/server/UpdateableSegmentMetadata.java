@@ -1,5 +1,7 @@
 package com.emc.logservice.server;
 
+import com.emc.logservice.contracts.AppendContext;
+
 /**
  * Defines an updateable StreamSegment Metadata.
  */
@@ -29,4 +31,10 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * Marks this StreamSegment as deleted.
      */
     void markDeleted();
+
+    /**
+     * Records the given Append Context and marks it as the one for the last committed Append Context.
+     * @param appendContext The AppendContext to record.
+     */
+    void recordAppendContext(AppendContext appendContext);
 }

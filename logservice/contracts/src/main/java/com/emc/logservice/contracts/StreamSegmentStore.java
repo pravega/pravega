@@ -106,16 +106,16 @@ public interface StreamSegmentStore {
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
 
     /**
-     * Gets the Append Context for the last received append. This includes all appends made with the given connection id,
-     * regardless of whether they were committed or are still in flight. If the last append for this StreamSegment/ConnectionId
+     * Gets the Append Context for the last received append. This includes all appends made with the given client id,
+     * regardless of whether they were committed or are still in flight. If the last append for this StreamSegment/ClientId
      * is still in flight, this method will wait until it is processed (or failed) and return the appropriate result/code.
      *
      * @param streamSegmentName The name of the StreamSegment to inquire about.
-     * @param connectionId      A UUID representing the Connection Id to inquire about.
+     * @param clientId          A UUID representing the Client Id to inquire about.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the requested information. If any exception
      * occurred during processing, or if the append failed to process, or if the timeout expired, the Future will contain
      * the exception that caused the failure.
      */
-    CompletableFuture<AppendContext> getAppendContext(String streamSegmentName, UUID connectionId, Duration timeout);
+    CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout);
 }

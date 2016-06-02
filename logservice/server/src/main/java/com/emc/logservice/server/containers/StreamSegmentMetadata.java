@@ -1,9 +1,11 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
 
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -113,6 +115,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public AppendContext getLastAppendContext(UUID clientId) {
+        return null;
+    }
+
+    @Override
     public String toString() {
         return String.format("Id = %d, StorageLength = %d, DLOffset = %d, Sealed = %s, Deleted = %s, Name = %s", getId(), getStorageLength(), getDurableLogLength(), isSealed(), isDeleted(), getName());
     }
@@ -155,6 +162,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public void markDeleted() {
         this.deleted = true;
+    }
+
+    @Override
+    public void recordAppendContext(AppendContext appendContext) {
+
     }
 
     //endregion

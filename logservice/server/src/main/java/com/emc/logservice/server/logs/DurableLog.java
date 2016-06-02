@@ -27,7 +27,6 @@ public class DurableLog implements OperationLog {
     private final OperationQueueProcessor queueProcessor;
     private final UpdateableContainerMetadata metadata;
     private final TruncationMarkerCollection truncationMarkers;
-    private final AppendContextRegistry appendContextRegistry;
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
@@ -65,7 +64,6 @@ public class DurableLog implements OperationLog {
 
         this.metadata = metadata;
         this.truncationMarkers = new TruncationMarkerCollection();
-        this.appendContextRegistry = new AppendContextRegistry();
         this.faultRegistry = new FaultHandlerRegistry();
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
@@ -162,24 +160,8 @@ public class DurableLog implements OperationLog {
     public CompletableFuture<Long> add(Operation operation, Duration timeout) {
         ensureStarted();
         CompletableFuture<Long> result = new CompletableFuture<>();
-        if (operation instanceof StreamSegmentAppendOperation) {
-            // For StreamSegmentAppendOperations, we need to hook up the AppendContext and complete it appropriately when
-            // the operation completes (whether successfully or not).
-            // TODO: 1. Can we figure out a way to move this to StreamSegmentContainer (this looks like a hack) (reason why not: recovery is difficult in that case)
-            // TODO: 2. Instead of AppendContextRegistry keeping a CF forever, can we just pass along the CF from queue.add() and get rid of it when it's done?
-            StreamSegmentAppendOperation ssa = (StreamSegmentAppendOperation) operation;
-            if (ssa.getAppendContext() != null) {
-                SimpleCallback callback = this.appendContextRegistry.add(ssa.getStreamSegmentId(), ssa.getAppendContext());
-                result.whenComplete((r, ex) -> {
-                    if (ex == null) {
-                        callback.complete();
-                    }
-                    else {
-                        callback.fail(ex);
-                    }
-                });
-            }
-        }
+
+        // Add to queue.
         this.queue.add(new CompletableOperation(operation, result));
         return result;
     }

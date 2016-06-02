@@ -5,13 +5,13 @@ import com.emc.logservice.server.*;
 import com.emc.logservice.server.core.AsyncLock;
 import com.emc.logservice.server.core.TimeoutTimer;
 import com.emc.logservice.server.logs.OperationLog;
+import com.emc.logservice.server.logs.PendingAppendsCollection;
 import com.emc.logservice.server.logs.operations.*;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
 
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Date;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
@@ -27,6 +27,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private final OperationLog durableLog;
     private final Cache readIndex;
     private final Storage storage;
+    private final PendingAppendsCollection pendingAppendsCollection;
     private final StreamSegmentMapper segmentMapper;
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
@@ -48,6 +49,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         this.readIndex = cacheFactory.createCache(this.metadata);
         this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
         this.durableLog.registerFaultHandler(this.faultRegistry::handle);
+        this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
         setState(ContainerState.Created);
     }
@@ -62,6 +64,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
                 stop(CloseTimeout).get();
             }
 
+            this.pendingAppendsCollection.close();
             this.closed = true;
         }
     }
@@ -137,8 +140,12 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                                  .thenCompose(streamSegmentId ->
                                  {
-                                     Operation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
-                                     return this.durableLog.add(operation, timer.getRemaining());
+                                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
+                                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
+
+                                     // Add to Append Context Registry, if needed.
+                                     this.pendingAppendsCollection.register(operation, result);
+                                     return result;
                                  });
     }
 
@@ -226,6 +233,27 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
                                  {
                                      Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
                                      return this.durableLog.add(operation, timer.getRemaining());
+                                 });
+    }
+
+    @Override
+    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
+        ensureStarted();
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                                 .thenCompose(streamSegmentId ->
+                                 {
+                                     CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
+                                     if (result == null) {
+                                         // No appends pending for this StreamSegment/ClientId combination; check metadata.
+                                         SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                                         if (segmentMetadata != null) {
+                                             result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
+                                         }
+                                     }
+
+                                     return result;
                                  });
     }
 
