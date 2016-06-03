@@ -121,6 +121,14 @@ project ('integrationtests') {
 		compile project (':logservice:server')
 		compile project (':logservice:serverhost')
 	}
+	task startServer(type:JavaExec) {
+            main = "StartServer"
+            classpath = sourceSets.main.runtimeClasspath
+        }
+        task startProducer(type:JavaExec) {
+            main = "StartProducer"
+            classpath = sourceSets.main.runtimeClasspath
+        }
 }
 
 
