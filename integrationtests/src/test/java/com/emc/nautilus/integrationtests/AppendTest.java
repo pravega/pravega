@@ -1,16 +1,13 @@
 package com.emc.nautilus.integrationtests;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -37,8 +34,12 @@ import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
 import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogOutputStream;
 import com.emc.nautilus.logclient.LogOutputStream.AckListener;
-import com.emc.nautilus.logclient.LogSealedExcepetion;
 import com.emc.nautilus.logclient.impl.LogClientImpl;
+import com.emc.nautilus.streaming.Producer;
+import com.emc.nautilus.streaming.ProducerConfig;
+import com.emc.nautilus.streaming.Stream;
+import com.emc.nautilus.streaming.impl.JavaSerializer;
+import com.emc.nautilus.streaming.impl.SingleLogStreamManagerImpl;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -142,7 +143,7 @@ public class AppendTest {
 
 		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
 		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);
-		logClient.createLog(logName, 5000);
+		logClient.createLog(logName);
 		@Cleanup("close")
 		LogAppender appender = logClient.openLogForAppending(logName, null);
 		@Cleanup("close")
@@ -161,7 +162,20 @@ public class AppendTest {
 
 	@Test
 	public void appendThroughStreamingClient() {
-
-		
+		String endpoint = "localhost";
+		String streamName = "abc";
+		int port = 8910;
+		String testString = "Hello world\n";
+		@Cleanup("shutdown")
+		LogSerivceConnectionListener server = new LogSerivceConnectionListener(false, port, "My ContainerId");
+		server.startListening();
+		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
+		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);
+		SingleLogStreamManagerImpl streamManager = new SingleLogStreamManagerImpl("Scope", logClient);
+		Stream stream = streamManager.createStream(streamName, null);
+		@Cleanup
+		Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+		producer.publish("RoutingKey", testString);
+		producer.flush();
 	}
 }

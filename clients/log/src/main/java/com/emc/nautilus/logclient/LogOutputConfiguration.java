@@ -1,5 +1,7 @@
 package com.emc.nautilus.logclient;
 
-public class LogOutputConfiguration {
+import java.io.Serializable;
+
+public class LogOutputConfiguration implements Serializable {
 
 }

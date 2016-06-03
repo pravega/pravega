@@ -1,7 +1,6 @@
 package com.emc.nautilus.streaming.impl;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,9 +8,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogClient;
 import com.emc.nautilus.logclient.LogSealedExcepetion;
-import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.streaming.EventRouter;
 import com.emc.nautilus.streaming.LogId;
 import com.emc.nautilus.streaming.Producer;
@@ -26,15 +25,15 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
 	private final Stream stream;
 	private final Serializer<Type> serializer;
-	private final LogClient streamClient;
+	private final LogClient logClient;
 	private final AtomicBoolean closed = new AtomicBoolean(false);
 	private final EventRouter router;
 	private final ProducerConfig config;
 	private final Map<LogId, LogProducer<Type>> producers = new HashMap<>();
 
-	ProducerImpl(Stream stream, LogClient streamClient, EventRouter router, Serializer<Type> serializer,
+	ProducerImpl(Stream stream, LogClient logClient, EventRouter router, Serializer<Type> serializer,
 			ProducerConfig config) {
-		this.streamClient = streamClient;
+		this.logClient = logClient;
 		this.stream = stream;
 		this.router = router;
 		this.serializer = serializer;
@@ -53,7 +52,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 		oldLogs.removeAll(logs.logs);
 
 		for (LogId l : newLogs) {
-			LogAppender log = streamClient.openLogForAppending(l.getQualifiedName(), config.getLogConfig());
+			LogAppender log = logClient.openLogForAppending(l.getQualifiedName(), config.getLogConfig());
 			producers.put(l, new LogProducerImpl<Type>(log, serializer));
 		}
 		List<Event<Type>> toResend = new ArrayList<>();

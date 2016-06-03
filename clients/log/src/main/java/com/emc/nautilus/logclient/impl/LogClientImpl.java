@@ -4,8 +4,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
@@ -33,7 +31,7 @@ public class LogClientImpl implements LogClient {
 	
 	@Override
 	@Synchronized
-	public boolean createLog(String name, long timeoutMillis) throws TimeoutException {
+	public boolean createLog(String name) {
 		ClientConnection connection = connectionFactory.establishConnection(endpoint);
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
 		connection.setResponseProcessor(new FailingReplyProcessor() {
@@ -53,7 +51,7 @@ public class LogClientImpl implements LogClient {
 		});
 		connection.send(new CreateSegment(name));
 		try {
-			return result.get(timeoutMillis, TimeUnit.MILLISECONDS);
+			return result.get();
 		} catch (ExecutionException e) {
 			throw new RuntimeException(e.getCause());
 		} catch (InterruptedException e) {
@@ -63,7 +61,7 @@ public class LogClientImpl implements LogClient {
 	}
 
 	@Override
-	public boolean logExists(String name, long timeoutMillis) {
+	public boolean logExists(String name) {
 		// TODO Auto-generated method stub
 		return false;
 	}

@@ -1,15 +1,13 @@
 package com.emc.nautilus.logclient;
 
-import java.util.concurrent.TimeoutException;
-
 //Defines a client for the log. The actual implementation of this class will connect to a service & manage TCP connections.
 public interface LogClient {
 	// Creates a new stream with given name. Returns false if the stream already
 	// existed
-	boolean createLog(String name, long timeoutMillis) throws TimeoutException;
+	boolean createLog(String name);
 
 	// Determines whether the log exists or not.
-	boolean logExists(String name, long timeoutMillis);
+	boolean logExists(String name);
 
 	// Opens an existing log for writing. this operation will fail if the stream does not exist
 	// This operation may be called multiple times on the same log from the

@@ -4,11 +4,11 @@ import java.io.Serializable;
 
 import com.emc.nautilus.logclient.LogOutputConfiguration;
 
+import lombok.Data;
+
+@Data
 public class ProducerConfig implements Serializable {
 
-	public LogOutputConfiguration getLogConfig() {
-		// TODO Auto-generated method stub
-		return null;
-	}
+	private final LogOutputConfiguration logConfig;
 
 }
