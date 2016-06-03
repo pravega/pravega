@@ -29,7 +29,7 @@ public class StreamProducerSink {
 	public void run() throws IOException {
 		DataInputStream rawTCP = new DataInputStream(clientSocket.getInputStream());
 		Stream stream = streamManager.getStream("rawSensorStream");
-		Producer<SensorEvent> producer = stream.createProducer(serializer, new ProducerConfig());
+		Producer<SensorEvent> producer = stream.createProducer(serializer, new ProducerConfig(null));
 
 		while (isRunning ) {
 			SensorData sd = SensorData.fromTCP(rawTCP);
