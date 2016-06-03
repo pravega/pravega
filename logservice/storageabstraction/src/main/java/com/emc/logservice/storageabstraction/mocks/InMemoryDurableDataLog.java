@@ -15,24 +15,20 @@ import java.util.concurrent.CompletionException;
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryDurableDataLog implements DurableDataLog {
-    private final LinkedList<Entry> entries;
+class InMemoryDurableDataLog implements DurableDataLog {
+    private final EntryCollection entries;
     private long offset;
     private long lastAppendSequence;
-    private final long delayMillisPerMB;
     private boolean closed;
     private boolean initialized;
 
-    public InMemoryDurableDataLog() {
-        this(0);
+    public InMemoryDurableDataLog(EntryCollection entries) {
+        this.entries = entries;
+        this.offset = Long.MIN_VALUE;
+        this.lastAppendSequence = Long.MIN_VALUE;
     }
 
-    public InMemoryDurableDataLog(long delayMillisPerMB) {
-        this.entries = new LinkedList<>();
-        this.offset = 0;
-        this.lastAppendSequence = -1;
-        this.delayMillisPerMB = delayMillisPerMB;
-    }
+    //region DurableDataLog Implementation
 
     @Override
     public void close() throws DurableDataLogException {
@@ -41,6 +37,16 @@ public class InMemoryDurableDataLog implements DurableDataLog {
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
+        if (this.entries.size() == 0) {
+            this.offset = 0;
+            this.lastAppendSequence = Long.MIN_VALUE;
+        }
+        else {
+            Entry last = this.entries.getLast();
+            this.offset = last.offset + last.data.length;
+            this.lastAppendSequence = last.offset;
+        }
+
         this.initialized = true;
         return CompletableFuture.completedFuture(null);
     }
@@ -76,15 +82,6 @@ public class InMemoryDurableDataLog implements DurableDataLog {
                 this.lastAppendSequence = entry.offset;
             }
 
-            long delayMillis = this.delayMillisPerMB * entry.data.length / 1024 / 1024;
-            if (delayMillis > 0) {
-                try {
-                    Thread.sleep(delayMillis);
-                }
-                catch (InterruptedException ex) {
-                }
-            }
-
             return entry.offset;
         });
     }
@@ -92,22 +89,14 @@ public class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<Void> truncate(long offset, Duration timeout) {
         ensurePreconditions();
-        CompletableFuture<Void> resultFuture = new CompletableFuture<>();
 
-        // Run in a new thread to "simulate" asynchronous behavior.
-        Thread t = new Thread(() ->
-        {
+        return CompletableFuture.runAsync(() -> {
             synchronized (this.entries) {
                 while (this.entries.size() > 0 && this.entries.getFirst().offset + this.entries.getFirst().data.length <= offset) {
                     this.entries.removeFirst();
                 }
             }
-
-            resultFuture.complete(null);
         });
-
-        t.start();
-        return resultFuture;
     }
 
     @Override
@@ -115,6 +104,20 @@ public class InMemoryDurableDataLog implements DurableDataLog {
         ensurePreconditions();
         return new ReadResultIterator(this.entries.iterator(), afterSequence);
     }
+
+    //endregion
+
+    private void ensurePreconditions() {
+        if (this.closed) {
+            throw new ObjectClosedException(this);
+        }
+
+        if (!this.initialized) {
+            throw new IllegalStateException("InMemoryDurableDataLog is not initialized.");
+        }
+    }
+
+    //region ReadResultIterator
 
     private static class ReadResultIterator implements AsyncIterator<ReadItem> {
         private final Iterator<Entry> entryIterator;
@@ -146,15 +149,9 @@ public class InMemoryDurableDataLog implements DurableDataLog {
         }
     }
 
-    private void ensurePreconditions() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+    //endregion
 
-        if (!this.initialized) {
-            throw new IllegalStateException("InMemoryDurableDataLog is not initialized.");
-        }
-    }
+    //region ReadResultItem
 
     private static class ReadResultItem implements DurableDataLog.ReadItem {
 
@@ -183,7 +180,43 @@ public class InMemoryDurableDataLog implements DurableDataLog {
         }
     }
 
-    private static class Entry {
+    //endregion
+
+    static class EntryCollection {
+        private final LinkedList<Entry> entries;
+
+        public EntryCollection() {
+            this.entries = new LinkedList<>();
+        }
+
+        public void add(Entry entry) {
+            this.entries.add(entry);
+        }
+
+        public int size() {
+            return this.entries.size();
+        }
+
+        public Entry getFirst() {
+            return this.entries.getFirst();
+        }
+
+        public Entry getLast() {
+            return this.entries.getLast();
+        }
+
+        public Entry removeFirst() {
+            return this.entries.removeFirst();
+        }
+
+        public Iterator<Entry> iterator() {
+            return this.entries.iterator();
+        }
+    }
+
+    //region Entry
+
+    static class Entry {
         public long offset;
         public final byte[] data;
 
@@ -197,4 +230,6 @@ public class InMemoryDurableDataLog implements DurableDataLog {
             return String.format("Offset = %d, Length = %d", offset, data.length);
         }
     }
+
+    //endregion
 }

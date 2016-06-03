@@ -101,7 +101,7 @@ class LogHandle implements AutoCloseable {
             buffer = new byte[data.available()];
             int bytesRead = StreamHelpers.readAll(data, buffer, 0, buffer.length);
             if (bytesRead != buffer.length) {
-                throw new AssertionError(String.format("StreamHelpers.ReadAll did not getReader entire input stream. Expected %d, Actual %d.", buffer.length, bytesRead));
+                throw new AssertionError(String.format("StreamHelpers.ReadAll did not read entire input stream. Expected %d, Actual %d.", buffer.length, bytesRead));
             }
         }
         catch (IOException ex) {
@@ -232,7 +232,7 @@ class LogHandle implements AutoCloseable {
         public CompletableFuture<DurableDataLog.ReadItem> getNext(Duration timeout) {
             return CompletableFuture.supplyAsync(() -> {
                 try {
-                    LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking getReader
+                    LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
                     if (baseRecord == null) {
                         return null;
                     }
@@ -241,7 +241,7 @@ class LogHandle implements AutoCloseable {
                 }
                 catch (IOException ex) {
                     // TODO: need to hook up a retry policy here.
-                    throw new CompletionException(new DurableDataLogException("Unable to getReader next item.", ex));
+                    throw new CompletionException(new DurableDataLogException("Unable to read next item.", ex));
                 }
             });
         }

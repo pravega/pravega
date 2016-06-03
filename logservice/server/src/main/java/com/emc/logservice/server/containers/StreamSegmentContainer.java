@@ -73,6 +73,8 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
             }
 
             this.pendingAppendsCollection.close();
+            this.durableLog.close();
+            this.readIndex.close();
             this.closed = true;
         }
     }
@@ -116,7 +118,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
             // Update the state first. TODO: figure out if we need to roll back the state if this operation failed.
             setState(ContainerState.Stopped);
 
-            // Stop the Operation Queue Processor. TODO: should we also stop the getReader index? Or are the checks in this class enough?
+            // Stop the Operation Queue Processor. TODO: should we also stop the read index? Or are the checks in this class enough?
             return this.durableLog.stop(timeout);
         });
     }
@@ -153,7 +155,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
 
                                      // Add to Append Context Registry, if needed.
                                      this.pendingAppendsCollection.register(operation, result);
-                                     return result;
+                                     return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
                                  });
     }
 

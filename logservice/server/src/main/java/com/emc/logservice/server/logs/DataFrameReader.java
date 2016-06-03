@@ -32,7 +32,7 @@ public class DataFrameReader implements AutoCloseable {
     /**
      * Creates a new instance of the DataFrameReader class.
      *
-     * @param log The DataFrameLog to getReader data frames from.
+     * @param log The DataFrameLog to read data frames from.
      * @throws NullPointerException    If log is null.
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
@@ -314,7 +314,7 @@ public class DataFrameReader implements AutoCloseable {
         /**
          * Creates a new instance of the FrameEntryEnumerator class.
          *
-         * @param log The DataFrameLog to getReader from.
+         * @param log The DataFrameLog to read from.
          * @throws NullPointerException    If log is null.
          * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */
@@ -410,7 +410,7 @@ public class DataFrameReader implements AutoCloseable {
         /**
          * Creates a new instance of the DataFrameEnumerator class.
          *
-         * @param log The DataFrameLog to getReader from.
+         * @param log The DataFrameLog to read from.
          * @throws NullPointerException    If log is null.
          * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */

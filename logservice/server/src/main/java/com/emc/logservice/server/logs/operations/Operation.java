@@ -112,7 +112,7 @@ public abstract class Operation {
      * Deserializes the Operation.
      *
      * @param header The OperationHeader to use.
-     * @param source The input stream to getReader from.
+     * @param source The input stream to read from.
      * @throws IOException            If the given DataInputStream threw one.
      * @throws SerializationException If the deserialization failed.
      */
@@ -129,7 +129,7 @@ public abstract class Operation {
             endMagic = source.readInt();
         }
         catch (IOException ex) {
-            throw new SerializationException("Operation.deserialize", "Unable to getReader from the InputStream.", ex);
+            throw new SerializationException("Operation.deserialize", "Unable to read from the InputStream.", ex);
         }
 
         if (header.magic != endMagic) {
@@ -140,7 +140,7 @@ public abstract class Operation {
     /**
      * Reads a version byte from the given input stream and compares it to the given expected version.
      *
-     * @param source          The input stream to getReader from.
+     * @param source          The input stream to read from.
      * @param expectedVersion The expected version to compare to.
      * @return The version.
      * @throws IOException            If the input stream threw one.
@@ -179,7 +179,7 @@ public abstract class Operation {
     /**
      * Deserializes the content of this Operation.
      *
-     * @param source The DataInputStream to getReader from.
+     * @param source The DataInputStream to read from.
      * @throws IOException            If the DataInputStram threw one.
      * @throws SerializationException If we detected an error, such as data corruption.
      */

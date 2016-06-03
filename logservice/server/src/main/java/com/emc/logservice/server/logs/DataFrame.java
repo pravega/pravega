@@ -34,9 +34,9 @@ public class DataFrame {
      *
      * @param previousFrameSequence The offset (within the log) of the previous Data Frame. When reading, comparing this
      *                              number with the actual offset from the previous frame ensures that the frames are
-     *                              getReader in order.
+     *                              read in order.
      * @param maxSize               The maximum size of the frame, including Frame Header and other control structures
-     *                              that the framemay use to organize records.
+     *                              that the frame may use to organize records.
      * @throws IllegalArgumentException When the value for startMagic is invalid.
      */
     public DataFrame(long previousFrameSequence, int maxSize) {
@@ -102,7 +102,7 @@ public class DataFrame {
 
     /**
      * Gets a value indicating the the Sequence Number of the previous Frame in the Log. When reading frames, comparing
-     * this value with the previous frame's value ensures the frames are getReader in order.
+     * this value with the previous frame's value ensures the frames are read in order.
      *
      * @return
      */
@@ -114,7 +114,7 @@ public class DataFrame {
      * Gets a value indicating the length, in bytes, of the frame, including the header, contents and any other control
      * structures needed to serialize the frame.
      * When creating new frames (write mode), this value may be less than the 'maxLength' provided in the constructor.
-     * When reading frames from a source (getReader mode), this value may be less than the size of the source.
+     * When reading frames from a source (read mode), this value may be less than the size of the source.
      * This value is serialized with the frame.
      *
      * @return
@@ -208,7 +208,7 @@ public class DataFrame {
      * Indicates that the currently open DataFrame Entry can be ended.
      *
      * @param endOfRecord If true, this entry will be marked as the last entry in a record (records can be split across
-     *                    multiple frames, and this helps ensure that, upon getReader, the records are recomposed ending with
+     *                    multiple frames, and this helps ensure that, upon read, the records are recomposed ending with
      *                    the right DataFrame Entry).
      * @return True if we have any more space (to start a new record) in this DataFrame, false otherwise.
      */
@@ -271,7 +271,7 @@ public class DataFrame {
 
     /**
      * Seals the frame for writing. After this method returns, no more modifications are allowed on this DataFrame.
-     * This method has no effect if the Frame is getReader-only if it is already sealed.
+     * This method has no effect if the Frame is read-only if it is already sealed.
      *
      * @throws IllegalStateException If an open entry exists (entries must be closed prior to sealing).
      */
@@ -336,7 +336,7 @@ public class DataFrame {
      * @return
      */
     public IteratorWithException<DataFrameEntry, SerializationException> getEntries() {
-        // The true max length differs based on whether we are still writing this frame or if it's getReader-only.
+        // The true max length differs based on whether we are still writing this frame or if it's read-only.
         int maxLength = this.writePosition >= 0 ? this.writePosition : this.contents.getLength();
         return new DataFrameEntryIterator(this.contents, this.getFrameSequence(), maxLength);
     }
@@ -415,7 +415,7 @@ public class DataFrame {
          */
         public void serialize() {
             if (this.data == null || this.data.isReadOnly()) {
-                throw new IllegalStateException("Cannot serialize a getReader-only EntryHeader.");
+                throw new IllegalStateException("Cannot serialize a read-only EntryHeader.");
             }
 
             // Write length.
@@ -552,9 +552,9 @@ public class DataFrame {
         }
 
         /**
-         * Creates a new instance of the FrameHeader class for a getReader-only frame (deserialization constructor).
+         * Creates a new instance of the FrameHeader class for a read-only frame (deserialization constructor).
          *
-         * @param source The source ByteArraySegment to getReader from.
+         * @param source The source ByteArraySegment to read from.
          * @throws SerializationException If we are unable to deserialize the header.
          */
         public FrameHeader(ByteArraySegment source) throws SerializationException {
@@ -588,11 +588,11 @@ public class DataFrame {
          * Commits (serializes) the contents of the FrameHeader to the ByteArraySegment given during construction.
          *
          * @throws SerializationException If we are unable to serialize the header.
-         * @throws IllegalStateException  If this FrameHeader was created from a getReader-only buffer (it was deserialized).
+         * @throws IllegalStateException  If this FrameHeader was created from a read-only buffer (it was deserialized).
          */
         public void commit() throws SerializationException {
             if (this.buffer == null || this.buffer.isReadOnly()) {
-                throw new IllegalStateException("Cannot commit a getReader-only FrameHeader");
+                throw new IllegalStateException("Cannot commit a read-only FrameHeader");
             }
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.

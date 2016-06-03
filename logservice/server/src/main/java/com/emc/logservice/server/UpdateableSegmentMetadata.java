@@ -33,6 +33,11 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void markDeleted();
 
     /**
+     * Marks this StreamSegment as merged.
+     */
+    void markMerged();
+
+    /**
      * Records the given Append Context and marks it as the one for the last committed Append Context.
      *
      * @param appendContext The AppendContext to record.

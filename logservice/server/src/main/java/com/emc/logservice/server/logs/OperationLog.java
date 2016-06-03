@@ -34,8 +34,8 @@ public interface OperationLog extends Container {
     /**
      * Reads a number of entries from the log.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to getReader.
-     * @param maxCount      The maximum number of entries to getReader.
+     * @param afterSequence The Sequence of the last entry before the first one to read.
+     * @param maxCount      The maximum number of entries to read.
      * @param timeout       Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain an Iterator with the result. If the operation
      * failed, this Future will complete with the appropriate exception.

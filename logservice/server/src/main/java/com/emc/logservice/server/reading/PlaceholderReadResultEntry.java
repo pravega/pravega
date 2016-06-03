@@ -16,7 +16,7 @@ public class PlaceholderReadResultEntry extends ReadResultEntry {
      * Creates a new instance of the PlaceholderReadResultEntry class.
      *
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
-     * @param requestedReadLength The maximum number of bytes requested for getReader.
+     * @param requestedReadLength The maximum number of bytes requested for read.
      */
     public PlaceholderReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
         super(streamSegmentOffset, requestedReadLength);
@@ -24,16 +24,16 @@ public class PlaceholderReadResultEntry extends ReadResultEntry {
     }
 
     /**
-     * Indicates that his placeholder getReader result entry can be completed with data that is now readily available.
+     * Indicates that his placeholder read result entry can be completed with data that is now readily available.
      *
-     * @param contents The contents of this getReader result.
+     * @param contents The contents of this read result.
      */
     protected void complete(ReadResultEntryContents contents) {
         this.result.complete(contents);
     }
 
     /**
-     * Cancels this pending getReader result entry.
+     * Cancels this pending read result entry.
      */
     protected void cancel() {
         //TODO: this doesn't actually cancel the operation itself.
@@ -41,9 +41,9 @@ public class PlaceholderReadResultEntry extends ReadResultEntry {
     }
 
     /**
-     * Indicates that this placeholder getReader result entry cannot be fulfilled and is cancelled with the given exception as cause.
+     * Indicates that this placeholder read result entry cannot be fulfilled and is cancelled with the given exception as cause.
      *
-     * @param cause The reason why the getReader was cancelled.
+     * @param cause The reason why the read was cancelled.
      */
     protected void fail(Throwable cause) {
         this.result.completeExceptionally(cause);

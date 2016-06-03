@@ -69,6 +69,7 @@ class LogClient implements AutoCloseable {
                 handlesToClose = new ArrayList<>(this.handles.values());
                 this.handles.clear();
             }
+
             for (CompletableFuture<LogHandle> cf : handlesToClose) {
                 if (cf.isDone() && !cf.isCompletedExceptionally()) {
                     try {

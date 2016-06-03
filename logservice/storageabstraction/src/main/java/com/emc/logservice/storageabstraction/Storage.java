@@ -38,12 +38,12 @@ public interface Storage {
      * Reads a range of bytes from the StreamSegment.
      *
      * @param streamSegmentName The full name of the StreamSegment.
-     * @param offset            The offset in the StreamSegment to getReader data from.
+     * @param offset            The offset in the StreamSegment to read data from.
      * @param buffer            A buffer to use for reading data.
      * @param bufferOffset      The offset in the buffer to start writing data to.
-     * @param length            The number of bytes to getReader.
+     * @param length            The number of bytes to read.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the number of bytes getReader. If the operation failed,
+     * @return A CompletableFuture that, when completed, will contain the number of bytes read. If the operation failed,
      * it will contain the cause of the failure.
      * @throws ArrayIndexOutOfBoundsException If bufferOffset is invalid for the buffer.
      * @throws ArrayIndexOutOfBoundsException If bufferOffset + length is invalid for the buffer.

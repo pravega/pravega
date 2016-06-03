@@ -81,7 +81,7 @@ public class MemoryLogUpdater {
             throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
         }
 
-        // Add entry to getReader index (if applicable).
+        // Add entry to read index (if applicable).
         addToReadIndex(operation);
     }
 
