@@ -1,11 +1,13 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.server.core.StreamHelpers;
+import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.server.logs.SerializationException;
 
 import io.netty.buffer.ByteBuf;
 
 import java.io.*;
+import java.util.UUID;
 
 /**
  * Log Operation that represents a StreamSegment Append.
@@ -17,6 +19,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     public static final byte OperationType = 1;
     private long streamSegmentOffset;
     private byte[] data;
+    private AppendContext appendContext;
 
     //endregion
 
@@ -27,15 +30,21 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      *
      * @param streamSegmentId The Id of the StreamSegment to append to.
      * @param data            The payload to append.
+     * @param appendContext   Append Context for this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data) {
+    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, AppendContext appendContext) {
         super(streamSegmentId);
         if (data == null) {
             throw new NullPointerException("data");
         }
 
+        if (appendContext == null) {
+            throw new NullPointerException("appendContext");
+        }
+
         this.data = data;
         this.streamSegmentOffset = -1;
+        this.appendContext = appendContext;
     }
 
     protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -74,6 +83,15 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         return this.data;
     }
 
+    /**
+     * Gets the AppendContext for this StreamSegmentAppendOperation, if any.
+     *
+     * @return The AppendContext, or null if no such context was defined.
+     */
+    public AppendContext getAppendContext() {
+        return this.appendContext;
+    }
+
     //endregion
 
     //region Operation Implementation
@@ -90,6 +108,11 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeByte(Version);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentOffset);
+        UUID clientId = this.appendContext.getClientId();
+        target.writeLong(clientId.getMostSignificantBits());
+        target.writeLong(clientId.getLeastSignificantBits());
+        target.writeLong(this.appendContext.getClientOffset());
+
         target.writeInt(data.length);
         target.write(data, 0, data.length);
     }
@@ -99,6 +122,11 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         byte version = readVersion(source, Version);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();
+        long clientIdMostSig = source.readLong();
+        long clientIdLeastSig = source.readLong();
+        UUID clientId = new UUID(clientIdMostSig, clientIdLeastSig);
+        long clientOffset = source.readLong();
+        this.appendContext = new AppendContext(clientId, clientOffset);
         int dataLength = source.readInt();
         this.data = new byte[dataLength];
         StreamHelpers.readAll(source, this.data, 0, this.data.length);

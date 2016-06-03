@@ -1,5 +1,6 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
 
@@ -7,16 +8,18 @@ import io.netty.buffer.ByteBuf;
 
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
-import com.emc.logservice.server.core.AsyncLock;
-import com.emc.logservice.server.core.TimeoutTimer;
+import com.emc.logservice.common.AsyncLock;
+import com.emc.logservice.common.TimeoutTimer;
 import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.operations.MergeBatchOperation;
-import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.PendingAppendsCollection;
+import com.emc.logservice.server.logs.operations.*;
 
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Date;
 import java.util.UUID;
+
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
@@ -26,17 +29,23 @@ import java.util.function.Consumer;
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
  */
 public class StreamSegmentContainer implements StreamSegmentStore, Container {
+    //region Members
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); //TODO: make configurable
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
     private final Cache readIndex;
     private final Storage storage;
+    private final PendingAppendsCollection pendingAppendsCollection;
     private final StreamSegmentMapper segmentMapper;
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
     private boolean closed;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the StreamSegmentContainer class.
@@ -53,9 +62,12 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         this.readIndex = cacheFactory.createCache(this.metadata);
         this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
         this.durableLog.registerFaultHandler(this.faultRegistry::handle);
+        this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
         setState(ContainerState.Created);
     }
+
+    //endregion
 
     //region AutoCloseable Implementation
 
@@ -67,6 +79,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
                 stop(CloseTimeout).get();
             }
 
+            this.pendingAppendsCollection.close();
             this.closed = true;
         }
     }
@@ -110,7 +123,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
             // Update the state first. TODO: figure out if we need to roll back the state if this operation failed.
             setState(ContainerState.Stopped);
 
-            // Stop the Operation Queue Processor. TODO: should we also stop the read index? Or are the checks in this class enough?
+            // Stop the Operation Queue Processor. TODO: should we also stop the getReader index? Or are the checks in this class enough?
             return this.durableLog.stop(timeout);
         });
     }
@@ -135,15 +148,19 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureStarted();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                                  .thenCompose(streamSegmentId ->
                                  {
-                                     com.emc.logservice.server.logs.operations.Operation operation = new StreamSegmentAppendOperation(streamSegmentId, data);
-                                     return this.durableLog.add(operation, timer.getRemaining());
+                                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
+                                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
+
+                                     // Add to Append Context Registry, if needed.
+                                     this.pendingAppendsCollection.register(operation, result);
+                                     return result;
                                  });
     }
 
@@ -216,7 +233,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
                                          throw new CompletionException(new StreamingException("Batch StreamSegment does not exist."));
                                      }
 
-                                     com.emc.logservice.server.logs.operations.Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
+                                     Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
                                      return this.durableLog.add(op, timer.getRemaining());
                                  });
     }
@@ -229,9 +246,31 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                                  .thenCompose(streamSegmentId ->
                                  {
-                                     com.emc.logservice.server.logs.operations.Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
+                                     Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
                                      return this.durableLog.add(operation, timer.getRemaining());
                                  });
+    }
+
+    @Override
+    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
+        ensureStarted();
+
+        long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
+        if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
+            // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
+            return null;
+        }
+
+        CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
+        if (result == null) {
+            // No appends pending for this StreamSegment/ClientId combination; check metadata.
+            SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            if (segmentMetadata != null) {
+                result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
+            }
+        }
+
+        return result;
     }
 
     //endregion
@@ -241,13 +280,13 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private void ensureStarted() {
         ensureNotClosed();
         if (this.state != ContainerState.Started) {
-            throw new com.emc.logservice.server.core.ObjectClosedException(this);
+            throw new ObjectClosedException(this);
         }
     }
 
     private void ensureNotClosed() {
         if (this.closed) {
-            throw new com.emc.logservice.server.core.ObjectClosedException(this);
+            throw new ObjectClosedException(this);
         }
     }
 

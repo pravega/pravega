@@ -1,13 +1,13 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.StreamSegmentMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
-import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.*;
 
-import java.util.Date;
-import java.util.HashMap;
+import java.util.*;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.
@@ -244,16 +244,9 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                         this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
                     }
 
+                    // Update real metadata with all the information from the new metadata.
                     UpdateableSegmentMetadata existingMetadata = this.containerMetadata.getStreamSegmentMetadata(newMetadata.getId());
-                    existingMetadata.setStorageLength(newMetadata.getStorageLength());
-                    existingMetadata.setDurableLogLength(newMetadata.getDurableLogLength());
-                    if (newMetadata.isSealed()) {
-                        existingMetadata.markSealed();
-                    }
-
-                    if (newMetadata.isDeleted()) {
-                        existingMetadata.markDeleted();
-                    }
+                    existingMetadata.copyFrom(newMetadata);
                 }
             }
         }
@@ -387,6 +380,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         private final UpdateableSegmentMetadata streamSegmentMetadata;
         private final boolean isRecoveryMode;
+        private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
         private long currentDurableLogLength;
         private boolean sealed;
         private int changeCount;
@@ -407,6 +401,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             this.currentDurableLogLength = this.streamSegmentMetadata.getDurableLogLength();
             this.sealed = this.streamSegmentMetadata.isSealed();
             this.changeCount = 0;
+            this.lastCommittedAppends = new HashMap<>();
         }
 
         //endregion
@@ -462,6 +457,17 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             return this.currentDurableLogLength;
         }
 
+        @Override
+        public AppendContext getLastAppendContext(UUID clientId) {
+            AppendContext result = this.lastCommittedAppends.getOrDefault(clientId, null);
+            return result != null ? result : this.streamSegmentMetadata.getLastAppendContext(clientId);
+        }
+
+        @Override
+        public Collection<UUID> getKnownClientIds() {
+            return this.lastCommittedAppends.keySet();
+        }
+
         //endregion
 
         //region StreamSegmentAppendOperation
@@ -500,6 +506,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             }
 
             this.currentDurableLogLength += operation.getData().length;
+            this.lastCommittedAppends.put(operation.getAppendContext().getClientId(), operation.getAppendContext());
             this.changeCount++;
         }
 
@@ -522,7 +529,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 throw new StreamSegmentSealedException(this.streamSegmentMetadata.getName());
             }
 
-            if (!isRecoveryMode) {
+            if (!this.isRecoveryMode) {
                 // Assign entry Stream Length.
                 operation.setStreamSegmentLength(this.currentDurableLogLength);
             }
@@ -581,7 +588,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 throw new MetadataUpdateException("MergeBatchOperation does not have its Batch Stream Length set.");
             }
 
-            if (!isRecoveryMode) {
+            if (!this.isRecoveryMode) {
                 // Assign entry Stream offset and update stream offset afterwards.
                 operation.setTargetStreamSegmentOffset(this.currentDurableLogLength);
             }
@@ -627,7 +634,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 throw new MetadataUpdateException("Batch StreamSegment is already merged.");
             }
 
-            if (!isRecoveryMode) {
+            if (!this.isRecoveryMode) {
                 operation.setBatchStreamSegmentLength(this.currentDurableLogLength);
             }
         }
@@ -661,6 +668,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             }
 
             // Apply to base metadata.
+            this.lastCommittedAppends.values().forEach(this.streamSegmentMetadata::recordAppendContext);
             this.streamSegmentMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {
                 this.streamSegmentMetadata.markSealed();

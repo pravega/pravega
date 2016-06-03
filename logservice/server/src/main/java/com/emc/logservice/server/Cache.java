@@ -55,11 +55,11 @@ public interface Cache extends AutoCloseable {
     /**
      * Reads a number of bytes from the StreamSegment ReadIndex.
      *
-     * @param streamSegmentId The Id of the StreamSegment to read from.
+     * @param streamSegmentId The Id of the StreamSegment to getReader from.
      * @param offset          The offset in the StreamSegment where to start reading from.
-     * @param maxLength       The maximum number of bytes to read.
+     * @param maxLength       The maximum number of bytes to getReader.
      * @param timeout         Timeout for the operation.
-     * @return A ReadResult containing the data to be read.
+     * @return A ReadResult containing the data to be getReader.
      */
     ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout);
 

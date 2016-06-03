@@ -1,6 +1,6 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.core.TruncateableList;
+import com.emc.logservice.common.TruncateableList;
 import com.emc.logservice.server.logs.operations.Operation;
 
 /**

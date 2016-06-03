@@ -1,8 +1,8 @@
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
-import com.emc.logservice.server.core.*;
 
 import java.time.Duration;
 import java.util.*;
@@ -12,8 +12,8 @@ import java.util.*;
  * <ol>
  * <li> The tail-end part of the StreamSegment (the part that is in DurableLog, but not yet in Storage).
  * <li> The part of the StreamSegment that is in Storage, but not in DurableLog. This data will be brought into memory
- * for fast read-ahead access.
- * <li> Future appends. If a read operation requests data from an offset in the future, the read operation will block until
+ * for fast getReader-ahead access.
+ * <li> Future appends. If a getReader operation requests data from an offset in the future, the getReader operation will block until
  * data becomes available or until it gets canceled.
  * </ol>
  * TODO: Implement bringing data from Storage into the Read Index (in an elegant manner).
@@ -167,7 +167,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
 
         if (data.length == 0) {
-            // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
+            // Nothing to do. Adding empty getReader entries will only make our system slower and harder to debug.
             return;
         }
 
@@ -295,7 +295,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             throw new IllegalArgumentException("Given ReadIndex refers to a StreamSegment that has not been deleted yet.");
         }
 
-        // TODO: an alternative to this is just drop the RedirectReadIndexEntry; next time we want to read, we'll just read from storage. That may be faster actually than just appending all these entries (there could be tens of thousands...)
+        // TODO: an alternative to this is just drop the RedirectReadIndexEntry; next time we want to getReader, we'll just getReader from storage. That may be faster actually than just appending all these entries (there could be tens of thousands...)
         // Get all the entries from the source index and append them here. TODO: should we coalesce them too (into bigger entries)?
         List<ByteArrayReadIndexEntry> sourceEntries = sourceIndex.getAllEntries(redirectEntry.getStreamSegmentOffset());
 
@@ -336,7 +336,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * Triggers all future reads that have a starting offset before the given value.
      *
      * @throws ObjectClosedException If the object has been closed.
-     * @throws IllegalStateException If the read index is in recovery mode.
+     * @throws IllegalStateException If the getReader index is in recovery mode.
      */
     public void triggerFutureReads() {
         if (this.closed) {
@@ -368,7 +368,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             }
 
             if (entry.isEndOfStreamSegment()) {
-                // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
+                // We have attempted to getReader beyond the end of the stream. Fail the getReader request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             }
             else {
@@ -381,11 +381,11 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * Reads a range of bytes from the StreamSegment.
      *
      * @param startOffset The offset in the StreamSegment where to start reading.
-     * @param maxLength   The maximum number of bytes to read.
+     * @param maxLength   The maximum number of bytes to getReader.
      * @param timeout     Timeout for the operation.
      * @return A ReadResult containing methods for retrieving the result.
      * @throws ObjectClosedException    If the StreamSegmentReadIndex is closed.
-     * @throws IllegalStateException    If the read index is in recovery mode.
+     * @throws IllegalStateException    If the getReader index is in recovery mode.
      * @throws IllegalArgumentException If the parameters are invalid.
      * @throws IllegalArgumentException If the StreamSegment is sealed and startOffset is beyond its length.
      */
@@ -434,11 +434,11 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
 
         if (maxLength < 0) {
-            // Nothing to read.
+            // Nothing to getReader.
             return null;
         }
 
-        // Check to see if we are trying to read beyond the last offset of a sealed StreamSegment.
+        // Check to see if we are trying to getReader beyond the last offset of a sealed StreamSegment.
         if (!canReadAtOffset(resultStartOffset)) {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
@@ -519,7 +519,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         long storageLength = this.metadata.getStorageLength();
         if (streamSegmentOffset < storageLength) {
             // Requested data exists in Storage.
-            // Determine actual read length (until Storage Length) and make sure it does not exceed maxLength.
+            // Determine actual getReader length (until Storage Length) and make sure it does not exceed maxLength.
             long actualReadLength = storageLength - streamSegmentOffset;
             if (actualReadLength > maxLength) {
                 actualReadLength = maxLength;

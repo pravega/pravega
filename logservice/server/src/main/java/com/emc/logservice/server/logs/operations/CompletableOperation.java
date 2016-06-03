@@ -1,6 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.server.core.CallbackHelpers;
+import com.emc.logservice.common.CallbackHelpers;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -54,7 +54,7 @@ public class CompletableOperation {
 
     //endregion
 
-    //region Properties and Operations
+    //region Properties
 
     /**
      * Gets a reference to the wrapped Log Operation.
@@ -66,7 +66,7 @@ public class CompletableOperation {
     }
 
     /**
-     * Indicates that the Log Operation has completed successfully.
+     * Completes the operation (no exception).
      */
     public void complete() {
         long seqNo = this.operation.getSequenceNumber();
@@ -81,7 +81,7 @@ public class CompletableOperation {
     }
 
     /**
-     * Indicates that the Log Operation has failed to complete.
+     * Completes the operation with failure.
      *
      * @param ex The causing exception.
      */
@@ -93,7 +93,7 @@ public class CompletableOperation {
     }
 
     /**
-     * Gets a value indicating whether this CompletableOperation has finished, regardless of outcome.
+     * Gets a value indicating whether this operation has finished, regardless of outcome.
      *
      * @return True if finished, false otherwise.
      */

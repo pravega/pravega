@@ -3,7 +3,7 @@ package com.emc.logservice.server.containers;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.server.*;
-import com.emc.logservice.server.core.TimeoutTimer;
+import com.emc.logservice.common.TimeoutTimer;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
 
