@@ -29,9 +29,9 @@ public class Main {
     private static final String ContainerId = "123";
 
     public static void main(String[] args) throws Exception {
-        //testInteractiveStreamSegmentContainer();
+        testInteractiveStreamSegmentContainer();
         //testStreamSegmentContainer();
-        testDurableLog();
+        //testDurableLog();
         //testReadIndex();
         //testOperationQueueProcessor();
         //testDataFrameBuilder();
@@ -40,8 +40,7 @@ public class Main {
     }
 
     private static void testInteractiveStreamSegmentContainer() {
-        StorageFactory storageFactory = new InMemoryStorageFactory();
-
+        Supplier<StorageFactory> inMemoryStorageFactorySupplier = InMemoryStorageFactory::new;
         Supplier<DurableDataLogFactory> inMemoryDataLogFactorySupplier = InMemoryDurableDataLogFactory::new;
         Supplier<DurableDataLogFactory> dLogDataLogFactorySupplier = () -> {
             DistributedLogConfig dlConfig;
@@ -61,8 +60,11 @@ public class Main {
             }
         };
 
-        DurableDataLogFactory dataLogFactory = dLogDataLogFactorySupplier.get();
-        try (InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(dataLogFactory, storageFactory, System.out, System.err)) {
+        try (
+                StorageFactory storageFactory = inMemoryStorageFactorySupplier.get();
+                DurableDataLogFactory dataLogFactory = dLogDataLogFactorySupplier.get();
+                //DurableDataLogFactory dataLogFactory = inMemoryDataLogFactorySupplier.get();
+                InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(dataLogFactory, storageFactory, System.in, System.out, System.err)) {
             tester.run();
         }
     }
@@ -152,7 +154,7 @@ public class Main {
         //region Initial Data Tests
 
         System.out.println("INITIAL DATA TESTS:");
-        // Read each individual appends that were written. No getReader exceeds an append boundary.
+        // Read each individual appends that were written. No read exceeds an append boundary.
         System.out.println("One append at a time ...");
         for (long streamId : perStreamData.keySet()) {
             ArrayList<byte[]> streamData = perStreamData.get(streamId);
@@ -332,7 +334,7 @@ public class Main {
             }
         }
 
-        System.out.println("Future getReader check complete.");
+        System.out.println("Future read check complete.");
 
         //endregion
 
@@ -377,7 +379,7 @@ public class Main {
         parentMetadata.setDurableLogLength(parentStreamLength);
         index.beginMerge(parentStreamId, targetOffset, batchStreamId, batchLength);
 
-        // Verify we can't getReader from it anymore.
+        // Verify we can't read from it anymore.
         try {
             index.read(batchStreamId, 0, (int) batchLength, Duration.ZERO);
             System.out.println("ReadIndex allowed reading from a merged stream segment.");
@@ -386,7 +388,7 @@ public class Main {
         catch (Exception ex) {
         }
 
-        //Check getReader result.
+        //Check read result.
         String expectedContentsAfterMerge = streamContents.get(parentStreamId).concat(streamContents.get(batchStreamId));
         checkStreamContentsFromReadIndex(parentStreamId, 0, (int) parentStreamLength, index, expectedContentsAfterMerge, verbose);
         System.out.println("ReadIndex.beginMerge check complete.");
@@ -402,7 +404,7 @@ public class Main {
         parentStreamLength += newData.length();
         index.completeMerge(parentStreamId, batchStreamId);
 
-        //Check getReader result (again)
+        //Check read result (again)
         checkStreamContentsFromReadIndex(parentStreamId, 0, (int) parentStreamLength, index, expectedContentsAfterMerge, verbose);
 
         System.out.println("ReadIndex.completeMerge check complete.");
@@ -434,8 +436,8 @@ public class Main {
         ArrayList<UUID> clients = generateClientIds(clientCount);
         Storage storage = new InMemoryStorage();
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
-        DurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
         ReadIndex readIndex = new ReadIndex(metadata);
+        DurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
         try (DurableLog dl = new DurableLog(metadata, dataLogFactory, readIndex)) {
             StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl, storage);
 
@@ -585,11 +587,12 @@ public class Main {
 
         OperationQueue queue = new OperationQueue();
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
-        InMemoryDurableDataLog dataFrameLog = new InMemoryDurableDataLog();
+        InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
+        DurableDataLog dataLog = dataLogFactory.createDurableDataLog(ContainerId);
         TruncationMarkerCollection truncationMarkerCollection = new TruncationMarkerCollection();
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata, truncationMarkerCollection);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata));
-        OperationQueueProcessor qp = new OperationQueueProcessor(ContainerId, queue, metadataUpdater, logUpdater, dataFrameLog);
+        OperationQueueProcessor qp = new OperationQueueProcessor(ContainerId, queue, metadataUpdater, logUpdater, dataLog);
         qp.initialize(Duration.ZERO);
         qp.start(Duration.ZERO);
 
@@ -697,7 +700,8 @@ public class Main {
         }
         System.out.println(String.format("%d entries generated.", entryCount));
 
-        InMemoryDurableDataLog dataFrameLog = new InMemoryDurableDataLog();
+        InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
+        DurableDataLog dataLog = dataLogFactory.createDurableDataLog(ContainerId);
         AtomicLong lastAck = new AtomicLong(-1);
         Consumer<DataFrameBuilder.DataFrameCommitArgs> ackCallback = args ->
         {
@@ -710,7 +714,7 @@ public class Main {
 
         Consumer<Exception> failCallback = ex -> System.out.println(String.format("Failed with exception.", ex));
 
-        DataFrameBuilder b = new DataFrameBuilder(dataFrameLog, ackCallback, failCallback);
+        DataFrameBuilder b = new DataFrameBuilder(dataLog, ackCallback, failCallback);
 
         long startTime = System.nanoTime();
         for (CompletableOperation e : entries) {
@@ -730,7 +734,7 @@ public class Main {
 
         // DataFrameReader
         startTime = System.nanoTime();
-        DataFrameReader reader = new DataFrameReader(dataFrameLog);
+        DataFrameReader reader = new DataFrameReader(dataLog);
         Iterator<CompletableOperation> entryIterator = entries.iterator();
         int readCount = 0;
         while (true) {
@@ -871,11 +875,11 @@ public class Main {
                 int bytesRead = s.read(streamName, offset, readBuffer, 0, readLength, Duration.ZERO).join();
 
                 if (bytesRead != readLength) {
-                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong number of bytes getReader (%d).", streamId, offset, readLength, bytesRead));
+                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong number of bytes read (%d).", streamId, offset, readLength, bytesRead));
                 }
 
                 if (!areEqual(expectedData, offset, readBuffer, 0, readLength)) {
-                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong data getReader.", streamId, offset, readLength));
+                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong data read.", streamId, offset, readLength));
                 }
             }
         }
@@ -948,7 +952,7 @@ public class Main {
             for (StreamSegmentAppendOperation append : appends) {
                 ReadResult readResult = readIndex.read(streamId, append.getStreamSegmentOffset(), append.getData().length, Duration.ZERO);
                 if (!readResult.hasNext()) {
-                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. No data returned by getReader index.", streamId, append.getStreamSegmentOffset(), append.getData().length));
+                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. No data returned by read index.", streamId, append.getStreamSegmentOffset(), append.getData().length));
                     break;
                 }
                 ReadResultEntry entry = readResult.next();
@@ -957,7 +961,7 @@ public class Main {
                     break;
                 }
                 if (!entry.getContent().isDone()) {
-                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. Read Index returned a non-completed entry, which is unexpected for a memory getReader.", streamId, append.getStreamSegmentOffset(), append.getData().length));
+                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. Read Index returned a non-completed entry, which is unexpected for a memory read.", streamId, append.getStreamSegmentOffset(), append.getData().length));
                     break;
                 }
 
@@ -1038,7 +1042,7 @@ public class Main {
             sse.setStreamSegmentLength(index * index);
             return sse;
         });
-        creators.add(index -> new BatchMapOperation(getStreamId(index + 1), getStreamId(index), getStreamName(index)));
+        creators.add(index -> new BatchMapOperation(getStreamId(index + 1), getStreamId(index), new StreamSegmentInformation(getStreamName(index), 123, true, false, new Date())));
         creators.add(index ->
         {
             MergeBatchOperation mbe = new MergeBatchOperation(getStreamId(index + 1), getStreamId(index));

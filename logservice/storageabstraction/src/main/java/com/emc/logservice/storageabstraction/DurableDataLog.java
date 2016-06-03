@@ -23,7 +23,7 @@ public interface DurableDataLog extends AutoCloseable {
      * Adds a new entry to the log.
      *
      * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
-     *                where the data should be getReader from. The InputStream's available() method must also specify the number
+     *                where the data should be read from. The InputStream's available() method must also specify the number
      *                of bytes to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the Sequence within the log for the entry. If the entry
@@ -35,7 +35,7 @@ public interface DurableDataLog extends AutoCloseable {
      * Truncates the log up to the given sequence.
      *
      * @param upToSequence The Sequence up to where to truncate. This is the value returned either by append() or obtained
-     *                     via getReader().
+     *                     via read().
      * @param timeout      The timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the truncation completed. If the operation
      * failed, this Future will complete with the appropriate exception.
@@ -45,7 +45,7 @@ public interface DurableDataLog extends AutoCloseable {
     /**
      * Reads a number of entries from the log.
      *
-     * @param afterSequence The Sequence of the last entry before the first one to getReader.
+     * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return An AsyncIterator with the result.
      * @throws DurableDataLogException If the operation was unable to open a reader.
      */

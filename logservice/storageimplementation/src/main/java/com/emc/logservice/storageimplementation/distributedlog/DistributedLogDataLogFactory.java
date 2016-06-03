@@ -6,7 +6,7 @@ import com.emc.logservice.storageabstraction.*;
 /**
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.
  */
-public class DistributedLogDataLogFactory implements DurableDataLogFactory, AutoCloseable {
+public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     private final DistributedLogConfig config;
     private final LogClient client;
 

@@ -25,6 +25,12 @@ public interface SegmentMetadata extends SegmentProperties {
     long getParentId();
 
     /**
+     * Gets a value indicating whether this StreamSegment has been merged into another.
+     * @return
+     */
+    boolean isMerged();
+
+    /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
      *
      * @return

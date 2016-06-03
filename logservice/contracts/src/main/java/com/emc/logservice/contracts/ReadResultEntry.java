@@ -69,7 +69,7 @@ public abstract class ReadResultEntry {
 
     /**
      * Adjusts the offset by the given amount.
-     *
+     * //TODO: this method should not be exposed here in the contracts package.
      * @param delta The amount to adjust by.
      * @throws IllegalArgumentException If the new offset would be negative.
      */

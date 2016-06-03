@@ -19,6 +19,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long durableLogLength;
     private boolean sealed;
     private boolean deleted;
+    private boolean merged;
 
     //endregion
 
@@ -57,6 +58,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.parentStreamSegmentId = parentStreamSegmentId;
         this.sealed = false;
         this.deleted = false;
+        this.merged = false;
         this.storageLength = this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
     }
@@ -102,6 +104,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public long getParentId() {
         return this.parentStreamSegmentId;
+    }
+
+    @Override
+    public boolean isMerged() {
+        return this.merged;
     }
 
     @Override
@@ -170,6 +177,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public void markMerged() {
+        if (this.parentStreamSegmentId == SegmentMetadataCollection.NoStreamSegmentId) {
+            throw new IllegalStateException("Cannot merge a non-batch StreamSegment.");
+        }
+
+        this.merged = true;
+    }
+
+    @Override
     public void recordAppendContext(AppendContext appendContext) {
         this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
     }
@@ -192,6 +208,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isSealed()) {
             markSealed();
+        }
+
+        if (base.isMerged()) {
+            markMerged();
         }
 
         if (base.isDeleted()) {

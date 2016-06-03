@@ -87,6 +87,7 @@ public class DurableLog implements OperationLog {
             }
 
             this.queueProcessor.close();
+            this.dataFrameLog.close();
             this.closed = true;
         }
     }
@@ -266,6 +267,7 @@ public class DurableLog implements OperationLog {
 
                 // Process the operation.
                 try {
+                    System.out.println(String.format("Recovering %s", operation));
                     if (operation instanceof MetadataOperation) {
                         metadataUpdater.processMetadataOperation((MetadataOperation) operation);
                     }

@@ -1,7 +1,7 @@
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.server.logs.SerializationException;
-import com.emc.logservice.server.logs.operations.MetadataOperation;
 
 import java.io.*;
 
@@ -16,6 +16,8 @@ public class BatchMapOperation extends MetadataOperation {
     private long parentStreamSegmentId;
     private long batchStreamSegmentId;
     private String batchStreamSegmentName;
+    private long batchStreamSegmentLength;
+    private boolean batchStreamSegmentSealed;
 
     //endregion
 
@@ -24,15 +26,17 @@ public class BatchMapOperation extends MetadataOperation {
     /**
      * Creates a new instance of the BatchMapOperation class.
      *
-     * @param parentStreamSegmentId  The Id of the Parent StreamSegment.
-     * @param batchStreamSegmentId   The Id of the Batch StreamSegment.
-     * @param batchStreamSegmentName The name of the Batch StreamSegment.
+     * @param parentStreamSegmentId The Id of the Parent StreamSegment.
+     * @param batchStreamSegmentId  The Id of the Batch StreamSegment.
+     * @param batchStreamInfo       SegmentProperties for Batch StreamSegment.
      */
-    public BatchMapOperation(long parentStreamSegmentId, long batchStreamSegmentId, String batchStreamSegmentName) {
+    public BatchMapOperation(long parentStreamSegmentId, long batchStreamSegmentId, SegmentProperties batchStreamInfo) {
         super();
         this.parentStreamSegmentId = parentStreamSegmentId;
         this.batchStreamSegmentId = batchStreamSegmentId;
-        this.batchStreamSegmentName = batchStreamSegmentName;
+        this.batchStreamSegmentName = batchStreamInfo.getName();
+        this.batchStreamSegmentLength = batchStreamInfo.getLength();
+        this.batchStreamSegmentSealed = batchStreamInfo.isSealed();
     }
 
     protected BatchMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -70,6 +74,24 @@ public class BatchMapOperation extends MetadataOperation {
         return this.batchStreamSegmentName;
     }
 
+    /**
+     * Gets a value indicating the Length of the Batch StreamSegment.
+     *
+     * @return
+     */
+    public long getBatchStreamSegmentLength() {
+        return this.batchStreamSegmentLength;
+    }
+
+    /**
+     * Gets a value indicating whether the Batch StreamSegment is currently sealed.
+     *
+     * @return
+     */
+    public boolean isBatchSealed() {
+        return this.batchStreamSegmentSealed;
+    }
+
     //endregion
 
     //region Operation Implementation
@@ -85,6 +107,8 @@ public class BatchMapOperation extends MetadataOperation {
         target.writeLong(this.parentStreamSegmentId);
         target.writeLong(this.batchStreamSegmentId);
         target.writeUTF(this.batchStreamSegmentName);
+        target.writeLong(this.batchStreamSegmentLength);
+        target.writeBoolean(this.batchStreamSegmentSealed);
     }
 
     @Override
@@ -93,11 +117,13 @@ public class BatchMapOperation extends MetadataOperation {
         this.parentStreamSegmentId = source.readLong();
         this.batchStreamSegmentId = source.readLong();
         this.batchStreamSegmentName = source.readUTF();
+        this.batchStreamSegmentLength = source.readLong();
+        this.batchStreamSegmentSealed = source.readBoolean();
     }
 
     @Override
     public String toString() {
-        return String.format("%s, ParentStreamId = %d, BatchStreamId = %d, BatchStreamName = %s", super.toString(), getParentStreamSegmentId(), getBatchStreamSegmentId(), getBatchStreamSegmentName());
+        return String.format("%s, ParentStreamId = %d, BatchStreamId = %d, BatchName = %s, BatchLength = %d, BatchSealed = %s", super.toString(), getParentStreamSegmentId(), getBatchStreamSegmentId(), getBatchStreamSegmentName(), getBatchStreamSegmentLength(), isBatchSealed());
     }
 
     //endregion

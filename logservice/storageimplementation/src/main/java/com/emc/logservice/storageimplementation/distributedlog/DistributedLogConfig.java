@@ -22,7 +22,7 @@ public class DistributedLogConfig extends ComponentConfig {
     /**
      * Creates a new instance of the DistributedLogConfig class.
      *
-     * @param properties The java.util.Properties object to getReader Properties from.
+     * @param properties The java.util.Properties object to read Properties from.
      * @throws MissingPropertyException Whenever a required Property is missing from the given properties collection.
      * @throws NumberFormatException    Whenever a Property has a value that is invalid for it.
      * @throws NullPointerException     If any of the arguments are null.
