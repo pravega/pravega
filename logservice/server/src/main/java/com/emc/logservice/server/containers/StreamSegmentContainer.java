@@ -1,28 +1,38 @@
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.ObjectClosedException;
-import com.emc.logservice.storageabstraction.Storage;
-import com.emc.logservice.storageabstraction.StorageFactory;
-
-import io.netty.buffer.ByteBuf;
-
-import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
-import com.emc.logservice.common.AsyncLock;
-import com.emc.logservice.common.TimeoutTimer;
-import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.PendingAppendsCollection;
-import com.emc.logservice.server.logs.operations.*;
-
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Date;
 import java.util.UUID;
-
-import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
+
+import com.emc.logservice.common.AsyncLock;
+import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.common.TimeoutTimer;
+import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.ReadResult;
+import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.contracts.StreamSegmentStore;
+import com.emc.logservice.contracts.StreamingException;
+import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.Container;
+import com.emc.logservice.server.ContainerState;
+import com.emc.logservice.server.FaultHandlerRegistry;
+import com.emc.logservice.server.MetadataRepository;
+import com.emc.logservice.server.OperationLogFactory;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.StreamSegmentInformation;
+import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.logs.OperationLog;
+import com.emc.logservice.server.logs.PendingAppendsCollection;
+import com.emc.logservice.server.logs.operations.MergeBatchOperation;
+import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storageabstraction.StorageFactory;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -293,19 +303,6 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private void setState(ContainerState state) {
         this.state = state;
     }
-
-	@Override
-	public CompletableFuture<ConnectionInfo> getConnectionInfo(String streamSegmentName, UUID connectionId) {
-		CompletableFuture<ConnectionInfo> result = new CompletableFuture<>();
-		result.complete(new ConnectionInfo(streamSegmentName, connectionId, 0));
-		return result;
-	}
-
-	@Override
-	public String whoOwnStreamSegment(String streamSegmentName) {
-		// TODO Auto-generated method stub
-		return null;
-	}
 
     //endregion
 }

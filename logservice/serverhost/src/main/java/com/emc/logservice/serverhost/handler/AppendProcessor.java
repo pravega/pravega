@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.BiFunction;
 
-import com.emc.logservice.contracts.ConnectionInfo;
+import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
@@ -42,6 +42,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
 	private final Object lock = new Object();
 	private String segment;
+	private UUID connectionId;
 	private long connectionOffset = 0L;
 	private List<ByteBuf> waiting = new ArrayList<>();
 	private OutstandingWrite outstandingWrite = null;
@@ -56,32 +57,34 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 	private class OutstandingWrite {
 		final ByteBuf[] dataToBeAppended;
 		final String segment;
+		final UUID connectionId;
 		final long ackOffset;
 	}
 
 	@Override
 	public void setupAppend(SetupAppend setupAppend) {
 		String newSegment = setupAppend.getSegment();
-		String owner = store.whoOwnStreamSegment(newSegment);
-		if (owner != null) {
-			connection.send(new WrongHost(newSegment, owner));
-			return;
-		}
-		UUID connectionId = setupAppend.getConnectionId();
-		CompletableFuture<ConnectionInfo> future = store.getConnectionInfo(newSegment, connectionId);
-		future.handle(new BiFunction<ConnectionInfo, Throwable, Void>() {
+//		String owner = store.whoOwnStreamSegment(newSegment);
+//		if (owner != null) {
+//			connection.send(new WrongHost(newSegment, owner));
+//			return;
+//		}
+		UUID newConnection = setupAppend.getConnectionId();
+		CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, connectionId);
+		future.handle(new BiFunction<AppendContext, Throwable, Void>() {
 			@Override
-			public Void apply(ConnectionInfo info, Throwable u) {
+			public Void apply(AppendContext info, Throwable u) {
 				if (info == null) {
 					handleException(newSegment, u);
 					return null;
 				}
-				if (!info.getSegment().equals(newSegment) || !info.getConnectionId().equals(connectionId)) {
+				if (!info.getClientId().equals(connectionId)) {
 					throw new IllegalStateException("Wrong connection Info returned");
 				}
-				long offset = info.getBytesWrittenSuccessfully();
+				long offset = info.getClientOffset();
 				synchronized (lock) {
 					segment = newSegment;
+					connectionId = newConnection;
 					connectionOffset = offset;
 				}
 				connection.send(new AppendSetup(newSegment, connectionId, connectionOffset));
@@ -97,7 +100,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 			}
 			ByteBuf[] data = new ByteBuf[waiting.size()];
 			waiting.toArray(data);
-			outstandingWrite = new OutstandingWrite(data, segment, connectionOffset);
+			outstandingWrite = new OutstandingWrite(data, segment, connectionId, connectionOffset);
 			waiting.clear();
 		}
 		write(outstandingWrite);
@@ -107,7 +110,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 		ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getDataToBeAppended());
 		byte[] bytes = new byte[buf.readableBytes()];
 		buf.readBytes(bytes);
-		CompletableFuture<Long> future = store.append(toWrite.getSegment(), bytes, TIMEOUT);
+		CompletableFuture<Long> future = store.append(toWrite.getSegment(), bytes, new AppendContext(toWrite.getConnectionId(), toWrite.ackOffset), TIMEOUT);
 		future.handle(new BiFunction<Long, Throwable, Void>() {
 			@Override
 			public Void apply(Long t, Throwable u) {
@@ -119,6 +122,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 					outstandingWrite = null;
 					if (u != null) {
 						segment = null;
+						connectionId = null;
 						connectionOffset = 0;
 						waiting.clear();
 					}

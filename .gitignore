@@ -8,3 +8,4 @@ output
 .idea
 .iml
 target
+integrationtests/log/
