@@ -2,7 +2,6 @@ package com.emc.nautilus.integrationtests;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.UUID;
@@ -14,10 +13,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.emc.logservice.server.containers.StreamSegmentContainer;
-import com.emc.logservice.server.handler.AppendProcessor;
-import com.emc.logservice.server.handler.LogSerivceConnectionListener;
-import com.emc.logservice.server.handler.LogServiceRequestProcessor;
-import com.emc.logservice.server.handler.ServerConnectionInboundHandler;
+import com.emc.logservice.serverhost.handler.AppendProcessor;
+import com.emc.logservice.serverhost.handler.LogSerivceConnectionListener;
+import com.emc.logservice.serverhost.handler.LogServiceRequestProcessor;
+import com.emc.logservice.serverhost.handler.ServerConnectionInboundHandler;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionFactory;

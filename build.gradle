@@ -119,7 +119,7 @@ project ('integrationtests') {
 		compile project (':clients:log')
 		compile project (':clients:streaming')
 		compile project (':logservice:server')
-		
+		compile project (':logservice:serverhost')
 	}
 }
 

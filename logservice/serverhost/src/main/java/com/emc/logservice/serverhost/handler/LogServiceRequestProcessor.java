@@ -1,4 +1,4 @@
-package com.emc.logservice.server.handler;
+package com.emc.logservice.serverhost.handler;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
