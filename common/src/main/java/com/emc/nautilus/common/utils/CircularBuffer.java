@@ -5,14 +5,12 @@ import java.nio.ByteBuffer;
 import lombok.Getter;
 
 /**
- * Convenience class wrapping byteBuffer to provide a circular buffer.
- * 
- * This works by maintaining a two byte buffers backed by the same array.
- * The position of the readBuffer corresponds to the point up to which has
- * been read. The position of the writeBuffer corresponds to the point up to
- * which data has been written. Each buffer's limit is either the end or the
- * buffer or the position of the other, depending on where the data has
- * wrapped.
+ * Convenience class wrapping byteBuffer to provide a circular buffer. This
+ * works by maintaining a two byte buffers backed by the same array. The
+ * position of the readBuffer corresponds to the point up to which has been
+ * read. The position of the writeBuffer corresponds to the point up to which
+ * data has been written. Each buffer's limit is either the end or the buffer or
+ * the position of the other, depending on where the data has wrapped.
  */
 public class CircularBuffer {
 
@@ -72,9 +70,9 @@ public class CircularBuffer {
 	private void fillHelper(ByteBuffer fillFrom) {
 		int toAdd = Math.min(fillFrom.remaining(), fillBuffer.remaining());
 		fillBuffer.limit(toAdd);
-		
+
 		int limit = fillFrom.limit();
-		fillFrom.limit(fillFrom.position()+toAdd);
+		fillFrom.limit(fillFrom.position() + toAdd);
 		fillBuffer.put(fillFrom);
 		fillFrom.limit(limit);
 
@@ -95,7 +93,7 @@ public class CircularBuffer {
 			return readBuffer.capacity() - readBuffer.position() + fillBuffer.position();
 		}
 	}
-	
+
 	public int capacityAvailable() {
 		return capacity - dataAvailable();
 	}

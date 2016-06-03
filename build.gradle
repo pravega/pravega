@@ -122,11 +122,11 @@ project ('integrationtests') {
 		compile project (':logservice:serverhost')
 	}
 	task startServer(type:JavaExec) {
-            main = "StartServer"
+            main = "com.emc.nautilus.demo.StartServer"
             classpath = sourceSets.main.runtimeClasspath
         }
         task startProducer(type:JavaExec) {
-            main = "StartProducer"
+            main = "com.emc.nautilus.demo.StartProducer"
             classpath = sourceSets.main.runtimeClasspath
         }
 }

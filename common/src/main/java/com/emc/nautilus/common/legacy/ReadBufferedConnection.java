@@ -7,11 +7,10 @@ import com.emc.nautilus.common.netty.ConnectionFailedException;
 public class ReadBufferedConnection implements OldConnection {
 
 	/**
-	 * Convenience class wrapping byteBuffer to provide a circular buffer.
-	 * 
-	 * This works by maintaining a two byte buffers backed by the same array.
-	 * The position of the readBuffer corresponds to the point up to which has
-	 * been read. The position of the writeBuffer corresponds to the point up to
+	 * Convenience class wrapping byteBuffer to provide a circular buffer. This
+	 * works by maintaining a two byte buffers backed by the same array. The
+	 * position of the readBuffer corresponds to the point up to which has been
+	 * read. The position of the writeBuffer corresponds to the point up to
 	 * which data has been written. Each buffer's limit is either the end or the
 	 * buffer or the position of the other, depending on where the data has
 	 * wrapped.

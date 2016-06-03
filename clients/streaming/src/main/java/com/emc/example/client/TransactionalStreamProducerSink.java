@@ -9,7 +9,7 @@ import com.emc.nautilus.streaming.TxFailedException;
 
 public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> // ...
 {
-	// …
+	//
 	private Map<String, Transaction<IN>> openTxns;
 	Producer<IN> producer;
 
