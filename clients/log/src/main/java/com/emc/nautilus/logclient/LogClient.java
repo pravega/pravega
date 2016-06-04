@@ -1,5 +1,7 @@
 package com.emc.nautilus.logclient;
 
+import java.util.UUID;
+
 //Defines a client for the log. The actual implementation of this class will connect to a service & manage TCP connections.
 public interface LogClient {
 	// Creates a new stream with given name. Returns false if the stream already
@@ -9,11 +11,13 @@ public interface LogClient {
 	// Determines whether the log exists or not.
 	boolean logExists(String name);
 
+	LogOutputStream openTransactionForAppending(String name, UUID txId);
+	
 	// Opens an existing log for writing. this operation will fail if the stream does not exist
 	// This operation may be called multiple times on the same log from the
 	// same or different clients (i.e., there can be concurrent Stream Writers
 	// in the same process space).
-	LogAppender openLogForAppending(String name, LogOutputConfiguration config);
+	LogOutputStream openLogForAppending(String name, LogOutputConfiguration config);
 
 	// Opens an existing log for reading. This operation will fail if the
 	// log does not exist.

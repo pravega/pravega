@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
@@ -18,6 +19,7 @@ import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
 import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
+import com.emc.nautilus.common.netty.WireCommands.SealSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
@@ -268,6 +270,28 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Override
+	@Synchronized
+	public Future<Long> seal(long timeoutMillis) {
+		throw new UnsupportedOperationException();
+//		try {
+//			flush();
+//		} catch (LogSealedExcepetion e) {
+//			//TODO: What should we do here?
+//			log.error("Asked to seal already sealed connection, that had messages waiting to be flushed."+ segment);
+//		}
+//		ClientConnection connection;
+//		try {
+//			connection = state.waitForConnection();
+//		} catch (LogSealedExcepetion e) {
+//			return null; //TODO: find the current size...
+//		} catch (ConnectionFailedException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		connection.send(new SealSegment(segment));
 	}
 
 }

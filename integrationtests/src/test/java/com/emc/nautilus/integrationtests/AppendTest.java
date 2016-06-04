@@ -30,7 +30,6 @@ import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
-import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogOutputStream;
 import com.emc.nautilus.logclient.LogOutputStream.AckListener;
 import com.emc.nautilus.logclient.impl.LogClientImpl;
@@ -144,9 +143,7 @@ public class AppendTest {
 		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);
 		logClient.createLog(logName);
 		@Cleanup("close")
-		LogAppender appender = logClient.openLogForAppending(logName, null);
-		@Cleanup("close")
-		LogOutputStream out = appender.getOutputStream();
+		LogOutputStream out = logClient.openLogForAppending(logName, null);
 		CompletableFuture<Long> ack = new CompletableFuture<Long>();
 		out.setWriteAckListener(new AckListener() {
 			@Override

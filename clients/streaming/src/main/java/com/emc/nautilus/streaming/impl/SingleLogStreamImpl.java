@@ -60,7 +60,7 @@ public class SingleLogStreamImpl implements Stream {
 
 	@Override
 	public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-		return new ProducerImpl<>(this, logClient, router, s, config);
+		return new ProducerImpl<T>(null, this, logClient, router, s, config);
 	}
 
 	@Override

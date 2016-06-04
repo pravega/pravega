@@ -1,17 +1,18 @@
 package com.emc.nautilus.logclient;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.Future;
 
-//Defines a Log output stream.
+// Defines a Log output stream.
 public abstract class LogOutputStream implements AutoCloseable {
 	@FunctionalInterface
 	public interface AckListener {
 		void ack(long connectionOffset);
 	}
-	
+
 	/**
-	 * Sets the callback to invoke when acknowledgments arrive for appends.
-	 * This method should only be called once.
+	 * Sets the callback to invoke when acknowledgments arrive for appends. This
+	 * method should only be called once.
 	 */
 	public abstract void setWriteAckListener(AckListener callback);
 
@@ -25,4 +26,11 @@ public abstract class LogOutputStream implements AutoCloseable {
 	public abstract void close() throws LogSealedExcepetion;
 
 	public abstract void flush() throws LogSealedExcepetion;
+
+	/**
+	 * Closes all writing streams associated with this, flushes all outstanding
+	 * requests down the socket, and then permanently closes the stream for
+	 * appends. Returns the length of the stream after sealing.
+	 */
+	public abstract Future<Long> seal(long timeoutMillis);
 }

@@ -4,12 +4,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogClient;
+import com.emc.nautilus.logclient.LogOutputStream;
 import com.emc.nautilus.logclient.LogSealedExcepetion;
 import com.emc.nautilus.streaming.EventRouter;
 import com.emc.nautilus.streaming.LogId;
@@ -23,6 +24,7 @@ import com.emc.nautilus.streaming.TxFailedException;
 
 public class ProducerImpl<Type> implements Producer<Type> {
 
+	private final TransactionManager txManager;
 	private final Stream stream;
 	private final Serializer<Type> serializer;
 	private final LogClient logClient;
@@ -31,8 +33,9 @@ public class ProducerImpl<Type> implements Producer<Type> {
 	private final ProducerConfig config;
 	private final Map<LogId, LogProducer<Type>> producers = new HashMap<>();
 
-	ProducerImpl(Stream stream, LogClient logClient, EventRouter router, Serializer<Type> serializer,
-			ProducerConfig config) {
+	ProducerImpl(TransactionManager txManager, Stream stream, LogClient logClient, EventRouter router,
+			Serializer<Type> serializer, ProducerConfig config) {
+		this.txManager = txManager;
 		this.logClient = logClient;
 		this.stream = stream;
 		this.router = router;
@@ -52,7 +55,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 		oldLogs.removeAll(logs.logs);
 
 		for (LogId l : newLogs) {
-			LogAppender log = logClient.openLogForAppending(l.getQualifiedName(), config.getLogConfig());
+			LogOutputStream log = logClient.openLogForAppending(l.getQualifiedName(), config.getLogConfig());
 			producers.put(l, new LogProducerImpl<Type>(log, serializer));
 		}
 		List<Event<Type>> toResend = new ArrayList<>();
@@ -116,57 +119,57 @@ public class ProducerImpl<Type> implements Producer<Type> {
 		return producers.get(log);
 	}
 
-	private static class TransactionImpl<Type> implements Transaction<Type> {
+	private class TransactionImpl implements Transaction<Type> {
 
-		final Transaction<Event<Type>> inner;
-		private String routingKey;
+		private final Map<LogId, LogTransaction<Type>> inner;
+		private UUID txId;
 
-		TransactionImpl(String routingKey, Transaction<Event<Type>> transaction) {
-			this.routingKey = routingKey;
-			this.inner = transaction;
+		TransactionImpl(UUID txId, Map<LogId, LogTransaction<Type>> transactions) {
+			this.txId = txId;
+			this.inner = transactions;
 		}
 
 		@Override
-		public void publish(Type event) throws TxFailedException {
-			inner.publish(new Event<Type>(routingKey, event, null));
+		public void publish(String routingKey, Type event) throws TxFailedException {
+			LogId log = router.getLogForEvent(stream, routingKey);
+			LogTransaction<Type> transaction = inner.get(log);
+			transaction.publish(event);
 		}
 
 		@Override
 		public void commit() throws TxFailedException {
-			inner.commit();
+			for (LogTransaction<Type> log : inner.values()) {
+				log.flush();
+			}
+			txManager.commitTransaction(txId);
 		}
 
 		@Override
 		public void drop() {
-			inner.drop();
+			txManager.dropTransaction(txId);
 		}
 
 		@Override
 		public Status checkStatus() {
-			return inner.checkStatus();
+			return txManager.checkTransactionStatus(txId);
 		}
 
 	}
 
 	@Override
-	public Transaction<Type> startTransaction(String routingKey, long timeout) {
-		Transaction<Event<Type>> transaction = null;
-		while (transaction == null) {
-			synchronized (producers) {
-				LogProducer<Type> logProducer = getLogProducer(routingKey);
-				if (logProducer != null) {
-					try {
-						transaction = logProducer.startTransaction(timeout);
-					} catch (LogSealedExcepetion e) {
-						// Ignore
-					}
-				}
-				if (transaction == null) {
-					handleLogSealed();
-				}
-			}
+	public Transaction<Type> startTransaction(long timeout) {
+		UUID txId = txManager.createTransaction(stream, timeout);
+		Map<LogId, LogTransaction<Type>> transactions = new HashMap<>();
+		ArrayList<LogId> logIds;  
+		synchronized (producers) {
+			logIds = new ArrayList<>(producers.keySet());
 		}
-		return new TransactionImpl<Type>(routingKey, transaction);
+		for (LogId log : logIds) {
+			LogOutputStream out = logClient.openTransactionForAppending(log.getName(), txId);
+			LogTransactionImpl<Type> impl = new LogTransactionImpl<>(txId, out, serializer);
+			transactions.put(log, impl);
+		}
+		return new TransactionImpl(txId, transactions);
 	}
 
 	@Override

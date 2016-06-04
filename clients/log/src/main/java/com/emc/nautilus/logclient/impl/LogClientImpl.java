@@ -3,7 +3,6 @@ package com.emc.nautilus.logclient.impl;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
@@ -12,8 +11,6 @@ import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
-import com.emc.nautilus.logclient.Batch;
-import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogClient;
 import com.emc.nautilus.logclient.LogInputConfiguration;
 import com.emc.nautilus.logclient.LogInputStream;
@@ -67,31 +64,18 @@ public class LogClientImpl implements LogClient {
 	}
 
 	@Override
-	public LogAppender openLogForAppending(String name, LogOutputConfiguration config) {
-		return new LogAppender() {
-			@Override
-			public void close() {
-				//TODO: Does this method need to exist?
-			}
-			@Override
-			public LogOutputStream getOutputStream() {
-				return new LogOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
-			}
-			
-			@Override
-			public Future<Long> seal(long timeoutMillis) {
-				throw new UnsupportedOperationException("TODO");
-			}
-			@Override
-			public Batch createBatch(long timeoutMillis) {
-				throw new UnsupportedOperationException("TODO");
-			}
-		};
+	public LogOutputStream openLogForAppending(String name, LogOutputConfiguration config) {
+		return new LogOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
 	}
 
 	@Override
 	public LogInputStream openLogForReading(String name, LogInputConfiguration config) {
 		return new LogInputStreamImpl(new AsyncLogInputStreamImpl(connectionFactory, endpoint, name));
+	}
+
+	@Override
+	public LogOutputStream openTransactionForAppending(String name, UUID txId) {
+		throw new UnsupportedOperationException();
 	}
 
 }

@@ -540,6 +540,7 @@ public final class WireCommands {
 	@Data
 	public static final class SealSegment implements Request {
 		final WireCommands.Type type = Type.SEAL_SEGMENT;
+		final String segment;
 
 		@Override
 		public void process(RequestProcessor cp) {
@@ -547,13 +548,13 @@ public final class WireCommands {
 		}
 
 		@Override
-		public void writeFields(DataOutput out) {
-			// TODO Auto-generated method stub
-
+		public void writeFields(DataOutput out) throws IOException {
+			out.writeUTF(segment);
 		}
 
-		public static WireCommand readFrom(DataInput in) {
-			return null;
+		public static WireCommand readFrom(DataInput in) throws IOException {
+			String segment = in.readUTF();
+			return new SealSegment(segment);
 		}
 	}
 
