@@ -270,7 +270,7 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
         if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
             // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
-            return null;
+            return CompletableFuture.completedFuture(null);
         }
 
         CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);

@@ -70,24 +70,29 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 //			return;
 //		}
 		UUID newConnection = setupAppend.getConnectionId();
-		CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, connectionId);
+		CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, newConnection);
 		future.handle(new BiFunction<AppendContext, Throwable, Void>() {
 			@Override
 			public Void apply(AppendContext info, Throwable u) {
-				if (info == null) {
+				if (u != null) {
 					handleException(newSegment, u);
 					return null;
 				}
-				if (!info.getClientId().equals(connectionId)) {
-					throw new IllegalStateException("Wrong connection Info returned");
+				long offset;
+				if (info == null) {
+					offset = 0;
+				} else {
+					if (!info.getClientId().equals(connectionId)) {
+						throw new IllegalStateException("Wrong connection Info returned");
+					}
+					offset = info.getClientOffset();
 				}
-				long offset = info.getClientOffset();
 				synchronized (lock) {
 					segment = newSegment;
 					connectionId = newConnection;
 					connectionOffset = offset;
 				}
-				connection.send(new AppendSetup(newSegment, connectionId, connectionOffset));
+				connection.send(new AppendSetup(newSegment, newConnection, offset));
 				return null;
 			}
 		});
