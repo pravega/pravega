@@ -29,7 +29,9 @@ import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class AppendProcessor extends DelegatingRequestProcessor {
 
 	private static final Duration TIMEOUT = Duration.ofMinutes(1);
@@ -165,6 +167,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 		} else {
 			//TODO: don't know what to do here...
 			connection.drop();
+			log.error("Unknown excpetion on append for segment "+ segment,u);
 			throw new IllegalStateException("Unknown exception.", u);
 		}
 	}
