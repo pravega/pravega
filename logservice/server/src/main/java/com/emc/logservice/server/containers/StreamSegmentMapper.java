@@ -1,20 +1,25 @@
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.TimeoutTimer;
-import com.emc.logservice.contracts.SegmentProperties;
-import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.server.*;
-import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.operations.BatchMapOperation;
-import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.logservice.storageabstraction.Storage;
-
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+
+import com.emc.logservice.common.FutureHelpers;
+import com.emc.logservice.common.TimeoutTimer;
+import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.contracts.StreamSegmentExistsException;
+import com.emc.logservice.contracts.StreamSegmentNotExistsException;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.StreamSegmentNameUtils;
+import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.UpdateableSegmentMetadata;
+import com.emc.logservice.server.logs.OperationLog;
+import com.emc.logservice.server.logs.operations.BatchMapOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.logservice.storageabstraction.Storage;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
@@ -77,7 +82,8 @@ public class StreamSegmentMapper {
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
-            throw new IllegalArgumentException("Given StreamSegmentName is already registered internally. Most likely it already exists.");
+        	CompletableFuture<Void> result = new CompletableFuture<Void>();
+        	result.completeExceptionally(new StreamSegmentExistsException("Given StreamSegmentName is already registered internally. Most likely it already exists."));
         }
 
         // Create the StreamSegment, and then assign a Unique Internal Id to it.
