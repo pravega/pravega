@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
@@ -22,8 +23,8 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 import com.emc.nautilus.common.utils.ReusableLatch;
-import com.emc.nautilus.logclient.LogOutputStream;
-import com.emc.nautilus.logclient.LogSealedExcepetion;
+import com.emc.nautilus.logclient.SegmentOutputStream;
+import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Slf4j
-public class LogOutputStreamImpl extends LogOutputStream {
+public class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 	private final ConnectionFactory connectionFactory;
 	private final String endpoint;
@@ -81,7 +82,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			connectionSetupComplete();
 		}
 
-		private ClientConnection waitForConnection() throws ConnectionFailedException, LogSealedExcepetion {
+		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedExcepetion {
 			try {
 				connectionSetup.await();
 				synchronized (lock) {
@@ -97,7 +98,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 				throw new ConnectionFailedException(e.getCause());
 			} catch (IllegalArgumentException e) {
 				throw e;
-			} catch (LogSealedExcepetion e) {
+			} catch (SegmentSealedExcepetion e) {
 				throw e;
 			} catch (Exception e) {
 				throw new RuntimeException(e);
@@ -171,7 +172,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 		}
 
 		public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
-			state.failConnection(new LogSealedExcepetion());
+			state.failConnection(new SegmentSealedExcepetion());
 		}
 
 		public void noSuchSegment(NoSuchSegment noSuchSegment) {
@@ -215,7 +216,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 
 	@Override
 	@Synchronized
-	public long write(ByteBuffer buff) throws LogSealedExcepetion {
+	public long write(ByteBuffer buff) throws SegmentSealedExcepetion {
 		if (state.isClosed()) {
 			throw new IllegalStateException("LogOutputStream was already closed");
 		}
@@ -246,7 +247,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 
 	@Override
 	@Synchronized
-	public void close() throws LogSealedExcepetion {
+	public void close() throws SegmentSealedExcepetion {
 		state.setClosed(true);
 		flush();
 		try {
@@ -258,7 +259,7 @@ public class LogOutputStreamImpl extends LogOutputStream {
 
 	@Override
 	@Synchronized
-	public void flush() throws LogSealedExcepetion {
+	public void flush() throws SegmentSealedExcepetion {
 		try {
 			if (state.hasConnetion()) {
 				state.connection.send(new KeepAlive());
@@ -268,6 +269,28 @@ public class LogOutputStreamImpl extends LogOutputStream {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Override
+	@Synchronized
+	public Future<Long> seal(long timeoutMillis) {
+		throw new UnsupportedOperationException();
+//		try {
+//			flush();
+//		} catch (LogSealedExcepetion e) {
+//			//TODO: What should we do here?
+//			log.error("Asked to seal already sealed connection, that had messages waiting to be flushed."+ segment);
+//		}
+//		ClientConnection connection;
+//		try {
+//			connection = state.waitForConnection();
+//		} catch (LogSealedExcepetion e) {
+//			return null; //TODO: find the current size...
+//		} catch (ConnectionFailedException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		connection.send(new SealSegment(segment));
 	}
 
 }

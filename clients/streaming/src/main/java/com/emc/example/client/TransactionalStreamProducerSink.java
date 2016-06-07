@@ -10,24 +10,21 @@ import com.emc.nautilus.streaming.TxFailedException;
 public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> // ...
 {
 	//
-	private Map<String, Transaction<IN>> openTxns;
+	private Transaction<IN> openTxn;
 	Producer<IN> producer;
 
 	public void invoke(IN value) throws TxFailedException {
-		String routingKey = getRoutingKey(value);
-		Transaction<IN> tx = openTxns.get(routingKey);
-		if (tx == null) {
-			tx = producer.startTransaction(routingKey, 60000);
-			openTxns.put(routingKey, tx);
+		if (openTxn == null) {
+			openTxn = producer.startTransaction( 60000);
+			
 		}
-		tx.publish(value);
+		String routingKey = getRoutingKey(value);
+		openTxn.publish(routingKey, value);
 	}
 
 	// ...
 	public void notifyCheckpointComplete() throws TxFailedException {
-		for (Transaction<IN> t : openTxns.values()) {
-			t.commit();
-		}
+			openTxn.commit();
 	}
 
 	public byte[] snapshotState() {

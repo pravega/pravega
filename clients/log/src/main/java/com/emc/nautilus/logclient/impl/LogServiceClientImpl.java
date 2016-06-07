@@ -3,7 +3,6 @@ package com.emc.nautilus.logclient.impl;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
@@ -12,26 +11,24 @@ import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
-import com.emc.nautilus.logclient.Batch;
-import com.emc.nautilus.logclient.LogAppender;
-import com.emc.nautilus.logclient.LogClient;
+import com.emc.nautilus.logclient.LogServiceClient;
 import com.emc.nautilus.logclient.SegmentInputConfiguration;
-import com.emc.nautilus.logclient.LogInputStream;
+import com.emc.nautilus.logclient.SegmentInputStream;
 import com.emc.nautilus.logclient.SegmentOutputConfiguration;
-import com.emc.nautilus.logclient.LogOutputStream;
+import com.emc.nautilus.logclient.SegmentOutputStream;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class LogClientImpl implements LogClient {
+public class LogServiceClientImpl implements LogServiceClient {
 
 	private final String endpoint;
 	private final ConnectionFactory connectionFactory;
 	
 	@Override
 	@Synchronized
-	public boolean createLog(String name) {
+	public boolean createSegment(String name) {
 		ClientConnection connection = connectionFactory.establishConnection(endpoint);
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
 		connection.setResponseProcessor(new FailingReplyProcessor() {
@@ -61,37 +58,24 @@ public class LogClientImpl implements LogClient {
 	}
 
 	@Override
-	public boolean logExists(String name) {
+	public boolean segmentExists(String name) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
-	public LogAppender openLogForAppending(String name, SegmentOutputConfiguration config) {
-		return new LogAppender() {
-			@Override
-			public void close() {
-				//TODO: Does this method need to exist?
-			}
-			@Override
-			public LogOutputStream getOutputStream() {
-				return new LogOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
-			}
-			
-			@Override
-			public Future<Long> seal(long timeoutMillis) {
-				throw new UnsupportedOperationException("TODO");
-			}
-			@Override
-			public Batch createBatch(long timeoutMillis) {
-				throw new UnsupportedOperationException("TODO");
-			}
-		};
+	public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) {
+		return new SegmentOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
 	}
 
 	@Override
-	public LogInputStream openLogForReading(String name, SegmentInputConfiguration config) {
-		return new LogInputStreamImpl(new AsyncLogInputStreamImpl(connectionFactory, endpoint, name));
+	public SegmentInputStream openLogForReading(String name, SegmentInputConfiguration config) {
+		return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name));
+	}
+
+	@Override
+	public SegmentOutputStream openTransactionForAppending(String name, UUID txId) {
+		throw new UnsupportedOperationException();
 	}
 
 }

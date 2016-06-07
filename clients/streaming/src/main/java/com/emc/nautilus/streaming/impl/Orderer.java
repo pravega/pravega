@@ -11,6 +11,6 @@ public interface Orderer<Type> {
 	 * same positions, should yield the same result.
 	 * (The passed collection is not modified)
 	 */
-	LogConsumer<Type> nextConsumer(Collection<LogConsumer<Type>> logs);
+	SegmentConsumer<Type> nextConsumer(Collection<SegmentConsumer<Type>> logs);
 
 }

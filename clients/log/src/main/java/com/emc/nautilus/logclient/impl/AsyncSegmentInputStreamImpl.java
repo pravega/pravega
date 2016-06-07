@@ -17,7 +17,7 @@ import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
-public class AsyncLogInputStreamImpl extends AsyncLogInputStream {
+public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
 	private final ConnectionFactory connectionFactory;
 	private final String endpoint;
@@ -44,7 +44,7 @@ public class AsyncLogInputStreamImpl extends AsyncLogInputStream {
 		}
 	}
 
-	public AsyncLogInputStreamImpl(ConnectionFactory connectionFactory, String endpoint, String segment) {
+	public AsyncSegmentInputStreamImpl(ConnectionFactory connectionFactory, String endpoint, String segment) {
 		super();
 		this.connectionFactory = connectionFactory;
 		this.endpoint = endpoint;

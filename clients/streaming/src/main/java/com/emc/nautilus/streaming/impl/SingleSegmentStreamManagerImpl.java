@@ -4,21 +4,21 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
-import com.emc.nautilus.logclient.impl.LogClientImpl;
+import com.emc.nautilus.logclient.impl.LogServiceClientImpl;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.StreamConfiguration;
 import com.emc.nautilus.streaming.StreamManager;
 
 public class SingleSegmentStreamManagerImpl implements StreamManager {
 
-	private final LogClientImpl logClient;
+	private final LogServiceClientImpl logServiceClient;
 	private final String scope;
 	private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
 	
 	public SingleSegmentStreamManagerImpl(String endpoint, int port, String scope) {
 		this.scope = scope;
 		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-		this.logClient = new LogClientImpl(endpoint, clientCF);
+		this.logServiceClient = new LogServiceClientImpl(endpoint, clientCF);
 	}
 	
 	@Override
@@ -26,7 +26,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 		boolean existed = created.containsKey(streamName);
 		Stream stream = createStreamHelper(streamName,config);
 		if (!existed) {
-			logClient.createLog(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
+			logServiceClient.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
 		}
 		return stream;
 	}
@@ -37,7 +37,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 	}
 
 	private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-		Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, logClient);
+		Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, logServiceClient);
 		created.put(streamName, stream);
 		return stream;
 	}

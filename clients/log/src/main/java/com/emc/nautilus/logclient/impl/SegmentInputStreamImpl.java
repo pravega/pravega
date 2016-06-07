@@ -6,16 +6,16 @@ import java.util.concurrent.Future;
 
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.utils.CircularBuffer;
-import com.emc.nautilus.logclient.EndOfLogException;
-import com.emc.nautilus.logclient.LogInputStream;
+import com.emc.nautilus.logclient.EndOfSegmentException;
+import com.emc.nautilus.logclient.SegmentInputStream;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class LogInputStreamImpl extends LogInputStream {
+public class SegmentInputStreamImpl extends SegmentInputStream {
 
-	private final AsyncLogInputStream asyncLogInput;
+	private final AsyncSegmentInputStream asyncInput;
 	private static final int READ_LENGTH = 1024 * 1024;
 	private final CircularBuffer buffer = new CircularBuffer(2 * READ_LENGTH);
 	private long offset = 0;
@@ -44,7 +44,7 @@ public class LogInputStreamImpl extends LogInputStream {
 
 	@Override
 	@Synchronized
-	public void read(ByteBuffer toFill) throws EndOfLogException {
+	public void read(ByteBuffer toFill) throws EndOfSegmentException {
 		issueRequestIfNeeded();
 		if (outstandingRequest.isDone() || buffer.dataAvailable() <= 0) {
 			try {
@@ -54,7 +54,7 @@ public class LogInputStreamImpl extends LogInputStream {
 			}
 		}
 		if (buffer.dataAvailable() <= 0 && receivedEndOfStream) {
-			throw new EndOfLogException();
+			throw new EndOfSegmentException();
 		}
 		offset += buffer.read(toFill);
 	}
@@ -81,14 +81,14 @@ public class LogInputStreamImpl extends LogInputStream {
 
 	private void issueRequestIfNeeded() {
 		if (!receivedEndOfStream && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
-			outstandingRequest = asyncLogInput.read(offset + buffer.dataAvailable(), READ_LENGTH);
+			outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), READ_LENGTH);
 		}
 	}
 
 	@Override
 	@Synchronized
 	public void close() {
-		asyncLogInput.close();
+		asyncInput.close();
 	}
 
 }

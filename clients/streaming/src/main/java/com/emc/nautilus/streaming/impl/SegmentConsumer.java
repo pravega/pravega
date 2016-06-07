@@ -1,11 +1,11 @@
 package com.emc.nautilus.streaming.impl;
 
-import com.emc.nautilus.logclient.EndOfLogException;
+import com.emc.nautilus.logclient.EndOfSegmentException;
 import com.emc.nautilus.streaming.SegmentId;
 
-public interface LogConsumer<Type> {
+public interface SegmentConsumer<Type> {
 	SegmentId getLogId();
-	Type getNextEvent(long timeout) throws EndOfLogException;
+	Type getNextEvent(long timeout) throws EndOfSegmentException;
 	long getOffset();
 	void setOffset(long offset);
 	void close();
