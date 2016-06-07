@@ -1,5 +1,6 @@
 package com.emc.logservice.serverhost;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
@@ -12,6 +13,7 @@ import com.emc.logservice.server.reading.ReadIndexFactory;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.storageabstraction.mocks.*;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.time.Duration;
@@ -43,6 +45,10 @@ public class Playground {
     private static void testInteractiveStreamSegmentContainer() {
         final boolean useDistributedLog = true;
         final int containerCount = 1;
+
+        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.reset();
 
         ServiceBuilder serviceBuilder;
         if (useDistributedLog) {

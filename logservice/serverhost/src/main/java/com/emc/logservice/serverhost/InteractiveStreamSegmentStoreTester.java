@@ -8,8 +8,7 @@ import com.emc.logservice.server.service.ServiceBuilder;
 import java.io.*;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 /**
@@ -157,13 +156,16 @@ public class InteractiveStreamSegmentStoreTester {
                             String data = new String(rawData);
                             log("Read #%d (Offset=%d, Remaining=%d): %s", readId, entry.getStreamSegmentOffset(), readResult.getMaxResultLength() - readResult.getConsumedLength(), data);
                         }
-                        catch (InterruptedIOException ex) {
+                        catch (CancellationException | InterruptedIOException ex) {
                             log("Read #%d (Offset=%d) has been interrupted.", readId, entry.getStreamSegmentOffset());
+                            return;
                         }
                         catch (Exception ex) {
                             log(ex, "Read #%d (Offset=%d)", readId, entry.getStreamSegmentOffset());
                         }
                     }
+
+                    log("Read #%d (Offset=%d) completed with %d bytes read in total.", readId, readResult.getConsumedLength());
                 }));
     }
 
