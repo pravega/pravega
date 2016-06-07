@@ -25,6 +25,9 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class LogServiceRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
 	private static final Duration TIMEOUT = Duration.ofMinutes(1);
@@ -86,7 +89,7 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 				if (u == null) {
 					connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
 				} else {
-					handleException(createStreamsSegment.getSegment(), u);
+					handleException(createStreamsSegment.getSegment(), "Create segment", u);
 				}
 				return null;
 			}
@@ -94,7 +97,7 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 	}
 
 	// TODO: Duplicated in AppendProcessor.
-	private void handleException(String segment, Throwable u) {
+	private void handleException(String segment, String operation, Throwable u) {
 		if (u == null) {
 			throw new IllegalStateException("Neither offset nor exception!?");
 		}
@@ -113,6 +116,7 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 		} else {
 			// TODO: don't know what to do here...
 			connection.drop();
+			log.error("Unknown excpetion on "+operation+ " for segment "+ segment,u);
 			throw new IllegalStateException("Unknown exception.", u);
 		}
 	}
