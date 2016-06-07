@@ -21,7 +21,7 @@ public class StartProducer {
 		Stream stream = streamManager.createStream(streamName, null);
 		@Cleanup
 		Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-		for (int i=0;i<100000;i++) {
+		for (int i=0;i<10000;i++) {
 			producer.publish(null, testString+i+"\n");
 		}
 		producer.flush();
