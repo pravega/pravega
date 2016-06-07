@@ -5,7 +5,7 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-public class StreamLogs {
-	public final List<LogId> logs;
+public class StreamSegments {
+	public final List<SegmentId> segments;
 	public final long time;
 }

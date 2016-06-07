@@ -13,7 +13,7 @@ import com.emc.nautilus.logclient.LogOutputStream.AckListener;
 import com.emc.nautilus.logclient.impl.LogClientImpl;
 import com.emc.nautilus.streaming.*;
 import com.emc.nautilus.streaming.impl.JavaSerializer;
-import com.emc.nautilus.streaming.impl.SingleLogStreamManagerImpl;
+import com.emc.nautilus.streaming.impl.SingleSegmentStreamManagerImpl;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -24,9 +24,11 @@ import lombok.Cleanup;
 import org.junit.*;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -36,11 +38,12 @@ public class AppendTest {
 	private ServiceBuilder serviceBuilder;
 
 	@Before
-	public void setup() {
+	public void setup() throws InterruptedException, ExecutionException {
 		originalLevel = ResourceLeakDetector.getLevel();
 		ResourceLeakDetector.setLevel(Level.PARANOID);
 
 		this.serviceBuilder = new InMemoryServiceBuilder(1);
+		this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
 	}
 
 	@After
@@ -155,9 +158,7 @@ public class AppendTest {
 		@Cleanup("shutdown")
 		LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
 		server.startListening();
-		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);
-		SingleLogStreamManagerImpl streamManager = new SingleLogStreamManagerImpl("Scope", logClient);
+		SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
 		Stream stream = streamManager.createStream(streamName, null);
 		@Cleanup
 		Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));

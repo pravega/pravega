@@ -4,14 +4,14 @@ import lombok.Data;
 import lombok.NonNull;
 
 @Data
-public class LogId {
+public class SegmentId {
 	private final String scope;
 	@NonNull
 	private final String name;
 	private final int number;
 	private final int previous;
 
-	public LogId(String scope, String name, int number, int previous) {
+	public SegmentId(String scope, String name, int number, int previous) {
 		super();
 		this.scope = scope;
 		if (name == null) {
@@ -38,10 +38,10 @@ public class LogId {
 	}
 
 	/**
-	 * @return True if this log is a replacement or partial replacement for the
+	 * @return True if this segment is a replacement or partial replacement for the
 	 *         one passed.
 	 */
-	public boolean succeeds(LogId other) {
+	public boolean succeeds(SegmentId other) {
 		return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && name.equals(other.name)
 				&& previous == other.number;
 	}
