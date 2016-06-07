@@ -17,7 +17,9 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -28,11 +30,17 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 	private final boolean ssl;
 	private final int port;
 	private final EventLoopGroup group;
+	private final boolean nio = false;
 
 	public ConnectionFactoryImpl(boolean ssl, int port) {
 		this.ssl = ssl;
 		this.port = port;
-		this.group = new EpollEventLoopGroup();
+		try {
+			this.group = new EpollEventLoopGroup();
+		} catch (ExceptionInInitializerError e) {
+			nio = true;
+			this.group = new NioEventLoopGroup();
+		}
 	}
 
 	@Override
@@ -53,7 +61,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler();
 		Bootstrap b = new Bootstrap();
 		b.group(group)
-			.channel(EpollSocketChannel.class)
+			.channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
 			.option(ChannelOption.TCP_NODELAY, true)
 			.handler(new ChannelInitializer<SocketChannel>() {
 				@Override
@@ -62,9 +70,9 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 					if (sslCtx != null) {
 						p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
 					}
-					//p.addLast(new LoggingHandler(LogLevel.INFO));
+					// p.addLast(new LoggingHandler(LogLevel.INFO));
 					p.addLast(	new ExceptionLoggingHandler(),
-					          	new CommandEncoder(),
+								new CommandEncoder(),
 								new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
 								new CommandDecoder(),
 								handler);
