@@ -41,7 +41,7 @@ public class Playground {
     }
 
     private static void testInteractiveStreamSegmentContainer() {
-        final boolean useDistributedLog = false;
+        final boolean useDistributedLog = true;
         final int containerCount = 1;
 
         ServiceBuilder serviceBuilder;
