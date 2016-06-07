@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 
 // Defines a Log output stream.
-public abstract class LogOutputStream implements AutoCloseable {
+public abstract class SegmentOutputStream implements AutoCloseable {
 	@FunctionalInterface
 	public interface AckListener {
 		void ack(long connectionOffset);
@@ -20,12 +20,12 @@ public abstract class LogOutputStream implements AutoCloseable {
 	 * @return the connectionOffset. This is the value that will be passed to
 	 *         the ack listener when the buffer has been durablably stored.
 	 */
-	public abstract long write(ByteBuffer buff) throws LogSealedExcepetion;
+	public abstract long write(ByteBuffer buff) throws SegmentSealedExcepetion;
 
 	@Override
-	public abstract void close() throws LogSealedExcepetion;
+	public abstract void close() throws SegmentSealedExcepetion;
 
-	public abstract void flush() throws LogSealedExcepetion;
+	public abstract void flush() throws SegmentSealedExcepetion;
 
 	/**
 	 * Closes all writing streams associated with this, flushes all outstanding

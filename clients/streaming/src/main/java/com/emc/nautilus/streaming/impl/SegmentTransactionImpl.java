@@ -3,17 +3,17 @@ package com.emc.nautilus.streaming.impl;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import com.emc.nautilus.logclient.LogOutputStream;
-import com.emc.nautilus.logclient.LogSealedExcepetion;
+import com.emc.nautilus.logclient.SegmentOutputStream;
+import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 import com.emc.nautilus.streaming.Serializer;
 import com.emc.nautilus.streaming.TxFailedException;
 
-final class LogTransactionImpl<Type> implements LogTransaction<Type> {
+final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 	private final Serializer<Type> serializer;
-	private final LogOutputStream out;
+	private final SegmentOutputStream out;
 	private UUID txId;
 
-	LogTransactionImpl(UUID txId, LogOutputStream out, Serializer<Type> serializer) {
+	SegmentTransactionImpl(UUID txId, SegmentOutputStream out, Serializer<Type> serializer) {
 		this.txId = txId;
 		this.out = out;
 		this.serializer = serializer;
@@ -23,9 +23,8 @@ final class LogTransactionImpl<Type> implements LogTransaction<Type> {
 	public void publish(Type event) throws TxFailedException {
 		try {
 			ByteBuffer buffer = serializer.serialize(event);
-			buffer = DataParser.prependLength(buffer);
 			out.write(buffer);
-		} catch (LogSealedExcepetion e) {
+		} catch (SegmentSealedExcepetion e) {
 			throw new TxFailedException();
 		}
 	}
@@ -39,7 +38,7 @@ final class LogTransactionImpl<Type> implements LogTransaction<Type> {
 	public void flush() throws TxFailedException {
 		try {
 			out.flush();
-		} catch (LogSealedExcepetion e) {
+		} catch (SegmentSealedExcepetion e) {
 			throw new TxFailedException();
 		}
 	}

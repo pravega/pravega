@@ -2,7 +2,7 @@ package com.emc.nautilus.streaming.impl;
 
 import java.util.Collections;
 
-import com.emc.nautilus.logclient.LogClient;
+import com.emc.nautilus.logclient.LogServiceClient;
 import com.emc.nautilus.streaming.Consumer;
 import com.emc.nautilus.streaming.ConsumerConfig;
 import com.emc.nautilus.streaming.EventRouter;
@@ -26,7 +26,7 @@ public class SingleSegmentStreamImpl implements Stream {
 	@Getter
 	private final StreamConfiguration config;
 	private final SegmentId logId;
-	private final LogClient logClient;
+	private final LogServiceClient logClient;
 	private final EventRouter router = new EventRouter() {
 		@Override
 		public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
@@ -34,7 +34,7 @@ public class SingleSegmentStreamImpl implements Stream {
 		}
 	};
 	
-	public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config, LogClient logClient) {
+	public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config, LogServiceClient logClient) {
 		this.scope = scope;
 		this.name = name;
 		this.config = config;

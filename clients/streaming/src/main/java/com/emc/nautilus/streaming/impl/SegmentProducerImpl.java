@@ -7,20 +7,20 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.emc.nautilus.logclient.LogOutputStream;
-import com.emc.nautilus.logclient.LogSealedExcepetion;
+import com.emc.nautilus.logclient.SegmentOutputStream;
+import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 import com.emc.nautilus.streaming.Serializer;
 
-public class LogProducerImpl<Type> implements LogProducer<Type> {
+public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
 
 	private final Serializer<Type> serializer;
 
-	private final LogOutputStream out;
+	private final SegmentOutputStream out;
 	private final ConcurrentSkipListMap<Long, Event<Type>> outstanding = new ConcurrentSkipListMap<>();
 	private final AtomicBoolean sealed = new AtomicBoolean(false);
 	private final AtomicBoolean closed = new AtomicBoolean(false);
 
-	public LogProducerImpl(LogOutputStream out, Serializer<Type> serializer) {
+	public SegmentProducerImpl(SegmentOutputStream out, Serializer<Type> serializer) {
 		this.serializer = serializer;
 		this.out = out;
 		out.setWriteAckListener((long pos) -> {
@@ -34,34 +34,33 @@ public class LogProducerImpl<Type> implements LogProducer<Type> {
 	}
 
 	@Override
-	public void publish(Event<Type> m) throws LogSealedExcepetion {
+	public void publish(Event<Type> m) throws SegmentSealedExcepetion {
 		checkSealedAndClosed();
 		ByteBuffer buffer = serializer.serialize(m.getValue());
-		buffer = DataParser.prependLength(buffer);
 		long offset = out.write(buffer);			
 		outstanding.put(offset, m);
 	}
 
 	@Override
-	public void flush() throws LogSealedExcepetion {
+	public void flush() throws SegmentSealedExcepetion {
 		checkSealedAndClosed();
 		try {
 			out.flush();
-		} catch (LogSealedExcepetion e) {
+		} catch (SegmentSealedExcepetion e) {
 			sealed.set(true);
 			throw e;
 		}
 	}
 
 	@Override
-	public void close() throws LogSealedExcepetion {
+	public void close() throws SegmentSealedExcepetion {
 		checkSealed();
 		if (closed.get()) {
 			return;
 		}
 		try {
 			out.close();
-		} catch (LogSealedExcepetion e) {
+		} catch (SegmentSealedExcepetion e) {
 			sealed.set(true);
 			throw e;
 		}

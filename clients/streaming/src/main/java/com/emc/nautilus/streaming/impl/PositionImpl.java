@@ -17,7 +17,7 @@ public class PositionImpl implements Position {
 		this.futureOwnedLogs = futureOwnedLogs;		
 	}
 
-	Set<SegmentId> getOwnedLogs() {
+	Set<SegmentId> getOwnedSegments() {
 		return Collections.unmodifiableSet(ownedLogs.keySet());
 	}
 	

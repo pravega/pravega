@@ -3,7 +3,7 @@ package com.emc.nautilus.logclient;
 import java.nio.ByteBuffer;
 
 //Defines a Stream Reader.
-public abstract class LogInputStream implements AutoCloseable {
+public abstract class SegmentInputStream implements AutoCloseable {
 	// Sets the offset for reading from the stream.
 	public abstract void setOffset(long offset);
 
@@ -11,7 +11,7 @@ public abstract class LogInputStream implements AutoCloseable {
 	
 	public abstract int available();
 	
-	public abstract void read(ByteBuffer toFill) throws EndOfLogException;
+	public abstract void read(ByteBuffer toFill) throws EndOfSegmentException;
 
 	@Override
 	public abstract void close();
