@@ -1,19 +1,15 @@
 package com.emc.logservice.serverhost;
 
-import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.*;
 import com.emc.logservice.server.logs.*;
 import com.emc.logservice.server.logs.operations.*;
-import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
-import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.storageabstraction.mocks.*;
-import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.time.Duration;
@@ -32,7 +28,6 @@ public class Playground {
     private static final String ContainerId = "123";
 
     public static void main(String[] args) throws Exception {
-        testInteractiveStreamSegmentContainer();
         //testStreamSegmentContainer();
         //testDurableLog();
         //testReadIndex();
@@ -40,32 +35,6 @@ public class Playground {
         //testDataFrameBuilder();
         //testDataFrame();
         //testInMemoryStorage();
-    }
-
-    private static void testInteractiveStreamSegmentContainer() {
-        final boolean useDistributedLog = true;
-        final int containerCount = 1;
-
-        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.reset();
-
-        ServiceBuilder serviceBuilder;
-        if (useDistributedLog) {
-            serviceBuilder = new DistributedLogServiceBuilder(containerCount);
-        }
-        else {
-            serviceBuilder = new InMemoryServiceBuilder(containerCount);
-        }
-
-        try {
-            serviceBuilder.getContainerManager().initialize(Timeout).join();
-            InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
-            tester.run();
-        }
-        finally {
-            serviceBuilder.close();
-        }
     }
 
     private static void testStreamSegmentContainer() throws Exception {

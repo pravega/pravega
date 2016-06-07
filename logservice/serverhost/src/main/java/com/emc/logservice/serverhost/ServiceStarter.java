@@ -1,7 +1,6 @@
 package com.emc.logservice.serverhost;
 
 import com.emc.logservice.contracts.StreamSegmentStore;
-import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.serverhost.handler.LogServiceConnectionListener;
 
@@ -17,7 +16,7 @@ public final class ServiceStarter {
 
     public static void main(String[] args) {
         System.out.println("Initializing ServiceBuilder ...");
-        try (ServiceBuilder serviceBuilder = new InMemoryServiceBuilder(ContainerCount)) {
+        try (ServiceBuilder serviceBuilder = new DistributedLogServiceBuilder(ContainerCount)){ //InMemoryServiceBuilder(ContainerCount)) {
             System.out.println("Initializing Container Manager ...");
             serviceBuilder.getContainerManager().initialize(InitializeTimeout).join();
             System.out.println("Creating StreamSegmentService ...");

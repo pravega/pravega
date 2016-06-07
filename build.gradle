@@ -10,138 +10,147 @@
 // Apply the java plugin to add support for Java
 
 allprojects {
-apply plugin: 'java'
-apply plugin: 'idea'
-apply plugin: 'eclipse'
-apply plugin: 'maven'
-apply plugin: 'signing'
-apply plugin: 'checkstyle'
+    apply plugin: 'java'
+    apply plugin: 'idea'
+    apply plugin: 'eclipse'
+    apply plugin: 'maven'
+    apply plugin: 'signing'
+    apply plugin: 'checkstyle'
 
- // In this section you declare where to find the dependencies of your project
- repositories {
-    // Use 'jcenter' for resolving your dependencies.
-    // You can declare any Maven/Ivy/file repository here.
-    jcenter()
-    mavenCentral()
-    mavenLocal()
- }
+    // In this section you declare where to find the dependencies of your project
+    repositories {
+        // Use 'jcenter' for resolving your dependencies.
+        // You can declare any Maven/Ivy/file repository here.
+        jcenter()
+        mavenCentral()
+        mavenLocal()
+    }
 
- checkstyle {
-   configFile = new File(rootDir, "checkstyle/checkstyle.xml")
-   configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
- }
+    checkstyle {
+        configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+    }
 
 // In this section you declare the dependencies for your production and test code
-dependencies {
-    // The production code uses the SLF4J logging API at compile time
-    compile 'org.slf4j:slf4j-api:1.7.14'
-    compile group: 'ch.qos.logback', name:'logback-classic', version: '1.1.7'                                                                                                                                                                 
-    compile group: 'ch.qos.logback', name:'logback-core', version: '1.1.7'    
+    dependencies {
+        // The production code uses the SLF4J logging API at compile time
+        compile 'org.slf4j:slf4j-api:1.7.14'
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
+        compile group: 'ch.qos.logback', name: 'logback-core', version: '1.1.7'
 
-    // Declare the dependency for your favourite test framework you want to use in your tests.
-    // TestNG is also supported by the Gradle Test task. Just change the
-    // testCompile dependency to testCompile 'org.testng:testng:6.8.1' and add
-    // 'test.useTestNG()' to your build script.
-    testCompile 'junit:junit:4.12'
-    compile group: 'com.google.guava', name: 'guava', version: '19.0'
-    compile 'org.projectlombok:lombok:1.16.8'
-    compile 'io.netty:netty-all:4.0.36.Final'
-	// put maven reference for twitter DL
-}
+        // Declare the dependency for your favourite test framework you want to use in your tests.
+        // TestNG is also supported by the Gradle Test task. Just change the
+        // testCompile dependency to testCompile 'org.testng:testng:6.8.1' and add
+        // 'test.useTestNG()' to your build script.
+        testCompile 'junit:junit:4.12'
+        compile group: 'com.google.guava', name: 'guava', version: '19.0'
+        compile 'org.projectlombok:lombok:1.16.8'
+        compile 'io.netty:netty-all:4.0.36.Final'
+        // put maven reference for twitter DL
+    }
 
 }
 
 def pkgs = ['common', 'clients:log', 'clients:streming', 'streaming', 'logservice-server', 'integrationtests']
 
-project('common') {} 
+project('common') {}
 
 project('clients:log') {
-	dependencies {
-		compile project (':common')
-	}
-} 
+    dependencies {
+        compile project(':common')
+    }
+}
 
 project('clients:streaming') {
-	dependencies {
-		compile project (':clients:log')
-	}
-} 
+    dependencies {
+        compile project(':clients:log')
+    }
+}
 
 project('streaming') {}
 
-project ('testcommon') {
-	dependencies {
-		compile 'junit:junit:4.12'
-	}
+project('testcommon') {
+    dependencies {
+        compile 'junit:junit:4.12'
+    }
 }
 
-project ('logservice:common') {
-	dependencies {
-		testCompile project (':testcommon')
-	}
+project('logservice:common') {
+    dependencies {
+        testCompile project(':testcommon')
+    }
 }
 
-project ('logservice:contracts') {
-	dependencies {
-		testCompile project (':testcommon')
-	}
+project('logservice:contracts') {
+    dependencies {
+        testCompile project(':testcommon')
+    }
 }
 
-project ('logservice:storageabstraction') {
-	dependencies {
-		compile project (':logservice:common')
-		compile project (':logservice:contracts')
-		testCompile project (':testcommon')
-	}
+project('logservice:storageabstraction') {
+    dependencies {
+        compile project(':logservice:common')
+        compile project(':logservice:contracts')
+        testCompile project(':testcommon')
+    }
 }
 
-project ('logservice:storageimplementation') {
-	dependencies {
-		compile 'com.twitter:distributedlog-core:0.3.51-SNAPSHOT'
-		compile 'com.twitter:distributedlog-client:0.3.51-SNAPSHOT'
-		compile project (':logservice:common')
-		compile project (':logservice:storageabstraction')
-		testCompile project (':testcommon')
-	}
+project('logservice:storageimplementation') {
+    dependencies {
+        compile 'com.twitter:distributedlog-core:0.3.51-SNAPSHOT'
+        compile 'com.twitter:distributedlog-client:0.3.51-SNAPSHOT'
+        compile project(':logservice:common')
+        compile project(':logservice:storageabstraction')
+        testCompile project(':testcommon')
+    }
 }
 
-project ('logservice:server') {
-	dependencies {
-		compile project (':common')
-		compile project (':logservice:common')
-		compile project (':logservice:contracts')
-		compile project (':logservice:storageabstraction')
-		testCompile project (':testcommon')
-	}
+project('logservice:server') {
+    dependencies {
+        compile project(':common')
+        compile project(':logservice:common')
+        compile project(':logservice:contracts')
+        compile project(':logservice:storageabstraction')
+        testCompile project(':testcommon')
+    }
 }
 
-project ('logservice:serverhost') {
-	dependencies {
-		compile project (':logservice:common')
-		compile project (':logservice:contracts')
-		compile project (':logservice:storageabstraction')
-		compile project (':logservice:storageimplementation')
-		compile project (':logservice:server')
-		testCompile project (':testcommon')
-	}
+project('logservice:serverhost') {
+    dependencies {
+        compile project(':logservice:common')
+        compile project(':logservice:contracts')
+        compile project(':logservice:storageabstraction')
+        compile project(':logservice:storageimplementation')
+        compile project(':logservice:server')
+        testCompile project(':testcommon')
+    }
 }
 
-project ('integrationtests') {
-	dependencies {
-		compile project (':common')
-		compile project (':clients:log')
-		compile project (':clients:streaming')
-		compile project (':logservice:server')
-		compile project (':logservice:serverhost')
-	}
-	task startServer(type:JavaExec) {
-            main = "com.emc.logservice.serverhost.ServiceStarter"
-            classpath = sourceSets.main.runtimeClasspath
-        }
-        task startProducer(type:JavaExec) {
-            main = "com.emc.nautilus.demo.StartProducer"
-            classpath = sourceSets.main.runtimeClasspath
-        }
+project('integrationtests') {
+    dependencies {
+        compile project(':common')
+        compile project(':clients:log')
+        compile project(':clients:streaming')
+        compile project(':logservice:server')
+        compile project(':logservice:serverhost')
+    }
+    task startServer(type: JavaExec) {
+        main = "com.emc.logservice.serverhost.ServiceStarter"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
+    task startServerInteractive(type: JavaExec) {
+        main = "com.emc.logservice.serverhost.InteractiveStreamSegmentStoreTester"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+
+    task startProducer(type: JavaExec) {
+        main = "com.emc.nautilus.demo.StartProducer"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
 }
 
 

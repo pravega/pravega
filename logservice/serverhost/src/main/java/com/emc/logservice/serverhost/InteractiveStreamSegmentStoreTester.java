@@ -1,9 +1,12 @@
 package com.emc.logservice.serverhost;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.*;
+import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.time.Duration;
@@ -17,6 +20,7 @@ import java.util.function.Consumer;
 public class InteractiveStreamSegmentStoreTester {
     //region Members
 
+    private static final Duration Timeout = Duration.ofSeconds(30);
     private final StreamSegmentStore streamSegmentStore;
     private final Duration DefaultTimeout = Duration.ofSeconds(30);
     private final PrintStream out;
@@ -35,6 +39,36 @@ public class InteractiveStreamSegmentStoreTester {
         this.in = new BufferedReader(new InputStreamReader(in));
         this.errorLogger = errorLogger;
         this.streamSegmentStore = serviceBuilder.createStreamSegmentService();
+    }
+
+    //endregion
+
+    //region Main Method
+
+    public static void main(String[] args) {
+        final boolean useDistributedLog = true;
+        final int containerCount = 1;
+
+        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.reset();
+
+        ServiceBuilder serviceBuilder;
+        if (useDistributedLog) {
+            serviceBuilder = new DistributedLogServiceBuilder(containerCount);
+        }
+        else {
+            serviceBuilder = new InMemoryServiceBuilder(containerCount);
+        }
+
+        try {
+            serviceBuilder.getContainerManager().initialize(Timeout).join();
+            InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
+            tester.run();
+        }
+        finally {
+            serviceBuilder.close();
+        }
     }
 
     //endregion
@@ -165,7 +199,7 @@ public class InteractiveStreamSegmentStoreTester {
                         }
                     }
 
-                    log("Read #%d (Offset=%d) completed with %d bytes read in total.", readId, readResult.getConsumedLength());
+                    log("Read #%d completed with %d bytes read in total.", readId, readResult.getConsumedLength());
                 }));
     }
 
