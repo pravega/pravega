@@ -46,7 +46,9 @@ public class StreamSegmentService implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
-        return getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, data, appendContext, timeout));
+        CompletableFuture<Long> result = getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, data, appendContext, timeout));
+        //result.whenComplete((r, ex) -> System.out.println(String.format("Append to %s (%d bytes) complete: Result %d, Error %s.", streamSegmentName, data.length, r, ex)));
+        return result;
     }
 
     @Override
