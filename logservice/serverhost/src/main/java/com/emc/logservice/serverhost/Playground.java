@@ -6,24 +6,25 @@ import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.*;
 import com.emc.logservice.server.logs.*;
 import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
+import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.storageabstraction.mocks.*;
-import com.emc.logservice.storageimplementation.distributedlog.DistributedLogConfig;
-import com.emc.logservice.storageimplementation.distributedlog.DistributedLogDataLogFactory;
 
 import java.io.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
- * Main Test class.
+ * Playground Test class.
  */
-public class Main {
+public class Playground {
     private static final Random Random = new Random();
     private static final Duration Timeout = Duration.ofSeconds(30);
     private static final String ContainerId = "123";
@@ -40,32 +41,24 @@ public class Main {
     }
 
     private static void testInteractiveStreamSegmentContainer() {
-        Supplier<StorageFactory> inMemoryStorageFactorySupplier = InMemoryStorageFactory::new;
-        Supplier<DurableDataLogFactory> inMemoryDataLogFactorySupplier = InMemoryDurableDataLogFactory::new;
-        Supplier<DurableDataLogFactory> dLogDataLogFactorySupplier = () -> {
-            DistributedLogConfig dlConfig;
-            try {
-                Properties dlProperties = new Properties();
-                dlProperties.put("dlog.hostname", "localhost");
-                dlProperties.put("dlog.port", "7000");
-                dlProperties.put("dlog.namespace", "messaging/distributedlog");
+        final boolean useDistributedLog = false;
+        final int containerCount = 1;
 
-                dlConfig = new DistributedLogConfig(dlProperties);
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
-                factory.initialize();
-                return factory;
-            }
-            catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        };
+        ServiceBuilder serviceBuilder;
+        if (useDistributedLog) {
+            serviceBuilder = new DistributedLogServiceBuilder(containerCount);
+        }
+        else {
+            serviceBuilder = new InMemoryServiceBuilder(containerCount);
+        }
 
-        try (
-                StorageFactory storageFactory = inMemoryStorageFactorySupplier.get();
-                DurableDataLogFactory dataLogFactory = dLogDataLogFactorySupplier.get();
-                //DurableDataLogFactory dataLogFactory = inMemoryDataLogFactorySupplier.get();
-                InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(dataLogFactory, storageFactory, System.in, System.out, System.err)) {
+        try {
+            serviceBuilder.getContainerManager().initialize(Timeout).join();
+            InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
+        }
+        finally {
+            serviceBuilder.close();
         }
     }
 
@@ -77,13 +70,10 @@ public class Main {
         int batchPerStreamCount = 10;
 
         MetadataRepository metadataRepository = new InMemoryMetadataRepository();
-        DurableDataLogFactory dataFrameLogFactory = new InMemoryDurableDataLogFactory();
-        OperationLogFactory durableLogFactory = new DurableLogFactory(dataFrameLogFactory);
-        StorageFactory storageFactory = new InMemoryStorageFactory();
-        CacheFactory cacheFactory = new ReadIndexFactory();
+        SegmentContainerFactory containerFactory = new StreamSegmentContainerFactory(metadataRepository, new DurableLogFactory(new InMemoryDurableDataLogFactory()), new ReadIndexFactory(), new InMemoryStorageFactory());
         List<String> streamNames = new ArrayList<>();
         List<CompletableFuture> batchNameFutures = new ArrayList<>();
-        try (StreamSegmentContainer c = new StreamSegmentContainer(containerId, metadataRepository, durableLogFactory, cacheFactory, storageFactory)) {
+        try (SegmentContainer c = containerFactory.createStreamSegmentContainer(containerId)) {
             c.initialize(timeout).get();
             c.start(timeout).get();
 
@@ -504,7 +494,7 @@ public class Main {
 
             // Order write entries by seq no (this is the order in which they were processed).
             sortOperationList(writeEntries);
-            appendsByStream.values().forEach(Main::sortOperationList);
+            appendsByStream.values().forEach(Playground::sortOperationList);
 
             // Read from DurableLog.
             System.out.println("Reading entries from DurableLog ...");

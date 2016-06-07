@@ -1,45 +1,19 @@
 package com.emc.nautilus.integrationtests;
 
-import static org.junit.Assert.assertEquals;
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.emc.logservice.server.containers.StreamSegmentContainer;
-import com.emc.logservice.serverhost.handler.AppendProcessor;
-import com.emc.logservice.serverhost.handler.LogSerivceConnectionListener;
-import com.emc.logservice.serverhost.handler.LogServiceRequestProcessor;
-import com.emc.logservice.serverhost.handler.ServerConnectionInboundHandler;
-import com.emc.nautilus.common.netty.CommandDecoder;
-import com.emc.nautilus.common.netty.CommandEncoder;
-import com.emc.nautilus.common.netty.ConnectionFactory;
-import com.emc.nautilus.common.netty.Reply;
-import com.emc.nautilus.common.netty.Request;
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
-import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
-import com.emc.nautilus.common.netty.WireCommands.DataAppended;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
-import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import com.emc.logservice.contracts.StreamSegmentStore;
+import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
+import com.emc.logservice.server.service.ServiceBuilder;
+import com.emc.logservice.serverhost.handler.*;
+import com.emc.nautilus.common.netty.*;
+import com.emc.nautilus.common.netty.WireCommands.*;
 import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
 import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogOutputStream;
 import com.emc.nautilus.logclient.LogOutputStream.AckListener;
 import com.emc.nautilus.logclient.impl.LogClientImpl;
-import com.emc.nautilus.streaming.Producer;
-import com.emc.nautilus.streaming.ProducerConfig;
-import com.emc.nautilus.streaming.Stream;
+import com.emc.nautilus.streaming.*;
 import com.emc.nautilus.streaming.impl.JavaSerializer;
 import com.emc.nautilus.streaming.impl.SingleLogStreamManagerImpl;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -47,27 +21,39 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import lombok.Cleanup;
+import org.junit.*;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.assertEquals;
 
 public class AppendTest {
-	private Level origionalLevel;
+	private Level originalLevel;
+	private ServiceBuilder serviceBuilder;
 
 	@Before
 	public void setup() {
-		origionalLevel = ResourceLeakDetector.getLevel();
+		originalLevel = ResourceLeakDetector.getLevel();
 		ResourceLeakDetector.setLevel(Level.PARANOID);
+
+		this.serviceBuilder = new InMemoryServiceBuilder(1);
 	}
 
 	@After
 	public void teardown() {
-		ResourceLeakDetector.setLevel(origionalLevel);
+		this.serviceBuilder.close();
+		ResourceLeakDetector.setLevel(originalLevel);
 	}
 
 	@Test
 	public void testSetupOnNonExistentSegment() throws Exception {
 		String segment = "123";
 		ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
-		@Cleanup
-		StreamSegmentContainer store = LogSerivceConnectionListener.createStore("ABC");
+		StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
 		EmbeddedChannel channel = createChannel(store);
 		CommandDecoder decoder = new CommandDecoder();
@@ -82,8 +68,7 @@ public class AppendTest {
 	public void sendReceivingAppend() throws Exception {
 		String segment = "123";
 		ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
-		@Cleanup
-		StreamSegmentContainer store = LogSerivceConnectionListener.createStore("ABC");
+		StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
 		EmbeddedChannel channel = createChannel(store);
 		CommandDecoder decoder = new CommandDecoder();
@@ -120,7 +105,7 @@ public class AppendTest {
 		return (Reply) decoded.get(0);
 	}
 
-	private EmbeddedChannel createChannel(StreamSegmentContainer store) {
+	private EmbeddedChannel createChannel(StreamSegmentStore store) {
 		ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
 		lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
 		EmbeddedChannel channel = new EmbeddedChannel(new CommandEncoder(),
@@ -136,8 +121,9 @@ public class AppendTest {
 		String logName = "abc";
 		int port = 8765;
 		String testString = "Hello world\n";
+		StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 		@Cleanup("shutdown")
-		LogSerivceConnectionListener server = new LogSerivceConnectionListener(false, port, "My ContainerId");
+		LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
 		server.startListening();
 
 		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
@@ -165,8 +151,9 @@ public class AppendTest {
 		String streamName = "abc";
 		int port = 8910;
 		String testString = "Hello world\n";
+		StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 		@Cleanup("shutdown")
-		LogSerivceConnectionListener server = new LogSerivceConnectionListener(false, port, "My ContainerId");
+		LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
 		server.startListening();
 		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
 		LogClientImpl logClient = new LogClientImpl(endpoint, clientCF);

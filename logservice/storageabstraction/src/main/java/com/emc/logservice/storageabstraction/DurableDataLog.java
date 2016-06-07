@@ -68,11 +68,9 @@ public interface DurableDataLog extends AutoCloseable {
 
     /**
      * Closes this instance of a DurableDataLog and releases any resources it holds.
-     *
-     * @throws DurableDataLogException When an error occurred during the close.
      */
     @Override
-    void close() throws DurableDataLogException;
+    void close();
 
     /**
      * Defines a single item in a Read Result.

@@ -31,7 +31,6 @@ public class DurableLog implements OperationLog {
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
-    private boolean closed;
 
     //endregion
 
@@ -79,16 +78,16 @@ public class DurableLog implements OperationLog {
     //region AutoCloseable Implementation
 
     @Override
-    public void close() throws Exception {
-        if (!this.closed) {
+    public void close(){
+        if (this.state != ContainerState.Closed) {
             if (this.state == ContainerState.Started) {
                 // Stop the container if it's currently running.
-                this.stop(CloseTimeout).get();
+                this.stop(CloseTimeout).join();
             }
 
             this.queueProcessor.close();
             this.dataFrameLog.close();
-            this.closed = true;
+            setState(ContainerState.Closed);
         }
     }
 
@@ -131,7 +130,7 @@ public class DurableLog implements OperationLog {
         {
             ContainerState.Stopped.checkValidPreviousState(this.state);
 
-            // Update the state first. TODO: figure out if we need to roll back the state if this operation failed.
+            // Update the state first.
             setState(ContainerState.Stopped);
 
             // Stop the Operation Queue Processor.
@@ -210,7 +209,7 @@ public class DurableLog implements OperationLog {
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata, this.truncationMarkers);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
-        CompletableFuture<Void> result = this.dataFrameLog.initialize(timer.getRemaining()) // Iniialize DataFrameLog.
+        CompletableFuture<Void> result = this.dataFrameLog.initialize(timer.getRemaining()) // Initialize DataFrameLog.
                                                           .thenRun(() ->
                                                           {
                                                               // Recover from DataFrameLog.
@@ -299,12 +298,12 @@ public class DurableLog implements OperationLog {
     private void ensureStarted() {
         ensureNotClosed();
         if (this.state != ContainerState.Started) {
-            throw new ObjectClosedException(this);
+            throw new IllegalContainerStateException(this.getId(), this.state, ContainerState.Started);
         }
     }
 
     private void ensureNotClosed() {
-        if (this.closed) {
+        if (this.state == ContainerState.Closed) {
             throw new ObjectClosedException(this);
         }
     }

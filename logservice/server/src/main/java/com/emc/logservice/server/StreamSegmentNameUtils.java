@@ -71,14 +71,22 @@ public final class StreamSegmentNameUtils {
 
         // Extract the hashcode from Part 1 (We don't care about Part 2 here). The hash is the entire part1.
         int decodePos = endOfStreamNamePos + Delimiter.length();
-        long hash = Long.parseUnsignedLong(batchStreamSegmentName.substring(decodePos, decodePos + PartLength), 16);
+        long hash;
+        try {
+            hash = Long.parseUnsignedLong(batchStreamSegmentName.substring(decodePos, decodePos + PartLength), 16);
+        }
+        catch (NumberFormatException ex) {
+            // Not a valid batch name.
+            return null;
+        }
 
-        //TODO: is there a way to compute a partial hash (so that we don't need to substring and then compute hash)?
+        // Determine the hash of the "parent" name.
         long expectedHash = StringHelpers.longHashCode(batchStreamSegmentName, 0, endOfStreamNamePos);
         if (hash == expectedHash) {
             return batchStreamSegmentName.substring(0, endOfStreamNamePos);
         }
 
+        // Hash mismatch. Not a valid batch.
         return null;
     }
 }

@@ -53,20 +53,6 @@ dependencies {
 
 def pkgs = ['common', 'clients:log', 'clients:streming', 'streaming', 'logservice-server', 'integrationtests']
 
-tasks.create(name: "jarAll", dependsOn: [''] + pkgs.collect { it + ":jar" }) { }
-
-tasks.create(name: "srcJarAll", dependsOn: [''] + pkgs.collect { it + ":srcJar" }) { }
-
-tasks.create(name: "docsJarAll", dependsOn: [''] + pkgs.collect { it + ":docsJar" }) { }
-
-tasks.create(name: "testAll", dependsOn: [''] + pkgs.collect { it + ":test" }) { }
-
-tasks.create(name: "installAll", dependsOn: [''] + pkgs.collect { it + ":install" }) { }
-
-tasks.create(name: "releaseTarGzAll", dependsOn: ['']) { }
-
-tasks.create(name: "uploadArchivesAll", dependsOn: [''] + pkgs.collect { it + ":uploadArchives" }) { }
-
 project('common') {} 
 
 project('clients:log') {
@@ -149,7 +135,7 @@ project ('integrationtests') {
 		compile project (':logservice:serverhost')
 	}
 	task startServer(type:JavaExec) {
-            main = "com.emc.nautilus.demo.StartServer"
+            main = "com.emc.logservice.serverhost.ServiceStarter"
             classpath = sourceSets.main.runtimeClasspath
         }
         task startProducer(type:JavaExec) {

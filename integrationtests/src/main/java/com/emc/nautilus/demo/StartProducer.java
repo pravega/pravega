@@ -16,7 +16,7 @@ public class StartProducer {
 	public static final int PORT = 12345;
 
 	public static void main(String[] args) {
-		String endpoint = args[0];
+		String endpoint = "localhost";
 		String streamName = "abc";
 		String testString = "Hello world: ";
 		

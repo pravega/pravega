@@ -1,14 +1,13 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.storageabstraction.DurableDataLog;
 
 import java.time.Duration;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -79,8 +78,8 @@ public class OperationQueueProcessor implements Container {
     //region AutoCloseable implementation
 
     @Override
-    public void close() throws Exception {
-        stop(CloseTimeout).get(CloseTimeout.toMillis(), TimeUnit.MILLISECONDS);
+    public void close(){
+        stop(CloseTimeout).join();
     }
 
     //endregion

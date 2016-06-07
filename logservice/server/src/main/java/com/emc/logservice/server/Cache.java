@@ -105,4 +105,7 @@ public interface Cache extends AutoCloseable {
      *                                  TODO: should this be different, like DataCorruptionException.
      */
     void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success);
+
+    @Override
+    void close();
 }
