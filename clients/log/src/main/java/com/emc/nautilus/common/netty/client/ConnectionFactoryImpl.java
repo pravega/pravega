@@ -29,8 +29,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
 	private final boolean ssl;
 	private final int port;
-	private final EventLoopGroup group;
-	private final boolean nio = false;
+	private EventLoopGroup group;
+	private boolean nio = false;
 
 	public ConnectionFactoryImpl(boolean ssl, int port) {
 		this.ssl = ssl;
