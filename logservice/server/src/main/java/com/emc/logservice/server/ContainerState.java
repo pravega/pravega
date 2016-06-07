@@ -24,7 +24,12 @@ public enum ContainerState {
     /**
      * Container is not running, but was running at a previous point in time.
      */
-    Stopped;
+    Stopped,
+
+    /**
+     * Container has been closed and it doesn't hold on to any resources anymore.
+     */
+    Closed;
 
     private ContainerState[] validPreviousStates;
 
@@ -32,7 +37,8 @@ public enum ContainerState {
         Created.validPreviousStates = new ContainerState[0];
         Initialized.validPreviousStates = new ContainerState[]{ ContainerState.Created };
         Started.validPreviousStates = new ContainerState[]{ ContainerState.Initialized, ContainerState.Stopped };
-        Stopped.validPreviousStates = new ContainerState[]{ ContainerState.Started };
+        Stopped.validPreviousStates = new ContainerState[]{ ContainerState.Started, ContainerState.Stopped };
+        Closed.validPreviousStates = new ContainerState[]{ ContainerState.Created, ContainerState.Initialized, ContainerState.Started, ContainerState.Stopped };
     }
 
     public void checkValidPreviousState(ContainerState previousState) {
@@ -49,6 +55,6 @@ public enum ContainerState {
             joiner.add(s.toString());
         }
 
-        throw new IllegalStateException(String.format("Container is in an invalid state in order to transition to '%s'. Expected: '%s', Actual: '%s'.", this, joiner.toString(), previousState));
+        throw new IllegalContainerStateException(String.format("Container is in an invalid state in order to transition to '%s'. Expected: '%s', Actual: '%s'.", this, joiner.toString(), previousState));
     }
 }

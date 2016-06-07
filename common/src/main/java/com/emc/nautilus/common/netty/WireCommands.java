@@ -150,7 +150,7 @@ public final class WireCommands {
 
 		public static WireCommand readFrom(DataInput in) throws IOException {
 			String segment = in.readUTF();
-			return new NoSuchSegment(segment);
+			return new SegmentAlreadyExists(segment);
 		}
 
 		@Override

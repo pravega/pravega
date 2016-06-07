@@ -1,8 +1,10 @@
 package com.emc.nautilus.common.netty;
 
-public interface ConnectionListener {
+public interface ConnectionListener extends AutoCloseable{
 
-	public void startListening();
-	public void shutdown();
-	
+	void startListening();
+	void shutdown();
+
+	@Override
+	void close();
 }

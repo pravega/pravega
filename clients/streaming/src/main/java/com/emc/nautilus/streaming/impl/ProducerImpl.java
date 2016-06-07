@@ -13,12 +13,12 @@ import com.emc.nautilus.logclient.LogClient;
 import com.emc.nautilus.logclient.LogOutputStream;
 import com.emc.nautilus.logclient.LogSealedExcepetion;
 import com.emc.nautilus.streaming.EventRouter;
-import com.emc.nautilus.streaming.LogId;
+import com.emc.nautilus.streaming.SegmentId;
 import com.emc.nautilus.streaming.Producer;
 import com.emc.nautilus.streaming.ProducerConfig;
 import com.emc.nautilus.streaming.Serializer;
 import com.emc.nautilus.streaming.Stream;
-import com.emc.nautilus.streaming.StreamLogs;
+import com.emc.nautilus.streaming.StreamSegments;
 import com.emc.nautilus.streaming.Transaction;
 import com.emc.nautilus.streaming.TxFailedException;
 
@@ -31,7 +31,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 	private final AtomicBoolean closed = new AtomicBoolean(false);
 	private final EventRouter router;
 	private final ProducerConfig config;
-	private final Map<LogId, LogProducer<Type>> producers = new HashMap<>();
+	private final Map<SegmentId, LogProducer<Type>> producers = new HashMap<>();
 
 	ProducerImpl(TransactionManager txManager, Stream stream, LogClient logClient, EventRouter router,
 			Serializer<Type> serializer, ProducerConfig config) {
@@ -48,18 +48,18 @@ public class ProducerImpl<Type> implements Producer<Type> {
 	}
 
 	private List<Event<Type>> setupLogProducers() {
-		StreamLogs logs = stream.getLatestLogs();
-		List<LogId> newLogs = new ArrayList<>(logs.logs);
+		StreamSegments logs = stream.getLatestSegments();
+		List<SegmentId> newLogs = new ArrayList<>(logs.segments);
 		newLogs.removeAll(producers.keySet());
-		List<LogId> oldLogs = new ArrayList<>(producers.keySet());
-		oldLogs.removeAll(logs.logs);
+		List<SegmentId> oldLogs = new ArrayList<>(producers.keySet());
+		oldLogs.removeAll(logs.segments);
 
 		for (LogId l : newLogs) {
-			LogOutputStream log = logClient.openLogForAppending(l.getQualifiedName(), config.getLogConfig());
+			LogOutputStream log = logClient.openLogForAppending(l.getQualifiedName(), config.getSegmentConfig());
 			producers.put(l, new LogProducerImpl<Type>(log, serializer));
 		}
 		List<Event<Type>> toResend = new ArrayList<>();
-		for (LogId l : oldLogs) {
+		for (SegmentId l : oldLogs) {
 			LogProducer<Type> producer = producers.remove(l);
 			try {
 				producer.close();
@@ -115,7 +115,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 	}
 
 	private LogProducer<Type> getLogProducer(String routingKey) {
-		LogId log = router.getLogForEvent(stream, routingKey);
+		SegmentId log = router.getSegmentForEvent(stream, routingKey);
 		return producers.get(log);
 	}
 

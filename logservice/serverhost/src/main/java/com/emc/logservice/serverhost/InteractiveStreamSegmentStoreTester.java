@@ -3,27 +3,21 @@ package com.emc.logservice.serverhost;
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
-import com.emc.logservice.server.containers.StreamSegmentContainer;
-import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
-import com.emc.logservice.server.logs.DurableLogFactory;
-import com.emc.logservice.server.reading.ReadIndexFactory;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
-import com.emc.logservice.storageabstraction.StorageFactory;
+import com.emc.logservice.server.service.ServiceBuilder;
 
 import java.io.*;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 /**
  * Interactive (command-line) StreamSegmentStore tester.
  */
-public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
-    private final StreamSegmentContainer container;
+public class InteractiveStreamSegmentStoreTester {
+    //region Members
+
+    private final StreamSegmentStore streamSegmentStore;
     private final Duration DefaultTimeout = Duration.ofSeconds(30);
     private final PrintStream out;
     private final PrintStream errorLogger;
@@ -32,39 +26,27 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
     private int appendCount;
     private int readCount;
 
-    public InteractiveStreamSegmentStoreTester(DurableDataLogFactory dataLogFactory, StorageFactory storageFactory, InputStream in, PrintStream out, PrintStream errorLogger) {
-        MetadataRepository metadataRepository = new InMemoryMetadataRepository();
-        OperationLogFactory durableLogFactory = new DurableLogFactory(dataLogFactory);
-        CacheFactory cacheFactory = new ReadIndexFactory();
+    //endregion
+
+    //region Constructor
+
+    public InteractiveStreamSegmentStoreTester(ServiceBuilder serviceBuilder, InputStream in, PrintStream out, PrintStream errorLogger) {
         this.out = out;
         this.in = new BufferedReader(new InputStreamReader(in));
         this.errorLogger = errorLogger;
-        this.container = new StreamSegmentContainer("test", metadataRepository, durableLogFactory, cacheFactory, storageFactory);
-        log("ClientId = %s", clientId);
-        log("Container '%s' created.", this.container.getId());
+        this.streamSegmentStore = serviceBuilder.createStreamSegmentService();
     }
 
+    //endregion
+
+    //region Command Execution
+
     public void run() {
-        // Initialize container.
-        try {
-            this.container.initialize(DefaultTimeout).join();
-            log("Container '%s' initialized successfully.", this.container.getId());
+        log("InteractiveStreamStoreTester: ClientId = %s.", clientId);
+        log("Available commands:");
+        for (String syntax : Commands.Syntaxes.values()) {
+            log("\t%s", syntax);
         }
-        catch (CompletionException ex) {
-            log(ex, "Unable to initialize container '%s'.", this.container.getId());
-            return;
-        }
-
-        // Start container.
-        try {
-            this.container.start(DefaultTimeout).join();
-            log("Container '%s' started successfully.", this.container.getId());
-        }
-        catch (CompletionException ex) {
-            log(ex, "Unable to start container '%s'.", this.container.getId());
-            return;
-        }
-
         try {
             while (true) {
                 //this.out.print(">"); Commenting out since this interferes with printing read output.
@@ -76,28 +58,28 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
 
                 try {
                     switch (commandName) {
-                        case CommandTokens.Create:
+                        case Commands.Create:
                             createStream(commandParser);
                             break;
-                        case CommandTokens.Delete:
+                        case Commands.Delete:
                             deleteStream(commandParser);
                             break;
-                        case CommandTokens.Seal:
+                        case Commands.Seal:
                             sealStream(commandParser);
                             break;
-                        case CommandTokens.Get:
+                        case Commands.Get:
                             getStreamInfo(commandParser);
                             break;
-                        case CommandTokens.Append:
+                        case Commands.Append:
                             appendToStream(commandParser);
                             break;
-                        case CommandTokens.Read:
+                        case Commands.Read:
                             readFromStream(commandParser);
                             break;
-                        case CommandTokens.CreateBatch:
+                        case Commands.CreateBatch:
                             createBatch(commandParser);
                             break;
-                        case CommandTokens.MergeBatch:
+                        case Commands.MergeBatch:
                             mergeBatch(commandParser);
                             break;
                         default:
@@ -113,63 +95,57 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
         catch (IOException ex) {
             log(ex, "Could not read from input.");
         }
-        finally {
-            // Stop container upon exit
-            this.container.stop(DefaultTimeout).join();
-            log("Container '%s' stopped.", this.container.getId());
-        }
     }
 
-    private void createStream(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void createStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, CommandTokens.combine(CommandTokens.Create, CommandTokens.StreamSegmentName));
-        await(this.container.createStreamSegment(name, DefaultTimeout), r -> log("Created StreamSegment %s.", name));
+        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Create));
+        await(this.streamSegmentStore.createStreamSegment(name, DefaultTimeout), r -> log("Created StreamSegment %s.", name));
     }
 
-    private void deleteStream(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void deleteStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, CommandTokens.combine(CommandTokens.Delete, CommandTokens.StreamSegmentName));
-        await(this.container.deleteStreamSegment(name, DefaultTimeout), r -> log("Deleted StreamSegment %s.", name));
+        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Delete));
+        await(this.streamSegmentStore.deleteStreamSegment(name, DefaultTimeout), r -> log("Deleted StreamSegment %s.", name));
     }
 
-    private void sealStream(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void sealStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, CommandTokens.combine(CommandTokens.Get, CommandTokens.StreamSegmentName));
-        await(this.container.sealStreamSegment(name, DefaultTimeout), r -> log("Sealed StreamSegment %s.", name));
+        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Get));
+        await(this.streamSegmentStore.sealStreamSegment(name, DefaultTimeout), r -> log("Sealed StreamSegment %s.", name));
     }
 
-    private void getStreamInfo(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void getStreamInfo(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, CommandTokens.combine(CommandTokens.Get, CommandTokens.StreamSegmentName));
-        await(this.container.getStreamSegmentInfo(name, DefaultTimeout), result ->
+        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Get));
+        await(this.streamSegmentStore.getStreamSegmentInfo(name, DefaultTimeout), result ->
                 log("Name = %s, Length = %d, Sealed = %s, Deleted = %s.", result.getName(), result.getLength(), result.isSealed(), result.isDeleted()));
     }
 
-    private void appendToStream(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void appendToStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         String data = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0 && data != null && data.length() > 0,
-                CommandTokens.combine(CommandTokens.Append, CommandTokens.StreamSegmentName, CommandTokens.AppendData));
+                Commands.Syntaxes.get(Commands.Append));
         appendToStream(name, data.getBytes());
     }
 
-    private void appendToStream(String name, byte[] data) throws InvalidCommandSyntax {
+    private void appendToStream(String name, byte[] data) {
         AppendContext context = new AppendContext(clientId, appendCount++);
-        await(this.container.append(name, data, context, DefaultTimeout), r -> log("Appended %d bytes at offset %d.", data.length, r));
+        await(this.streamSegmentStore.append(name, data, context, DefaultTimeout), r -> log("Appended %d bytes at offset %d.", data.length, r));
     }
 
-    private void readFromStream(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void readFromStream(CommandLineParser parsedCommand) {
         // read name offset length
         String name = parsedCommand.getNext();
         int offset = parsedCommand.getNextOrDefault(Integer.MIN_VALUE);
         int length = parsedCommand.getNextOrDefault(Integer.MIN_VALUE);
 
-        checkArguments(name != null && name.length() > 0 && offset >= 0 && length > 0,
-                CommandTokens.combine(CommandTokens.Read, CommandTokens.StreamSegmentName, CommandTokens.Offset, CommandTokens.Length));
+        checkArguments(name != null && name.length() > 0 && offset >= 0 && length > 0, Commands.Syntaxes.get(Commands.Read));
 
         final int readId = this.readCount++;
         log("Started Read #%d from %s.", readId, name);
-        await(this.container.read(name, offset, length, DefaultTimeout), readResult ->
+        await(this.streamSegmentStore.read(name, offset, length, DefaultTimeout), readResult ->
                 CompletableFuture.runAsync(() -> {
                     while (readResult.hasNext()) {
                         ReadResultEntry entry = readResult.next();
@@ -180,27 +156,29 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
                             String data = new String(rawData);
                             log("Read #%d (Offset=%d, Remaining=%d): %s", readId, entry.getStreamSegmentOffset(), readResult.getMaxResultLength() - readResult.getConsumedLength(), data);
                         }
-                        catch (InterruptedIOException ex) {
+                        catch (CancellationException | InterruptedIOException ex) {
                             log("Read #%d (Offset=%d) has been interrupted.", readId, entry.getStreamSegmentOffset());
+                            return;
                         }
                         catch (Exception ex) {
                             log(ex, "Read #%d (Offset=%d)", readId, entry.getStreamSegmentOffset());
                         }
                     }
+
+                    log("Read #%d (Offset=%d) completed with %d bytes read in total.", readId, readResult.getConsumedLength());
                 }));
     }
 
     private void createBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String parentName = parsedCommand.getNext();
-        checkArguments(parentName != null && parentName.length() > 0, CommandTokens.combine(CommandTokens.CreateBatch, CommandTokens.ParentStreamSegmentName));
-        await(this.container.createBatch(parentName, DefaultTimeout), r -> log("Created BatchStreamSegment %s with parent %s.", r, parentName));
+        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CreateBatch, Commands.ParentStreamSegmentName));
+        await(this.streamSegmentStore.createBatch(parentName, DefaultTimeout), r -> log("Created BatchStreamSegment %s with parent %s.", r, parentName));
     }
 
     private void mergeBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String batchStreamName = parsedCommand.getNext();
-        checkArguments(batchStreamName != null && batchStreamName.length() > 0, CommandTokens.combine(CommandTokens.MergeBatch, CommandTokens.BatchStreamSegmentName));
-        await(this.container.mergeBatch(batchStreamName, DefaultTimeout), r -> log("Merged BatchStreamSegment %s into parent stream.", batchStreamName));
-
+        checkArguments(batchStreamName != null && batchStreamName.length() > 0, Commands.combine(Commands.MergeBatch, Commands.BatchStreamSegmentName));
+        await(this.streamSegmentStore.mergeBatch(batchStreamName, DefaultTimeout), r -> log("Merged BatchStreamSegment %s into parent stream.", batchStreamName));
     }
 
     private <T> void await(CompletableFuture<T> future, Consumer<T> callback) {
@@ -210,17 +188,6 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
         }
         catch (CompletionException ex) {
             log(ex, "Unable to complete operation.");
-        }
-    }
-
-    @Override
-    public void close() {
-        try {
-            this.container.close();
-            log("Container '%s' closed.", this.container.getId());
-        }
-        catch (Exception ex) {
-            log(ex, "Unable to close container '%s'.", this.container.getId());
         }
     }
 
@@ -247,30 +214,21 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
         return ex;
     }
 
-    private static class InMemoryMetadataRepository implements MetadataRepository {
-        private final HashMap<String, UpdateableContainerMetadata> metadatas = new HashMap<>();
+    //endregion
 
-        @Override
-        public UpdateableContainerMetadata getMetadata(String streamSegmentContainerId) {
-            synchronized (this.metadatas) {
-                UpdateableContainerMetadata result = this.metadatas.getOrDefault(streamSegmentContainerId, null);
-                if (result == null) {
-                    result = new StreamSegmentContainerMetadata(streamSegmentContainerId);
-                    this.metadatas.put(streamSegmentContainerId, result);
-                }
+    //region Invalid Command Syntax
 
-                return result;
-            }
-        }
-    }
-
-    private static class InvalidCommandSyntax extends Exception {
+    private static class InvalidCommandSyntax extends RuntimeException {
         public InvalidCommandSyntax(String message) {
             super(message);
         }
     }
 
-    private static class CommandTokens {
+    //endregion
+
+    //region Commands
+
+    private static class Commands {
         public static final String Create = "create";
         public static final String Delete = "delete";
         public static final String Seal = "seal";
@@ -280,14 +238,27 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
         public static final String CreateBatch = "batch-create";
         public static final String MergeBatch = "batch-merge";
 
-        public static final String ParentStreamSegmentName = "<parent-stream-segment-name>";
-        public static final String BatchStreamSegmentName = "<batch-stream-segment-name>";
-        public static final String StreamSegmentName = "<stream-segment-name>";
-        public static final String AppendData = "<append-string>";
-        public static final String Offset = "<offset>";
-        public static final String Length = "<length>";
+        public static final AbstractMap<String, String> Syntaxes = new TreeMap<>();
 
-        public static String combine(String commandName, String... args) {
+        static {
+            Syntaxes.put(Create, Commands.combine(Create, Commands.StreamSegmentName));
+            Syntaxes.put(Delete, Commands.combine(Delete, Commands.StreamSegmentName));
+            Syntaxes.put(Seal, Commands.combine(Seal, Commands.StreamSegmentName));
+            Syntaxes.put(Get, Commands.combine(Get, Commands.StreamSegmentName, Commands.Offset, Commands.Length));
+            Syntaxes.put(Append, Commands.combine(Append, Commands.BatchStreamSegmentName, Commands.AppendData));
+            Syntaxes.put(Read, Commands.combine(Read, Commands.BatchStreamSegmentName));
+            Syntaxes.put(CreateBatch, Commands.combine(CreateBatch, Commands.ParentStreamSegmentName));
+            Syntaxes.put(MergeBatch, Commands.combine(MergeBatch, Commands.BatchStreamSegmentName));
+        }
+
+        private static final String ParentStreamSegmentName = "<parent-stream-segment-name>";
+        private static final String BatchStreamSegmentName = "<batch-stream-segment-name>";
+        private static final String StreamSegmentName = "<stream-segment-name>";
+        private static final String AppendData = "<append-string>";
+        private static final String Offset = "<offset>";
+        private static final String Length = "<length>";
+
+        private static String combine(String commandName, String... args) {
             StringBuilder result = new StringBuilder();
             result.append(commandName);
             for (String arg : args) {
@@ -298,6 +269,10 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
             return result.toString();
         }
     }
+
+    //endregion
+
+    //region CommandLineParser
 
     private static class CommandLineParser {
         private static char Space = ' ';
@@ -359,4 +334,6 @@ public class InteractiveStreamSegmentStoreTester implements AutoCloseable {
             return result;
         }
     }
+
+    //endregion
 }

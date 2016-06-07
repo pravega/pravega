@@ -1,6 +1,6 @@
 package com.emc.logservice.common;
 
-import com.emc.logservice.testcommon.AssertExtensions;
+import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 

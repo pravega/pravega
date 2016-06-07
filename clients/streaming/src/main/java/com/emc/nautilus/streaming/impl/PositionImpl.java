@@ -4,24 +4,24 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
-import com.emc.nautilus.streaming.LogId;
+import com.emc.nautilus.streaming.SegmentId;
 import com.emc.nautilus.streaming.Position;
 
 public class PositionImpl implements Position {
 	
-	private final Map<LogId, Long> ownedLogs;
-	private final Map<LogId, Long> futureOwnedLogs;
+	private final Map<SegmentId, Long> ownedLogs;
+	private final Map<SegmentId, Long> futureOwnedLogs;
 
-	PositionImpl(Map<LogId,Long> ownedLogs, Map<LogId, Long> futureOwnedLogs) {
+	PositionImpl(Map<SegmentId,Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
 		this.ownedLogs = ownedLogs;
 		this.futureOwnedLogs = futureOwnedLogs;		
 	}
 
-	Set<LogId> getOwnedLogs() {
+	Set<SegmentId> getOwnedLogs() {
 		return Collections.unmodifiableSet(ownedLogs.keySet());
 	}
 	
-	Long getOffsetForOwnedLog(LogId log) {
+	Long getOffsetForOwnedLog(SegmentId log) {
 		return ownedLogs.get(log);
 	}
 
@@ -30,7 +30,7 @@ public class PositionImpl implements Position {
 		return this;
 	}
 
-	public Map<LogId, Long> getFutureOwnedLogs() {
+	public Map<SegmentId, Long> getFutureOwnedLogs() {
 		return Collections.unmodifiableMap(futureOwnedLogs);
 	}
 

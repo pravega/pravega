@@ -1,6 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.testcommon.AssertExtensions;
+import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Test;
 
 import java.io.*;

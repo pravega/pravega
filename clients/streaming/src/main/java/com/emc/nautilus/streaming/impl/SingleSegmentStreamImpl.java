@@ -6,7 +6,7 @@ import com.emc.nautilus.logclient.LogClient;
 import com.emc.nautilus.streaming.Consumer;
 import com.emc.nautilus.streaming.ConsumerConfig;
 import com.emc.nautilus.streaming.EventRouter;
-import com.emc.nautilus.streaming.LogId;
+import com.emc.nautilus.streaming.SegmentId;
 import com.emc.nautilus.streaming.Position;
 import com.emc.nautilus.streaming.Producer;
 import com.emc.nautilus.streaming.ProducerConfig;
@@ -14,43 +14,43 @@ import com.emc.nautilus.streaming.RateChangeListener;
 import com.emc.nautilus.streaming.Serializer;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.StreamConfiguration;
-import com.emc.nautilus.streaming.StreamLogs;
+import com.emc.nautilus.streaming.StreamSegments;
 
 import lombok.Getter;
 
-public class SingleLogStreamImpl implements Stream {
+public class SingleSegmentStreamImpl implements Stream {
 
 	private final String scope;
 	@Getter
 	private final String name;
 	@Getter
 	private final StreamConfiguration config;
-	private final LogId logId;
+	private final SegmentId logId;
 	private final LogClient logClient;
 	private final EventRouter router = new EventRouter() {
 		@Override
-		public LogId getLogForEvent(Stream stream, String routingKey) {
+		public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
 			return logId;
 		}
 	};
 	
-	public SingleLogStreamImpl(String scope, String name, StreamConfiguration config, LogClient logClient) {
+	public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config, LogClient logClient) {
 		this.scope = scope;
 		this.name = name;
 		this.config = config;
 		this.logClient = logClient;
-		this.logId = new LogId(scope, name, 1, 0);
+		this.logId = new SegmentId(scope, name, 1, 0);
 	}
 	
 
 	@Override
-	public StreamLogs getLogs(long time) {
-		return new StreamLogs(Collections.singletonList(logId), time);
+	public StreamSegments getSegments(long time) {
+		return new StreamSegments(Collections.singletonList(logId), time);
 	}
 
 	@Override
-	public StreamLogs getLatestLogs() {
-		return getLogs(System.currentTimeMillis());
+	public StreamSegments getLatestSegments() {
+		return getSegments(System.currentTimeMillis());
 	}
 
 	@Override

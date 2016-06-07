@@ -1,7 +1,7 @@
 package com.emc.logservice.contracts;
 
 /**
- * Represents a StreamSegment-specific exception.
+ * An Exception that is related to a particular Container.
  */
 public abstract class StreamSegmentException extends StreamingException {
     private final String streamSegmentName;

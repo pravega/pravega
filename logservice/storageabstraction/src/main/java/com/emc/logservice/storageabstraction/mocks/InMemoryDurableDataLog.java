@@ -2,7 +2,6 @@ package com.emc.logservice.storageabstraction.mocks;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,7 +30,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //region DurableDataLog Implementation
 
     @Override
-    public void close() throws DurableDataLogException {
+    public void close() {
         this.closed = true;
     }
 

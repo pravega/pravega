@@ -1,4 +1,4 @@
-package com.emc.logservice.testcommon;
+package com.emc.nautilus.testcommon;
 
 import org.junit.Assert;
 

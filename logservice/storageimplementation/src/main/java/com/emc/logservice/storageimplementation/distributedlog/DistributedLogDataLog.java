@@ -57,7 +57,7 @@ class DistributedLogDataLog implements DurableDataLog {
     //region AutoCloseable Implementation
 
     @Override
-    public void close() throws DurableDataLogException {
+    public void close() {
         if (this.handle != null) {
             this.handle.close();
         }

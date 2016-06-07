@@ -17,12 +17,13 @@ public interface LogClient {
 	// This operation may be called multiple times on the same log from the
 	// same or different clients (i.e., there can be concurrent Stream Writers
 	// in the same process space).
-	LogOutputStream openLogForAppending(String name, LogOutputConfiguration config);
+	LogOutputStream openLogForAppending(String name, SegmentOutputConfiguration config);
+
 
 	// Opens an existing log for reading. This operation will fail if the
 	// log does not exist.
 	// This operation may be called multiple times on the same stream from the
 	// same client (i.e., there can be concurrent Stream Readers in the same
 	// process space).
-	LogInputStream openLogForReading(String name, LogInputConfiguration config);
+	LogInputStream openLogForReading(String name, SegmentInputConfiguration config);
 }

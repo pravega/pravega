@@ -1,44 +1,25 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.*;
+import com.emc.logservice.contracts.*;
+import com.emc.logservice.server.*;
+import com.emc.logservice.server.logs.OperationLog;
+import com.emc.logservice.server.logs.PendingAppendsCollection;
+import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storageabstraction.StorageFactory;
+
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
-
-import com.emc.logservice.common.AsyncLock;
-import com.emc.logservice.common.ObjectClosedException;
-import com.emc.logservice.common.TimeoutTimer;
-import com.emc.logservice.contracts.AppendContext;
-import com.emc.logservice.contracts.ReadResult;
-import com.emc.logservice.contracts.SegmentProperties;
-import com.emc.logservice.contracts.StreamSegmentStore;
-import com.emc.logservice.contracts.StreamingException;
-import com.emc.logservice.server.Cache;
-import com.emc.logservice.server.CacheFactory;
-import com.emc.logservice.server.Container;
-import com.emc.logservice.server.ContainerState;
-import com.emc.logservice.server.FaultHandlerRegistry;
-import com.emc.logservice.server.MetadataRepository;
-import com.emc.logservice.server.OperationLogFactory;
-import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.StreamSegmentInformation;
-import com.emc.logservice.server.UpdateableContainerMetadata;
-import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.PendingAppendsCollection;
-import com.emc.logservice.server.logs.operations.MergeBatchOperation;
-import com.emc.logservice.server.logs.operations.Operation;
-import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.logservice.storageabstraction.Storage;
-import com.emc.logservice.storageabstraction.StorageFactory;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
  */
-public class StreamSegmentContainer implements StreamSegmentStore, Container {
+class StreamSegmentContainer implements SegmentContainer {
     //region Members
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); //TODO: make configurable
@@ -51,7 +32,6 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private final FaultHandlerRegistry faultRegistry;
     private final AsyncLock StateTransitionLock = new AsyncLock();
     private ContainerState state;
-    private boolean closed;
 
     //endregion
 
@@ -82,17 +62,17 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     //region AutoCloseable Implementation
 
     @Override
-    public void close() throws Exception {
-        if (!this.closed) {
+    public void close() {
+        if (this.state != ContainerState.Closed) {
             if (this.state == ContainerState.Started) {
                 // Stop the container if it's already running.
-                stop(CloseTimeout).get();
+                stop(CloseTimeout).join();
             }
 
             this.pendingAppendsCollection.close();
             this.durableLog.close();
             this.readIndex.close();
-            this.closed = true;
+            setState(ContainerState.Closed);
         }
     }
 
@@ -132,10 +112,10 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
         {
             ContainerState.Stopped.checkValidPreviousState(this.state);
 
-            // Update the state first. TODO: figure out if we need to roll back the state if this operation failed.
+            // Update the state first.
             setState(ContainerState.Stopped);
 
-            // Stop the Operation Queue Processor. TODO: should we also stop the read index? Or are the checks in this class enough?
+            // Stop the Operation Queue Processor.
             return this.durableLog.stop(timeout);
         });
     }
@@ -292,12 +272,12 @@ public class StreamSegmentContainer implements StreamSegmentStore, Container {
     private void ensureStarted() {
         ensureNotClosed();
         if (this.state != ContainerState.Started) {
-            throw new ObjectClosedException(this);
+            throw new IllegalContainerStateException(this.getId(), this.state, ContainerState.Started);
         }
     }
 
     private void ensureNotClosed() {
-        if (this.closed) {
+        if (this.state == ContainerState.Closed) {
             throw new ObjectClosedException(this);
         }
     }

@@ -86,6 +86,9 @@ public interface Container extends AutoCloseable {
      * @return
      */
     String getId();
+
+    @Override
+    void close();
 }
 
 

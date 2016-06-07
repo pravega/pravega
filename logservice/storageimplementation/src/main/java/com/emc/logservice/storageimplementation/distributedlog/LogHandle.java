@@ -152,7 +152,7 @@ class LogHandle implements AutoCloseable {
     }
 
     @Override
-    public void close() throws DurableDataLogException {
+    public void close() {
         if (!this.closed) {
             try {
                 // Check for null for each of these components since we may be attempting to close them from the constructor
@@ -166,7 +166,9 @@ class LogHandle implements AutoCloseable {
                 }
             }
             catch (IOException ex) {
-                throw new DurableDataLogException(String.format("Unable to close LogHandle for log '%s'.", this.logName), ex);
+                //throw new DurableDataLogException(String.format("Unable to close LogHandle for log '%s'.", this.logName), ex);
+                //TODO: retry policy.
+                System.err.println(ex);
             }
 
             this.closed = true;
