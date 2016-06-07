@@ -4,16 +4,16 @@ import java.nio.ByteBuffer;
 
 import com.emc.nautilus.logclient.EndOfLogException;
 import com.emc.nautilus.logclient.LogInputStream;
-import com.emc.nautilus.streaming.LogId;
+import com.emc.nautilus.streaming.SegmentId;
 import com.emc.nautilus.streaming.Serializer;
 
 public class LogConsumerImpl<Type> implements LogConsumer<Type> {
 
-	private final LogId logId;
+	private final SegmentId logId;
 	private final LogInputStream in;
 	private final Serializer<Type> deserializer;
 
-	LogConsumerImpl(LogId logId, LogInputStream in, Serializer<Type> deserializer) {
+	LogConsumerImpl(SegmentId logId, LogInputStream in, Serializer<Type> deserializer) {
 		this.logId = logId;
 		this.in = in;
 		this.deserializer = deserializer;
@@ -54,7 +54,7 @@ public class LogConsumerImpl<Type> implements LogConsumer<Type> {
 	}
 
 	@Override
-	public LogId getLogId() {
+	public SegmentId getLogId() {
 		return logId;
 	}
 }

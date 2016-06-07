@@ -15,9 +15,9 @@ import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 import com.emc.nautilus.logclient.Batch;
 import com.emc.nautilus.logclient.LogAppender;
 import com.emc.nautilus.logclient.LogClient;
-import com.emc.nautilus.logclient.LogInputConfiguration;
+import com.emc.nautilus.logclient.SegmentInputConfiguration;
 import com.emc.nautilus.logclient.LogInputStream;
-import com.emc.nautilus.logclient.LogOutputConfiguration;
+import com.emc.nautilus.logclient.SegmentOutputConfiguration;
 import com.emc.nautilus.logclient.LogOutputStream;
 
 import lombok.RequiredArgsConstructor;
@@ -67,7 +67,7 @@ public class LogClientImpl implements LogClient {
 	}
 
 	@Override
-	public LogAppender openLogForAppending(String name, LogOutputConfiguration config) {
+	public LogAppender openLogForAppending(String name, SegmentOutputConfiguration config) {
 		return new LogAppender() {
 			@Override
 			public void close() {
@@ -90,7 +90,7 @@ public class LogClientImpl implements LogClient {
 	}
 
 	@Override
-	public LogInputStream openLogForReading(String name, LogInputConfiguration config) {
+	public LogInputStream openLogForReading(String name, SegmentInputConfiguration config) {
 		return new LogInputStreamImpl(new AsyncLogInputStreamImpl(connectionFactory, endpoint, name));
 	}
 

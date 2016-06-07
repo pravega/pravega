@@ -11,7 +11,7 @@ import com.emc.nautilus.logclient.LogClient;
 import com.emc.nautilus.logclient.LogInputStream;
 import com.emc.nautilus.streaming.Consumer;
 import com.emc.nautilus.streaming.ConsumerConfig;
-import com.emc.nautilus.streaming.LogId;
+import com.emc.nautilus.streaming.SegmentId;
 import com.emc.nautilus.streaming.Position;
 import com.emc.nautilus.streaming.RateChangeListener;
 import com.emc.nautilus.streaming.Serializer;
@@ -27,7 +27,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 	private final RateChangeListener rateChangeListener;
 	private final ConsumerConfig config;
 	private List<LogConsumer<Type>> consumers = new ArrayList<>();
-	private Map<LogId, Long> futureOwnedLogs;
+	private Map<SegmentId, Long> futureOwnedLogs;
 
 	ConsumerImpl(Stream stream, LogClient logClient, Serializer<Type> deserializer, PositionImpl position,
 			Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
@@ -38,8 +38,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 		this.rateChangeListener = rateChangeListener;
 		this.config = config;
 		this.futureOwnedLogs = position.getFutureOwnedLogs();
-		for (LogId l : position.getOwnedLogs()) {
-			LogInputStream log = logClient.openLogForReading(l.getQualifiedName(), config.getLogConfig());
+		for (SegmentId l : position.getOwnedLogs()) {
+			LogInputStream log = logClient.openLogForReading(l.getQualifiedName(), config.getSegmentConfig());
 			log.setOffset(position.getOffsetForOwnedLog(l));
 			consumers.add(new LogConsumerImpl<>(l, log, deserializer));
 		}
@@ -60,12 +60,12 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 
 	private void handleEndOfLog(LogConsumer<Type> oldLog) {
 		consumers.remove(oldLog);
-		LogId oldLogId = oldLog.getLogId();
-		Optional<LogId> replacment = futureOwnedLogs.keySet().stream().filter(l -> l.succeeds(oldLogId)).findAny();
+		SegmentId oldLogId = oldLog.getLogId();
+		Optional<SegmentId> replacment = futureOwnedLogs.keySet().stream().filter(l -> l.succeeds(oldLogId)).findAny();
 		if (replacment.isPresent()) {
-			LogId logId = replacment.get();
+			SegmentId logId = replacment.get();
 			Long position = futureOwnedLogs.remove(logId);
-			LogInputStream log = logClient.openLogForReading(logId.getQualifiedName(), config.getLogConfig());
+			LogInputStream log = logClient.openLogForReading(logId.getQualifiedName(), config.getSegmentConfig());
 			log.setOffset(position);
 			consumers.add(new LogConsumerImpl<Type>(logId, log, deserializer));
 			rateChangeListener.rateChanged(stream, false);
@@ -77,7 +77,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 	@Override
 	public Position getPosition() {
 		synchronized (consumers) {
-			Map<LogId, Long> positions = consumers.stream()
+			Map<SegmentId, Long> positions = consumers.stream()
 					.collect(Collectors.toMap(e -> e.getLogId(), e -> e.getOffset()));
 			return new PositionImpl(positions, futureOwnedLogs);
 		}
