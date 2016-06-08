@@ -221,7 +221,15 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			throw new IllegalStateException("LogOutputStream was already closed");
 		}
 		
-		//TODO: This really needs to be fixed to have proper retry with backoff.
+		ClientConnection connection = connection();
+		AppendData append = state.createNewInflightAppend(segment, buff);
+		connection.send(append);
+		
+		return append.getConnectionOffset();
+	}
+
+	//TODO: This really needs to be fixed to have proper retry with backoff.
+	private ClientConnection connection() throws SegmentSealedExcepetion {
 		ClientConnection connection;
 		while (true) {
 			if (!state.hasConnetion()) {
@@ -239,10 +247,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 				log.warn("Connection failed due to",e);
 			}
 		}
-		AppendData append = state.createNewInflightAppend(segment, buff);
-		connection.send(append);
-		
-		return append.getConnectionOffset();
+		return connection;
 	}
 
 	@Override
@@ -261,9 +266,8 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	@Synchronized
 	public void flush() throws SegmentSealedExcepetion {
 		try {
-			if (state.hasConnetion()) {
-				state.connection.send(new KeepAlive());
-			}
+			ClientConnection connection = connection();
+			connection.send(new KeepAlive());
 			state.waitForEmptyInflight();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
