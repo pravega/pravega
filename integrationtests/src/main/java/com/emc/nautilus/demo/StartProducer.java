@@ -16,7 +16,7 @@ public class StartProducer {
 		String scope = "Scope1";
 		String streamName = "Stream1";
 		String testString = "Hello world: ";
-
+		@Cleanup("shutdown")
 		SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, scope);
 		Stream stream = streamManager.createStream(streamName, null);
 		@Cleanup

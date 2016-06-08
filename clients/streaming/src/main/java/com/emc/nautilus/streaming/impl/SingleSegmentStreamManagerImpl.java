@@ -14,10 +14,11 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 	private final LogServiceClientImpl logServiceClient;
 	private final String scope;
 	private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
+	private ConnectionFactory clientCF;
 	
 	public SingleSegmentStreamManagerImpl(String endpoint, int port, String scope) {
 		this.scope = scope;
-		ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
+		this.clientCF = new ConnectionFactoryImpl(false, port);
 		this.logServiceClient = new LogServiceClientImpl(endpoint, clientCF);
 	}
 	
@@ -45,6 +46,11 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 	@Override
 	public Stream getStream(String streamName) {
 		return created.get(streamName);
+	}
+
+	@Override
+	public void shutdown() {
+		clientCF.shutdown();
 	}
 
 }

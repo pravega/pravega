@@ -89,8 +89,13 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		return handler;
 	}
 
+	@Override
 	public void shutdown() {
 		// Shut down the event loop to terminate all threads.
+		group.shutdownGracefully();
+	}
+	
+	protected void finalize() {
 		group.shutdownGracefully();
 	}
 

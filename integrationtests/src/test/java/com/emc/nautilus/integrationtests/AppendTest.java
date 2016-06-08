@@ -174,6 +174,7 @@ public class AppendTest {
 		@Cleanup("shutdown")
 		LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
 		server.startListening();
+		@Cleanup("shutdown")
 		SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
 		Stream stream = streamManager.createStream(streamName, null);
 		@Cleanup
