@@ -48,9 +48,18 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 		future.handle(new BiFunction<ReadResult, Throwable, Void>() {
 			@Override
 			public Void apply(ReadResult t, Throwable u) {
-				// TODO: Return data...
-				// This really should stream the data out in multiple results as
-				// it is available.
+				try {
+					if (t != null) {
+						// TODO: Return data...
+						// This really should stream the data out in multiple results as
+						// it is available.
+					} else {
+						handleException(readSegment.getSegment(), "Read segment", u);
+					}
+					
+				} catch (Throwable e) {
+					handleException(readSegment.getSegment(), "Read segment", e);
+				}
 				return null;
 			}
 		});
@@ -63,16 +72,20 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 		future.handle(new BiFunction<SegmentProperties, Throwable, Void>() {
 			@Override
 			public Void apply(SegmentProperties properties, Throwable u) {
-				if (properties != null) {
-					StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
-							true,
-							properties.isSealed(),
-							properties.isDeleted(),
-							properties.getLastModified().getTime(),
-							properties.getLength());
-					connection.send(result);
-				} else {
-					connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
+				try {
+					if (properties != null) {
+						StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
+						                                                 true,
+						                                                 properties.isSealed(),
+						                                                 properties.isDeleted(),
+						                                                 properties.getLastModified().getTime(),
+						                                                 properties.getLength());
+						connection.send(result);
+					} else {
+						connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
+					}
+				} catch (Throwable e) {
+					handleException(segmentName, "Get segment info", e);
 				}
 				return null;
 			}
@@ -86,10 +99,14 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 		future.handle(new BiFunction<Void, Throwable, Void>() {
 			@Override
 			public Void apply(Void t, Throwable u) {
-				if (u == null) {
-					connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
-				} else {
-					handleException(createStreamsSegment.getSegment(), "Create segment", u);
+				try {
+					if (u == null) {
+						connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
+					} else {
+						handleException(createStreamsSegment.getSegment(), "Create segment", u);
+					}
+				} catch (Throwable e) {
+					handleException(createStreamsSegment.getSegment(), "Create segment", e);
 				}
 				return null;
 			}

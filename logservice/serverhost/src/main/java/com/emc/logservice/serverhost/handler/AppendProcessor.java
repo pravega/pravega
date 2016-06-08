@@ -76,25 +76,29 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 		future.handle(new BiFunction<AppendContext, Throwable, Void>() {
 			@Override
 			public Void apply(AppendContext info, Throwable u) {
-				if (u != null) {
-					handleException(newSegment, u);
-					return null;
-				}
-				long offset;
-				if (info == null) {
-					offset = 0;
-				} else {
-					if (!info.getClientId().equals(connectionId)) {
-						throw new IllegalStateException("Wrong connection Info returned");
+				try {
+					if (u != null) {
+						handleException(newSegment, u);
+						return null;
 					}
-					offset = info.getClientOffset();
+					long offset;
+					if (info == null) {
+						offset = 0;
+					} else {
+						if (!info.getClientId().equals(connectionId)) {
+							throw new IllegalStateException("Wrong connection Info returned");
+						}
+						offset = info.getClientOffset();
+					}
+					synchronized (lock) {
+						segment = newSegment;
+						connectionId = newConnection;
+						connectionOffset = offset;
+					}
+					connection.send(new AppendSetup(newSegment, newConnection, offset));
+				} catch (Throwable e) {
+					handleException(newSegment, e);
 				}
-				synchronized (lock) {
-					segment = newSegment;
-					connectionId = newConnection;
-					connectionOffset = offset;
-				}
-				connection.send(new AppendSetup(newSegment, newConnection, offset));
 				return null;
 			}
 		});
@@ -102,7 +106,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
 	public void performNextWrite() {
 		synchronized (lock) {
-			if (outstandingWrite != null) {
+			if (outstandingWrite != null || waiting.isEmpty()) {
 				return;
 			}
 			ByteBuf[] data = new ByteBuf[waiting.size()];
@@ -121,26 +125,30 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 		future.handle(new BiFunction<Long, Throwable, Void>() {
 			@Override
 			public Void apply(Long t, Throwable u) {
-				synchronized (lock) {
-					if (outstandingWrite != toWrite) {
-						throw new IllegalStateException(
-								"Synchronization error in: " + AppendProcessor.this.getClass().getName());
+				try {
+					synchronized (lock) {
+						if (outstandingWrite != toWrite) {
+							throw new IllegalStateException(
+							                                "Synchronization error in: " + AppendProcessor.this.getClass().getName());
+						}
+						outstandingWrite = null;
+						if (u != null) {
+							segment = null;
+							connectionId = null;
+							connectionOffset = 0;
+							waiting.clear();
+						}
 					}
-					outstandingWrite = null;
-					if (u != null) {
-						segment = null;
-						connectionId = null;
-						connectionOffset = 0;
-						waiting.clear();
+					if (t == null) {
+						handleException(toWrite.getSegment(), u);
+					} else {
+						connection.send(new DataAppended(toWrite.segment, toWrite.ackOffset));
 					}
+					pauseOrResumeReading();
+					performNextWrite();
+				} catch (Throwable e) {
+					handleException(segment, e);
 				}
-				if (t == null) {
-					handleException(toWrite.getSegment(), u);
-				} else {
-					connection.send(new DataAppended(toWrite.segment, toWrite.ackOffset));
-				}
-				pauseOrResumeReading();
-				performNextWrite();
 				return null;
 			}
 
