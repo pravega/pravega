@@ -1,5 +1,6 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.*;
 
@@ -26,13 +27,8 @@ public class MemoryLogUpdater {
      * @param cache                Cache.
      */
     public MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, Cache cache) {
-        if (cache == null) {
-            throw new NullPointerException("cache");
-        }
-
-        if (inMemoryOperationLog == null) {
-            throw new NullPointerException("inMemoryOperationLog");
-        }
+        Exceptions.throwIfNull(cache, "cache");
+        Exceptions.throwIfNull(inMemoryOperationLog, "inMemoryOperationLog");
 
         this.inMemoryOperationLog = inMemoryOperationLog;
         this.cache = cache;

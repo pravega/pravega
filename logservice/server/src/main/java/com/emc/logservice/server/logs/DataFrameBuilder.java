@@ -3,6 +3,7 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.server.logs.operations.Operation;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -13,6 +14,7 @@ import java.util.function.*;
  * Builds DataFrames from Log Operations. Splits the serialization of LogOperations across multiple Data Frames, if necessary,
  * and publishes the finished Data Frames to the given DataFrameLog.
  */
+@Slf4j
 public class DataFrameBuilder implements AutoCloseable {
     //region Members
 
@@ -43,23 +45,38 @@ public class DataFrameBuilder implements AutoCloseable {
      * @throws IllegalArgumentException If maxDataFrameSize <= 0
      */
     public DataFrameBuilder(DurableDataLog targetLog, Consumer<DataFrameCommitArgs> dataFrameCommitSuccessCallback, Consumer<Exception> dataFrameCommitFailureCallback) {
-        if (targetLog == null) {
-            throw new NullPointerException("targetLog");
-        }
-
-        if (dataFrameCommitFailureCallback == null) {
-            throw new NullPointerException("dataFrameCommitFailureCallback");
-        }
-
-        if (dataFrameCommitSuccessCallback == null) {
-            throw new NullPointerException("dataFrameCommitSuccessCallback");
-        }
+        Exceptions.throwIfNull(targetLog, "targetLog");
+        Exceptions.throwIfNull(dataFrameCommitFailureCallback, "dataFrameCommitFailureCallback");
+        Exceptions.throwIfNull(dataFrameCommitSuccessCallback, "dataFrameCommitSuccessCallback");
 
         this.targetLog = targetLog;
         this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), targetLog::getLastAppendSequence, this::handleDataFrameComplete);
         this.lastSerializedSequenceNumber = this.lastStartedSequenceNumber = -1;
         this.dataFrameCommitSuccessCallback = dataFrameCommitSuccessCallback;
         this.dataFrameCommitFailureCallback = dataFrameCommitFailureCallback;
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() throws SerializationException {
+        if (!this.closed) {
+            // Stop accepting any new items.
+            this.closed = true;
+
+            try {
+                // Seal & ship whatever frame we currently have (if any).
+                this.outputStream.sealCurrentFrame();
+            }
+            catch (IOException ex) {
+                throw new SerializationException("DataFrameBuilder.close", "Unable to seal current frame.", ex);
+            }
+
+            // Close the underlying stream (which destroys whatever we have in flight - but there shouldn't be any at this point).
+            this.outputStream.close();
+        }
     }
 
     //endregion
@@ -75,12 +92,9 @@ public class DataFrameBuilder implements AutoCloseable {
      * @throws ObjectClosedException If the DataFrameBuilder is closed.
      */
     public void append(Operation operation) throws SerializationException {
-        if (closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.throwIfClosed(this.closed, this);
 
         // TODO: consider checking Operation.getSequenceNumber() monotonicity. Make sure it sticks across multiple instances.
-
         long previousLastStartedSequenceNumber = this.lastStartedSequenceNumber;
         try {
             // Indicate to the output stream that are about to write a new record.
@@ -112,9 +126,7 @@ public class DataFrameBuilder implements AutoCloseable {
      * @throws IllegalArgumentException If the data frame is not sealed.
      */
     private boolean handleDataFrameComplete(DataFrame dataFrame) {
-        if (!dataFrame.isSealed()) {
-            throw new IllegalArgumentException("Cannot publish a non-sealed frame.");
-        }
+        Exceptions.throwIfIllegalArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
         // Write DataFrame to DataFrameLog
         try {
@@ -127,35 +139,19 @@ public class DataFrameBuilder implements AutoCloseable {
         catch (Exception ex) {
             // Unable to write the Data Frame that contained all pending entries. The Target Log did try to repeat,
             // but we need to admit failure now.
-            CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, null);
+            CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
             return false;
         }
 
-        CallbackHelpers.invokeSafely(this.dataFrameCommitSuccessCallback, new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()), null);
-        return true;
-    }
-
-    /**
-     * Closes this instance of the DataFrameBuilder.
-     *
-     * @throws SerializationException If we were unable to properly close the Builder.
-     */
-    public void close() throws SerializationException {
-        if (!this.closed) {
-            // Stop accepting any new items.
-            this.closed = true;
-
-            try {
-                // Seal & ship whatever frame we currently have (if any).
-                this.outputStream.sealCurrentFrame();
-            }
-            catch (IOException ex) {
-                throw new SerializationException("DataFrameBuilder.close", "Unable to seal current frame.", ex);
-            }
-
-            // Close the underlying stream (which destroys whatever we have in flight - but there shouldn't be any at this point).
-            this.outputStream.close();
+        //CallbackHelpers.invokeSafely(this.dataFrameCommitSuccessCallback, new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()), null);
+        try {
+            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()));
         }
+        catch (Exception ex) {
+            CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
+            return false;
+        }
+        return true;
     }
 
     //endregion
@@ -190,17 +186,9 @@ public class DataFrameBuilder implements AutoCloseable {
          * @throws NullPointerException     If any of the arguments are null.
          */
         public DataFrameOutputStream(int maxDataFrameSize, Supplier<Long> getPreviousFrameSequence, Function<DataFrame, Boolean> dataFrameCompleteCallback) {
-            if (maxDataFrameSize <= 0) {
-                throw new IllegalArgumentException("maxDataFrameSize must be a positive integer.");
-            }
-
-            if (getPreviousFrameSequence == null) {
-                throw new NullPointerException("getPreviousFrameSequence");
-            }
-
-            if (dataFrameCompleteCallback == null) {
-                throw new NullPointerException("dataFrameCompleteCallback");
-            }
+            Exceptions.throwIfIllegalArgument(maxDataFrameSize > 0, "maxDataFrameSize", "Must be a positive integer.");
+            Exceptions.throwIfNull(getPreviousFrameSequence, "getPreviousFrameSequence");
+            Exceptions.throwIfNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
 
             this.maxDataFrameSize = maxDataFrameSize;
             this.getPreviousFrameSequence = getPreviousFrameSequence;
@@ -277,9 +265,7 @@ public class DataFrameBuilder implements AutoCloseable {
         }
 
         private void createNewFrame() {
-            if (this.currentFrame != null && !this.currentFrame.isSealed()) {
-                throw new IllegalStateException("Cannot create a new frame if we currently have a non-sealed frame.");
-            }
+            Exceptions.throwIfIllegalState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
             this.currentFrame = new DataFrame(this.getPreviousFrameSequence.get(), this.maxDataFrameSize);
             this.hasDataInCurrentFrame = false;

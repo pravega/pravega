@@ -1,7 +1,9 @@
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.common.ObjectClosedException;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -10,9 +12,11 @@ import java.util.function.BiFunction;
 /**
  * Represents a Read Result from a Stream Segment. This is essentially an Iterator over smaller, continuous ReadResultEntries.
  */
+@Slf4j
 public class StreamSegmentReadResult implements ReadResult {
     //region Members
 
+    private final String traceObjectId;
     private final long streamSegmentStartOffset;
     private final int maxResultLength;
     private final NextEntrySupplier getNextItem;
@@ -34,19 +38,12 @@ public class StreamSegmentReadResult implements ReadResult {
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    protected StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem) {
-        if (streamSegmentStartOffset < 0) {
-            throw new IllegalArgumentException("streamSegmentStartOffset must be a non-negative number.");
-        }
+    protected StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String traceObjectId) {
+        Exceptions.throwIfIllegalArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
+        Exceptions.throwIfIllegalArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
+        Exceptions.throwIfNull(getNextItem, "getNextItem");
 
-        if (maxResultLength < 0) {
-            throw new IllegalArgumentException("maxResultLength must be a non-negative number.");
-        }
-
-        if (getNextItem == null) {
-            throw new NullPointerException("getNextItem");
-        }
-
+        this.traceObjectId = traceObjectId;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
         this.maxResultLength = maxResultLength;
         this.getNextItem = getNextItem;
@@ -90,6 +87,7 @@ public class StreamSegmentReadResult implements ReadResult {
     public void close() {
         //TODO: should we also cancel any pending ReadResults?
         this.closed = true;
+        log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
     }
 
     //endregion
@@ -117,19 +115,14 @@ public class StreamSegmentReadResult implements ReadResult {
      */
     @Override
     public ReadResultEntry next() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.throwIfClosed(this.closed, this);
 
         if (!hasNext()) {
             throw new NoSuchElementException("StreamSegmentReadResult has been read in its entirety.");
         }
 
         // If the previous entry hasn't finished yet, we cannot proceed.
-        if (this.lastEntryFuture != null && !this.lastEntryFuture.isDone()) {
-            throw new IllegalStateException("Cannot request a new entry when the previous one hasn't completed retrieval yet.");
-        }
-
+        Exceptions.throwIfIllegalState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
         if (this.lastEntryFutureFollowup != null && !this.lastEntryFutureFollowup.isDone()) {
             // This is the follow-up code that we have from the previous execution. Even though the previous future may
             // have finished executing, the follow-up may not have, so wait for that as well.
@@ -166,6 +159,7 @@ public class StreamSegmentReadResult implements ReadResult {
             this.lastEntryFutureFollowup = this.lastEntryFuture.thenAccept(contents -> this.consumedLength += contents.getLength());
         }
 
+        log.trace("{}.ReadResult[{}]: Consumed = {}, MaxLength = {}, Entry = ({}).", this.traceObjectId, this.streamSegmentStartOffset, this.consumedLength, this.maxResultLength, entry);
         return entry;
     }
 

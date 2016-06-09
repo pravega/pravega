@@ -22,6 +22,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     private boolean initialized;
 
     public InMemoryDurableDataLog(EntryCollection entries) {
+        Exceptions.throwIfNull(entries, "entries");
         this.entries = entries;
         this.offset = Long.MIN_VALUE;
         this.lastAppendSequence = Long.MIN_VALUE;
@@ -107,13 +108,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //endregion
 
     private void ensurePreconditions() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-
-        if (!this.initialized) {
-            throw new IllegalStateException("InMemoryDurableDataLog is not initialized.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(this.initialized, "InMemoryDurableDataLog is not initialized.");
     }
 
     //region ReadResultIterator

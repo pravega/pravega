@@ -5,6 +5,7 @@ import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -19,10 +20,12 @@ import java.util.stream.Stream;
  * it in order from the beginning, and returns all successfully serialized Log Operations from them in the order in which
  * they were serialized.
  */
+@Slf4j
 public class DataFrameReader implements AutoCloseable {
     //region Members
 
     private final FrameEntryEnumerator frameContentsEnumerator;
+    private final String traceObjectId;
     private long lastReadOperationSequenceNumber;
 
     //endregion
@@ -32,12 +35,14 @@ public class DataFrameReader implements AutoCloseable {
     /**
      * Creates a new instance of the DataFrameReader class.
      *
-     * @param log The DataFrameLog to read data frames from.
+     * @param log         The DataFrameLog to read data frames from.
+     * @param containerId The Container Id for the DataFrameReader (used primarily for logging).
      * @throws NullPointerException    If log is null.
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
-    public DataFrameReader(DurableDataLog log) throws DurableDataLogException {
-        this.frameContentsEnumerator = new FrameEntryEnumerator(log);
+    public DataFrameReader(DurableDataLog log, String containerId) throws DurableDataLogException {
+        this.traceObjectId = String.format("DataFrameReader[%s]", containerId);
+        this.frameContentsEnumerator = new FrameEntryEnumerator(log, traceObjectId);
         this.lastReadOperationSequenceNumber = Operation.NoSequenceNumber;
     }
 
@@ -232,9 +237,7 @@ public class DataFrameReader implements AutoCloseable {
          * @throws IllegalArgumentException If dataFrameSequence is invalid.
          */
         public void add(ByteArraySegment segment, long dataFrameSequence, boolean lastFrameEntry) throws DataCorruptionException {
-            if (segment == null) {
-                throw new NullPointerException("segment");
-            }
+            Exceptions.throwIfNull(segment, "segment");
 
             if (dataFrameSequence < this.dataFrameSequence) {
                 throw new DataCorruptionException(String.format("Invalid DataFrameSequence. Expected at least '%d', found '%d'.", this.dataFrameSequence, dataFrameSequence));
@@ -304,6 +307,7 @@ public class DataFrameReader implements AutoCloseable {
     private static class FrameEntryEnumerator implements AutoCloseable {
         //region Members
 
+        private final String traceObjectId;
         private final DataFrameEnumerator dataFrameEnumerator;
         private IteratorWithException<DataFrame.DataFrameEntry, SerializationException> currentFrameContents;
 
@@ -318,7 +322,8 @@ public class DataFrameReader implements AutoCloseable {
          * @throws NullPointerException    If log is null.
          * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */
-        public FrameEntryEnumerator(DurableDataLog log) throws DurableDataLogException {
+        public FrameEntryEnumerator(DurableDataLog log, String traceObjectId) throws DurableDataLogException {
+            this.traceObjectId = traceObjectId;
             this.dataFrameEnumerator = new DataFrameEnumerator(log);
         }
 
@@ -352,37 +357,38 @@ public class DataFrameReader implements AutoCloseable {
                     }
                 }
                 catch (Exception ex) {
-                    CompletableFuture<DataFrame.DataFrameEntry> resultFuture = new CompletableFuture<>();
-                    resultFuture.completeExceptionally(ex);
-                    return resultFuture;
+                    return FutureHelpers.failedFuture(ex);
                 }
             }
 
             // We need to fetch a new frame.
-            return this.dataFrameEnumerator.getNext(timeout).thenApply(dataFrame -> {
-                if (dataFrame == null) {
-                    // No more frames to retrieve
-                    this.currentFrameContents = null;
-                    return null;
-                }
-                else {
-                    // We just got a new frame
-                    this.currentFrameContents = dataFrame.getEntries();
-                    if (this.currentFrameContents.hasNext()) {
-                        try {
-                            return this.currentFrameContents.pollNextElement();
+            return this.dataFrameEnumerator
+                    .getNext(timeout)
+                    .thenApply(dataFrame -> {
+                        if (dataFrame == null) {
+                            // No more frames to retrieve
+                            this.currentFrameContents = null;
+                            return null;
                         }
-                        catch (Exception ex) {
-                            throw new CompletionException(ex);
+                        else {
+                            // We just got a new frame.
+                            log.debug("{}: Read DataFrame (SequenceNumber = %d, Length = %d).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
+                            this.currentFrameContents = dataFrame.getEntries();
+                            if (this.currentFrameContents.hasNext()) {
+                                try {
+                                    return this.currentFrameContents.pollNextElement();
+                                }
+                                catch (Exception ex) {
+                                    throw new CompletionException(ex);
+                                }
+                            }
+                            else {
+                                // The DataFrameEnumerator should not return empty frames. We can either go in a loop and try to get next,
+                                // or throw (which is correct, since we rely on DataFrameEnumerator to behave correctly.
+                                throw new CompletionException(new DataCorruptionException("Found empty DataFrame when non-empty was expected."));
+                            }
                         }
-                    }
-                    else {
-                        // The DataFrameEnumerator should not return empty frames. We can either go in a loop and try to get next,
-                        // or throw (which is correct, since we rely on DataFrameEnumerator to behave correctly.
-                        throw new CompletionException(new DataCorruptionException("Found empty DataFrame when non-empty was expected."));
-                    }
-                }
-            });
+                    });
         }
 
         //endregion
@@ -415,9 +421,7 @@ public class DataFrameReader implements AutoCloseable {
          * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */
         public DataFrameEnumerator(DurableDataLog log) throws DurableDataLogException {
-            if (log == null) {
-                throw new NullPointerException("log");
-            }
+            Exceptions.throwIfNull(log, "log");
 
             this.log = log;
             this.lastReadFrameSequence = InitialLastReadFrameSequence;

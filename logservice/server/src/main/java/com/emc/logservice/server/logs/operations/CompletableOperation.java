@@ -1,6 +1,8 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.common.CallbackHelpers;
+import com.emc.logservice.common.Exceptions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -8,6 +10,7 @@ import java.util.function.Consumer;
 /**
  * Binds a Operation with success and failure callbacks that will be invoked based on its outcome..
  */
+@Slf4j
 public class CompletableOperation {
     //region Members
 
@@ -26,13 +29,11 @@ public class CompletableOperation {
      * @param operation      The operation to wrap.
      * @param callbackFuture A CompletableFuture that will be used to indicate the outcome of this operation.
      *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation as its payload.
+     * @throws IllegalArgumentException If the given callbackFuture is already done.
      */
     public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture) {
         this(operation, callbackFuture::complete, callbackFuture::completeExceptionally);
-
-        if (callbackFuture.isDone()) {
-            throw new IllegalArgumentException("CallbackFuture is already done.");
-        }
+        Exceptions.throwIfIllegalArgument(!callbackFuture.isDone(), "callbackFuture", "CallbackFuture is already done.");
     }
 
     /**
@@ -44,9 +45,7 @@ public class CompletableOperation {
      * @throws NullPointerException If operation is null.
      */
     public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler) {
-        if (operation == null) {
-            throw new NullPointerException("operation");
-        }
+        Exceptions.throwIfNull(operation, "operation");
         this.operation = operation;
         this.failureHandler = failureHandler;
         this.successHandler = successHandler;
@@ -70,13 +69,11 @@ public class CompletableOperation {
      */
     public void complete() {
         long seqNo = this.operation.getSequenceNumber();
-        if (seqNo < 0) {
-            throw new IllegalStateException("About to complete a CompletableOperation that has no sequence number.");
-        }
+        Exceptions.throwIfIllegalState(seqNo>=0, "About to complete a CompletableOperation that has no sequence number.");
 
         this.done = true;
         if (this.successHandler != null) {
-            CallbackHelpers.invokeSafely(this.successHandler, seqNo, null);
+            CallbackHelpers.invokeSafely(this.successHandler, seqNo, cex -> log.error("Success Callback invocation failure.", cex));
         }
     }
 
@@ -88,7 +85,7 @@ public class CompletableOperation {
     public void fail(Throwable ex) {
         this.done = true;
         if (this.failureHandler != null) {
-            CallbackHelpers.invokeSafely(this.failureHandler, ex, null);
+            CallbackHelpers.invokeSafely(this.failureHandler, ex, cex -> log.error("Fail Callback invocation failure.", cex));
         }
     }
 

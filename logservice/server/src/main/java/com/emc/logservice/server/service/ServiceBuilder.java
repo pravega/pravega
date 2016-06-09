@@ -8,7 +8,6 @@ import com.emc.logservice.server.reading.ReadIndexFactory;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageabstraction.StorageFactory;
 
-import java.io.PrintStream;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -18,7 +17,6 @@ import java.util.function.Supplier;
 public abstract class ServiceBuilder implements AutoCloseable {
     //region Members
 
-    protected final PrintStream logger;
     protected final SegmentToContainerMapper segmentToContainerMapper;
     private OperationLogFactory operationLogFactory;
     private CacheFactory cacheFactory;
@@ -34,12 +32,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
     //region Constructor
 
     public ServiceBuilder(int containerCount) {
-        this(containerCount, System.out);
-    }
-
-    public ServiceBuilder(int containerCount, PrintStream logger) {
         this.segmentToContainerMapper = new SegmentToContainerMapper(containerCount);
-        this.logger = logger;
     }
 
     //endregion

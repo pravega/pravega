@@ -73,17 +73,9 @@ public class AutoReleaseLock implements AutoCloseable {
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
     protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock) {
-        if (baseLock == null) {
-            throw new NullPointerException("baseLock");
-        }
-
-        if (replacedLock == null) {
-            throw new NullPointerException("replacedLock");
-        }
-
-        if (!replacedLock.upgradeable) {
-            throw new IllegalArgumentException("replacedLock is not upgradeable.");
-        }
+        Exceptions.throwIfNull(baseLock, "baseLock");
+        Exceptions.throwIfNull(replacedLock, "replacedLock");
+        Exceptions.throwIfIllegalArgument(replacedLock.upgradeable, "replacedLock", "replacedLock is not upgradeable.");
 
         this.lock = baseLock;
         this.upgradeable = false;
@@ -112,17 +104,9 @@ public class AutoReleaseLock implements AutoCloseable {
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
     protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock, Duration acquireTimeout) throws TimeoutException, InterruptedException {
-        if (baseLock == null) {
-            throw new NullPointerException("baseLock");
-        }
-
-        if (replacedLock == null) {
-            throw new NullPointerException("replacedLock");
-        }
-
-        if (!replacedLock.upgradeable) {
-            throw new IllegalArgumentException("replacedLock is not upgradeable.");
-        }
+        Exceptions.throwIfNull(baseLock, "baseLock");
+        Exceptions.throwIfNull(replacedLock, "replacedLock");
+        Exceptions.throwIfIllegalArgument(replacedLock.upgradeable, "replacedLock", "replacedLock is not upgradeable.");
 
         this.lock = baseLock;
         this.upgradeable = false;

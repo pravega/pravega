@@ -99,8 +99,8 @@ public class MergeBatchOperation extends com.emc.logservice.server.logs.operatio
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.batchStreamSegmentLength >= 0, "Batch Stream Length has not been assigned for this entry.");
-        ensureSerializationCondition(this.targetStreamSegmentOffset >= 0, "Target Stream Offset has not been assigned for this entry.");
+        ensureSerializationCondition(this.batchStreamSegmentLength >= 0, "Batch StreamSegment Length has not been assigned for this entry.");
+        ensureSerializationCondition(this.targetStreamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned for this entry.");
 
         target.writeByte(Version);
         target.writeLong(getStreamSegmentId());
@@ -120,7 +120,7 @@ public class MergeBatchOperation extends com.emc.logservice.server.logs.operatio
 
     @Override
     public String toString() {
-        return String.format("%s, BatchStreamId = %d, BatchLength = %d, TargetStreamOffset = %d", super.toString(), getBatchStreamSegmentId(), getBatchStreamSegmentLength(), getTargetStreamSegmentOffset());
+        return String.format("%s, BatchStreamSegmentId = %d, BatchLength = %d, ParentStreamSegmentOffset = %d", super.toString(), getBatchStreamSegmentId(), getBatchStreamSegmentLength(), getTargetStreamSegmentOffset());
     }
 
     //endregion

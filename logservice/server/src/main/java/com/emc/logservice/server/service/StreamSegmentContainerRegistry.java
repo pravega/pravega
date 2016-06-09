@@ -3,6 +3,7 @@ package com.emc.logservice.server.service;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.server.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -14,6 +15,7 @@ import java.util.function.Consumer;
 /**
  * Registry for SegmentContainers.
  */
+@Slf4j
 public class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     //region Members
 
@@ -84,9 +86,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         ensureNotClosed();
 
         // Check if container exists
-        if (this.containers.containsKey(containerId)) {
-            throw new IllegalArgumentException(String.format("Container %s is already registered.", containerId));
-        }
+        Exceptions.throwIfIllegalArgument(!this.containers.containsKey(containerId), "containerId","Container %s is already registered.", containerId);
 
         // If not, create one and register it.
         ContainerWithHandle newContainer = new ContainerWithHandle(this.factory.createStreamSegmentContainer(containerId), new SegmentContainerHandle(containerId));
@@ -96,6 +96,8 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
             newContainer.container.close();
             throw new IllegalArgumentException(String.format("Container %s is already registered.", containerId));
         }
+
+        log.info("Registered SegmentContainer {}.", containerId);
 
         // Attempt to Initialize and Start the container.
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -115,8 +117,8 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         // If start failed, close and unregister the container we just created.
         FutureHelpers.exceptionListener(startFuture, ex -> {
+            log.error("Start Failure for SegmentContainer {}. {}", containerId, ex);
             closeContainer(newContainer, true);
-            System.err.println(ex);
         });
 
         return startFuture;
@@ -147,7 +149,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     private void handleContainerFailure(String containerId, Throwable exception) {
         ContainerWithHandle toClose = this.containers.getOrDefault(containerId, null);
         closeContainer(toClose, true);
-        System.err.println(exception);
+        log.error("Critical failure for SegmentContainer {}. {}", containerId, exception);
     }
 
     private void closeContainer(ContainerWithHandle toClose, boolean notifyHandle) {
@@ -155,6 +157,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         toClose.container.close();
         assert toClose.container.getState() == ContainerState.Closed;
         this.containers.remove(toClose.handle.getContainerId());
+        log.info("Unregistered SegmentContainer {}.", toClose.handle.getContainerId());
         if (notifyHandle) {
             toClose.handle.notifyContainerStopped();
         }

@@ -1,12 +1,11 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
-import com.emc.logservice.common.*;
-import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.server.logs.operations.*;
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storageabstraction.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -17,10 +16,12 @@ import java.util.function.Consumer;
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
  */
+@Slf4j
 public class DurableLog implements OperationLog {
     //region Members
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); // TODO: make configurable.
+    private final String traceObjectId;
     private final MemoryOperationLog inMemoryOperationLog;
     private final DurableDataLog dataFrameLog;
     private final MemoryLogUpdater memoryLogUpdater;
@@ -45,23 +46,14 @@ public class DurableLog implements OperationLog {
      * @throws NullPointerException If any of the arguments are null.
      */
     public DurableLog(UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, Cache cache) {
-        if (metadata == null) {
-            throw new NullPointerException("metadata");
-        }
-
-        if (dataFrameLogFactory == null) {
-            throw new NullPointerException("dataFrameLogFactory");
-        }
-
-        if (cache == null) {
-            throw new NullPointerException("cache");
-        }
+        Exceptions.throwIfNull(metadata, "metadata");
+        Exceptions.throwIfNull(dataFrameLogFactory, "dataFrameLogFactory");
+        Exceptions.throwIfNull(cache, "cache");
 
         this.dataFrameLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
-        if (this.dataFrameLog == null) {
-            throw new AssertionError("DurableDataLogFactory created a null DataFrameLog");
-        }
+        assert this.dataFrameLog != null;
 
+        this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.metadata = metadata;
         this.truncationMarkers = new TruncationMarkerCollection();
         this.faultRegistry = new FaultHandlerRegistry();
@@ -78,7 +70,7 @@ public class DurableLog implements OperationLog {
     //region AutoCloseable Implementation
 
     @Override
-    public void close(){
+    public void close() {
         if (this.state != ContainerState.Closed) {
             if (this.state == ContainerState.Started) {
                 // Stop the container if it's currently running.
@@ -101,12 +93,15 @@ public class DurableLog implements OperationLog {
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
+            int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "initialize");
             ContainerState.Initialized.checkValidPreviousState(this.state);
 
             // Perform Recovery and initialize all components.
-            return performRecovery(timer.getRemaining()) // Perform Recovery.
-                                                         .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
-                                                         .thenRun(() -> setState(ContainerState.Initialized)); // Update our internal state.
+            return this
+                    .performRecovery(timer.getRemaining()) // Perform Recovery.
+                    .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
+                    .thenRun(() -> setState(ContainerState.Initialized)) // Update our internal state.
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "initialize", traceId));
         });
     }
 
@@ -115,11 +110,12 @@ public class DurableLog implements OperationLog {
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
+            int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "start");
             ContainerState.Started.checkValidPreviousState(this.state);
-
-            // Start the Operation Queue Processor.
-            return this.queueProcessor.start(timeout)
-                                      .thenRun(() -> setState(ContainerState.Started));
+            return this.queueProcessor
+                    .start(timeout)
+                    .thenRun(() -> setState(ContainerState.Started))
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "start", traceId));
         });
     }
 
@@ -128,13 +124,16 @@ public class DurableLog implements OperationLog {
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
+            int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "stop");
             ContainerState.Stopped.checkValidPreviousState(this.state);
 
             // Update the state first.
             setState(ContainerState.Stopped);
 
             // Stop the Operation Queue Processor.
-            return this.queueProcessor.stop(timeout);
+            return this.queueProcessor
+                    .stop(timeout)
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "stop", traceId));
         });
     }
 
@@ -163,6 +162,7 @@ public class DurableLog implements OperationLog {
         CompletableFuture<Long> result = new CompletableFuture<>();
 
         // Add to queue.
+        log.debug("{}: AddToQueue {}.", this.traceObjectId, operation);
         this.queue.add(new CompletableOperation(operation, result));
         return result;
     }
@@ -177,14 +177,17 @@ public class DurableLog implements OperationLog {
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.dataFrameLog.truncate(dataFrameSeqNo, timer.getRemaining()) // Truncate DataFrameLog.
-                                .thenApply(r -> this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= upToSequenceNumber)) // Truncate InMemory Transaction Log.
-                                .thenRun(() -> this.truncationMarkers.removeTruncationMarkers(upToSequenceNumber)); // Remove old truncation markers.
+        log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameSequenceNumber = {}).", this.traceObjectId, upToSequenceNumber, dataFrameSeqNo);
+        return this.dataFrameLog
+                .truncate(dataFrameSeqNo, timer.getRemaining()) // Truncate DataFrameLog.
+                .thenApply(r -> this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= upToSequenceNumber)) // Truncate InMemory Transaction Log.
+                .thenRun(() -> this.truncationMarkers.removeTruncationMarkers(upToSequenceNumber)); // Remove old truncation markers.
     }
 
     @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         ensureStarted();
+        log.debug("{}: Read (AfterSequenceNumber = {}, MaxCount = {}).", this.traceObjectId, afterSequenceNumber, maxCount);
         return CompletableFuture.completedFuture(this.inMemoryOperationLog.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount));
     }
 
@@ -193,10 +196,13 @@ public class DurableLog implements OperationLog {
     //region Recovery
 
     private CompletableFuture<Void> performRecovery(Duration timeout) {
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
+
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         ContainerState.Initialized.checkValidPreviousState(this.state);
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
+        log.info("{} Recovery started.", this.traceObjectId);
 
         // Put metadata (and entire container) into 'Recovery Mode'.
         this.metadata.enterRecoveryMode();
@@ -209,17 +215,18 @@ public class DurableLog implements OperationLog {
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata, this.truncationMarkers);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
-        CompletableFuture<Void> result = this.dataFrameLog.initialize(timer.getRemaining()) // Initialize DataFrameLog.
-                                                          .thenRun(() ->
-                                                          {
-                                                              // Recover from DataFrameLog.
-                                                              try {
-                                                                  recoverFromDataFrameLog(metadataUpdater, timer.getRemaining());
-                                                              }
-                                                              catch (DurableDataLogException | DataCorruptionException ex) {
-                                                                  throw new CompletionException(ex);
-                                                              }
-                                                          });
+        CompletableFuture<Void> result = this.dataFrameLog
+                .initialize(timer.getRemaining()) // Initialize DataFrameLog.
+                .thenRun(() ->
+                {
+                    // Recover from DataFrameLog.
+                    try {
+                        recoverFromDataFrameLog(metadataUpdater, timer.getRemaining());
+                    }
+                    catch (DurableDataLogException | DataCorruptionException ex) {
+                        throw new CompletionException(ex);
+                    }
+                });
 
         // No need for error handling here. Any errors will be handles upstream, by whomever listens to our result.
         // We must exit recovery mode when done, regardless of outcome.
@@ -228,16 +235,25 @@ public class DurableLog implements OperationLog {
             this.metadata.exitRecoveryMode();
             this.truncationMarkers.exitRecoveryMode();
             this.memoryLogUpdater.exitRecoveryMode(this.metadata, ex == null);
+            if (ex == null) {
+                log.info("{} Recovery completed.", this.traceObjectId);
+            }
+            else {
+                log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
+            }
         });
-        return result;
+
+        return result
+                .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId));
     }
 
     private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater, Duration timeout) throws DataCorruptionException, DurableDataLogException {
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        try (DataFrameReader reader = new DataFrameReader(this.dataFrameLog)) {
+        try (DataFrameReader reader = new DataFrameReader(this.dataFrameLog, getId())) {
             DataFrameReader.ReadResult lastReadResult = null;
             while (true) {
                 // Fetch the next operation.
@@ -266,7 +282,8 @@ public class DurableLog implements OperationLog {
 
                 // Process the operation.
                 try {
-                    System.out.println(String.format("Recovering %s", operation));
+                    log.debug("{} Recovering {}.", this.traceObjectId, operation);
+                    System.out.println(String.format("Recovering %s", operation)); // TODO: remove this after the demo.
                     if (operation instanceof MetadataOperation) {
                         metadataUpdater.processMetadataOperation((MetadataOperation) operation);
                     }
@@ -289,6 +306,7 @@ public class DurableLog implements OperationLog {
         // Commit whatever changes we have in the metadata updater to the Container Metadata.
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
         metadataUpdater.commit();
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId);
     }
 
     //endregion
@@ -303,12 +321,14 @@ public class DurableLog implements OperationLog {
     }
 
     private void ensureNotClosed() {
-        if (this.state == ContainerState.Closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.throwIfClosed(this.state == ContainerState.Closed, this);
     }
 
     private void setState(ContainerState state) {
+        if (this.state != state) {
+            log.info("{}: StateTransition from {} to {}.", traceObjectId, this.state, state);
+        }
+
         this.state = state;
     }
 

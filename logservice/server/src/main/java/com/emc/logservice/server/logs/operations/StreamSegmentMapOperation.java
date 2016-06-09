@@ -2,7 +2,6 @@ package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.server.logs.SerializationException;
-import com.emc.logservice.server.logs.operations.MetadataOperation;
 
 import java.io.*;
 
@@ -123,7 +122,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     @Override
     public String toString() {
-        return String.format("%s, StreamId = %d, StreamName = %s, StreamLength = %d, Sealed = %s", super.toString(), getStreamSegmentId(), getStreamSegmentName(), getStreamSegmentLength(), isSealed());
+        return String.format("%s, Id = %d, Name = %s, Length = %d, Sealed = %s", super.toString(), getStreamSegmentId(), getStreamSegmentName(), getStreamSegmentLength(), isSealed());
     }
 
     //endregion

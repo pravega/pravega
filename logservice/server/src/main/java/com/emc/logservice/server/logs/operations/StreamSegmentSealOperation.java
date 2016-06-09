@@ -1,5 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.logs.SerializationException;
 
 import java.io.*;
@@ -51,10 +52,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
      * @param value The length.
      */
     public void setStreamSegmentLength(long value) {
-        if (value < 0) {
-            throw new IllegalArgumentException("Stream Segment Length must be a non-negative number.");
-        }
-
+        Exceptions.throwIfIllegalArgument(value >= 0, "value", "StreamSegment Length must be a non-negative number.");
         this.streamSegmentLength = value;
     }
 
@@ -69,7 +67,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentLength >= 0, "Stream Length has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentLength >= 0, "StreamSegment Length has not been assigned for this entry.");
         target.writeByte(Version);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentLength);
@@ -84,7 +82,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format("%s, StreamLength = %d", super.toString(), this.streamSegmentLength);
+        return String.format("%s, StreamSegmentLength = %d", super.toString(), this.streamSegmentLength);
     }
 
     //endregion

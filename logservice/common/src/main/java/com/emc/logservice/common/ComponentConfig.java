@@ -38,13 +38,8 @@ public abstract class ComponentConfig {
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
     public ComponentConfig(Properties properties, String componentCode) throws MissingPropertyException, InvalidPropertyValueException {
-        if (properties == null || componentCode == null) {
-            throw new NullPointerException();
-        }
-
-        if (componentCode.length() == 0) {
-            throw new IllegalArgumentException("componentCode");
-        }
+        Exceptions.throwIfNull(properties, "properties");
+        Exceptions.throwIfNullOfEmpty(componentCode, "componentCode");
 
         this.properties = properties;
         this.keyPrefix = componentCode + Separator;
@@ -226,10 +221,7 @@ public abstract class ComponentConfig {
     }
 
     private String getPropertyKey(String name) {
-        if (name == null || name.length() == 0) {
-            throw new IllegalArgumentException("name");
-        }
-
+        Exceptions.throwIfNullOfEmpty(name, "name");
         return this.keyPrefix + name;
     }
 

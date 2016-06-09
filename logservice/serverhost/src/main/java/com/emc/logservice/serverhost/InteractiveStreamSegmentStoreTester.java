@@ -1,5 +1,6 @@
 package com.emc.logservice.serverhost;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.StreamHelpers;
@@ -51,6 +52,7 @@ public class InteractiveStreamSegmentStoreTester {
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
         ServiceBuilder serviceBuilder;
@@ -134,26 +136,30 @@ public class InteractiveStreamSegmentStoreTester {
     private void createStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Create));
-        await(this.streamSegmentStore.createStreamSegment(name, DefaultTimeout), r -> log("Created StreamSegment %s.", name));
+        long startTime = getCurrentTime();
+        await(this.streamSegmentStore.createStreamSegment(name, DefaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
     }
 
     private void deleteStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Delete));
-        await(this.streamSegmentStore.deleteStreamSegment(name, DefaultTimeout), r -> log("Deleted StreamSegment %s.", name));
+        long startTime = getCurrentTime();
+        await(this.streamSegmentStore.deleteStreamSegment(name, DefaultTimeout), r -> log(startTime, "Deleted StreamSegment %s.", name));
     }
 
     private void sealStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Get));
-        await(this.streamSegmentStore.sealStreamSegment(name, DefaultTimeout), r -> log("Sealed StreamSegment %s.", name));
+        long startTime = getCurrentTime();
+        await(this.streamSegmentStore.sealStreamSegment(name, DefaultTimeout), r -> log(startTime, "Sealed StreamSegment %s.", name));
     }
 
     private void getStreamInfo(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Get));
+        long startTime = getCurrentTime();
         await(this.streamSegmentStore.getStreamSegmentInfo(name, DefaultTimeout), result ->
-                log("Name = %s, Length = %d, Sealed = %s, Deleted = %s.", result.getName(), result.getLength(), result.isSealed(), result.isDeleted()));
+                log(startTime, "Name = %s, Length = %d, Sealed = %s, Deleted = %s.", result.getName(), result.getLength(), result.isSealed(), result.isDeleted()));
     }
 
     private void appendToStream(CommandLineParser parsedCommand) {
@@ -166,7 +172,8 @@ public class InteractiveStreamSegmentStoreTester {
 
     private void appendToStream(String name, byte[] data) {
         AppendContext context = new AppendContext(clientId, appendCount++);
-        await(this.streamSegmentStore.append(name, data, context, DefaultTimeout), r -> log("Appended %d bytes at offset %d.", data.length, r));
+        long startTime = getCurrentTime();
+        await(this.streamSegmentStore.append(name, data, context, DefaultTimeout), r -> log(startTime, "Appended %d bytes at offset %d.", data.length, r));
     }
 
     private void readFromStream(CommandLineParser parsedCommand) {
@@ -206,13 +213,15 @@ public class InteractiveStreamSegmentStoreTester {
     private void createBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String parentName = parsedCommand.getNext();
         checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CreateBatch, Commands.ParentStreamSegmentName));
-        await(this.streamSegmentStore.createBatch(parentName, DefaultTimeout), r -> log("Created BatchStreamSegment %s with parent %s.", r, parentName));
+        long startTime = getCurrentTime();
+        await(this.streamSegmentStore.createBatch(parentName, DefaultTimeout), r -> log(startTime, "Created BatchStreamSegment %s with parent %s.", r, parentName));
     }
 
     private void mergeBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String batchStreamName = parsedCommand.getNext();
         checkArguments(batchStreamName != null && batchStreamName.length() > 0, Commands.combine(Commands.MergeBatch, Commands.BatchStreamSegmentName));
-        await(this.streamSegmentStore.mergeBatch(batchStreamName, DefaultTimeout), r -> log("Merged BatchStreamSegment %s into parent stream.", batchStreamName));
+        long startTime = getCurrentTime();
+        await(this.streamSegmentStore.mergeBatch(batchStreamName, DefaultTimeout), r -> log(startTime, "Merged BatchStreamSegment %s into parent stream.", batchStreamName));
     }
 
     private <T> void await(CompletableFuture<T> future, Consumer<T> callback) {
@@ -235,6 +244,11 @@ public class InteractiveStreamSegmentStoreTester {
         this.out.println(String.format(message, args));
     }
 
+    private void log(long startTime, String message, Object... args) {
+        long elapsedMillis = getElapsedMillis(startTime);
+        this.out.println(String.format(message, args) + String.format(" (%dms)", elapsedMillis));
+    }
+
     private void log(Throwable ex, String message, Object... args) {
         this.errorLogger.println(String.format("ERROR: %s", String.format(message, args)));
         getRealException(ex).printStackTrace(this.errorLogger);
@@ -246,6 +260,14 @@ public class InteractiveStreamSegmentStoreTester {
         }
 
         return ex;
+    }
+
+    private long getCurrentTime() {
+        return System.nanoTime();
+    }
+
+    private long getElapsedMillis(long startTime) {
+        return (System.nanoTime() - startTime) / 1000000;
     }
 
     //endregion
@@ -277,10 +299,10 @@ public class InteractiveStreamSegmentStoreTester {
         static {
             Syntaxes.put(Create, Commands.combine(Create, Commands.StreamSegmentName));
             Syntaxes.put(Delete, Commands.combine(Delete, Commands.StreamSegmentName));
+            Syntaxes.put(Append, Commands.combine(Append, Commands.StreamSegmentName, Commands.AppendData));
+            Syntaxes.put(Read, Commands.combine(Read, Commands.StreamSegmentName));
             Syntaxes.put(Seal, Commands.combine(Seal, Commands.StreamSegmentName));
             Syntaxes.put(Get, Commands.combine(Get, Commands.StreamSegmentName, Commands.Offset, Commands.Length));
-            Syntaxes.put(Append, Commands.combine(Append, Commands.BatchStreamSegmentName, Commands.AppendData));
-            Syntaxes.put(Read, Commands.combine(Read, Commands.BatchStreamSegmentName));
             Syntaxes.put(CreateBatch, Commands.combine(CreateBatch, Commands.ParentStreamSegmentName));
             Syntaxes.put(MergeBatch, Commands.combine(MergeBatch, Commands.BatchStreamSegmentName));
         }

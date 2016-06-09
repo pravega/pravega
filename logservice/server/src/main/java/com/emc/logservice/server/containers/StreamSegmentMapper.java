@@ -1,32 +1,28 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.*;
+import com.emc.logservice.contracts.*;
+import com.emc.logservice.server.*;
+import com.emc.logservice.server.logs.OperationLog;
+import com.emc.logservice.server.logs.operations.BatchMapOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.logservice.storageabstraction.Storage;
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.TimeoutTimer;
-import com.emc.logservice.contracts.SegmentProperties;
-import com.emc.logservice.contracts.StreamSegmentExistsException;
-import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
-import com.emc.logservice.server.StreamSegmentNameUtils;
-import com.emc.logservice.server.UpdateableContainerMetadata;
-import com.emc.logservice.server.UpdateableSegmentMetadata;
-import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.operations.BatchMapOperation;
-import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.logservice.storageabstraction.Storage;
-
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
  */
+@Slf4j
 public class StreamSegmentMapper {
     //region Members
 
+    private final String traceObjectId;
     private final UpdateableContainerMetadata containerMetadata;
     private final OperationLog durableLog;
     private final Storage storage;
@@ -49,17 +45,11 @@ public class StreamSegmentMapper {
      * @throws NullPointerException If any of the arguments are null.
      */
     public StreamSegmentMapper(UpdateableContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
-        if (containerMetadata == null) {
-            throw new NullPointerException("containerMetadata");
-        }
+        Exceptions.throwIfNull(containerMetadata, "containerMetadata");
+        Exceptions.throwIfNull(durableLog, "durableLog");
+        Exceptions.throwIfNull(storage, "storage");
 
-        if (durableLog == null) {
-            throw new NullPointerException("durableLog");
-        }
-        if (storage == null) {
-            throw new NullPointerException("storage");
-        }
-
+        this.traceObjectId = String.format("StreamSegmentMapper[%s]", containerMetadata.getContainerId());
         this.containerMetadata = containerMetadata;
         this.durableLog = durableLog;
         this.storage = storage;
@@ -80,19 +70,20 @@ public class StreamSegmentMapper {
      * If the operation failed, this will contain the exception that caused the failure.
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
-        	CompletableFuture<Void> result = new CompletableFuture<Void>();
-        	result.completeExceptionally(new StreamSegmentExistsException("Given StreamSegmentName is already registered internally. Most likely it already exists."));
+            return FutureHelpers.failedFuture(new StreamSegmentExistsException("Given StreamSegmentName is already registered internally. Most likely it already exists."));
         }
 
         // Create the StreamSegment, and then assign a Unique Internal Id to it.
         // Note: this is slightly sub-optimal, as we create the stream, but getOrAssignStreamSegmentId makes another call
         // to get the same info about the StreamSegmentId.
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        CompletableFuture<Long> result = this.storage.create(streamSegmentName, timer.getRemaining())
-                                                     .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()));
-        return CompletableFuture.allOf(result);
+        return this.storage
+                .create(streamSegmentName, timer.getRemaining())
+                .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
+                .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }
 
     /**
@@ -105,10 +96,10 @@ public class StreamSegmentMapper {
      * @throws IllegalArgumentException If the given parent StreamSegment is invalid to have a batch (deleted, sealed, inexistent).
      */
     public CompletableFuture<String> createNewBatchStreamSegment(String parentStreamSegmentName, Duration timeout) {
-        if (StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) != null) {
-            //We cannot create a Batch StreamSegment for a what looks like a parent StreamSegment.
-            throw new IllegalArgumentException("Given Parent StreamSegmentName looks like a Batch StreamSegment Name. Cannot create a batch for a batch.");
-        }
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewBatchStreamSegment", parentStreamSegmentName);
+
+        //We cannot create a Batch StreamSegment for a what looks like a parent StreamSegment.
+        Exceptions.throwIfIllegalArgument(StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null, "parentStreamSegmentName", "Given Parent StreamSegmentName looks like a Batch StreamSegment Name. Cannot create a batch for a batch.");
 
         // Validate that Parent StreamSegment exists.
         CompletableFuture<SegmentProperties> parentPropertiesFuture = null;
@@ -116,14 +107,8 @@ public class StreamSegmentMapper {
         if (isValidStreamSegmentId(parentStreamSegmentId)) {
             SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
             if (parentMetadata != null) {
-                if (isValidStreamSegmentId(parentMetadata.getParentId())) {
-                    throw new IllegalArgumentException("Given Parent StreamSegment is a Batch StreamSegment. Cannot create a batch for a batch.");
-                }
-
-                if (parentMetadata.isDeleted() || parentMetadata.isSealed()) {
-                    throw new IllegalArgumentException("Given Parent StreamSegment is deleted or sealed. Cannot create a batch for it.");
-                }
-
+                Exceptions.throwIfIllegalArgument(!isValidStreamSegmentId(parentMetadata.getParentId()), "parentStreamSegmentName", "Given Parent StreamSegment is a Batch StreamSegment. Cannot create a batch for a batch.");
+                Exceptions.throwIfIllegalArgument(!parentMetadata.isDeleted() && !parentMetadata.isSealed(), "parentStreamSegmentName", "Given Parent StreamSegment is deleted or sealed. Cannot create a batch for it.");
                 parentPropertiesFuture = CompletableFuture.completedFuture(parentMetadata);
             }
         }
@@ -141,7 +126,11 @@ public class StreamSegmentMapper {
         return parentPropertiesFuture
                 .thenCompose(parentInfo -> this.storage.create(batchName, timer.getRemaining()))
                 .thenCompose(batchInfo -> assignBatchStreamSegmentId(batchInfo, parentStreamSegmentId, timer.getRemaining()))
-                .thenApply(id -> batchName);
+                .thenApply(id ->
+                {
+                    LoggerHelpers.traceLeave(log, traceObjectId, "createNewBatchStreamSegment", traceId, parentStreamSegmentName, batchName, id);
+                    return batchName;
+                });
     }
 
     /**
@@ -151,6 +140,7 @@ public class StreamSegmentMapper {
      * If multiple requests for assignment arrive for the same StreamSegment in parallel, the subsequent ones (after the
      * first one) will wait for the first one to complete and return the same result (this will not result in double-assignment).
      * TODO: figure out if streamSegmentName is a batch or not. We want to create the proper mappings in the metadata.
+     *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
@@ -213,13 +203,14 @@ public class StreamSegmentMapper {
      */
     private void assignStreamId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
-                    .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
-                    .exceptionally(ex ->
-                    {
-                        failAssignment(streamSegmentName, SegmentMetadataCollection.NoStreamSegmentId, ex);
-                        throw new CompletionException(ex);
-                    });
+        this.storage
+                .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
+                .exceptionally(ex ->
+                {
+                    failAssignment(streamSegmentName, SegmentMetadataCollection.NoStreamSegmentId, ex);
+                    throw new CompletionException(ex);
+                });
     }
 
     /**
@@ -268,12 +259,13 @@ public class StreamSegmentMapper {
                 // Standalone StreamSegment.
                 logAddResult = this.durableLog.add(new StreamSegmentMapOperation(newStreamId, streamSegmentInfo), timeout);
             }
-            return logAddResult.thenApply(seqNo ->
-            {
-                updateMetadata(newStreamId, streamSegmentInfo, parentStreamSegmentId);
-                completeAssignment(streamSegmentInfo.getName(), newStreamId);
-                return newStreamId;
-            });
+            return logAddResult
+                    .thenApply(seqNo ->
+                    {
+                        updateMetadata(newStreamId, streamSegmentInfo, parentStreamSegmentId);
+                        completeAssignment(streamSegmentInfo.getName(), newStreamId);
+                        return newStreamId;
+                    });
         }
     }
 
@@ -289,7 +281,7 @@ public class StreamSegmentMapper {
     private void updateMetadata(long streamSegmentId, SegmentProperties streamSegmentInfo, long parentStreamSegmentId) {
         synchronized (MetadataLock) {
             // Map it to the stream name and update the Stream Metadata.
-            if(isValidStreamSegmentId(parentStreamSegmentId)){
+            if (isValidStreamSegmentId(parentStreamSegmentId)) {
                 // Batch StreamSegment.
                 this.containerMetadata.mapStreamSegmentId(streamSegmentInfo.getName(), streamSegmentId, parentStreamSegmentId);
             }
@@ -300,7 +292,7 @@ public class StreamSegmentMapper {
 
             UpdateableSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
             sm.setStorageLength(streamSegmentInfo.getLength());
-            sm.setDurableLogLength(streamSegmentInfo.getLength()); // TODO: this will need to be set/reset in recovery. This is the default (failback) value.
+            sm.setDurableLogLength(streamSegmentInfo.getLength()); // This value will be set/reset in recovery. This is the default (failback) value.
 
             if (streamSegmentInfo.isSealed()) {
                 sm.markSealed();

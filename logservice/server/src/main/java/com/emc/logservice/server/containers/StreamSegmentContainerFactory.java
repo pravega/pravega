@@ -1,5 +1,6 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.*;
 import com.emc.logservice.storageabstraction.StorageFactory;
 
@@ -19,8 +20,14 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      * @param operationLogFactory The OperationLogFactory to use for every container creation.
      * @param cacheFactory        The Cache Factory to use for every container creation.
      * @param storageFactory      The Storage Factory to use for every container creation.
+     * @throws NullPointerException If any of the arguments are null.
      */
     public StreamSegmentContainerFactory(MetadataRepository metadataRepository, OperationLogFactory operationLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory) {
+        Exceptions.throwIfNull(metadataRepository, "metadataRepository");
+        Exceptions.throwIfNull(operationLogFactory, "operationLogFactory");
+        Exceptions.throwIfNull(cacheFactory, "cacheFactory");
+        Exceptions.throwIfNull(storageFactory, "storageFactory");
+
         this.metadataRepository = metadataRepository;
         this.operationLogFactory = operationLogFactory;
         this.cacheFactory = cacheFactory;

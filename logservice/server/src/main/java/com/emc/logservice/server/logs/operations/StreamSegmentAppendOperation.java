@@ -1,10 +1,9 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.StreamHelpers;
+import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.SerializationException;
-
-import io.netty.buffer.ByteBuf;
 
 import java.io.*;
 import java.util.UUID;
@@ -34,13 +33,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      */
     public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, AppendContext appendContext) {
         super(streamSegmentId);
-        if (data == null) {
-            throw new NullPointerException("data");
-        }
-
-        if (appendContext == null) {
-            throw new NullPointerException("appendContext");
-        }
+        Exceptions.throwIfNull(data, "data");
+        Exceptions.throwIfNull(appendContext, "appendContext");
 
         this.data = data;
         this.streamSegmentOffset = -1;
@@ -103,7 +97,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "Stream Offset has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for this entry.");
 
         target.writeByte(Version);
         target.writeLong(getStreamSegmentId());

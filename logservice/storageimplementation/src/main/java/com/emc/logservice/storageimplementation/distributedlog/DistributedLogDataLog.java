@@ -1,6 +1,7 @@
 package com.emc.logservice.storageimplementation.distributedlog;
 
 import com.emc.logservice.common.AsyncIterator;
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
 
@@ -36,17 +37,8 @@ class DistributedLogDataLog implements DurableDataLog {
      * @throws IllegalArgumentException If logName is an empty string.
      */
     public DistributedLogDataLog(String logName, LogClient client) {
-        if(client == null){
-            throw new NullPointerException("client");
-        }
-
-        if(logName == null){
-            throw new NullPointerException("logName");
-        }
-
-        if(logName.length() == 0){
-            throw new IllegalArgumentException("logName");
-        }
+        Exceptions.throwIfNull(client, "client");
+        Exceptions.throwIfNullOfEmpty(logName, "logName");
 
         this.logName = logName;
         this.client = client;
@@ -69,10 +61,7 @@ class DistributedLogDataLog implements DurableDataLog {
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
-        if (this.handle != null) {
-            throw new IllegalStateException("DistributedLogDataLog is already initialized.");
-        }
-
+        Exceptions.throwIfIllegalState(this.handle == null, "DistributedLogDataLog is already initialized.");
         return this.client.getLogHandle(this.logName).thenAccept(handle -> this.handle = handle);
     }
 
@@ -107,9 +96,7 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     private void ensureInitialized() {
-        if (this.handle == null) {
-            throw new IllegalStateException("DistributedLogDataLog is not initialized.");
-        }
+        Exceptions.throwIfIllegalState(this.handle != null, "DistributedLogDataLog is not initialized.");
     }
 
     //endregion

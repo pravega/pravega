@@ -25,4 +25,5 @@ public interface ContainerMetadata extends SegmentMetadataCollection {
      * @throws IllegalStateException If the Metadata is in Recovery Mode.
      */
     long getNewOperationSequenceNumber();
+
 }

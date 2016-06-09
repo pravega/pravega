@@ -33,6 +33,6 @@ public class InMemoryServiceBuilder extends ServiceBuilder {
 
     @Override
     protected SegmentContainerManager createSegmentContainerManager() {
-        return new LocalSegmentContainerManager(getSegmentContainerRegistry(), this.segmentToContainerMapper, this.logger);
+        return new LocalSegmentContainerManager(getSegmentContainerRegistry(), this.segmentToContainerMapper);
     }
 }

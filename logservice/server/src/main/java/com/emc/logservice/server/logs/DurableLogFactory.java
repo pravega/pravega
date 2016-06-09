@@ -1,5 +1,6 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.server.*;
 
@@ -10,10 +11,7 @@ public class DurableLogFactory implements OperationLogFactory {
     private final DurableDataLogFactory dataLogFactory;
 
     public DurableLogFactory(DurableDataLogFactory dataLogFactory){
-        if(dataLogFactory == null){
-            throw new NullPointerException("dataLogFactory");
-        }
-
+        Exceptions.throwIfNull(dataLogFactory, "dataLogFactory");
         this.dataLogFactory = dataLogFactory;
     }
 

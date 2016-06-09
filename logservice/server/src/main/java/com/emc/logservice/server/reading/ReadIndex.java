@@ -3,6 +3,7 @@ package com.emc.logservice.server.reading;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.server.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.*;
@@ -17,9 +18,12 @@ import java.util.*;
  * for fast read-ahead access.
  * </ol>
  */
+@Slf4j
 public class ReadIndex implements Cache {
     //region Members
 
+    private final String traceObjectId;
+    private final String containerId;
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
     private SegmentMetadataCollection metadata;
@@ -30,7 +34,10 @@ public class ReadIndex implements Cache {
 
     //region Constructor
 
-    public ReadIndex(SegmentMetadataCollection metadata) {
+    public ReadIndex(SegmentMetadataCollection metadata, String containerId) {
+        Exceptions.throwIfNull(metadata, "metadata");
+        this.traceObjectId = String.format("ReadIndex[%s]", containerId);
+        this.containerId = containerId;
         this.readIndices = new HashMap<>();
         this.metadata = metadata;
         this.recoveryMode = false;
@@ -49,6 +56,8 @@ public class ReadIndex implements Cache {
                 this.readIndices.values().forEach(StreamSegmentReadIndex::close);
                 this.readIndices.clear();
             }
+
+            log.info("{}: Closed.", this.traceObjectId);
         }
     }
 
@@ -58,34 +67,32 @@ public class ReadIndex implements Cache {
 
     @Override
     public void append(long streamSegmentId, long offset, byte[] data) {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
+        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
-        if (index.isMerged()) {
-            throw new IllegalArgumentException("streamSegmentId refers to a StreamSegment that is merged. Cannot append to it anymore.");
-        }
-
+        Exceptions.throwIfIllegalArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
         index.append(offset, data);
     }
 
     @Override
     public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength) {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
+        log.debug("{}: beginMerge (TargetId = {}, Offset = {}, SourceId = {}, SourceLength = {}).", this.traceObjectId, targetStreamSegmentId, offset, sourceStreamSegmentId, sourceStreamSegmentLength);
 
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         StreamSegmentReadIndex sourceIndex = getReadIndex(sourceStreamSegmentId, true);
-        if (sourceIndex.isMerged()) {
-            throw new IllegalArgumentException("sourceStreamSegmentId refers to a StreamSegment that is merged. Cannot access it anymore.");
-        }
-
+        Exceptions.throwIfIllegalArgument(!targetIndex.isMerged(), "targetStreamSegmentId", "StreamSegment is merged. Cannot access it anymore.");
+        Exceptions.throwIfIllegalArgument(!sourceIndex.isMerged(), "sourceStreamSegmentId", "StreamSegment is merged. Cannot access it anymore.");
         targetIndex.beginMerge(offset, sourceIndex);
         sourceIndex.markMerged();
     }
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
+        log.debug("{}: completeMerge (TargetId = {}, SourceId = {}.", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
 
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         targetIndex.completeMerge(sourceStreamSegmentId);
@@ -94,19 +101,18 @@ public class ReadIndex implements Cache {
 
     @Override
     public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
+        log.debug("{}: read (StreamSegmentId = {}, Offset = {}, MaxLength = {}).", this.traceObjectId, streamSegmentId, offset, maxLength);
 
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
-        if (index.isMerged()) {
-            throw new IllegalArgumentException("streamSegmentId refers to a StreamSegment that is merged. Cannot access it anymore.");
-        }
-
+        Exceptions.throwIfIllegalArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot access it anymore.");
         return index.read(offset, maxLength, timeout);
     }
 
     @Override
     public void triggerFutureReads(Collection<Long> streamSegmentIds) {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
+        log.debug("{}: triggerFutureReads (StreamSegmentIds = {}).", this.traceObjectId, streamSegmentIds);
 
         HashSet<String> missingIds = new HashSet<>();
         for (long ssId : streamSegmentIds) {
@@ -122,18 +128,14 @@ public class ReadIndex implements Cache {
         }
 
         // Throw any exception at the end - we want to make sure at least the ones that did have a valid index entry got triggered.
-        if (missingIds.size() > 0) {
-            throw new IllegalArgumentException("At least one StreamSegmentId does not exist in the metadata: " + String.join(", ", missingIds));
-        }
+        Exceptions.throwIfIllegalArgument(missingIds.size() == 0, "streamSegmentIds", "At least one StreamSegmentId does not exist in the metadata: {}", missingIds);
     }
 
     @Override
     public void clear() {
-        ensureNotClosed();
-
-        if (!this.recoveryMode) {
-            throw new IllegalStateException("Read Index is not in recovery mode. Cannot clear cache.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(this.recoveryMode, "Read Index is not in recovery mode. Cannot clear cache.");
+        log.info("{}: Cleared.", this.traceObjectId);
 
         try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
             this.readIndices.values().forEach(StreamSegmentReadIndex::close);
@@ -143,10 +145,10 @@ public class ReadIndex implements Cache {
 
     @Override
     public void performGarbageCollection() {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
 
+        List<Long> toRemove = new ArrayList<>();
         try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
-            List<Long> toRemove = new ArrayList<>();
             for (Long streamSegmentId : this.readIndices.keySet()) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 if (segmentMetadata == null || segmentMetadata.isDeleted()) {
@@ -156,44 +158,33 @@ public class ReadIndex implements Cache {
 
             toRemove.forEach(streamSegmentId -> this.readIndices.remove(streamSegmentId).close());
         }
+
+        log.info("{}: Garbage Collection Complete (Removed {}).", this.traceObjectId, toRemove);
     }
 
     @Override
     public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
-        ensureNotClosed();
-
-        if (this.recoveryMode) {
-            throw new IllegalStateException("Read Index is already in recovery mode.");
-        }
-
-        if (recoveryMetadataSource == null) {
-            throw new NullPointerException("recoveryMetadataSource");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(!this.recoveryMode, "Read Index is already in recovery mode.");
+        Exceptions.throwIfNull(recoveryMetadataSource, "recoveryMetadataSource");
 
         this.recoveryMode = true;
         this.metadata = recoveryMetadataSource;
+        log.info("{} Enter RecoveryMode.", this.traceObjectId);
         clear();
     }
 
     @Override
     public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
-        ensureNotClosed();
+        Exceptions.throwIfClosed(this.closed, this);
 
-        if (!this.recoveryMode) {
-            throw new IllegalStateException("Read Index is not in recovery mode.");
-        }
-
-        if (finalMetadataSource == null) {
-            throw new NullPointerException("finalMetadataSource");
-        }
+        Exceptions.throwIfIllegalState(this.recoveryMode, "Read Index is not in recovery mode.");
+        Exceptions.throwIfNull(finalMetadataSource, "finalMetadataSource");
 
         if (success) {
             for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
                 SegmentMetadata metadata = finalMetadataSource.getStreamSegmentMetadata(e.getKey());
-                if (metadata == null) {
-                    throw new IllegalArgumentException(String.format("Final Metadata has no knowledge of StreamSegment Id %d.", e.getKey()));
-                }
-
+                Exceptions.throwIfIllegalArgument(metadata != null, "finalMetadataSource", "Final Metadata has no knowledge of StreamSegment Id {}.", e.getKey());
                 e.getValue().exitRecoveryMode(metadata);
             }
         }
@@ -204,6 +195,7 @@ public class ReadIndex implements Cache {
 
         this.metadata = finalMetadataSource;
         this.recoveryMode = false;
+        log.info("{} Exit RecoveryMode.", this.traceObjectId);
     }
 
     //endregion
@@ -235,11 +227,9 @@ public class ReadIndex implements Cache {
 
                 // We don't have it, and nobody else got it for us.
                 SegmentMetadata ssm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                if (ssm == null) {
-                    throw new IllegalArgumentException(String.format("StreamSegmentId %d does not exist in the metadata.", streamSegmentId));
-                }
+                Exceptions.throwIfIllegalArgument(ssm != null, "streamSegmentId", "StreamSegmentId {} does not exist in the metadata.", streamSegmentId);
 
-                index = new StreamSegmentReadIndex(ssm, this.recoveryMode);
+                index = new StreamSegmentReadIndex(ssm, this.recoveryMode, this.containerId);
                 this.readIndices.put(streamSegmentId, index);
             }
         }
@@ -255,12 +245,6 @@ public class ReadIndex implements Cache {
             }
 
             return index != null;
-        }
-    }
-
-    private void ensureNotClosed() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
         }
     }
 

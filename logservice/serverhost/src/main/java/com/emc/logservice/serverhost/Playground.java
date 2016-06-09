@@ -1,5 +1,6 @@
 package com.emc.logservice.serverhost;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
@@ -10,6 +11,7 @@ import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
 import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.storageabstraction.mocks.*;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.time.Duration;
@@ -28,6 +30,10 @@ public class Playground {
     private static final String ContainerId = "123";
 
     public static void main(String[] args) throws Exception {
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        //context.getLoggerList().get(0).setLevel(Level.INFO);
+        context.reset();
+
         //testStreamSegmentContainer();
         //testDurableLog();
         //testReadIndex();
@@ -81,7 +87,7 @@ public class Playground {
 
         ExecutorService executor = Executors.newFixedThreadPool(streamCount * 2 + 1);
         UpdateableContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
-        Cache index = new ReadIndex(metadata);
+        Cache index = new ReadIndex(metadata, ContainerId);
         index.enterRecoveryMode(metadata);
         index.exitRecoveryMode(metadata, true);
 
@@ -401,7 +407,7 @@ public class Playground {
         ArrayList<UUID> clients = generateClientIds(clientCount);
         Storage storage = new InMemoryStorage();
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
-        ReadIndex readIndex = new ReadIndex(metadata);
+        ReadIndex readIndex = new ReadIndex(metadata, ContainerId);
         DurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
         try (DurableLog dl = new DurableLog(metadata, dataLogFactory, readIndex)) {
             StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl, storage);
@@ -556,7 +562,7 @@ public class Playground {
         DurableDataLog dataLog = dataLogFactory.createDurableDataLog(ContainerId);
         TruncationMarkerCollection truncationMarkerCollection = new TruncationMarkerCollection();
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata, truncationMarkerCollection);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata));
+        MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata, ContainerId));
         OperationQueueProcessor qp = new OperationQueueProcessor(ContainerId, queue, metadataUpdater, logUpdater, dataLog);
         qp.initialize(Duration.ZERO);
         qp.start(Duration.ZERO);
@@ -699,7 +705,7 @@ public class Playground {
 
         // DataFrameReader
         startTime = System.nanoTime();
-        DataFrameReader reader = new DataFrameReader(dataLog);
+        DataFrameReader reader = new DataFrameReader(dataLog, ContainerId);
         Iterator<CompletableOperation> entryIterator = entries.iterator();
         int readCount = 0;
         while (true) {

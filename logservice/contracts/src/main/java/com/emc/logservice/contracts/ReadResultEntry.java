@@ -93,7 +93,8 @@ public abstract class ReadResultEntry {
     @Override
     public String toString() {
         CompletableFuture<ReadResultEntryContents> contentFuture = getContent();
-        return String.format("Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s,",
+        return String.format("%s: Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s,",
+                this.getClass().getSimpleName(),
                 getStreamSegmentOffset(),
                 getRequestedReadLength(),
                 contentFuture.isDone() && !contentFuture.isCompletedExceptionally() && !contentFuture.isCancelled(),

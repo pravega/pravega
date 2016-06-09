@@ -18,7 +18,7 @@ public class ObjectClosedException extends IllegalStateException {
         }
 
         else {
-            return String.format("Object '%s' has been closed and cannot be accessed anymore.", object.getClass().getName());
+            return String.format("Object '%s' has been closed and cannot be accessed anymore.", object.getClass().getSimpleName());
         }
     }
 }

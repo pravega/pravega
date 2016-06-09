@@ -1,10 +1,12 @@
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.StreamSegmentMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -12,9 +14,11 @@ import java.util.function.Predicate;
 /**
  * Transaction-based Metadata Updater for Log Operations.
  */
+@Slf4j
 public class OperationMetadataUpdater implements SegmentMetadataCollection {
     //region Members
 
+    private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private final TruncationMarkerCollection truncationMarkers;
     private UpdateTransaction currentTransaction;
@@ -30,14 +34,10 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @throws NullPointerException If any of the arguments are null.
      */
     public OperationMetadataUpdater(UpdateableContainerMetadata metadata, TruncationMarkerCollection truncationMarkers) {
-        if (metadata == null) {
-            throw new NullPointerException("metadata");
-        }
+        Exceptions.throwIfNull(metadata, "metadata");
+        Exceptions.throwIfNull(truncationMarkers, "truncationMarkers");
 
-        if (truncationMarkers == null) {
-            throw new NullPointerException("truncationMarkers");
-        }
-
+        this.traceObjectId = String.format("OperationMetadataUpdater[%s]", metadata.getContainerId());
         this.metadata = metadata;
         this.truncationMarkers = truncationMarkers;
         this.currentTransaction = null;
@@ -53,12 +53,13 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @return True if anything was committed, false otherwise.
      */
     public boolean commit() {
+        log.trace("{}: Commit (Anything = {}).", this.traceObjectId, this.currentTransaction != null);
         if (this.currentTransaction == null) {
             return false;
         }
 
         this.currentTransaction.commit();
-        rollback();
+        this.currentTransaction = null;
         return true;
     }
 
@@ -66,6 +67,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * Discards any outstanding changes.
      */
     public void rollback() {
+        log.trace("{}: Rollback (Anything = {}).", this.traceObjectId, this.currentTransaction != null);
         this.currentTransaction = null;
     }
 
@@ -76,6 +78,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @param dataFrameSequenceNumber The Sequence Number of the corresponding Data Frame that can be truncated (up to, and including).
      */
     public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameSequenceNumber = {}.", this.traceObjectId, operationSequenceNumber, dataFrameSequenceNumber);
         this.truncationMarkers.recordTruncationMarker(operationSequenceNumber, dataFrameSequenceNumber);
     }
 
@@ -131,10 +134,8 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @throws NullPointerException    If the operation is null.
      */
     public void processMetadataOperation(MetadataOperation operation) throws MetadataUpdateException {
-        if (!this.metadata.isRecoveryMode()) {
-            throw new IllegalStateException("Cannot process MetadataOperation in non-recovery mode.");
-        }
-
+        Exceptions.throwIfIllegalState(this.metadata.isRecoveryMode(), "Cannot process MetadataOperation in non-recovery mode.");
+        log.trace("{}: PreProcess {}.", this.traceObjectId, operation);
         getCurrentTransaction().processMetadataOperation(operation);
     }
 
@@ -150,6 +151,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @throws NullPointerException         If the operation is null.
      */
     public void preProcessOperation(StorageOperation operation) throws MetadataUpdateException, StreamSegmentSealedException, StreamSegmentMergedException {
+        log.trace("{}: PreProcess {}.", this.traceObjectId, operation);
         TemporaryStreamSegmentMetadata streamMetadata = getCurrentTransaction().getStreamSegmentMetadata(operation.getStreamSegmentId());
         if (operation instanceof StreamSegmentAppendOperation) {
             streamMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
@@ -173,6 +175,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @throws NullPointerException    If the operation is null.
      */
     public void acceptOperation(StorageOperation operation) throws MetadataUpdateException {
+        log.trace("{}: Accept {}.", this.traceObjectId, operation);
         TemporaryStreamSegmentMetadata streamMetadata = getCurrentTransaction().getStreamSegmentMetadata(operation.getStreamSegmentId());
         if (operation instanceof StreamSegmentAppendOperation) {
             streamMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
@@ -203,7 +206,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
     /**
      * A Metadata Update Transaction. Keeps all pending changes, until they are ready to be committed to the base Container Metadata.
      */
-    private class UpdateTransaction {
+    private static class UpdateTransaction {
         private final HashMap<Long, TemporaryStreamSegmentMetadata> streamUpdates;
         private final HashMap<Long, UpdateableSegmentMetadata> newStreams;
         private final HashMap<String, Long> newStreamsNames;
@@ -215,6 +218,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @param containerMetadata The base Container Metadata.
          */
         public UpdateTransaction(UpdateableContainerMetadata containerMetadata) {
+            assert containerMetadata != null;
             this.streamUpdates = new HashMap<>();
             this.containerMetadata = containerMetadata;
             if (containerMetadata.isRecoveryMode()) {
@@ -243,6 +247,9 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 copySegmentMetadataToSource(newStreams.values(), s -> s.getParentId() == SegmentMetadataCollection.NoStreamSegmentId);
                 copySegmentMetadataToSource(newStreams.values(), s -> s.getParentId() != SegmentMetadataCollection.NoStreamSegmentId);
             }
+
+            // We are done. Clear the transaction.
+            rollback();
         }
 
         /**
@@ -366,6 +373,17 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             rollback();
         }
 
+        private void rollback() {
+            this.streamUpdates.clear();
+            if (this.newStreams != null) {
+                this.newStreams.clear();
+            }
+
+            if (this.newStreamsNames != null) {
+                this.newStreamsNames.clear();
+            }
+        }
+
         private long getExistingStreamId(String streamName) {
             long existingStreamId = this.containerMetadata.getStreamSegmentId(streamName);
             if (existingStreamId == SegmentMetadataCollection.NoStreamSegmentId) {
@@ -392,7 +410,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
     /**
      * Pending StreamSegment Metadata.
      */
-    private class TemporaryStreamSegmentMetadata implements SegmentMetadata {
+    private static class TemporaryStreamSegmentMetadata implements SegmentMetadata {
         //region Members
 
         private final UpdateableSegmentMetadata streamSegmentMetadata;
@@ -414,6 +432,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @param isRecoveryMode        Whether the metadata is currently in recovery model
          */
         public TemporaryStreamSegmentMetadata(UpdateableSegmentMetadata streamSegmentMetadata, boolean isRecoveryMode) {
+            assert streamSegmentMetadata != null;
             this.streamSegmentMetadata = streamSegmentMetadata;
             this.isRecoveryMode = isRecoveryMode;
             this.currentDurableLogLength = this.streamSegmentMetadata.getDurableLogLength();
@@ -663,9 +682,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @throws StreamSegmentMergedException If the StreamSegment is already merged.
          */
         public void preProcessAsBatchStreamSegment(MergeBatchOperation operation) throws MetadataUpdateException, StreamSegmentMergedException {
-            if (this.streamSegmentMetadata.getId() != operation.getBatchStreamSegmentId()) {
-                throw new IllegalArgumentException("Invalid Log Operation Batch StreamSegment Id.");
-            }
+            Exceptions.throwIfIllegalArgument(this.streamSegmentMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
 
             if (!this.sealed) {
                 throw new MetadataUpdateException("Batch StreamSegment to be merged needs to be sealed.");
@@ -687,9 +704,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @throws IllegalArgumentException If the operation is for a different stream segment.
          */
         public void acceptAsBatchStreamSegment(MergeBatchOperation operation) {
-            if (this.streamSegmentMetadata.getId() != operation.getBatchStreamSegmentId()) {
-                throw new IllegalArgumentException("Invalid Log Operation Batch Stream Segment Id.");
-            }
+            Exceptions.throwIfIllegalArgument(this.streamSegmentMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
 
             this.sealed = true;
             this.merged = true;
@@ -721,9 +736,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         }
 
         private void ensureStreamId(StorageOperation operation) {
-            if (this.streamSegmentMetadata.getId() != operation.getStreamSegmentId()) {
-                throw new IllegalArgumentException("Invalid Log Operation StreamSegment Id.");
-            }
+            Exceptions.throwIfIllegalArgument(this.streamSegmentMetadata.getId() == operation.getStreamSegmentId(), "operation", "Invalid Log Operation StreamSegment Id.");
         }
 
         //endregion

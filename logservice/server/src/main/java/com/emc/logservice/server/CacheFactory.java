@@ -7,9 +7,9 @@ public interface CacheFactory {
     /**
      * Creates an instance of a Cache class with given arguments.
      *
-     * @param segmentMetadataCollection A Segment Metadata Collection for this cache.
+     * @param containerMetadata A Container Metadata for this cache.
      * @return The result.
      * @throws NullPointerException If any of the arguments are null.
      */
-    Cache createCache(SegmentMetadataCollection segmentMetadataCollection);
+    Cache createCache(ContainerMetadata containerMetadata);
 }

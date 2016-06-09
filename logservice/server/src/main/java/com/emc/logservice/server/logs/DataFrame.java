@@ -1,7 +1,6 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ByteArraySegment;
-import com.emc.logservice.common.IteratorWithException;
+import com.emc.logservice.common.*;
 
 import java.io.*;
 import java.util.NoSuchElementException;
@@ -144,7 +143,6 @@ public class DataFrame {
      * @return
      */
     public boolean isEmpty() {
-        // TODO: should we check for anything else?
         return this.header.getContentLength() == 0;
     }
 
@@ -172,10 +170,7 @@ public class DataFrame {
      * @throws IllegalStateException If the entry is sealed.
      */
     public boolean startNewEntry(boolean firstRecordEntry) {
-        if (this.sealed) {
-            throw new IllegalStateException("WriteFrame is sealed.");
-        }
-
+        Exceptions.throwIfIllegalState(!this.sealed, "DataFrame is sealed and cannot accept any more entries.");
         endEntry(true);
 
         if (getAvailableLength() < MinEntryLengthNeeded) {
@@ -216,8 +211,8 @@ public class DataFrame {
         // Check to see if we actually have an entry started.
         if (this.writeEntryStartIndex >= 0) {
             int entryLength = this.writePosition - this.writeEntryStartIndex - EntryHeader.HeaderSize;
+            assert entryLength >= 0;
 
-            //TODO: assert that entryLength >= 0
             this.writeEntryHeader.setEntryLength(entryLength);
             this.writeEntryHeader.setLastRecordEntry(endOfRecord);
             this.writeEntryHeader.serialize();
@@ -277,9 +272,7 @@ public class DataFrame {
      */
     public void seal() throws SerializationException {
         if (!this.sealed && !this.contents.isReadOnly()) {
-            if (writeEntryStartIndex >= 0) {
-                throw new IllegalStateException("An open entry exists. All open entries must be closed prior to sealing.");
-            }
+            Exceptions.throwIfIllegalState(writeEntryStartIndex < 0, "An open entry exists. Any open entries must be closed prior to sealing.");
 
             this.header.setContentLength(writePosition);
             this.header.commit();
@@ -302,28 +295,19 @@ public class DataFrame {
      * @param previousFrameSequence
      */
     private void formatForWriting(long previousFrameSequence) {
-        if (this.header != null || this.contents != null) {
-            throw new IllegalStateException("DataFrame already contains data; cannot re-format.");
-        }
+        Exceptions.throwIfIllegalState(this.header == null && this.contents == null, "DataFrame already contains data; cannot re-format.");
 
+        //We want to use the DataFrame for at least 1 byte of data.
         int sourceLength = this.data.getLength();
-        if (sourceLength <= FrameHeader.SerializationLength) // "<=" because we want to use the DataFrame for at least 1 byte of data.
-        {
-            throw new IllegalArgumentException(String.format("Insufficient array length. Byte array must have a length of at least %d.", FrameHeader.SerializationLength + 1));
-        }
+        Exceptions.throwIfIllegalArgument(sourceLength > FrameHeader.SerializationLength, "data", "Insufficient array length. Byte array must have a length of at least %d.", FrameHeader.SerializationLength + 1);
 
         this.header = new FrameHeader(CurrentVersion, previousFrameSequence, this.data.subSegment(0, FrameHeader.SerializationLength));
         this.contents = this.data.subSegment(FrameHeader.SerializationLength, sourceLength - FrameHeader.SerializationLength);
     }
 
     private void ensureAppendConditions() {
-        if (this.sealed) {
-            throw new IllegalStateException("WriteFrame is sealed.");
-        }
-
-        if (writeEntryStartIndex < 0) {
-            throw new IllegalStateException("No entry started.");
-        }
+        Exceptions.throwIfIllegalState(!this.sealed, "DataFrame is sealed.");
+        Exceptions.throwIfIllegalState(this.writeEntryStartIndex >= 0, "No entry started.");
     }
 
     //endregion
@@ -385,9 +369,7 @@ public class DataFrame {
          * @throws IllegalArgumentException If the size of the headerContents ByteArraySegment is incorrect.
          */
         public EntryHeader(ByteArraySegment headerContents) {
-            if (headerContents.getLength() != HeaderSize) {
-                throw new IllegalArgumentException(String.format("Invalid headerContents size. Expected %d, given %d.", HeaderSize, headerContents.getLength()));
-            }
+            Exceptions.throwIfIllegalArgument(headerContents.getLength() == HeaderSize, "headerContents", "Invalid headerContents size. Expected %d, given %d.", HeaderSize, headerContents.getLength());
 
             if (headerContents.isReadOnly()) {
                 // We are reading.
@@ -414,9 +396,7 @@ public class DataFrame {
          * @throws IllegalStateException If this EntryHeader was deserialized (and not new).
          */
         public void serialize() {
-            if (this.data == null || this.data.isReadOnly()) {
-                throw new IllegalStateException("Cannot serialize a read-only EntryHeader.");
-            }
+            Exceptions.throwIfIllegalState(this.data != null && !this.data.isReadOnly(), "Cannot serialize a read-only EntryHeader.");
 
             // Write length.
             writeInt(this.data, 0, this.entryLength);
@@ -540,9 +520,7 @@ public class DataFrame {
          * @throws IllegalArgumentException If the target buffer has an incorrect length.
          */
         public FrameHeader(byte version, long previousFrameSequence, ByteArraySegment target) {
-            if (target.getLength() != SerializationLength) {
-                throw new IllegalArgumentException(String.format("Unexpected length for target buffer. Expected %d, given %d.", SerializationLength, target.getLength()));
-            }
+            Exceptions.throwIfIllegalArgument(target.getLength() == SerializationLength, "target", "Unexpected length for target buffer. Expected %d, given %d.", SerializationLength, target.getLength());
 
             this.version = version;
             this.previousFrameSequence = previousFrameSequence;
@@ -591,9 +569,7 @@ public class DataFrame {
          * @throws IllegalStateException  If this FrameHeader was created from a read-only buffer (it was deserialized).
          */
         public void commit() throws SerializationException {
-            if (this.buffer == null || this.buffer.isReadOnly()) {
-                throw new IllegalStateException("Cannot commit a read-only FrameHeader");
-            }
+            Exceptions.throwIfIllegalState(this.buffer != null && !this.buffer.isReadOnly(), "Cannot commit a read-only FrameHeader");
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.
             try (DataOutputStream output = new DataOutputStream(this.buffer.getWriter())) {

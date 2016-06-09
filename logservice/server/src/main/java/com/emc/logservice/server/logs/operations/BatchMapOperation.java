@@ -123,7 +123,7 @@ public class BatchMapOperation extends MetadataOperation {
 
     @Override
     public String toString() {
-        return String.format("%s, ParentStreamId = %d, BatchStreamId = %d, BatchName = %s, BatchLength = %d, BatchSealed = %s", super.toString(), getParentStreamSegmentId(), getBatchStreamSegmentId(), getBatchStreamSegmentName(), getBatchStreamSegmentLength(), isBatchSealed());
+        return String.format("%s, ParentStreamSegmentId = %d, BatchStreamSegmentId = %d, BatchName = %s, BatchLength = %d, BatchSealed = %s", super.toString(), getParentStreamSegmentId(), getBatchStreamSegmentId(), getBatchStreamSegmentName(), getBatchStreamSegmentLength(), isBatchSealed());
     }
 
     //endregion

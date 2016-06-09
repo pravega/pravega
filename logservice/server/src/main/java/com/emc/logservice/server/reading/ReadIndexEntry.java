@@ -1,5 +1,7 @@
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.common.Exceptions;
+
 /**
  * An entry in the Read Index with data at a particular offset..
  */
@@ -18,11 +20,11 @@ abstract class ReadIndexEntry {
      *
      * @param streamSegmentOffset The StreamSegment offset for this entry.
      * @throws IllegalArgumentException if the offset is a negative number.
+     * @throws IllegalArgumentException if the length is a negative number.
      */
     protected ReadIndexEntry(long streamSegmentOffset, long length) {
-        if (streamSegmentOffset < 0) {
-            throw new IllegalArgumentException("Offset must be a non-negative number.");
-        }
+        Exceptions.throwIfIllegalArgument(streamSegmentOffset >= 0, "streamSegmentOffset", "Offset must be a non-negative number.");
+        Exceptions.throwIfIllegalArgument(length >= 0, "length", "Length must be a non-negative number.");
 
         this.streamSegmentOffset = streamSegmentOffset;
         this.length = length;

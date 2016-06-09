@@ -1,5 +1,7 @@
 package com.emc.logservice.server;
 
+import com.emc.logservice.common.Exceptions;
+
 import static com.emc.logservice.server.StreamSegmentNameUtils.getParentStreamSegmentName;
 
 /**
@@ -14,10 +16,7 @@ public final class SegmentToContainerMapper {
      * @param containerCount The number of containers that are available.
      */
     public SegmentToContainerMapper(int containerCount) {
-        if (containerCount <= 0) {
-            throw new IllegalArgumentException("containerCount must be a positive integer.");
-        }
-
+        Exceptions.throwIfIllegalArgument(containerCount > 0, "containerCount", "containerCount must be a positive integer.");
         this.containerCount = containerCount;
     }
 
@@ -56,10 +55,11 @@ public final class SegmentToContainerMapper {
 
     /**
      * Gets the container Id based on its numeric valu.
+     *
      * @param numericContainerId
      * @return
      */
-    public String getContainerId(int numericContainerId){
+    public String getContainerId(int numericContainerId) {
         return Integer.toString(numericContainerId);
     }
 

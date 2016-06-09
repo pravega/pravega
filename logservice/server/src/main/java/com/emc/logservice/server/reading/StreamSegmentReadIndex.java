@@ -2,7 +2,9 @@ package com.emc.logservice.server.reading;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.*;
@@ -19,14 +21,16 @@ import java.util.*;
  * TODO: Implement bringing data from Storage into the Read Index (in an elegant manner).
  * TODO: Uses a Cache Retention Policy to determine which data can be kept in memory and which can be evicted.
  */
+@Slf4j
 class StreamSegmentReadIndex implements AutoCloseable {
     //region Members
 
-    private SegmentMetadata metadata;
+    private final String traceObjectId;
     private final TreeMap<Long, ReadIndexEntry> entries; // Key = Last Offset of Entry, Value = Entry; TODO: we can implement a version of this that doesn't require Key
     private final PlaceholderReadResultEntryCollection futureReads;
     private final ReadWriteAutoReleaseLock lock;
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
+    private SegmentMetadata metadata;
     private long lastAppendedOffset;
     private boolean recoveryMode;
     private boolean closed;
@@ -41,11 +45,10 @@ class StreamSegmentReadIndex implements AutoCloseable {
      *
      * @param metadata The StreamSegmentMetadata to use.
      */
-    protected StreamSegmentReadIndex(SegmentMetadata metadata, boolean recoveryMode) {
-        if (metadata == null) {
-            throw new NullPointerException("metaData");
-        }
+    protected StreamSegmentReadIndex(SegmentMetadata metadata, boolean recoveryMode, String containerId) {
+        Exceptions.throwIfNull(metadata, "metadata");
 
+        this.traceObjectId = String.format("ReadIndex[%s-%d]", containerId, metadata.getId());
         this.metadata = metadata;
         this.recoveryMode = recoveryMode;
         this.entries = new TreeMap<>();
@@ -61,12 +64,13 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
     @Override
     public void close() {
-        this.closed = true;
+        if (!this.closed) {
+            this.closed = true;
 
-        // Cancel future reads.
-        this.futureReads.close();
-
-        // We do not close merged StreamSegmentReadIndices; that's the responsibility of the owning ReadIndex.
+            // Cancel future reads.
+            this.futureReads.close();
+            log.info("{}: Closed.", this.traceObjectId);
+        }
     }
 
     //endregion
@@ -86,9 +90,9 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * Marks this Read Index as merged into another one.
      */
     public void markMerged() {
-        if (this.merged) {
-            throw new IllegalStateException("StreamSegmentReadIndexEntry is already merged.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(!this.merged, "StreamSegmentReadIndex %d is already merged.", this.metadata.getId());
+        log.debug("{}: Merged.", this.traceObjectId);
         this.merged = true;
     }
 
@@ -107,40 +111,19 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @throws IllegalArgumentException If the new metadata does not match the old one perfectly.
      */
     public void exitRecoveryMode(SegmentMetadata newMetadata) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-
-        if (!this.recoveryMode) {
-            throw new IllegalStateException("Read Index is not in recovery mode.");
-        }
-
-        if (newMetadata == null) {
-            throw new NullPointerException("newMetadata");
-        }
-
-        if (newMetadata.getId() != this.metadata.getId()) {
-            throw new IllegalArgumentException("New Metadata StreamSegmentId is different from existing one.");
-        }
-
-        if (newMetadata.getDurableLogLength() != this.metadata.getDurableLogLength()) {
-            throw new IllegalArgumentException("New Metadata DurableLogLength is different from existing one.");
-        }
-
-        if (newMetadata.getStorageLength() != this.metadata.getStorageLength()) {
-            throw new IllegalArgumentException("New Metadata StorageLength is different from existing one.");
-        }
-
-        if (newMetadata.isSealed() != this.metadata.isSealed()) {
-            throw new IllegalArgumentException("New Metadata Sealed Flag is different from existing one.");
-        }
-
-        if (newMetadata.isDeleted() != this.metadata.isDeleted()) {
-            throw new IllegalArgumentException("New Metadata Deletion Flag is different from existing one.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(this.recoveryMode, "Read Index is not in recovery mode.");
+        Exceptions.throwIfNull(newMetadata, "newMetadata");
+        Exceptions.throwIfIllegalArgument(newMetadata.getId() == this.metadata.getId(), "New Metadata StreamSegmentId is different from existing one.");
+        Exceptions.throwIfIllegalArgument(newMetadata.getDurableLogLength() == this.metadata.getDurableLogLength(), "New Metadata DurableLogLength is different from existing one.");
+        Exceptions.throwIfIllegalArgument(newMetadata.getStorageLength() == this.metadata.getStorageLength(), "New Metadata StorageLength is different from existing one.");
+        Exceptions.throwIfIllegalArgument(newMetadata.isSealed() == this.metadata.isSealed(), "New Metadata Sealed Flag is different from existing one.");
+        Exceptions.throwIfIllegalArgument(newMetadata.isMerged() == this.metadata.isMerged(), "New Metadata Merged Flag is different from existing one.");
+        Exceptions.throwIfIllegalArgument(newMetadata.isDeleted() == this.metadata.isDeleted(), "New Metadata Deletion Flag is different from existing one.");
 
         this.metadata = newMetadata;
         this.recoveryMode = false;
+        log.info("{}: Exit RecoveryMode.", this.traceObjectId);
     }
 
     //endregion
@@ -158,13 +141,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      */
     public void append(long offset, byte[] data) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-
-        if (isMerged()) {
-            throw new IllegalStateException("StreamSegment has been merged into a different one. Cannot append more cache entries.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more cache entries.");
 
         if (data.length == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
@@ -176,10 +154,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         // this entry will make us catch up to it or not.
         long durableLogLength = this.metadata.getDurableLogLength();
         long endOffset = offset + data.length;
-        if (endOffset > durableLogLength) {
-            throw new IllegalArgumentException(String.format("The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength));
-        }
-
+        Exceptions.throwIfIllegalArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
         append(new ByteArrayReadIndexEntry(offset, data));
     }
 
@@ -201,26 +176,14 @@ class StreamSegmentReadIndex implements AutoCloseable {
      *                                  StreamSegment than the current index's one.
      */
     public void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-
-        if (this.metadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
-            throw new IllegalStateException("Cannot merge a StreamSegment into a child StreamSegment.");
-        }
-
-        if (sourceStreamSegmentIndex.isMerged()) {
-            throw new IllegalArgumentException("Given ReadIndex is already merged.");
-        }
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(this.metadata.getParentId() == SegmentMetadataCollection.NoStreamSegmentId, "Cannot merge a StreamSegment into a child StreamSegment.");
+        Exceptions.throwIfIllegalArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
 
         SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
-        if (sourceMetadata.getParentId() != this.metadata.getId()) {
-            throw new IllegalArgumentException("Given ReadIndex refers to a StreamSegment that does not have this ReadIndex's StreamSegment as a parent.");
-        }
-
-        if (!sourceMetadata.isSealed()) {
-            throw new IllegalArgumentException("Given ReadIndex refers to a StreamSegment that is not sealed.");
-        }
+        Exceptions.throwIfIllegalArgument(sourceMetadata.getParentId() == this.metadata.getId(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that does not have this ReadIndex's StreamSegment as a parent.");
+        Exceptions.throwIfIllegalArgument(sourceMetadata.isSealed(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that is not sealed.");
 
         long sourceLength = sourceMetadata.getDurableLogLength();
         if (sourceLength == 0) {
@@ -233,17 +196,12 @@ class StreamSegmentReadIndex implements AutoCloseable {
         // this entry will make us catch up to it or not.
         long durableLogLength = this.metadata.getDurableLogLength();
         long endOffset = offset + sourceLength;
-        if (endOffset > durableLogLength) {
-            throw new IllegalArgumentException(String.format("The given range of bytes(%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength));
-        }
+        Exceptions.throwIfIllegalArgument(endOffset <= durableLogLength, "offset", "The given range of bytes(%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
 
         // Check and record the merger (optimistically).
         RedirectReadIndexEntry newEntry = new RedirectReadIndexEntry(offset, sourceLength, sourceStreamSegmentIndex);
         try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
-            if (this.mergeOffsets.containsKey(sourceMetadata.getId())) {
-                throw new IllegalArgumentException("Given ReadIndex is already merged or in the process of being merged into this one.");
-            }
-
+            Exceptions.throwIfIllegalArgument(!this.mergeOffsets.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
             this.mergeOffsets.put(sourceMetadata.getId(), newEntry.getLastStreamSegmentOffset());
         }
 
@@ -258,6 +216,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
             throw ex;
         }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "beginMerge", traceId);
     }
 
     /**
@@ -268,18 +228,15 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param sourceSegmentStreamId
      */
     public void completeMerge(long sourceSegmentStreamId) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "completeMerge", sourceSegmentStreamId);
+        Exceptions.throwIfClosed(this.closed, this);
 
         // Find the appropriate redirect entry.
         RedirectReadIndexEntry redirectEntry;
         long endOffset;
         try (AutoReleaseLock ignored = lock.acquireReadLock()) {
             endOffset = this.mergeOffsets.getOrDefault(sourceSegmentStreamId, -1L);
-            if (endOffset < 0) {
-                throw new IllegalArgumentException("Given ReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
-            }
+            Exceptions.throwIfIllegalArgument(endOffset >= 0, "sourceSegmentStreamId", "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
 
             ReadIndexEntry treeEntry = this.entries.getOrDefault(endOffset, null);
             if (treeEntry == null || !(treeEntry instanceof RedirectReadIndexEntry)) {
@@ -291,9 +248,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
         SegmentMetadata sourceMetadata = sourceIndex.metadata;
-        if (!sourceMetadata.isDeleted()) {
-            throw new IllegalArgumentException("Given ReadIndex refers to a StreamSegment that has not been deleted yet.");
-        }
+        Exceptions.throwIfIllegalArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId", "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
 
         // TODO: an alternative to this is just drop the RedirectReadIndexEntry; next time we want to read, we'll just read from storage. That may be faster actually than just appending all these entries (there could be tens of thousands...)
         // Get all the entries from the source index and append them here. TODO: should we coalesce them too (into bigger entries)?
@@ -309,13 +264,15 @@ class StreamSegmentReadIndex implements AutoCloseable {
                 this.entries.put(e.getLastStreamSegmentOffset(), e);
             }
         }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "completeMerge", traceId);
     }
 
     private void append(ReadIndexEntry entry) {
+        log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength());
+
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            if (this.lastAppendedOffset >= 0 && entry.getStreamSegmentOffset() != this.lastAppendedOffset + 1) {
-                throw new IllegalArgumentException(String.format("The given range of bytes (%d-%d) does not start right after the last appended range (%d).", entry.getStreamSegmentOffset(), entry.getLastStreamSegmentOffset(), this.lastAppendedOffset));
-            }
+            Exceptions.throwIfIllegalArgument(this.lastAppendedOffset < 0 || entry.getStreamSegmentOffset() == this.lastAppendedOffset + 1, "entry", "The given range of bytes (%d-%d) does not start right after the last appended range (%d).", entry.getStreamSegmentOffset(), entry.getLastStreamSegmentOffset(), this.lastAppendedOffset);
 
             // Finally, append the entry.
             // Key is Offset + Length -1 = Last Offset Of Entry. Value is entry itself. This makes searching easier.
@@ -339,13 +296,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @throws IllegalStateException If the read index is in recovery mode.
      */
     public void triggerFutureReads() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-
-        if (this.recoveryMode) {
-            throw new IllegalStateException("StreamSegmentReadIndex is in Recovery Mode.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
 
         if (this.entries.size() == 0) {
             // Nothing to do.
@@ -355,6 +307,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         // Get all eligible Future Reads which wait for data prior to the end offset.
         ReadIndexEntry lastEntry = this.entries.lastEntry().getValue(); //TODO: this is O(log(n)), not O(1)
         Collection<PlaceholderReadResultEntry> futureReads = this.futureReads.pollEntriesWithOffsetLessThan(lastEntry.getLastStreamSegmentOffset());
+        log.debug("{}: triggerFutureReads (Count = {}).", this.traceObjectId, futureReads.size());
 
         for (PlaceholderReadResultEntry r : futureReads) {
             ReadResultEntry entry = getFirstReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
@@ -390,35 +343,18 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @throws IllegalArgumentException If the StreamSegment is sealed and startOffset is beyond its length.
      */
     public ReadResult read(long startOffset, int maxLength, Duration timeout) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
+        Exceptions.throwIfIllegalArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");
+        Exceptions.throwIfIllegalArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
+        Exceptions.throwIfIllegalArgument(canReadAtOffset(startOffset), "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
-        if (this.recoveryMode) {
-            throw new IllegalStateException("StreamSegmentReadIndex is in Recovery Mode.");
-        }
-
-        if (startOffset < 0) {
-            throw new IllegalArgumentException("startOffset must be a non-negative number.");
-        }
-
-        if (maxLength < 0) {
-            throw new IllegalArgumentException("maxLength must be a non-negative number.");
-        }
-
-        if (!canReadAtOffset(startOffset)) {
-            throw new IllegalArgumentException("StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
-        }
-
-        return new StreamSegmentReadResult(startOffset, maxLength, this::getFirstReadResultEntry);
+        log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
+        return new StreamSegmentReadResult(startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
     }
 
     private boolean canReadAtOffset(long offset) {
-        if (this.metadata.isSealed() && offset > this.metadata.getDurableLogLength()) {
-            return false;
-        }
-
-        return true;
+        return !this.metadata.isSealed() || offset <= this.metadata.getDurableLogLength();
     }
 
     /**
@@ -429,9 +365,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @return A ReadResultEntry representing the data to return.
      */
     private ReadResultEntry getFirstReadResultEntry(long resultStartOffset, int maxLength) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.throwIfClosed(this.closed, this);
 
         if (maxLength < 0) {
             // Nothing to read.
@@ -588,9 +522,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @return
      */
     private List<ByteArrayReadIndexEntry> getAllEntries(long offsetAdjustment) {
-        if (offsetAdjustment < 0) {
-            throw new IllegalArgumentException("offsetAdjustment must be a non-negative number.");
-        }
+        Exceptions.throwIfIllegalArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");
 
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
             ArrayList<ByteArrayReadIndexEntry> result = new ArrayList<>(this.entries.size());

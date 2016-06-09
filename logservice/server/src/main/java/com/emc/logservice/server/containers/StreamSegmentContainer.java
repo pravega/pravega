@@ -8,6 +8,7 @@ import com.emc.logservice.server.logs.PendingAppendsCollection;
 import com.emc.logservice.server.logs.operations.*;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.*;
@@ -19,10 +20,12 @@ import java.util.function.Consumer;
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
  */
+@Slf4j
 class StreamSegmentContainer implements SegmentContainer {
     //region Members
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); //TODO: make configurable
+    private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
     private final Cache readIndex;
@@ -46,6 +49,13 @@ class StreamSegmentContainer implements SegmentContainer {
      * @param cacheFactory
      */
     public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory) {
+        Exceptions.throwIfNullOfEmpty(streamSegmentContainerId, "streamSegmentContainerId");
+        Exceptions.throwIfNull(metadataRepository, "metadataRepository");
+        Exceptions.throwIfNull(durableLogFactory, "durableLogFactory");
+        Exceptions.throwIfNull(cacheFactory, "cacheFactory");
+        Exceptions.throwIfNull(storageFactory, "storageFactory");
+
+        this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
         this.faultRegistry = new FaultHandlerRegistry();
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
@@ -84,10 +94,13 @@ class StreamSegmentContainer implements SegmentContainer {
     public CompletableFuture<Void> initialize(Duration timeout) {
         ensureNotClosed();
         return this.StateTransitionLock.execute(() -> {
+            int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
             ContainerState.Initialized.checkValidPreviousState(this.state);
 
-            return this.durableLog.initialize(timeout) // Initialize DurableLog.
-                                  .thenRun(() -> setState(ContainerState.Initialized)); // Update our internal state.
+            return this.durableLog
+                    .initialize(timeout) // Initialize DurableLog.
+                    .thenRun(() -> setState(ContainerState.Initialized))// Update our internal state.
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId));
         });
     }
 
@@ -96,33 +109,39 @@ class StreamSegmentContainer implements SegmentContainer {
         ensureNotClosed();
         return this.StateTransitionLock.execute(() ->
         {
+            int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "start");
             ContainerState.Started.checkValidPreviousState(this.state);
 
             // Start the Operation Queue Processor.
-            return this.durableLog.start(timeout)
-                                  .thenRun(() -> setState(ContainerState.Started));
+            return this.durableLog
+                    .start(timeout)
+                    .thenRun(() -> setState(ContainerState.Started))
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "start", traceId));
         });
     }
 
     @Override
     public CompletableFuture<Void> stop(Duration timeout) {
         ensureNotClosed();
-
         return this.StateTransitionLock.execute(() ->
         {
+            int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "stop");
             ContainerState.Stopped.checkValidPreviousState(this.state);
 
             // Update the state first.
             setState(ContainerState.Stopped);
 
             // Stop the Operation Queue Processor.
-            return this.durableLog.stop(timeout);
+            return this.durableLog
+                    .stop(timeout)
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "stop", traceId));
         });
     }
 
     @Override
     public void registerFaultHandler(Consumer<Throwable> handler) {
         ensureNotClosed();
+        this.faultRegistry.register(handler);
     }
 
     @Override
@@ -143,45 +162,52 @@ class StreamSegmentContainer implements SegmentContainer {
     public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureStarted();
 
+        logRequest("append", streamSegmentName, data.length, appendContext);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                                 .thenCompose(streamSegmentId ->
-                                 {
-                                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
-                                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId ->
+                {
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
+                    CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
 
-                                     // Add to Append Context Registry, if needed.
-                                     this.pendingAppendsCollection.register(operation, result);
-                                     return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
-                                 });
+                    // Add to Append Context Registry, if needed.
+                    this.pendingAppendsCollection.register(operation, result);
+                    return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
+                });
     }
 
     @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         ensureStarted();
 
+        logRequest("read", streamSegmentName, offset, maxLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                                 .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         ensureStarted();
 
+        logRequest("getStreamSegmentInfo", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                                 .thenApply(streamSegmentId ->
-                                 {
-                                     SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                                     return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(), sm.isDeleted(), new Date());
-                                 });
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenApply(streamSegmentId ->
+                {
+                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                    return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(), sm.isDeleted(), new Date());
+                });
     }
 
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
         ensureStarted();
 
+        logRequest("createStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper.createNewStreamSegment(streamSegmentName, timer.getRemaining());
     }
@@ -190,6 +216,7 @@ class StreamSegmentContainer implements SegmentContainer {
     public CompletableFuture<String> createBatch(String parentStreamName, Duration timeout) {
         ensureStarted();
 
+        logRequest("createBatch", parentStreamName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper.createNewBatchStreamSegment(parentStreamName, timer.getRemaining());
     }
@@ -198,7 +225,11 @@ class StreamSegmentContainer implements SegmentContainer {
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         ensureStarted();
 
+        logRequest("deleteStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
+
+        // metadata.deleteStreamSegment will delete the given StreamSegment and all batches associated with it.
+        // It returns a collection of names of StreamSegments that were deleted.
         Collection<String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
@@ -216,37 +247,42 @@ class StreamSegmentContainer implements SegmentContainer {
     public CompletableFuture<Long> mergeBatch(String batchStreamSegmentName, Duration timeout) {
         ensureStarted();
 
+        logRequest("mergeBatch", batchStreamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.getOrAssignStreamSegmentId(batchStreamSegmentName, timer.getRemaining())
-                                 .thenCompose(batchStreamSegmentId ->
-                                 {
-                                     SegmentMetadata batchMetadata = this.metadata.getStreamSegmentMetadata(batchStreamSegmentId);
-                                     if (batchMetadata == null) {
-                                         throw new CompletionException(new StreamingException("Batch StreamSegment does not exist."));
-                                     }
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(batchStreamSegmentName, timer.getRemaining())
+                .thenCompose(batchStreamSegmentId ->
+                {
+                    SegmentMetadata batchMetadata = this.metadata.getStreamSegmentMetadata(batchStreamSegmentId);
+                    if (batchMetadata == null) {
+                        throw new CompletionException(new StreamSegmentNotExistsException(batchStreamSegmentName));
+                    }
 
-                                     Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
-                                     return this.durableLog.add(op, timer.getRemaining());
-                                 });
+                    Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
+                    return this.durableLog.add(op, timer.getRemaining());
+                });
     }
 
     @Override
     public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
         ensureStarted();
 
+        logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                                 .thenCompose(streamSegmentId ->
-                                 {
-                                     Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
-                                     return this.durableLog.add(operation, timer.getRemaining());
-                                 });
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId ->
+                {
+                    Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
+                    return this.durableLog.add(operation, timer.getRemaining());
+                });
     }
 
     @Override
     public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
         ensureStarted();
 
+        logRequest("getLastAppendContext", streamSegmentName, clientId);
         long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
         if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
             // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
@@ -277,13 +313,18 @@ class StreamSegmentContainer implements SegmentContainer {
     }
 
     private void ensureNotClosed() {
-        if (this.state == ContainerState.Closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.throwIfClosed(this.state == ContainerState.Closed, this);
     }
 
     private void setState(ContainerState state) {
-        this.state = state;
+        if (this.state != state) {
+            log.info("{}: StateTransition from {} to {}.", this.traceObjectId, this.state, state);
+            this.state = state;
+        }
+    }
+
+    private void logRequest(String requestName, Object... args) {
+        log.info("{}: {} {}", this.traceObjectId, requestName, args);
     }
 
     //endregion

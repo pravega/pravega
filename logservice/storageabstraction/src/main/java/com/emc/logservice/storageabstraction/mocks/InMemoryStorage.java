@@ -1,5 +1,6 @@
 package com.emc.logservice.storageabstraction.mocks;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.contracts.*;
 
@@ -20,7 +21,7 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
-            synchronized (this.lock){
+            synchronized (this.lock) {
                 if (this.streamSegments.containsKey(streamSegmentName)) {
                     throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
                 }
@@ -63,7 +64,7 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         return CompletableFuture.runAsync(() -> {
-            synchronized (this.lock){
+            synchronized (this.lock) {
                 if (!this.streamSegments.containsKey(streamSegmentName)) {
                     throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
                 }
@@ -74,7 +75,7 @@ public class InMemoryStorage implements Storage {
 
     private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
         return CompletableFuture.supplyAsync(() -> {
-            synchronized (this.lock){
+            synchronized (this.lock) {
                 StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
                 if (data == null) {
                     throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
@@ -102,14 +103,9 @@ public class InMemoryStorage implements Storage {
 
         public CompletableFuture<Void> write(long startOffset, InputStream data, int length) {
             return CompletableFuture.runAsync(() -> {
-                synchronized (this.lock){
-                    if (startOffset < 0 || startOffset > this.length) {
-                        throw new IllegalArgumentException("bad offset");
-                    }
-
-                    if (length < 0) {
-                        throw new IllegalArgumentException("bad length");
-                    }
+                synchronized (this.lock) {
+                    Exceptions.throwIfIllegalArgument(startOffset >= 0 && startOffset <= this.length, "startOffset", "bad offset");
+                    Exceptions.throwIfIllegalArgument(length >= 0, "length", "bad length");
 
                     if (this.sealed) {
                         throw new CompletionException(new StreamSegmentSealedException(this.name));
@@ -142,18 +138,10 @@ public class InMemoryStorage implements Storage {
 
         public CompletableFuture<Integer> read(long startOffset, byte[] target, int targetOffset, int length) {
             return CompletableFuture.supplyAsync(() -> {
-                synchronized (this.lock){
-                    if (length < 0) {
-                        throw new IllegalArgumentException("bad length");
-                    }
-
-                    if (startOffset < 0 || startOffset + length > this.length) {
-                        throw new IllegalArgumentException("bad offset or bad offset+length ");
-                    }
-
-                    if (targetOffset < 0 || targetOffset + length > target.length) {
-                        throw new IllegalArgumentException("bad bufferOffset or bad bufferOffset+length");
-                    }
+                synchronized (this.lock) {
+                    Exceptions.throwIfIllegalArgument(length >= 0, "length", "bad length");
+                    Exceptions.throwIfIllegalArgument(startOffset >= 0 && startOffset + length <= this.length, "startOffset+length", "bad offset or bad offset+length");
+                    Exceptions.throwIfIllegalArgument(targetOffset >= 0 && targetOffset + length <= target.length, "startOffset+length", "bad targetOffset or bad targetOffset+length");
 
                     long offset = startOffset;
                     int readBytes = 0;
@@ -174,7 +162,7 @@ public class InMemoryStorage implements Storage {
 
         public CompletableFuture<SegmentProperties> markSealed() {
             return CompletableFuture.supplyAsync(() -> {
-                synchronized (this.lock){
+                synchronized (this.lock) {
                     if (this.sealed) {
                         throw new CompletionException(new StreamSegmentSealedException(this.name));
                     }

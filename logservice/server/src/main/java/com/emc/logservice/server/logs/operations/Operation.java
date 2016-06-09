@@ -1,5 +1,6 @@
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.core.MagicGenerator;
 import com.emc.logservice.server.logs.SerializationException;
 import com.emc.logservice.contracts.StreamingException;
@@ -62,13 +63,8 @@ public abstract class Operation {
      * @throws IllegalArgumentException If the Sequence Number is negative.
      */
     public void setSequenceNumber(long value) {
-        if (this.sequenceNumber >= 0) {
-            throw new IllegalStateException("Sequence Number has been previously set for this entry. Cannot set a new one.");
-        }
-
-        if (value < 0) {
-            throw new IllegalArgumentException("Sequence Number must be a non-negative number.");
-        }
+        Exceptions.throwIfIllegalState(this.sequenceNumber < 0, "Sequence Number has been previously set for this entry. Cannot set a new one.");
+        Exceptions.throwIfIllegalArgument(value >= 0, "Sequence Number must be a non-negative number.");
 
         this.sequenceNumber = value;
     }
@@ -163,9 +159,7 @@ public abstract class Operation {
      * @throws IllegalStateException The exception that is thrown.
      */
     protected void ensureSerializationCondition(boolean isTrue, String message) {
-        if (!isTrue) {
-            throw new IllegalStateException("Unable to serialize Operation: " + message);
-        }
+        Exceptions.throwIfIllegalState(isTrue, "Unable to serialize Operation: {}", message);
     }
 
     /**

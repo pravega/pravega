@@ -1,5 +1,6 @@
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
 
@@ -20,17 +21,9 @@ public class MemoryReadResultEntry extends ReadResultEntry {
      */
     public MemoryReadResultEntry(ByteArrayReadIndexEntry entry, int entryOffset, int length) {
         super(entry.getStreamSegmentOffset() + entryOffset, length);
-        if (entryOffset < 0) {
-            throw new IndexOutOfBoundsException("entryOffset must be non-negative.");
-        }
-
-        if (length <= 0) {
-            throw new IndexOutOfBoundsException("length must be a positive integer.");
-        }
-
-        if (entryOffset + length > entry.getLength()) {
-            throw new IndexOutOfBoundsException("entryOffset + length must be less than the size of the entry data.");
-        }
+        Exceptions.throwIfIllegalArgument(entryOffset >= 0, "entryOffset", "EntryOffset must be non-negative.");
+        Exceptions.throwIfIllegalArgument(length > 0, "length", "Length must be a positive integer.");
+        Exceptions.throwIfIllegalArgument(entryOffset + length <= entry.getLength(), "entryOffset + length", "EntryOffset + Length must be less than the size of the entry data.");
 
         // Data Stream is readily available.
         this.dataStream = CompletableFuture.completedFuture(new ReadResultEntryContents(new ByteArrayInputStream(entry.getData(), entryOffset, length), length));

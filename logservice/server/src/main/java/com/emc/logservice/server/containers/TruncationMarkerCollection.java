@@ -1,7 +1,7 @@
 package com.emc.logservice.server.containers;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.RecoverableMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,13 +42,8 @@ public class TruncationMarkerCollection implements RecoverableMetadata {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
-        if (operationSequenceNumber == SegmentMetadataCollection.NoStreamSegmentId) {
-            throw new IllegalArgumentException("operationSequenceNumber is invalid.");
-        }
-
-        if (dataFrameSequenceNumber == SegmentMetadataCollection.NoStreamSegmentId) {
-            throw new IllegalArgumentException("dataFrameSequenceNumber is invalid.");
-        }
+        Exceptions.throwIfIllegalArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.throwIfIllegalArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
 
         this.truncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
     }
@@ -124,15 +119,11 @@ public class TruncationMarkerCollection implements RecoverableMetadata {
     }
 
     private void ensureRecoveryMode() {
-        if (!this.recoveryMode.get()) {
-            throw new IllegalStateException("TruncationMarkerCollection is not in recovery mode. Cannot execute this operation.");
-        }
+        Exceptions.throwIfIllegalState(this.recoveryMode.get(), "TruncationMarkerCollection is not in recovery mode. Cannot execute this operation.");
     }
 
     private void ensureNonRecoveryMode() {
-        if (this.recoveryMode.get()) {
-            throw new IllegalStateException("TruncationMarkerCollection is in recovery mode. Cannot execute this operation.");
-        }
+        Exceptions.throwIfIllegalState(!this.recoveryMode.get(), "TruncationMarkerCollection is in recovery mode. Cannot execute this operation.");
     }
 
     //endregion

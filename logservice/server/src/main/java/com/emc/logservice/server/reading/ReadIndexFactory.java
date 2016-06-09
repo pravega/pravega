@@ -8,7 +8,7 @@ import com.emc.logservice.server.*;
 public class ReadIndexFactory implements CacheFactory {
 
     @Override
-    public Cache createCache(SegmentMetadataCollection segmentMetadataCollection) {
-        return new ReadIndex(segmentMetadataCollection);
+    public Cache createCache(ContainerMetadata containerMetadata) {
+        return new ReadIndex(containerMetadata, containerMetadata.getContainerId());
     }
 }

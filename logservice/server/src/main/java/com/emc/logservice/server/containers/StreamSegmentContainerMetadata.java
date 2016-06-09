@@ -1,8 +1,8 @@
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.AutoReleaseLock;
-import com.emc.logservice.common.ReadWriteAutoReleaseLock;
+import com.emc.logservice.common.*;
 import com.emc.logservice.server.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -11,9 +11,11 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Metadata for a Stream Segment Container.
  */
+@Slf4j
 public class StreamSegmentContainerMetadata implements RecoverableMetadata, UpdateableContainerMetadata {
     //region Members
 
+    private final String traceObjectId;
     private final AtomicLong sequenceNumber;
     private final HashMap<String, Long> streamSegmentIds;
     private final HashMap<Long, UpdateableSegmentMetadata> streamMetadata;
@@ -29,7 +31,9 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
      * Creates a new instance of the StreamSegmentContainerMetadata.
      */
     public StreamSegmentContainerMetadata(String streamSegmentContainerId) {
+        Exceptions.throwIfNullOfEmpty(streamSegmentContainerId, "streamSegmentContainerId");
         //TODO: need to define a MetadataReaderWriter class which we can pass to this. Metadata always need to be persisted somewhere.
+        this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
@@ -87,42 +91,31 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     @Override
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            if (this.streamSegmentIds.containsKey(streamSegmentName)) {
-                throw new IllegalArgumentException(String.format("StreamSegment '%s' is already mapped.", streamSegmentName));
-            }
-
-            if (this.streamMetadata.containsKey(streamSegmentId)) {
-                throw new IllegalArgumentException(String.format("StreamSegment Id %d is already mapped.", streamSegmentId));
-            }
+            Exceptions.throwIfIllegalArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.throwIfIllegalArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
         }
+
+        log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
     }
 
     @Override
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            if (this.streamSegmentIds.containsKey(streamSegmentName)) {
-                throw new IllegalArgumentException(String.format("StreamSegment '%s' is already mapped.", streamSegmentName));
-            }
-
-            if (this.streamMetadata.containsKey(streamSegmentId)) {
-                throw new IllegalArgumentException(String.format("StreamSegment Id %d is already mapped.", streamSegmentId));
-            }
+            Exceptions.throwIfIllegalArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.throwIfIllegalArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             UpdateableSegmentMetadata parentMetadata = this.streamMetadata.getOrDefault(parentStreamSegmentId, null);
-            if (parentMetadata == null) {
-                throw new IllegalArgumentException("Invalid Parent Stream Id.");
-            }
-
-            if (parentMetadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
-                throw new IllegalArgumentException("Cannot create a batch StreamSegment for another batch StreamSegment.");
-            }
+            Exceptions.throwIfIllegalArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
+            Exceptions.throwIfIllegalArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NoStreamSegmentId, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
         }
+
+        log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
     }
 
     @Override
@@ -134,6 +127,7 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
             if (streamSegmentId == SegmentMetadataCollection.NoStreamSegmentId) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no batches associated
                 // with it, so no need to do anything else.
+                log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
                 return result;
             }
 
@@ -151,6 +145,8 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
                 }
             }
         }
+
+        log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
         return result;
     }
 
@@ -159,9 +155,7 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
         ensureRecoveryMode();
 
         // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this is ok.
-        if (value < this.sequenceNumber.get()) {
-            throw new IllegalArgumentException(String.format("Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get()));
-        }
+        Exceptions.throwIfIllegalArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
 
         this.sequenceNumber.set(value);
     }
@@ -173,12 +167,14 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     public void enterRecoveryMode() {
         ensureNonRecoveryMode();
         this.recoveryMode.set(true);
+        log.info("{}: Enter RecoveryMode.", this.traceObjectId);
     }
 
     @Override
     public void exitRecoveryMode() {
         ensureRecoveryMode();
         this.recoveryMode.set(false);
+        log.info("{}: Exit RecoveryMode.", this.traceObjectId);
     }
 
     @Override
@@ -189,18 +185,16 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
             this.streamSegmentIds.clear();
             this.streamMetadata.clear();
         }
+
+        log.info("{}: Reset.", this.traceObjectId);
     }
 
     private void ensureRecoveryMode() {
-        if (!isRecoveryMode()) {
-            throw new IllegalStateException("StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
-        }
+        Exceptions.throwIfIllegalState(isRecoveryMode(), "", "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
     }
 
     private void ensureNonRecoveryMode() {
-        if (isRecoveryMode()) {
-            throw new IllegalStateException("StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
-        }
+        Exceptions.throwIfIllegalState(!isRecoveryMode(), "", "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
     }
 
     //endregion

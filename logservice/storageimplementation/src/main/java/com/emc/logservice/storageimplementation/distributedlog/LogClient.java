@@ -1,5 +1,6 @@
 package com.emc.logservice.storageimplementation.distributedlog;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.storageabstraction.*;
 import com.twitter.distributedlog.DistributedLogConfiguration;
@@ -40,17 +41,8 @@ class LogClient implements AutoCloseable {
      * @throws IllegalArgumentException If the clientId is invalid.
      */
     public LogClient(String clientId, DistributedLogConfig config) {
-        if (config == null) {
-            throw new NullPointerException("config");
-        }
-
-        if (clientId == null) {
-            throw new NullPointerException("clientId");
-        }
-
-        if (clientId.length() == 0) {
-            throw new IllegalArgumentException("clientId");
-        }
+        Exceptions.throwIfNull(config, "config");
+        Exceptions.throwIfNullOfEmpty(clientId, "clientId");
 
         this.clientId = clientId;
         this.config = config;
@@ -101,13 +93,8 @@ class LogClient implements AutoCloseable {
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-
-        if (this.namespace != null) {
-            throw new IllegalStateException("LogClient is already initialized.");
-        }
+        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.throwIfIllegalState(this.namespace == null, "LogClient is already initialized.");
 
         URI uri = URI.create(String.format(DistributedLogUriFormat, config.getDistributedLogHost(), config.getDistributedLogPort(), config.getDistributedLogNamespace()));
         DistributedLogConfiguration conf = new DistributedLogConfiguration()
