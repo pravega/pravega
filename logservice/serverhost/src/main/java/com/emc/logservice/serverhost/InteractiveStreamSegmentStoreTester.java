@@ -256,7 +256,11 @@ public class InteractiveStreamSegmentStoreTester {
 
     private Throwable getRealException(Throwable ex) {
         if (ex instanceof CompletionException) {
-            return ex.getCause();
+            return getRealException(ex.getCause());
+        }
+
+        if (ex instanceof ExecutionException) {
+            return getRealException(ex.getCause());
         }
 
         return ex;

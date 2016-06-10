@@ -239,10 +239,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             Exceptions.throwIfIllegalArgument(endOffset >= 0, "sourceSegmentStreamId", "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
 
             ReadIndexEntry treeEntry = this.entries.getOrDefault(endOffset, null);
-            if (treeEntry == null || !(treeEntry instanceof RedirectReadIndexEntry)) {
-                throw new AssertionError(String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceSegmentStreamId, endOffset, treeEntry));
-            }
-
+            assert treeEntry != null && (treeEntry instanceof RedirectReadIndexEntry) : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceSegmentStreamId, endOffset, treeEntry);
             redirectEntry = (RedirectReadIndexEntry) treeEntry;
         }
 
@@ -277,10 +274,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             // Finally, append the entry.
             // Key is Offset + Length -1 = Last Offset Of Entry. Value is entry itself. This makes searching easier.
             ReadIndexEntry oldEntry = this.entries.put(entry.getLastStreamSegmentOffset(), entry);
-            if (oldEntry != null) {
-                throw new AssertionError(String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry));
-            }
-
+            assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
             this.lastAppendedOffset = entry.getLastStreamSegmentOffset();
         }
     }
@@ -311,14 +305,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
         for (PlaceholderReadResultEntry r : futureReads) {
             ReadResultEntry entry = getFirstReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
-
-            if (entry == null) {
-                throw new AssertionError("Serving a PlaceholderReadResultEntry with a null result");
-            }
-
-            if (entry instanceof PlaceholderReadResultEntry) {
-                throw new AssertionError("Serving a PlaceholderReadResultEntry with another PlaceholderReadResultEntry.");
-            }
+            assert entry != null : "Serving a PlaceholderReadResultEntry with a null result";
+            assert !(entry instanceof PlaceholderReadResultEntry) : "Serving a PlaceholderReadResultEntry with another PlaceholderReadResultEntry.";
 
             if (entry.isEndOfStreamSegment()) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
@@ -423,15 +411,13 @@ class StreamSegmentReadIndex implements AutoCloseable {
     private ReadResultEntry getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
-        if (redirectOffset < 0 || redirectOffset >= entry.getLength()) {
-            throw new AssertionError(String.format(
-                    "Redirected offset would be outside of the range of the Redirected StreamSegment. StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, RedirectOffset = %d.",
-                    streamSegmentOffset,
-                    maxLength,
-                    entry.getStreamSegmentOffset(),
-                    entry.getLength(),
-                    redirectOffset));
-        }
+        assert redirectOffset >= 0 && redirectOffset < entry.getLength() :
+                String.format("Redirected offset would be outside of the range of the Redirected StreamSegment. StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, RedirectOffset = %d.",
+                        streamSegmentOffset,
+                        maxLength,
+                        entry.getStreamSegmentOffset(),
+                        entry.getLength(),
+                        redirectOffset);
 
         if (entry.getLength() < maxLength) {
             maxLength = (int) entry.getLength();
@@ -475,15 +461,11 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @return
      */
     private ReadResultEntry createMemoryRead(ByteArrayReadIndexEntry entry, long streamSegmentOffset, int maxLength) {
-        if (streamSegmentOffset < entry.getStreamSegmentOffset()) {
-            throw new AssertionError(String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset()));
-        }
+        assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
 
         int entryOffset = (int) (streamSegmentOffset - entry.getStreamSegmentOffset());
         int length = Math.min(maxLength, entry.getData().length - entryOffset);
-        if (length <= 0) {
-            throw new AssertionError(String.format("length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length, streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getData().length));
-        }
+        assert length > 0 : String.format("length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length, streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getData().length);
 
         return new MemoryReadResultEntry(entry, entryOffset, length);
     }

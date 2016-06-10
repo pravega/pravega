@@ -51,7 +51,7 @@ public class DurableLog implements OperationLog {
         Exceptions.throwIfNull(cache, "cache");
 
         this.dataFrameLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
-        assert this.dataFrameLog != null;
+        assert this.dataFrameLog != null : "dataFrameLogFactory created null dataFrameLog.";
 
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.metadata = metadata;
@@ -283,7 +283,6 @@ public class DurableLog implements OperationLog {
                 // Process the operation.
                 try {
                     log.debug("{} Recovering {}.", this.traceObjectId, operation);
-                    System.out.println(String.format("Recovering %s", operation)); // TODO: remove this after the demo.
                     if (operation instanceof MetadataOperation) {
                         metadataUpdater.processMetadataOperation((MetadataOperation) operation);
                     }

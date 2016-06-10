@@ -41,7 +41,7 @@ public class PendingAppendsCollection implements AutoCloseable {
             List<Entry> allEntries = new ArrayList<>(this.entries.values());
             ObjectClosedException failException = new ObjectClosedException(this);
             allEntries.forEach(e -> e.completionFuture.completeExceptionally(failException));
-            assert this.entries.size() == 0;
+            assert this.entries.size() == 0 : "Not all pending appends were cleaned up.";
         }
     }
 

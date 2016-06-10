@@ -1,12 +1,12 @@
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.*;
 import com.twitter.distributedlog.DistributedLogConfiguration;
 import com.twitter.distributedlog.DistributedLogConstants;
 import com.twitter.distributedlog.namespace.DistributedLogNamespace;
 import com.twitter.distributedlog.namespace.DistributedLogNamespaceBuilder;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.URI;
@@ -16,8 +16,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 /**
- * General client for DistributedLog
+ * General client for DistributedLog.
  */
+@Slf4j
 class LogClient implements AutoCloseable {
     //region Members
 
@@ -25,6 +26,8 @@ class LogClient implements AutoCloseable {
     private final DistributedLogConfig config;
     private final HashMap<String, CompletableFuture<LogHandle>> handles;
     private final String clientId;
+    private final URI namespaceUri;
+    private final String traceObjectId;
     private DistributedLogNamespace namespace;
     private boolean closed;
 
@@ -47,6 +50,9 @@ class LogClient implements AutoCloseable {
         this.clientId = clientId;
         this.config = config;
         this.handles = new HashMap<>();
+        String rawUri = String.format(DistributedLogUriFormat, config.getDistributedLogHost(), config.getDistributedLogPort(), config.getDistributedLogNamespace());
+        this.namespaceUri = URI.create(rawUri);
+        this.traceObjectId = String.format("%s#%s", rawUri, this.clientId);
     }
 
     //endregion
@@ -55,6 +61,7 @@ class LogClient implements AutoCloseable {
 
     @Override
     public void close() {
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "close", this.closed);
         if (!this.closed) {
             ArrayList<CompletableFuture<LogHandle>> handlesToClose;
             synchronized (this.handles) {
@@ -64,19 +71,27 @@ class LogClient implements AutoCloseable {
 
             for (CompletableFuture<LogHandle> cf : handlesToClose) {
                 if (cf.isDone() && !cf.isCompletedExceptionally()) {
+                    LogHandle handle = null;
                     try {
-                        LogHandle handle = cf.join();
+                        handle = cf.join();
                         handle.close();
                     }
                     catch (Exception ex) {
-                        System.err.println(ex);// TODO: fix.
+                        String handleId = handle == null ? "(null)" : handle.getLogName();
+                        log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handleId, ex);
                     }
                 }
             }
 
-            this.namespace.close();
+            if (this.namespace != null) {
+                this.namespace.close();
+                log.info("{}: Closed DistributedLog Namespace.", this.traceObjectId);
+            }
+
             this.closed = true;
         }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "close", traceId);
     }
 
     //endregion
@@ -93,10 +108,10 @@ class LogClient implements AutoCloseable {
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
         Exceptions.throwIfClosed(this.closed, this);
         Exceptions.throwIfIllegalState(this.namespace == null, "LogClient is already initialized.");
 
-        URI uri = URI.create(String.format(DistributedLogUriFormat, config.getDistributedLogHost(), config.getDistributedLogPort(), config.getDistributedLogNamespace()));
         DistributedLogConfiguration conf = new DistributedLogConfiguration()
                 .setImmediateFlushEnabled(true)
                 .setOutputBufferSize(0)
@@ -105,12 +120,14 @@ class LogClient implements AutoCloseable {
                 .setCreateStreamIfNotExists(true);
 
         try {
-            this.namespace = DistributedLogNamespaceBuilder.newBuilder()
-                                                           .conf(conf)
-                                                           .uri(uri)
-                                                           .regionId(DistributedLogConstants.LOCAL_REGION_ID)
-                                                           .clientId(this.clientId)
-                                                           .build();
+            this.namespace = DistributedLogNamespaceBuilder
+                    .newBuilder()
+                    .conf(conf)
+                    .uri(this.namespaceUri)
+                    .regionId(DistributedLogConstants.LOCAL_REGION_ID)
+                    .clientId(this.clientId)
+                    .build();
+            log.info("{} Opened DistributedLog Namespace.", this.traceObjectId);
         }
         catch (IllegalArgumentException | NullPointerException ex) {
             //configuration issue
@@ -120,6 +137,8 @@ class LogClient implements AutoCloseable {
             // Namespace not available, ZooKeeper not reachable, some other environment issue.
             throw new DataLogNotAvailableException("Unable to access DistributedLog Namespace.", ex);
         }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
     }
 
     /**
@@ -147,12 +166,12 @@ class LogClient implements AutoCloseable {
         }
 
         if (newHandle) {
+            log.trace("{} Registered handle for '{}'.", this.traceObjectId, logName);
+
             // If we are creating a new handle and it failed, remove the "bad handle" from the map.
             handle.whenComplete((result, ex) -> {
                 if (ex != null) {
-                    synchronized (this.handles) {
-                        this.handles.remove(logName);
-                    }
+                    unregisterLogHandle(logName);
                 }
             });
         }
@@ -163,12 +182,32 @@ class LogClient implements AutoCloseable {
     private CompletableFuture<LogHandle> createLogHandle(String logId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return new LogHandle(this.namespace, logId);
+                // Create a new handle, and pass in a callback so we unregister the handle when it's closed.
+                return new LogHandle(this.namespace, logId, this::handleLogHandleClosed);
             }
             catch (DurableDataLogException ex) {
                 throw new CompletionException(ex);
             }
         });
+    }
+
+    private void handleLogHandleClosed(LogHandle handle) {
+        if (handle == null) {
+            return;
+        }
+
+        unregisterLogHandle(handle.getLogName());
+    }
+
+    private void unregisterLogHandle(String logName) {
+        boolean removed;
+        synchronized (this.handles) {
+            removed = this.handles.remove(logName) != null;
+        }
+
+        if (removed) {
+            log.trace("{} Unregistered handle for '{}'.", this.traceObjectId, logName);
+        }
     }
 
     //endregion

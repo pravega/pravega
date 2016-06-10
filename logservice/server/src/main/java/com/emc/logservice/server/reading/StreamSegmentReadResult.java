@@ -135,28 +135,23 @@ public class StreamSegmentReadResult implements ReadResult {
         ReadResultEntry entry = this.getNextItem.apply(startOffset, remainingLength);
 
         if (entry == null) {
-            if (remainingLength > 0) {
-                // We expected something but got nothing back.
-                throw new AssertionError(String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength));
-            }
-
+            assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset %d, MaxLen %d.", startOffset, remainingLength);
             this.lastEntryFuture = null;
-        }
-        else if (entry.getStreamSegmentOffset() != startOffset) {
-            // We got back a different offset than requested.
-            throw new AssertionError(String.format("Invalid ReadResultEntry. Expected offset %d, given %d.", startOffset, entry.getStreamSegmentOffset()));
-        }
-        else if (entry.isEndOfStreamSegment()) {
-            // StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment length.
-            // We cannot continue reading; close the ReadResult and return the appropriate EndOfStream Result Entry.
-            this.lastEntryFuture = null;
-            this.lastEntryFutureFollowup = null;
-            close();
         }
         else {
-            // After the previous entry is done, update the consumedLength value.
-            this.lastEntryFuture = entry.getContent();
-            this.lastEntryFutureFollowup = this.lastEntryFuture.thenAccept(contents -> this.consumedLength += contents.getLength());
+            assert entry.getStreamSegmentOffset() == startOffset : String.format("Invalid ReadResultEntry. Expected offset %d, given %d.", startOffset, entry.getStreamSegmentOffset());
+            if (entry.isEndOfStreamSegment()) {
+                // StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment length.
+                // We cannot continue reading; close the ReadResult and return the appropriate EndOfStream Result Entry.
+                this.lastEntryFuture = null;
+                this.lastEntryFutureFollowup = null;
+                close();
+            }
+            else {
+                // After the previous entry is done, update the consumedLength value.
+                this.lastEntryFuture = entry.getContent();
+                this.lastEntryFutureFollowup = this.lastEntryFuture.thenAccept(contents -> this.consumedLength += contents.getLength());
+            }
         }
 
         log.trace("{}.ReadResult[{}]: Consumed = {}, MaxLength = {}, Entry = ({}).", this.traceObjectId, this.streamSegmentStartOffset, this.consumedLength, this.maxResultLength, entry);

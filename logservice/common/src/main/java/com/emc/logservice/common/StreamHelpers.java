@@ -6,7 +6,7 @@ import java.io.InputStream;
 /**
  * Miscellaneous operations on Streams.
  */
-public class StreamHelpers {
+public final class StreamHelpers {
     /**
      * Reads at most 'maxLength' bytes from the given input stream, as long as the stream still has data to serve.
      *

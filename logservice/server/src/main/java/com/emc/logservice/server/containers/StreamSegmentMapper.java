@@ -189,8 +189,8 @@ public class StreamSegmentMapper {
      * failed, this will contain the exception that caused the failure.
      */
     private CompletableFuture<Long> assignBatchStreamSegmentId(SegmentProperties batchInfo, long parentStreamSegmentId, Duration timeout) {
-        assert batchInfo != null;
-        assert parentStreamSegmentId != SegmentMetadataCollection.NoStreamSegmentId;
+        assert batchInfo != null : "batchInfo is null";
+        assert parentStreamSegmentId != SegmentMetadataCollection.NoStreamSegmentId : "parentStreamSegmentId is invalid.";
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return persistInDurableLog(batchInfo, parentStreamSegmentId, timer.getRemaining());
     }
@@ -252,7 +252,7 @@ public class StreamSegmentMapper {
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
                 // Batch.
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
-                assert parentMetadata != null;
+                assert parentMetadata != null : "parentMetadata is null";
                 logAddResult = this.durableLog.add(new BatchMapOperation(parentStreamSegmentId, newStreamId, streamSegmentInfo), timeout);
             }
             else {

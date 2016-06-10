@@ -1,6 +1,7 @@
 package com.emc.logservice.server;
 
 import com.emc.logservice.common.CallbackHelpers;
+import com.emc.logservice.common.Exceptions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +27,7 @@ public class FaultHandlerRegistry {
      * @throws NullPointerException If handler is null.
      */
     public void register(Consumer<Throwable> handler) {
-        if (handler == null) {
-            throw new NullPointerException("handler");
-        }
-
+        Exceptions.throwIfNull(handler, "handler");
         this.handlers.add(handler);
     }
 
@@ -40,10 +38,7 @@ public class FaultHandlerRegistry {
      * @throws NullPointerException If error is null.
      */
     public void handle(Throwable error) {
-        if (error == null) {
-            throw new NullPointerException("error");
-        }
-
+        Exceptions.throwIfNull(error, "error");
         this.handlers.forEach(handler -> CallbackHelpers.invokeSafely(handler, error, null));
     }
 }

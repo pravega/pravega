@@ -35,12 +35,8 @@ public class StreamSegmentService implements StreamSegmentStore {
      * @throws NullPointerException If segmentToContainerMapper is null.
      */
     public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
-        if (segmentContainerRegistry == null) {
-            throw new NullPointerException("segmentContainerRegistry");
-        }
-        if (segmentToContainerMapper == null) {
-            throw new NullPointerException("segmentToContainerMapper");
-        }
+        Exceptions.throwIfNull(segmentContainerRegistry, "segmentContainerRegistry");
+        Exceptions.throwIfNull(segmentToContainerMapper, "segmentToContainerMapper");
 
         this.segmentContainerRegistry = segmentContainerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;

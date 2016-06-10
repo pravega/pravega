@@ -322,9 +322,9 @@ public class OperationQueueProcessor implements Container {
         private final Consumer<Exception> criticalErrorHandler;
 
         public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler, String traceObjectId) {
-            assert metadataUpdater != null;
-            assert logUpdater != null;
-            assert criticalErrorHandler != null;
+            assert metadataUpdater != null : "metadataUpdater is null";
+            assert logUpdater != null : "logUpdater is null";
+            assert criticalErrorHandler != null :"criticalErrorHandler is null";
 
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>();

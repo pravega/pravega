@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 /**
  * Helper methods for invoking Callback methods.
  */
-public class CallbackHelpers {
+public final class CallbackHelpers {
     /**
      * Invokes the given Consumer with the given argument, and catches any exceptions that it may throw.
      *
@@ -16,9 +16,7 @@ public class CallbackHelpers {
      * @throws NullPointerException If the consumer is null.
      */
     public static <T> void invokeSafely(Consumer<T> consumer, T argument, Consumer<Throwable> failureHandler) {
-        if (consumer == null) {
-            throw new NullPointerException("consumer");
-        }
+        Exceptions.throwIfNull(consumer, "consumer");
 
         try {
             consumer.accept(argument);

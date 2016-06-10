@@ -29,17 +29,8 @@ public class FixedByteArrayOutputStream extends OutputStream {
      * @throws ArrayIndexOutOfBoundsException If offset and/or length are invalid.
      */
     public FixedByteArrayOutputStream(byte[] array, int offset, int length) {
-        if (array == null) {
-            throw new NullPointerException("array");
-        }
-
-        if (offset < 0 || offset >= array.length) {
-            throw new ArrayIndexOutOfBoundsException("offset must be non-negative and less than the size of the array.");
-        }
-
-        if (length < 0 || offset + length > array.length) {
-            throw new ArrayIndexOutOfBoundsException("length must be non-negative and offset+length must be less than the size of the array.");
-        }
+        Exceptions.throwIfNull(array, "array");
+        Exceptions.throwIfIllegalArrayRange(offset, length, 0, array.length, "offset", "length");
 
         this.array = array;
         this.offset = offset;

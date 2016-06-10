@@ -3,7 +3,7 @@ package com.emc.logservice.common;
 /**
  * java.lang.String Extension methods.
  */
-public class StringHelpers {
+public final class StringHelpers {
 
     /**
      * Generates a Long hashCode of the given string.

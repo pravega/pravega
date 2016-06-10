@@ -94,14 +94,14 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region Helpers
 
     private void unregisterHandle(ContainerHandle handle) {
-        assert this.handles.containsKey(handle.getContainerId());
+        assert this.handles.containsKey(handle.getContainerId()) : "unregistered handle " + handle.getContainerId();
         this.handles.remove(handle.getContainerId());
         log.info("Container {} has been unregistered.", handle.getContainerId());
     }
 
     private void registerHandle(ContainerHandle handle) {
-        assert handle != null;
-        assert !this.handles.containsKey(handle.getContainerId());
+        assert handle != null : "handle is null.";
+        assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
         this.handles.put(handle.getContainerId(), handle);
 
         handle.setContainerStoppedListener(id -> {

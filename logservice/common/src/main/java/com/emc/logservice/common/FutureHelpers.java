@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 /**
  * Extensions to Future and CompletableFuture.
  */
-public class FutureHelpers {
+public final class FutureHelpers {
     /**
      * Creates a new CompletableFuture that is failed with the given exception.
      *

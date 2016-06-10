@@ -31,9 +31,7 @@ public class AutoReleaseLock implements AutoCloseable {
      */
 
     protected AutoReleaseLock(Lock baseLock, boolean upgradeable) {
-        if (baseLock == null) {
-            throw new NullPointerException("baseLock");
-        }
+        Exceptions.throwIfNull(baseLock, "baseLock");
 
         this.replacedLock = null;
         this.lock = baseLock;
@@ -51,9 +49,7 @@ public class AutoReleaseLock implements AutoCloseable {
      * @throws InterruptedException If the thread got interrupted while waiting for the lock to be acquired.
      */
     protected AutoReleaseLock(Lock baseLock, boolean upgradeable, Duration acquireTimeout) throws TimeoutException, InterruptedException {
-        if (baseLock == null) {
-            throw new NullPointerException("baseLock");
-        }
+        Exceptions.throwIfNull(baseLock, "baseLock");
 
         this.replacedLock = null;
         this.lock = baseLock;

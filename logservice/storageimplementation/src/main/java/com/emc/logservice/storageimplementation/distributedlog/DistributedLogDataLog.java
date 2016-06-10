@@ -15,11 +15,6 @@ import java.util.concurrent.CompletableFuture;
 class DistributedLogDataLog implements DurableDataLog {
     //region Members
 
-    /**
-     * Maximum append length, as specified by DistributedLog (this is hardcoded inside DLog's code).
-     */
-    private static final int MaxAppendLength = 1024 * 1024 - 8 * 1024;
-
     private final LogClient client;
     private final String logName;
     private LogHandle handle;
@@ -62,7 +57,9 @@ class DistributedLogDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
         Exceptions.throwIfIllegalState(this.handle == null, "DistributedLogDataLog is already initialized.");
-        return this.client.getLogHandle(this.logName).thenAccept(handle -> this.handle = handle);
+        return this.client
+                .getLogHandle(this.logName)
+                .thenAccept(handle -> this.handle = handle);
     }
 
     @Override
@@ -86,7 +83,7 @@ class DistributedLogDataLog implements DurableDataLog {
     @Override
     public int getMaxAppendLength() {
         ensureInitialized();
-        return this.MaxAppendLength;
+        return LogHandle.MaxAppendLength;
     }
 
     @Override

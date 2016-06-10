@@ -218,7 +218,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @param containerMetadata The base Container Metadata.
          */
         public UpdateTransaction(UpdateableContainerMetadata containerMetadata) {
-            assert containerMetadata != null;
+            assert containerMetadata != null : "containerMetadata is null";
             this.streamUpdates = new HashMap<>();
             this.containerMetadata = containerMetadata;
             if (containerMetadata.isRecoveryMode()) {
@@ -432,7 +432,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @param isRecoveryMode        Whether the metadata is currently in recovery model
          */
         public TemporaryStreamSegmentMetadata(UpdateableSegmentMetadata streamSegmentMetadata, boolean isRecoveryMode) {
-            assert streamSegmentMetadata != null;
+            assert streamSegmentMetadata != null : "streamSegmentMetadata is null";
             this.streamSegmentMetadata = streamSegmentMetadata;
             this.isRecoveryMode = isRecoveryMode;
             this.currentDurableLogLength = this.streamSegmentMetadata.getDurableLogLength();

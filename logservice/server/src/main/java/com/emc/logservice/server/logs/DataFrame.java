@@ -211,7 +211,7 @@ public class DataFrame {
         // Check to see if we actually have an entry started.
         if (this.writeEntryStartIndex >= 0) {
             int entryLength = this.writePosition - this.writeEntryStartIndex - EntryHeader.HeaderSize;
-            assert entryLength >= 0;
+            assert entryLength >= 0 : "entryLength is negative.";
 
             this.writeEntryHeader.setEntryLength(entryLength);
             this.writeEntryHeader.setLastRecordEntry(endOfRecord);

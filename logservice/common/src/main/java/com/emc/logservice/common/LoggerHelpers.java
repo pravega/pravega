@@ -7,7 +7,7 @@ import java.util.Random;
 /**
  * Extension methods for Logger class.
  */
-public class LoggerHelpers {
+public final class LoggerHelpers {
     private static final Random IdGenerator = new Random();
 
     /**

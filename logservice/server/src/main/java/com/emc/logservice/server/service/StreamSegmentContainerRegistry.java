@@ -34,9 +34,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
      * @throws NullPointerException If containerFactory is null.
      */
     public StreamSegmentContainerRegistry(SegmentContainerFactory containerFactory) {
-        if (containerFactory == null) {
-            throw new NullPointerException("containerFactory");
-        }
+        Exceptions.throwIfNull(containerFactory, "containerFactory");
 
         this.factory = containerFactory;
         this.containers = new ConcurrentHashMap<>();
@@ -57,7 +55,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
                 closeContainer(c, true);
             }
 
-            assert this.containers.size() == 0;
+            assert this.containers.size() == 0 : "Not all containers have been unregistered.";
         }
     }
 
@@ -153,9 +151,9 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     }
 
     private void closeContainer(ContainerWithHandle toClose, boolean notifyHandle) {
-        assert toClose != null;
+        assert toClose != null : "toClose is null.";
         toClose.container.close();
-        assert toClose.container.getState() == ContainerState.Closed;
+        assert toClose.container.getState() == ContainerState.Closed : "Container is not closed.";
         this.containers.remove(toClose.handle.getContainerId());
         log.info("Unregistered SegmentContainer {}.", toClose.handle.getContainerId());
         if (notifyHandle) {
@@ -172,7 +170,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         public final SegmentContainerHandle handle;
 
         public ContainerWithHandle(SegmentContainer container, SegmentContainerHandle handle) {
-            assert container.getId().equals(handle.getContainerId());
+            assert container.getId().equals(handle.getContainerId()) : "Mismatch between container id and handle container id.";
             this.container = container;
             this.handle = handle;
         }
@@ -222,7 +220,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         @Override
         public String toString() {
-            return String.format("ContainerId = %s", this.containerId);
+            return String.format("SegmentContainerId = %s", this.containerId);
         }
     }
 
