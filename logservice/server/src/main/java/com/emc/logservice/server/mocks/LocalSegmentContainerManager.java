@@ -107,6 +107,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         handle.setContainerStoppedListener(id -> {
             log.error("Container {} has failed and is now in a Stopped state.", handle.getContainerId());
             unregisterHandle(handle);
+            //TODO: need to restart container.
         });
 
         log.info("Container {} has been registered.", handle.getContainerId());

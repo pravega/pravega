@@ -140,7 +140,7 @@ public class AssertExtensions {
      * @param value2  The second value.
      */
     public static void assertGreaterThan(String message, long value1, long value2) {
-        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, value1, value2), value1 > value2);
+        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, value2, value1), value1 > value2);
     }
 
     /**
@@ -151,7 +151,25 @@ public class AssertExtensions {
      * @param value2  The second value.
      */
     public static void assertGreaterThanOrEqual(String message, long value1, long value2) {
-        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, value1, value2), value1 >= value2);
+        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, value2, value1), value1 >= value2);
+    }
+
+    /**
+     * Asserts that string is null or equal to the empty string.
+     * @param message The message to include in the Assert calls.
+     * @param string The String to test.
+     */
+    public static void assertNullOrEmpty(String message, String string){
+        Assert.assertTrue(message, string == null || string.length() == 0);
+    }
+
+    /**
+     * Asserts that string is not null or an empty string.
+     * @param message The message to include in the Assert calls.
+     * @param string The String to test.
+     */
+    public static void assertNotNullOrEmpty(String message, String string){
+        Assert.assertFalse(message, string == null || string.length() == 0);
     }
 
     private static Throwable getRealException(Throwable ex) {

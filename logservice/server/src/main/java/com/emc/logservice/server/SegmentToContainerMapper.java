@@ -2,8 +2,6 @@ package com.emc.logservice.server;
 
 import com.emc.logservice.common.Exceptions;
 
-import static com.emc.logservice.server.StreamSegmentNameUtils.getParentStreamSegmentName;
-
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.
  */
@@ -42,7 +40,7 @@ public final class SegmentToContainerMapper {
      * @return
      */
     public String getContainerId(String streamSegmentName) {
-        String parentStreamSegmentName = getParentStreamSegmentName(streamSegmentName);
+        String parentStreamSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
         if (parentStreamSegmentName != null) {
             // This is a batch. Map it to the parent's Container.
             return mapStreamSegmentNameToContainerId(parentStreamSegmentName);
@@ -54,16 +52,18 @@ public final class SegmentToContainerMapper {
     }
 
     /**
-     * Gets the container Id based on its numeric valu.
+     * Gets the container Id based on its numeric value.
      *
      * @param numericContainerId
      * @return
      */
     public String getContainerId(int numericContainerId) {
+        assert numericContainerId >= 0 : "numericContainerId must be a non-negative number. Given " + numericContainerId;
         return Integer.toString(numericContainerId);
     }
 
     private String mapStreamSegmentNameToContainerId(String streamSegmentName) {
-        return Integer.toString(Math.abs(streamSegmentName.hashCode()) % this.containerCount);
+        int numericContainerId = Math.abs(streamSegmentName.hashCode()) % this.containerCount;
+        return getContainerId(numericContainerId);
     }
 }
