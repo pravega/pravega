@@ -209,7 +209,7 @@ public class ByteArraySegmentTests {
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.", new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());
     }
 
-    private void checkReadOnlyException(String methodName, Runnable code) {
+    private void checkReadOnlyException(String methodName, AssertExtensions.RunnableWithException code) {
         AssertExtensions.assertThrows(
                 methodName + " did not throw the expected exception while in read-only mode.",
                 code,

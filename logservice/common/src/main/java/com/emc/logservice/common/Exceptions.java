@@ -88,7 +88,7 @@ public final class Exceptions {
      *                                        greater than upBoundExclusive.
      * @throws IllegalArgumentException       If length is a negative number.
      */
-    public static void throwIfIllegalArrayRange(int startIndex, int length, int lowBoundInclusive, int upBoundExclusive, String startIndexArgName, String lengthArgName) throws ArrayIndexOutOfBoundsException, IllegalArgumentException {
+    public static void throwIfIllegalArrayRange(long startIndex, int length, long lowBoundInclusive, long upBoundExclusive, String startIndexArgName, String lengthArgName) throws ArrayIndexOutOfBoundsException, IllegalArgumentException {
         // Check for non-negative length.
         if (length < 0) {
             throw new IllegalArgumentException(String.format("%s must be a non-negative integer."));

@@ -1,21 +1,22 @@
 package com.emc.logservice.storageabstraction.mocks;
 
 import com.emc.logservice.common.*;
-import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.*;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
 class InMemoryDurableDataLog implements DurableDataLog {
     private final EntryCollection entries;
+    private final String clientId;
     private long offset;
     private long lastAppendSequence;
     private boolean closed;
@@ -26,29 +27,47 @@ class InMemoryDurableDataLog implements DurableDataLog {
         this.entries = entries;
         this.offset = Long.MIN_VALUE;
         this.lastAppendSequence = Long.MIN_VALUE;
+        this.clientId = UUID.randomUUID().toString();
     }
 
     //region DurableDataLog Implementation
 
     @Override
     public void close() {
-        this.closed = true;
+        if (!this.closed) {
+            try {
+                this.entries.releaseLock(this.clientId);
+            }
+            catch (DataLogWriterNotPrimaryException ex) {
+                // Nothing. Just let it go.
+            }
+
+            this.closed = true;
+        }
     }
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
-        if (this.entries.size() == 0) {
-            this.offset = 0;
-            this.lastAppendSequence = Long.MIN_VALUE;
-        }
-        else {
-            Entry last = this.entries.getLast();
-            this.offset = last.offset + last.data.length;
-            this.lastAppendSequence = last.offset;
-        }
+        return CompletableFuture.runAsync(() -> {
+            try {
+                this.entries.acquireLock(this.clientId);
+            }
+            catch (DataLogWriterNotPrimaryException ex) {
+                throw new CompletionException(ex);
+            }
 
-        this.initialized = true;
-        return CompletableFuture.completedFuture(null);
+            if (this.entries.size() == 0) {
+                this.offset = 0;
+                this.lastAppendSequence = Long.MIN_VALUE;
+            }
+            else {
+                Entry last = this.entries.getLast();
+                this.offset = last.sequenceNumber + last.data.length;
+                this.lastAppendSequence = last.sequenceNumber;
+            }
+
+            this.initialized = true;
+        });
     }
 
     @Override
@@ -70,37 +89,42 @@ class InMemoryDurableDataLog implements DurableDataLog {
             Entry entry;
             try {
                 entry = new Entry(data);
+                synchronized (this.entries) {
+                    entry.sequenceNumber = this.offset;
+                    this.entries.add(entry, clientId);
+
+                    // Only update internals after a successful add.
+                    this.offset += entry.data.length;
+                    this.lastAppendSequence = entry.sequenceNumber;
+                }
             }
-            catch (IOException ex) {
+            catch (DataLogWriterNotPrimaryException | IOException ex) {
                 throw new CompletionException(ex);
             }
 
-            synchronized (this.entries) {
-                entry.offset = this.offset;
-                this.offset += entry.data.length;
-                this.entries.add(entry);
-                this.lastAppendSequence = entry.offset;
-            }
-
-            return entry.offset;
+            return entry.sequenceNumber;
         });
     }
 
     @Override
-    public CompletableFuture<Void> truncate(long offset, Duration timeout) {
+    public CompletableFuture<Void> truncate(long upToSequence, Duration timeout) {
         ensurePreconditions();
-
         return CompletableFuture.runAsync(() -> {
             synchronized (this.entries) {
-                while (this.entries.size() > 0 && this.entries.getFirst().offset + this.entries.getFirst().data.length <= offset) {
-                    this.entries.removeFirst();
+                while (this.entries.size() > 0 && this.entries.getFirst().sequenceNumber <= upToSequence) {
+                    try {
+                        this.entries.removeFirst(this.clientId);
+                    }
+                    catch (DataLogWriterNotPrimaryException ex) {
+                        throw new CompletionException(ex);
+                    }
                 }
             }
         });
     }
 
     @Override
-    public AsyncIterator<ReadItem> getReader(long afterSequence) {
+    public AsyncIterator<ReadItem> getReader(long afterSequence) throws DurableDataLogException {
         ensurePreconditions();
         return new ReadResultIterator(this.entries.iterator(), afterSequence);
     }
@@ -128,7 +152,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
             ReadItem result = null;
             while (this.entryIterator.hasNext() && result == null) {
                 Entry e = this.entryIterator.next();
-                if (e.offset <= afterSequence) {
+                if (e.sequenceNumber <= afterSequence) {
                     continue;
                 }
 
@@ -156,7 +180,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         public ReadResultItem(Entry entry) {
             this.payload = new byte[entry.data.length];
             System.arraycopy(entry.data, 0, this.payload, 0, this.payload.length);
-            this.sequence = entry.offset;
+            this.sequence = entry.sequenceNumber;
         }
 
         @Override
@@ -179,12 +203,15 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     static class EntryCollection {
         private final LinkedList<Entry> entries;
+        private final AtomicReference<String> writeLock;
 
         public EntryCollection() {
             this.entries = new LinkedList<>();
+            this.writeLock = new AtomicReference<>();
         }
 
-        public void add(Entry entry) {
+        public void add(Entry entry, String clientId) throws DataLogWriterNotPrimaryException {
+            ensureLock(clientId);
             this.entries.add(entry);
         }
 
@@ -200,19 +227,59 @@ class InMemoryDurableDataLog implements DurableDataLog {
             return this.entries.getLast();
         }
 
-        public Entry removeFirst() {
+        public Entry removeFirst(String clientId) throws DataLogWriterNotPrimaryException {
+            ensureLock(clientId);
             return this.entries.removeFirst();
         }
 
         public Iterator<Entry> iterator() {
             return this.entries.iterator();
         }
+
+        void acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
+            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            synchronized (this.writeLock) {
+                String existingLockOwner = this.writeLock.get();
+                if (existingLockOwner != null) {
+                    throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is already owned by " + clientId);
+                }
+
+                this.writeLock.set(clientId);
+            }
+        }
+
+        void forceAcquireLock(String clientId) {
+            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            synchronized (this.writeLock) {
+                this.writeLock.set(clientId);
+            }
+        }
+
+        void releaseLock(String clientId) throws DataLogWriterNotPrimaryException {
+            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            synchronized (this.writeLock) {
+                String existingLockOwner = this.writeLock.get();
+                if (existingLockOwner == null || !existingLockOwner.equals(clientId)) {
+                    throw new DataLogWriterNotPrimaryException("Unable to release exclusive write lock because the current client does not own it. Current owner: " + clientId);
+                }
+
+                this.writeLock.set(null);
+            }
+        }
+
+        private void ensureLock(String clientId) throws DataLogWriterNotPrimaryException {
+            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            String existingLockOwner = this.writeLock.get();
+            if (existingLockOwner != null && !existingLockOwner.equals(clientId)) {
+                throw new DataLogWriterNotPrimaryException("Unable to perform operation because the write lock is owned by a different client " + clientId);
+            }
+        }
     }
 
     //region Entry
 
     static class Entry {
-        public long offset;
+        public long sequenceNumber;
         public final byte[] data;
 
         public Entry(InputStream inputData) throws IOException {
@@ -222,7 +289,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         @Override
         public String toString() {
-            return String.format("Offset = %d, Length = %d", offset, data.length);
+            return String.format("SequenceNumber = %d, Length = %d", sequenceNumber, data.length);
         }
     }
 

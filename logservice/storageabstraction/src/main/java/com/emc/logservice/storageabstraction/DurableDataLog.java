@@ -12,6 +12,12 @@ import java.util.concurrent.CompletableFuture;
 public interface DurableDataLog extends AutoCloseable {
     /**
      * Initializes the DurableDataLog and performs any recovery steps that may be required.
+     * The exceptions that can be returned in the CompletableFuture (asynchronously) can be:
+     * <ul>
+     * <li>DataLogNotAvailableException - When it is not possible to reach the DataLog at the current time.
+     * <li>DataLogWriterNotPrimaryException - When the DurableDataLog could not acquire the exclusive write lock for its log.
+     * <li>DataLogInitializationException - When a general initialization failure occurred.
+     * </ul>
      *
      * @param timeout
      * @return A CompletableFuture that, when completed, will indicate that the operation has completed. If the operation
@@ -21,6 +27,13 @@ public interface DurableDataLog extends AutoCloseable {
 
     /**
      * Adds a new entry to the log.
+     * The exceptions that can be returned in the CompletableFuture (asynchronously) can be:
+     * <ul>
+     * <li>DataLogNotAvailableException - When it is not possible to write to the DataLog at the current time.
+     * <li>DataLogWriterNotPrimaryException - When the DurableDataLog has lost the exclusive write lock for its log.
+     * <li>WriteFailureException - When a general failure occurred with the write.
+     * <li>WriteTooLongException - When a write that is greater than getMaxAppendLength() is given.
+     * </ul>
      *
      * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
      *                where the data should be read from. The InputStream's available() method must also specify the number
@@ -33,6 +46,12 @@ public interface DurableDataLog extends AutoCloseable {
 
     /**
      * Truncates the log up to the given sequence.
+     * The exceptions that can be returned in the CompletableFuture (asynchronously) can be:
+     * <ul>
+     * <li>DataLogNotAvailableException - When it is not possible to write to the DataLog at the current time.
+     * <li>DataLogWriterNotPrimaryException - When the DurableDataLog has lost the exclusive write lock for its log.
+     * <li>WriteFailureException - When a general failure occurred with the write.
+     * </ul>
      *
      * @param upToSequence The Sequence up to where to truncate. This is the value returned either by append() or obtained
      *                     via read().
@@ -47,6 +66,7 @@ public interface DurableDataLog extends AutoCloseable {
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return An AsyncIterator with the result.
+     * @throws DataLogNotAvailableException If it is not possible to reach the DataLog at the current time.
      * @throws DurableDataLogException If the operation was unable to open a reader.
      */
     AsyncIterator<ReadItem> getReader(long afterSequence) throws DurableDataLogException;

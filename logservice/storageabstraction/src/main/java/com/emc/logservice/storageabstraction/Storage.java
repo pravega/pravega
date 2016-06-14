@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines an abstraction for Permanent Storage.
  */
-public interface Storage {
+public interface Storage extends AutoCloseable {
     /**
      * Creates a new StreamSegment in this Storage Layer.
      *
@@ -93,4 +93,7 @@ public interface Storage {
      * it will contain the cause of the failure.
      */
     CompletableFuture<Void> delete(String streamSegmentName, Duration timeout);
+
+    @Override
+    void close();
 }
