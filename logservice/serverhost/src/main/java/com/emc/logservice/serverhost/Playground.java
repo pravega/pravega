@@ -7,13 +7,14 @@ import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.*;
 import com.emc.logservice.server.logs.*;
 import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
 import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.storageabstraction.mocks.*;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -40,7 +41,6 @@ public class Playground {
         //testOperationQueueProcessor();
         //testDataFrameBuilder();
         //testDataFrame();
-        //testInMemoryStorage();
     }
 
     private static void testStreamSegmentContainer() throws Exception {
@@ -800,62 +800,6 @@ public class Playground {
         }
     }
 
-    private static void testInMemoryStorage() {
-        //TODO: don't delete this. Move this to some sort of self-test method in InMemoryStorage.
-        final int streamCount = 1;
-        final int appendCount = 10;
-        final int maxAppendSize = 1 * 1024 * 1024;
-        final byte[] appendSourceBuffer = new byte[maxAppendSize];
-        final Random r = new Random();
-        r.nextBytes(appendSourceBuffer);
-
-        HashMap<Integer, ByteArrayOutputStream> expectedDataStreams = new HashMap<>();
-
-        InMemoryStorage s = new InMemoryStorage();
-
-        // Do some writing (append-only).
-        System.out.println("Writing...");
-        for (int streamId = 0; streamId < streamCount; streamId++) {
-            ByteArrayOutputStream expectedData = new ByteArrayOutputStream();
-            expectedDataStreams.put(streamId, expectedData);
-            String streamName = getStreamName(streamId);
-            s.create(streamName, Duration.ZERO).join();
-
-            for (int appendId = 0; appendId < appendCount; appendId++) {
-                SegmentProperties streamInfo = s.getStreamSegmentInfo(streamName, Duration.ZERO).join();
-                if (streamInfo.getLength() != expectedData.size()) {
-                    System.out.println(String.format("Stream %d, Append %d: Expected BeforeLength = %d, Actual BeforeLength = %d.", streamId, appendId, expectedData.size(), streamInfo.getLength()));
-                }
-
-                int appendSize = r.nextInt(maxAppendSize);
-                expectedData.write(appendSourceBuffer, 0, appendSize);
-                s.write(streamName, streamInfo.getLength(), new ByteArrayInputStream(appendSourceBuffer, 0, appendSize), appendSize, Duration.ZERO).join();
-            }
-        }
-
-        // Do some reading
-        System.out.println("Reading...");
-        for (int streamId = 0; streamId < streamCount; streamId++) {
-            byte[] expectedData = expectedDataStreams.get(streamId).toByteArray();
-            String streamName = getStreamName(streamId);
-
-            int increment = Math.max(1, maxAppendSize / 1024);
-            for (int offset = 0; offset < expectedData.length / 2; offset += increment) {
-                int readLength = expectedData.length - 2 * offset;
-                byte[] readBuffer = new byte[readLength];
-                int bytesRead = s.read(streamName, offset, readBuffer, 0, readLength, Duration.ZERO).join();
-
-                if (bytesRead != readLength) {
-                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong number of bytes read (%d).", streamId, offset, readLength, bytesRead));
-                }
-
-                if (!areEqual(expectedData, offset, readBuffer, 0, readLength)) {
-                    System.out.println(String.format("Stream %d, Read %d/%d: Wrong data read.", streamId, offset, readLength));
-                }
-            }
-        }
-    }
-
     //region Helpers
 
     private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, Cache index, String expectedContents, boolean verbose) throws Exception {
@@ -1149,42 +1093,6 @@ public class Playground {
         }
 
         return true;
-    }
-
-    private static boolean areEqual(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
-        if (offset1 + length > b1.length || offset2 + length > b2.length) {
-            System.out.println(String.format("L1=%d, O1=%d, L2=%d, O2=%d, MinLength=%d", b1.length, offset1, b2.length, offset2, length));
-            return false;
-        }
-
-        for (int i = 0; i < length; i++) {
-            if (b1[i + offset1] != b2[i + offset2]) {
-                System.out.println(String.format("b1[%d]=%d, b2[%d]=%d", i, b1[i + offset1], i, b2[i + offset2]));
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    //endregion
-
-    //region InMemoryMetadataRepository
-    private static class InMemoryMetadataRepository implements MetadataRepository {
-        private final HashMap<String, UpdateableContainerMetadata> metadatas = new HashMap<>();
-
-        @Override
-        public UpdateableContainerMetadata getMetadata(String streamSegmentContainerId) {
-            synchronized (this.metadatas) {
-                UpdateableContainerMetadata result = this.metadatas.getOrDefault(streamSegmentContainerId, null);
-                if (result == null) {
-                    result = new StreamSegmentContainerMetadata(streamSegmentContainerId);
-                    this.metadatas.put(streamSegmentContainerId, result);
-                }
-
-                return result;
-            }
-        }
     }
 
     //endregion

@@ -58,7 +58,7 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws MissingPropertyException When the given property name does not exist within the current component.
      */
-    public String getProperty(String name) throws MissingPropertyException {
+    protected String getProperty(String name) throws MissingPropertyException {
         String fullKeyName = getPropertyKey(name);
         String value = this.properties.getProperty(fullKeyName, null);
         if (value == null) {
@@ -75,7 +75,7 @@ public abstract class ComponentConfig {
      * @param defaultValue The default value for the property.
      * @return The property value or default value, if no such is defined in the base Properties.
      */
-    public String getProperty(String name, String defaultValue) {
+    protected String getProperty(String name, String defaultValue) {
         String fullKeyName = getPropertyKey(name);
         return this.properties.getProperty(fullKeyName, defaultValue);
     }
@@ -88,7 +88,7 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
-    public int getInt32Property(String name) throws MissingPropertyException, InvalidPropertyValueException {
+    protected int getInt32Property(String name) throws MissingPropertyException, InvalidPropertyValueException {
         String value = getProperty(name).trim();
 
         try {
@@ -107,7 +107,7 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int32.
      */
-    public int getInt32Property(String name, int defaultValue) throws InvalidPropertyValueException {
+    protected int getInt32Property(String name, int defaultValue) throws InvalidPropertyValueException {
         String value = getProperty(name, null);
         if (value == null) {
             return defaultValue;
@@ -129,7 +129,7 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
      */
-    public long getInt64Property(String name) throws MissingPropertyException, InvalidPropertyValueException {
+    protected long getInt64Property(String name) throws MissingPropertyException, InvalidPropertyValueException {
         String value = getProperty(name).trim();
 
         try {
@@ -148,7 +148,7 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as an Int64.
      */
-    public long getInt64Property(String name, long defaultValue) throws InvalidPropertyValueException {
+    protected long getInt64Property(String name, long defaultValue) throws InvalidPropertyValueException {
         String value = getProperty(name, null);
         if (value == null) {
             return defaultValue;
@@ -175,7 +175,7 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException      When the given property name does not exist within the current component.
      * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
      */
-    public boolean getBooleanProperty(String name) throws MissingPropertyException, InvalidPropertyValueException {
+    protected boolean getBooleanProperty(String name) throws MissingPropertyException, InvalidPropertyValueException {
         String value = getProperty(name).trim();
 
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("1")) {
@@ -202,7 +202,7 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      * @throws InvalidPropertyValueException When the property cannot be parsed as a Boolean.
      */
-    public boolean getBooleanProperty(String name, boolean defaultValue) throws InvalidPropertyValueException {
+    protected boolean getBooleanProperty(String name, boolean defaultValue) throws InvalidPropertyValueException {
         String value = getProperty(name, null);
         if (value == null) {
             return defaultValue;

@@ -1,5 +1,6 @@
 package com.emc.logservice.common;
 
+import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -12,6 +13,7 @@ import java.util.Arrays;
 public class FixedByteArrayOutputStreamTests {
     /**
      * Tests that FixedByteArrayOutputStream works as advertised.
+     *
      * @throws IOException
      */
     @Test
@@ -36,21 +38,15 @@ public class FixedByteArrayOutputStreamTests {
             Arrays.fill(secondHalf, (byte) SecondHalfFillValue);
             os.write(secondHalf);
 
-            try {
-                os.write(255);
-                Assert.fail("write(byte) allowed writing beyond the end of the stream.");
-            }
-            catch (IOException ex) {
-                //OK.
-            }
+            AssertExtensions.assertThrows(
+                    "write(byte) allowed writing beyond the end of the stream.",
+                    () -> os.write(255),
+                    ex -> ex instanceof IOException);
 
-            try {
-                os.write(new byte[10]);
-                Assert.fail("write(byte[]) allowed writing beyond the end of the stream.");
-            }
-            catch (IOException ex) {
-                //OK.
-            }
+            AssertExtensions.assertThrows(
+                    "write(byte[]) allowed writing beyond the end of the stream.",
+                    () -> os.write(new byte[10]),
+                    ex -> ex instanceof IOException);
         }
 
         for (int i = 0; i < buffer.length; i++) {

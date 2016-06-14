@@ -28,7 +28,7 @@ public final class Exceptions {
      */
     public static void throwIfNullOfEmpty(String arg, String argName) throws NullPointerException, IllegalArgumentException {
         throwIfNull(arg, argName);
-        throwIfIllegalArgument(arg.length() >= 0, argName, "Cannot be an empty string.");
+        throwIfIllegalArgument(arg.length() > 0, argName, "Cannot be an empty string.");
     }
 
     /**
@@ -70,6 +70,8 @@ public final class Exceptions {
      * @throws ArrayIndexOutOfBoundsException If index is less than lowBoundInclusive or greater than or equal to upBoundExclusive.
      */
     public static void throwIfIllegalArrayIndex(int index, int lowBoundInclusive, int upBoundExclusive, String indexArgName) throws ArrayIndexOutOfBoundsException {
+        // No need to compare lowBoundInclusive with upBoundInclusive because if they were in an invalid order,
+        // this method will always throw an exception.
         if (index < lowBoundInclusive || index >= upBoundExclusive) {
             throw new ArrayIndexOutOfBoundsException(String.format("%s: value must be in interval [%d, %d), given %d.", indexArgName, lowBoundInclusive, upBoundExclusive, index));
         }
@@ -91,11 +93,11 @@ public final class Exceptions {
     public static void throwIfIllegalArrayRange(long startIndex, int length, long lowBoundInclusive, long upBoundExclusive, String startIndexArgName, String lengthArgName) throws ArrayIndexOutOfBoundsException, IllegalArgumentException {
         // Check for non-negative length.
         if (length < 0) {
-            throw new IllegalArgumentException(String.format("%s must be a non-negative integer."));
+            throw new IllegalArgumentException(String.format("%s must be a non-negative integer.", lengthArgName));
         }
 
-        // Check for valid length.
-        if (startIndex < lowBoundInclusive) {
+        // Check for valid start index.
+        if (startIndex < lowBoundInclusive || startIndex >= upBoundExclusive) {
             throw new ArrayIndexOutOfBoundsException(String.format("%s: value must be in interval [%d, %d), given %d.", startIndexArgName, lowBoundInclusive, upBoundExclusive, startIndex));
         }
 
