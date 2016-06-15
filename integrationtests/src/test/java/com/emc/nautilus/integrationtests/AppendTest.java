@@ -105,7 +105,7 @@ public class AppendTest {
 
 		DataAppended ack = (DataAppended) sendRequest(	channel,
 														decoder,
-														new AppendData(segment, data.readableBytes(), data));
+														new AppendData(uuid, data.readableBytes(), data));
 		assertEquals(segment, ack.getSegment());
 		assertEquals(data.readableBytes(), ack.getConnectionOffset());
 	}

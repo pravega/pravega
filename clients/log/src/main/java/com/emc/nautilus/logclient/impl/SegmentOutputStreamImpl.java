@@ -105,10 +105,10 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
-		private AppendData createNewInflightAppend(String segment, ByteBuffer buff) {
+		private AppendData createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff) {
 			synchronized (lock) {
 				writeOffset += buff.remaining();
-				AppendData append = new AppendData(segment, writeOffset, Unpooled.wrappedBuffer(buff));
+				AppendData append = new AppendData(connectionId, writeOffset, Unpooled.wrappedBuffer(buff));
 				inflightEmpty.reset();
 				inflight.add(append);
 				return append;
@@ -222,7 +222,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		}
 		
 		ClientConnection connection = connection();
-		AppendData append = state.createNewInflightAppend(segment, buff);
+		AppendData append = state.createNewInflightAppend(connectionId, segment, buff);
 		connection.send(append);
 		
 		return append.getConnectionOffset();

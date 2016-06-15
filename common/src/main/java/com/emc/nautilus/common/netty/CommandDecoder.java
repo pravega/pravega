@@ -1,6 +1,7 @@
 package com.emc.nautilus.common.netty;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
@@ -17,13 +18,13 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class CommandDecoder extends ByteToMessageDecoder {
-
-	private String appendingSegment;
+	
+	private UUID connectionId;
 	private long connectionOffset;
 	private ByteBuf appendHeader;
 
 	public CommandDecoder() {
-		appendingSegment = null;
+		connectionId = null;
 		connectionOffset = 0;
 	}
 
@@ -32,7 +33,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
 		log.debug("Decoding a message");
 		decode(in, out);
 	}
-	
+
 	@VisibleForTesting
 	public void decode(ByteBuf in, List<Object> out) throws Exception {
 		@Cleanup
@@ -50,8 +51,8 @@ public class CommandDecoder extends ByteToMessageDecoder {
 		switch (type) {
 		case APPEND_DATA_HEADER: {
 			long readOffset = is.readLong();
-			String readSegment = is.readUTF();
-			checkSegment(readSegment);
+			UUID id = new UUID(in.readLong(), in.readLong());
+			checkConnectionId(id);
 			checkOffset(connectionOffset, readOffset);
 			if (appendHeader != null) {
 				throw new IllegalStateException("Header appended immediatly after header.");
@@ -61,30 +62,31 @@ public class CommandDecoder extends ByteToMessageDecoder {
 		}
 		case APPEND_DATA_FOOTER: {
 			long readOffset = is.readLong();
+			UUID id = new UUID(in.readLong(), in.readLong());
+			checkConnectionId(id);
 			int dataLength = is.readInt();
-			String readSegment = is.readUTF();
 			if (appendHeader == null) {
 				throw new IllegalStateException("Footer not following header.");
 			}
 			long appendLength = appendHeader.readableBytes() + dataLength;
-			checkSegment(readSegment);
 			connectionOffset += appendLength;
 			checkOffset(connectionOffset, readOffset);
 			if (dataLength > 0) {
 				ByteBuf footerData = in.readBytes(dataLength);
-				out.add(new AppendData(appendingSegment, connectionOffset,
+				out.add(new AppendData(connectionId,
+						connectionOffset,
 						Unpooled.wrappedBuffer(appendHeader, footerData)));
 			} else {
 				int offset = appendHeader.writerIndex();
 				appendHeader.writerIndex(offset + dataLength);
-				out.add(new AppendData(appendingSegment, connectionOffset, appendHeader));
+				out.add(new AppendData(connectionId, connectionOffset, appendHeader));
 			}
 			appendHeader = null;
 			break;
 		}
 		case SETUP_APPEND: {
 			SetupAppend setupAppend = (SetupAppend) type.readFrom(is);
-			appendingSegment = setupAppend.getSegment();
+			connectionId = setupAppend.getConnectionId();
 			connectionOffset = 0;
 			out.add(setupAppend);
 			break;
@@ -101,10 +103,9 @@ public class CommandDecoder extends ByteToMessageDecoder {
 		}
 	}
 
-	private void checkSegment(String readSegment) {
-		if (appendingSegment == null || !appendingSegment.equals(readSegment)) {
-			throw new IllegalStateException(
-					"Append came in for a segment that was not the appending segment: " + readSegment);
+	private void checkConnectionId(UUID id) {
+		if (id == null || !id.equals(connectionId)) {
+			throw new IllegalStateException("Append came in for a segment that was not the appending segment.");
 		}
 	}
 

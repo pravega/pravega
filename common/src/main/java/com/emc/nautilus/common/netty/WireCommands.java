@@ -267,7 +267,7 @@ public final class WireCommands {
 	@Data
 	public static final class AppendData implements Request, Comparable<AppendData> {
 		final WireCommands.Type type = Type.APPEND_DATA;
-		final String segment;
+		final UUID connectionId;
 		final long connectionOffset;
 		final ByteBuf data;
 
@@ -343,9 +343,9 @@ public final class WireCommands {
 		final WireCommands.Type type = Type.SEGMENT_READ;
 		final String segment;
 		final long offset;
-		final ByteBuffer data;
 		final boolean atTail;
 		final boolean endOfStream;
+		final ByteBuffer data;
 
 		@Override
 		public void process(ReplyProcessor cp) {

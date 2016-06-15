@@ -197,6 +197,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 	public void appendData(AppendData appendData) {
 		synchronized (lock) {
 			ByteBuf data = appendData.getData();
+			UUID id = appendData.getConnectionId();
+			if (connectionId == null || !connectionId.equals(id)) {
+				throw new IllegalStateException("Data from unexpected connection: "+id);
+			}
 			long expectedOffset = appendData.getConnectionOffset();
 			waiting.add(data);
 			connectionOffset += data.readableBytes();

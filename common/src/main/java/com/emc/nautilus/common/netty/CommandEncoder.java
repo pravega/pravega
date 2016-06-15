@@ -3,6 +3,7 @@ package com.emc.nautilus.common.netty;
 import static com.emc.nautilus.common.netty.WireCommands.APPEND_BLOCK_SIZE;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
@@ -17,7 +18,7 @@ import lombok.SneakyThrows;
 public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 	private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
-	private String segment;
+	private UUID connectionId;
 	private long connectionOffset;
 	private boolean headerOnNextAppend;
 
@@ -26,7 +27,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 		switch (msg.getType()) {
 		case APPEND_DATA:
 			AppendData append = (AppendData) msg;
-			if (segment == null || !segment.equals(append.getSegment())) {
+			if (connectionId == null || !connectionId.equals(append.getConnectionId())) {
 				throw new IllegalStateException("Sending appends without setting up the append.");
 			}
 			ByteBuf data = append.getData();
@@ -60,7 +61,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 		case SETUP_APPEND:
 			breakFromAppend(out);
 			writeNormalMessage(msg, out);
-			segment = ((SetupAppend) msg).getSegment();
+			connectionId = ((SetupAppend) msg).getConnectionId();
 			break;
 		default:
 			breakFromAppend(out);
@@ -79,7 +80,8 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 		bout.writeInt(Type.APPEND_DATA_HEADER.getCode());
 		bout.write(LENGTH_PLACEHOLDER);
 		bout.writeLong(connectionOffset);
-		bout.writeUTF(segment);
+		bout.writeLong(connectionId.getMostSignificantBits());
+		bout.writeLong(connectionId.getLeastSignificantBits());
 		bout.flush();
 		bout.close();
 		int endIdx = out.writerIndex();
@@ -94,8 +96,9 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 		bout.writeInt(Type.APPEND_DATA_FOOTER.getCode());
 		bout.write(LENGTH_PLACEHOLDER);
 		bout.writeLong(connectionOffset);
+		bout.writeLong(connectionId.getMostSignificantBits());
+		bout.writeLong(connectionId.getLeastSignificantBits());
 		bout.writeInt(dataLength);
-		bout.writeUTF(segment);
 		bout.flush();
 		bout.close();
 		int endIdx = out.writerIndex();
@@ -123,7 +126,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
 			}
 			headerOnNextAppend = true;
 		}
-		segment = null;
+		connectionId = null;
 		connectionOffset = 0;
 	}
 

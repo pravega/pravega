@@ -183,7 +183,7 @@ public class AppendEncodeDecodeTest {
 	}
 
 	private ArrayList<Object> setupAppend(ByteBuf fakeNetwork) throws Exception {
-		SetupAppend setupAppend = new SetupAppend(new UUID(0, 0), testStream);
+		SetupAppend setupAppend = new SetupAppend(new UUID(1, 2), testStream);
 		encoder.encode(null, setupAppend, fakeNetwork);
 		ArrayList<Object> received = new ArrayList<>();
 		decoder.decode(null, fakeNetwork, received);
@@ -196,7 +196,7 @@ public class AppendEncodeDecodeTest {
 		byte[] content = new byte[length];
 		Arrays.fill(content, (byte) contentValue);
 		ByteBuf buffer = Unpooled.wrappedBuffer(content);
-		AppendData msg = new AppendData(testStream, offset, buffer);
+		AppendData msg = new AppendData(new UUID(1, 2), offset, buffer);
 		encoder.encode(null, msg, out);
 		return offset + length;
 	}
