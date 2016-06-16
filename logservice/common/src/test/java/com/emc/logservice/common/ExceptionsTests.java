@@ -87,6 +87,12 @@ public class ExceptionsTests {
                 "Unexpected behavior for throwIfIllegalArrayIndex() with invalid bounds.",
                 () -> Exceptions.throwIfIllegalArrayIndex(10, 10, 10, "i"),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
+
+        // Empty array.
+        AssertExtensions.assertThrows(
+                "Unexpected behavior for throwIfIllegalArrayIndex() with empty array.",
+                () -> Exceptions.throwIfIllegalArrayIndex(0, 0, 0, "i"),
+                ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
     /**
@@ -118,6 +124,15 @@ public class ExceptionsTests {
                 "Unexpected behavior for throwIfIllegalArrayRange() with negative length.",
                 () -> Exceptions.throwIfIllegalArrayRange(10, -1, 8, 20, "start", "length"),
                 ex -> ex instanceof IllegalArgumentException);
+
+        // Empty array with empty range (this is a valid case).
+        Exceptions.throwIfIllegalArrayRange(0, 0, 0, 0, "start", "length");
+
+        // Empty array with non-empty range (not a valid case).
+        AssertExtensions.assertThrows(
+                "Unexpected behavior for throwIfIllegalArrayRange() with non-empty range in an empty array.",
+                () -> Exceptions.throwIfIllegalArrayRange(0, 1, 0, 0, "start", "length"),
+                ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
     /**

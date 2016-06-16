@@ -2,6 +2,8 @@ package com.emc.nautilus.testcommon;
 
 import org.junit.Assert;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -111,64 +113,87 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that value1 < value2
+     * Asserts that the contents of the given InputStream are the same.
      *
-     * @param message The message to include in the Assert calls.
-     * @param value1  The first value.
-     * @param value2  The second value.
+     * @param message   The message to include in the Assert calls.
+     * @param s1        The first InputStream to check.
+     * @param s2        The second InputStream to check.
+     * @param maxLength The maximum number of bytes to check.
      */
-    public static void assertLessThan(String message, long value1, long value2) {
-        Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, value1, value2), value1 < value2);
+    public static void assertStreamEquals(String message, InputStream s1, InputStream s2, int maxLength) throws IOException {
+        int readSoFar = 0;
+        while (readSoFar < maxLength) {
+            int b1 = s1.read();
+            int b2 = s2.read();
+            Assert.assertEquals(message + " InputStreams differ at index " + readSoFar, b1, b2); // This also includes the case when one stream ends prematurely.
+            readSoFar++;
+            if (b1 < 0) {
+                break;// We have reached the end of both streams.
+            }
+        }
     }
 
     /**
-     * Asserts that value1 <= value2
+     * Asserts that smaller < larger
      *
      * @param message The message to include in the Assert calls.
-     * @param value1  The first value.
-     * @param value2  The second value.
+     * @param smaller The first value (smaller).
+     * @param larger  The second value (larger).
      */
-    public static void assertLessThanOrEqual(String message, long value1, long value2) {
-        Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, value1, value2), value1 <= value2);
+    public static void assertLessThan(String message, long smaller, long larger) {
+        Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, smaller, larger), smaller < larger);
     }
 
     /**
-     * Asserts that value1 > value2
+     * Asserts that smaller <= larger
      *
      * @param message The message to include in the Assert calls.
-     * @param value1  The first value.
-     * @param value2  The second value.
+     * @param smaller The first value (smaller).
+     * @param larger  The second value (larger).
      */
-    public static void assertGreaterThan(String message, long value1, long value2) {
-        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, value2, value1), value1 > value2);
+    public static void assertLessThanOrEqual(String message, long smaller, long larger) {
+        Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, smaller, larger), smaller <= larger);
     }
 
     /**
-     * Asserts that value1 >= value2
+     * Asserts that larger > smaller
      *
      * @param message The message to include in the Assert calls.
-     * @param value1  The first value.
-     * @param value2  The second value.
+     * @param larger  The first value (larger).
+     * @param smaller The second value (smaller).
      */
-    public static void assertGreaterThanOrEqual(String message, long value1, long value2) {
-        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, value2, value1), value1 >= value2);
+    public static void assertGreaterThan(String message, long larger, long smaller) {
+        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, smaller, larger), larger > smaller);
+    }
+
+    /**
+     * Asserts that larger >= smaller
+     *
+     * @param message The message to include in the Assert calls.
+     * @param larger  The first value (larger).
+     * @param smaller The second value (smaller).
+     */
+    public static void assertGreaterThanOrEqual(String message, long larger, long smaller) {
+        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, smaller, larger), larger >= smaller);
     }
 
     /**
      * Asserts that string is null or equal to the empty string.
+     *
      * @param message The message to include in the Assert calls.
-     * @param string The String to test.
+     * @param string  The String to test.
      */
-    public static void assertNullOrEmpty(String message, String string){
+    public static void assertNullOrEmpty(String message, String string) {
         Assert.assertTrue(message, string == null || string.length() == 0);
     }
 
     /**
      * Asserts that string is not null or an empty string.
+     *
      * @param message The message to include in the Assert calls.
-     * @param string The String to test.
+     * @param string  The String to test.
      */
-    public static void assertNotNullOrEmpty(String message, String string){
+    public static void assertNotNullOrEmpty(String message, String string) {
         Assert.assertFalse(message, string == null || string.length() == 0);
     }
 

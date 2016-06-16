@@ -1,8 +1,9 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
+import com.emc.logservice.contracts.RuntimeStreamingException;
 
-import java.io.*;
+import java.io.InputStream;
 import java.util.NoSuchElementException;
 
 /**
@@ -270,7 +271,7 @@ public class DataFrame {
      *
      * @throws IllegalStateException If an open entry exists (entries must be closed prior to sealing).
      */
-    public void seal() throws SerializationException {
+    public void seal() {
         if (!this.sealed && !this.contents.isReadOnly()) {
             Exceptions.throwIfIllegalState(writeEntryStartIndex < 0, "An open entry exists. Any open entries must be closed prior to sealing.");
 
@@ -322,7 +323,7 @@ public class DataFrame {
     public IteratorWithException<DataFrameEntry, SerializationException> getEntries() {
         // The true max length differs based on whether we are still writing this frame or if it's read-only.
         int maxLength = this.writePosition >= 0 ? this.writePosition : this.contents.getLength();
-        return new DataFrameEntryIterator(this.contents, this.getFrameSequence(), maxLength);
+        return new DataFrameEntryIterator(this.contents.asReadOnly(), this.getFrameSequence(), maxLength);
     }
 
     private void parse() throws SerializationException {
@@ -336,6 +337,52 @@ public class DataFrame {
         }
 
         this.contents = this.data.subSegment(this.header.getSerializationLength(), this.header.getContentLength());
+    }
+
+    //endregion
+
+    //region Helpers
+
+    private static int writeInt(ByteArraySegment target, int offset, int value) {
+        target.setSequence(
+                offset,
+                (byte) (value >>> 24),
+                (byte) (value >>> 16),
+                (byte) (value >>> 8),
+                (byte) value);
+        return Integer.BYTES;
+    }
+
+    private static int readInt(ByteArraySegment source, int position) {
+        return (source.get(position) & 0xFF) << 24
+                | (source.get(position + 1) & 0xFF) << 16
+                | (source.get(position + 2) & 0xFF) << 8
+                | (source.get(position + 3) & 0xFF);
+    }
+
+    private static int writeLong(ByteArraySegment target, int offset, long value) {
+        target.setSequence(
+                offset,
+                (byte) (value >>> 56),
+                (byte) (value >>> 48),
+                (byte) (value >>> 40),
+                (byte) (value >>> 32),
+                (byte) (value >>> 24),
+                (byte) (value >>> 16),
+                (byte) (value >>> 8),
+                (byte) value);
+        return Long.BYTES;
+    }
+
+    private static long readLong(ByteArraySegment source, int position) {
+        return (long) (source.get(position) & 0xFF) << 56
+                | (long) (source.get(position + 1) & 0xFF) << 48
+                | (long) (source.get(position + 2) & 0xFF) << 40
+                | (long) (source.get(position + 3) & 0xFF) << 32
+                | (long) (source.get(position + 4) & 0xFF) << 24
+                | (source.get(position + 5) & 0xFF) << 16
+                | (source.get(position + 6) & 0xFF) << 8
+                | (source.get(position + 7) & 0xFF);
     }
 
     //endregion
@@ -467,26 +514,6 @@ public class DataFrame {
         }
 
         //endregion
-
-        //region Helpers
-
-        private void writeInt(ByteArraySegment target, int offset, int value) {
-            target.setSequence(
-                    offset,
-                    (byte) (value >>> 24),
-                    (byte) (value >>> 16),
-                    (byte) (value >>> 8),
-                    (byte) value);
-        }
-
-        private int readInt(ByteArraySegment source, int position) {
-            return (source.get(position) & 0xFF) << 24
-                    | (source.get(position + 1) & 0xFF) << 16
-                    | (source.get(position + 2) & 0xFF) << 8
-                    | (source.get(position + 3) & 0xFF);
-        }
-
-        //endregion
     }
 
     //endregion
@@ -540,22 +567,21 @@ public class DataFrame {
                 throw new SerializationException("DataFrame.Header.deserialize", "Null or empty source buffer.");
             }
 
-            try (DataInputStream input = new DataInputStream(source.getReader())) {
-                this.version = input.readByte();
-                this.actualSerializationLength = SerializationLength; //TODO: this will change based on serialization version.
-                if (source.getLength() < this.actualSerializationLength) {
-                    throw new SerializationException("DataFrame.Header.deserialize", "DataFrame.Header has insufficient number of bytes given its serialization version.");
-                }
+            int sourceOffset = 0;
+            this.version = source.get(sourceOffset);
+            sourceOffset += Byte.BYTES;
+            this.actualSerializationLength = SerializationLength; // This will change based on serialization version.
+            if (source.getLength() < this.actualSerializationLength) {
+                throw new SerializationException("DataFrame.Header.deserialize", "DataFrame.Header has insufficient number of bytes given its serialization version.");
+            }
 
-                this.previousFrameSequence = input.readLong();
-                this.contentLength = input.readInt();
-                byte flags = input.readByte();
-                decodeFlags(flags, version);
-                this.buffer = null;
-            }
-            catch (IOException ex) {
-                throw new SerializationException("DataFrame.Header.deserialize", "Cannot deserialize frame header.", ex);
-            }
+            this.previousFrameSequence = readLong(source, sourceOffset);
+            sourceOffset += Long.BYTES;
+            this.contentLength = readInt(source, sourceOffset);
+            sourceOffset += Integer.BYTES;
+            byte flags = source.get(sourceOffset);
+            decodeFlags(flags, version);
+            this.buffer = null;
         }
 
         //endregion
@@ -565,22 +591,19 @@ public class DataFrame {
         /**
          * Commits (serializes) the contents of the FrameHeader to the ByteArraySegment given during construction.
          *
-         * @throws SerializationException If we are unable to serialize the header.
-         * @throws IllegalStateException  If this FrameHeader was created from a read-only buffer (it was deserialized).
+         * @throws IllegalStateException If this FrameHeader was created from a read-only buffer (it was deserialized).
          */
-        public void commit() throws SerializationException {
+        public void commit() {
             Exceptions.throwIfIllegalState(this.buffer != null && !this.buffer.isReadOnly(), "Cannot commit a read-only FrameHeader");
+            assert this.buffer.getLength() == SerializationLength;
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.
-            try (DataOutputStream output = new DataOutputStream(this.buffer.getWriter())) {
-                output.writeByte(this.version);
-                output.writeLong(this.previousFrameSequence);
-                output.writeInt(this.contentLength);
-                output.writeByte(encodeFlags());
-            }
-            catch (IOException ex) {
-                throw new SerializationException("DataFrame.Header.serialize", "Cannot serialize frame header.", ex);
-            }
+            int bufferOffset = 0;
+            this.buffer.set(bufferOffset, this.version);
+            bufferOffset += Byte.BYTES;
+            bufferOffset += writeLong(this.buffer, bufferOffset, this.previousFrameSequence);
+            bufferOffset += writeInt(this.buffer, bufferOffset, this.contentLength);
+            this.buffer.set(bufferOffset, encodeFlags());
         }
 
         /**
@@ -761,7 +784,7 @@ public class DataFrame {
         }
 
         @Override
-        public DataFrameEntry pollNextElement() throws SerializationException {
+        public DataFrameEntry pollNext() throws SerializationException {
             if (!hasNext()) {
                 throw new NoSuchElementException("Reached the end of the DataFrame.");
             }
@@ -789,10 +812,10 @@ public class DataFrame {
         @Override
         public DataFrameEntry next() {
             try {
-                return pollNextElement();
+                return pollNext();
             }
             catch (SerializationException ex) {
-                throw new RuntimeException(ex);
+                throw new RuntimeStreamingException("DataFrameEntryIterator.next", ex);
             }
         }
 

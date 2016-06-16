@@ -379,7 +379,7 @@ public class OperationQueueProcessor implements Container {
          *
          * @param ex The cause of the failure. The operations will be failed with this as a cause.
          */
-        public void fail(Exception ex) {
+        public void fail(Throwable ex) {
             log.error("{}: CommitFailure ({} operations). {}", this.traceObjectId, this.pendingOperations.size(), ex);
 
             // Discard all updates to the metadata.

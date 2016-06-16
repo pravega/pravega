@@ -115,14 +115,14 @@ public class DataFrameReader implements AutoCloseable {
             SegmentCollection result = new SegmentCollection();
             TimeoutTimer timer = new TimeoutTimer(timeout);
             while (true) {
-                DataFrame.DataFrameEntry nextDataFrame = this.frameContentsEnumerator.getNext(timer.getRemaining()).join();
-                if (nextDataFrame == null) {
+                DataFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext(timer.getRemaining()).join();
+                if (nextEntry == null) {
                     // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
                     // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
                     return null;
                 }
                 else {
-                    if (nextDataFrame.isFirstRecordEntry()) {
+                    if (nextEntry.isFirstRecordEntry()) {
                         // We encountered a 'First entry'. We need to discard whatever we have so far, and start
                         // constructing a new Operation. This happens if an entry was committed partially, but we were
                         // unable to write the rest of it.
@@ -131,13 +131,13 @@ public class DataFrameReader implements AutoCloseable {
 
                     // Add the current entry's contents to the result.
                     try {
-                        result.add(nextDataFrame.getData(), nextDataFrame.getDataFrameSequence(), nextDataFrame.isLastEntryInDataFrame());
+                        result.add(nextEntry.getData(), nextEntry.getDataFrameSequence(), nextEntry.isLastEntryInDataFrame());
                     }
                     catch (DataCorruptionException ex) {
                         throw new CompletionException(ex);
                     }
 
-                    if (nextDataFrame.isLastRecordEntry()) {
+                    if (nextEntry.isLastRecordEntry()) {
                         // We are done. We found the last entry for a record.
                         return result;
                     }
@@ -351,7 +351,7 @@ public class DataFrameReader implements AutoCloseable {
             // Check to see if we are in the middle of a frame, in which case, just return the next element.
             if (this.currentFrameContents != null && this.currentFrameContents.hasNext()) {
                 try {
-                    DataFrame.DataFrameEntry result = this.currentFrameContents.pollNextElement();
+                    DataFrame.DataFrameEntry result = this.currentFrameContents.pollNext();
                     if (result != null) {
                         return CompletableFuture.completedFuture(result);
                     }
@@ -376,7 +376,7 @@ public class DataFrameReader implements AutoCloseable {
                             this.currentFrameContents = dataFrame.getEntries();
                             if (this.currentFrameContents.hasNext()) {
                                 try {
-                                    return this.currentFrameContents.pollNextElement();
+                                    return this.currentFrameContents.pollNext();
                                 }
                                 catch (Exception ex) {
                                     throw new CompletionException(ex);

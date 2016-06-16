@@ -1,7 +1,7 @@
 package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.logservice.common.*;
+import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.*;
@@ -14,7 +14,6 @@ import com.emc.logservice.storageabstraction.*;
 import com.emc.logservice.storageabstraction.mocks.*;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -35,13 +34,14 @@ public class Playground {
         //context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
+
         //testStreamSegmentContainer();
-        //testDurableLog();
+        testDurableLog();
         //testReadIndex();
-        //testOperationQueueProcessor();
-        //testDataFrameBuilder();
-        //testDataFrame();
+        testOperationQueueProcessor();
+        testDataFrameBuilder();
     }
+
 
     private static void testStreamSegmentContainer() throws Exception {
         final String containerId = "123";
@@ -673,6 +673,7 @@ public class Playground {
 
         InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
         DurableDataLog dataLog = dataLogFactory.createDurableDataLog(ContainerId);
+        dataLog.initialize(Timeout).join();
         AtomicLong lastAck = new AtomicLong(-1);
         Consumer<DataFrameBuilder.DataFrameCommitArgs> ackCallback = args ->
         {
@@ -683,7 +684,7 @@ public class Playground {
             lastAck.set(args.getLastFullySerializedSequenceNumber());
         };
 
-        Consumer<Exception> failCallback = ex -> System.out.println(String.format("Failed with exception.", ex));
+        Consumer<Throwable> failCallback = ex -> System.out.println(String.format("Failed with exception. %s", ex));
 
         DataFrameBuilder b = new DataFrameBuilder(dataLog, ackCallback, failCallback);
 
@@ -736,68 +737,6 @@ public class Playground {
         opsPerSecond = readCount / (elapsedMillis / 1000.0);
         kbPerSecond = totalAppendLength / (elapsedMillis / 1000.0) / 1024;
         System.out.println(String.format("Finished reading & verification. EntryCount = %d, Duration = %dms, Ops/Sec = %f, KB/s = %f.", readCount, elapsedMillis, opsPerSecond, kbPerSecond));
-    }
-
-    private static void testDataFrame() throws Exception {
-        int maxFrameSize = 1024;
-        ArrayList<byte[]> records = new ArrayList<>();
-        long wfPrevSequence;
-        long wfEndMagic;
-        long wfLength;
-        DataFrame wf = new DataFrame(1, maxFrameSize);
-        records.add("the quick brown fox jumps over the lazy dog".getBytes());
-        records.add("and only use the returned List, and never the original ArrayList\" is a very important addition here".getBytes());
-        records.add(new byte[]{ 1, 2, 3, 4, 5 });
-        records.add(new byte[0]);
-        records.add("the unmodifiable list isn't an extension; it's a delegator. You can always copy the contents to a new list and modify that, but there is no mechanism provided for modifying the contents on the unmodifiable list, which is kinda the point".getBytes());
-        records.add("Note this provides only runtime safety as returned wrapper has mutators which just throw exceptions when called. Its better to use a readonly wrapper which has no mutators to get compile time safety".getBytes());
-        for (byte[] record : records) {
-            wf.startNewEntry(true);
-            int size = wf.append(new ByteArraySegment(record));
-            System.out.println(String.format("Append: Length=%d, Appended Length=%d.", record.length, size));
-            if (size < record.length) {
-                break;
-            }
-            wf.endEntry(true);
-        }
-
-        wf.seal();
-
-        wfPrevSequence = wf.getPreviousFrameSequence();
-        wfLength = wf.getLength();
-
-        InputStream frameData = wf.getData();
-        byte[] frameBuffer = new byte[frameData.available()];
-        StreamHelpers.readAll(frameData, frameBuffer, 0, frameBuffer.length);
-
-        // TODO: We are reading a new Data Frame. Make sure we can also readDurableLog a writeable data frame.
-        DataFrame rf = new DataFrame(frameBuffer);
-        System.out.println(String.format("PrefSequence: W=%d, R=%d.", wfPrevSequence, rf.getPreviousFrameSequence()));
-        System.out.println(String.format("Length: W=%d, R=%d.", wfLength, rf.getLength()));
-
-        IteratorWithException<DataFrame.DataFrameEntry, SerializationException> readEntries = rf.getEntries();
-        for (int i = 0; i < records.size(); i++) {
-            byte[] expectedRecord = records.get(i);
-            DataFrame.DataFrameEntry actualEntry = readEntries.pollNextElement();
-            System.out.printf("Entry %d: ExpectedLength=%d, ActualLength=%d, First = %s, Last = %s, ", i, expectedRecord.length, actualEntry.getData().getLength(), actualEntry.isFirstRecordEntry(), actualEntry.isLastRecordEntry());
-            if (expectedRecord.length != actualEntry.getData().getLength()) {
-                System.out.println("Length Mismatch.");
-            }
-            else {
-                int differentIndex = -1;
-                for (int j = 0; j < expectedRecord.length; j++) {
-                    if (expectedRecord[j] != actualEntry.getData().get(j)) {
-                        differentIndex = j;
-                        break;
-                    }
-                }
-                System.out.println(differentIndex >= 0 ? "Records differ at index " + differentIndex + "." : "Records are identical.");
-            }
-        }
-
-        if (readEntries.hasNext()) {
-            System.out.println("More elements were returned by the 'getEntries' method.");
-        }
     }
 
     //region Helpers

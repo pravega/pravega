@@ -4,8 +4,6 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import io.netty.buffer.ByteBuf;
-
 /**
  * Defines all operations that are supported on a StreamSegment.
  */
@@ -106,7 +104,6 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
-
 
     /**
      * Gets the Append Context for the last received append. This includes all appends made with the given client id,

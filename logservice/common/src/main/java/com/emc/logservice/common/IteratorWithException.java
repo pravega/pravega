@@ -15,5 +15,5 @@ public interface IteratorWithException<E, Ex extends Throwable> extends Iterator
      * @return The next element.
      * @throws Ex An exception that can be thrown if the next element cannot be retrieved (but there are more elements.
      */
-    E pollNextElement() throws Ex;
+    E pollNext() throws Ex;
 }
