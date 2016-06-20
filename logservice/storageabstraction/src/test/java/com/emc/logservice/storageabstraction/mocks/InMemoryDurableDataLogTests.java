@@ -41,7 +41,7 @@ public class InMemoryDurableDataLogTests {
                 ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
                 long seqNo = log.append(writeStream, Timeout).join();
 
-                AssertExtensions.assertLessThan("Sequence Number is not monotonically increasing.", prevSeqNo, seqNo);
+                AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevSeqNo, seqNo);
                 prevSeqNo = seqNo;
             }
         }

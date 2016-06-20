@@ -5,6 +5,7 @@ import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.*;
+import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,7 @@ public class InteractiveStreamSegmentStoreTester {
     //region Main Method
 
     public static void main(String[] args) {
-        final boolean useDistributedLog = true;
+        final boolean useDistributedLog = false;
         final int containerCount = 1;
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
@@ -251,19 +252,7 @@ public class InteractiveStreamSegmentStoreTester {
 
     private void log(Throwable ex, String message, Object... args) {
         this.errorLogger.println(String.format("ERROR: %s", String.format(message, args)));
-        getRealException(ex).printStackTrace(this.errorLogger);
-    }
-
-    private Throwable getRealException(Throwable ex) {
-        if (ex instanceof CompletionException) {
-            return getRealException(ex.getCause());
-        }
-
-        if (ex instanceof ExecutionException) {
-            return getRealException(ex.getCause());
-        }
-
-        return ex;
+        ExceptionHelpers.getRealException(ex).printStackTrace(this.errorLogger);
     }
 
     private long getCurrentTime() {

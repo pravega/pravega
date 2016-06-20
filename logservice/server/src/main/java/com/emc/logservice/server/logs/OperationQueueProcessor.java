@@ -201,7 +201,7 @@ public class OperationQueueProcessor implements Container {
         }
 
         QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.faultRegistry::handle, this.traceObjectId);
-        try (DataFrameBuilder dataFrameBuilder = new DataFrameBuilder(this.durableDataLog, state::commit, state::fail)) {
+        try (DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail)) {
             for (CompletableOperation o : operations) {
                 boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
 
@@ -213,7 +213,7 @@ public class OperationQueueProcessor implements Container {
             }
         }
         // Close the frame builder and ship any unsent frames.
-        catch (SerializationException ex) {
+        catch (Exception ex) {
             state.fail(ex);
         }
     }
@@ -324,7 +324,7 @@ public class OperationQueueProcessor implements Container {
         public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
             assert logUpdater != null : "logUpdater is null";
-            assert criticalErrorHandler != null :"criticalErrorHandler is null";
+            assert criticalErrorHandler != null : "criticalErrorHandler is null";
 
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>();

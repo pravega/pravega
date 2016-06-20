@@ -62,7 +62,7 @@ public class SegmentToContainerMapperTests {
         }
 
         // Verify that min and max do not deviate too much from each other.
-        AssertExtensions.assertLessThan(
+        AssertExtensions.assertGreaterThan(
                 String.format("Too large of a variation between min and max mapping counts to containers. Min = %d, Max = %d.", min, max),
                 max - min,
                 (int) (maxDeviation * max));

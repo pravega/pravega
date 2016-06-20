@@ -1,16 +1,16 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.server.DataCorruptionException;
+import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
-import java.util.*;
+import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
@@ -21,12 +21,14 @@ import java.util.stream.Stream;
  * they were serialized.
  */
 @Slf4j
-public class DataFrameReader implements AutoCloseable {
+public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFrameReader.ReadResult<T>> {
     //region Members
 
     private final FrameEntryEnumerator frameContentsEnumerator;
     private final String traceObjectId;
-    private long lastReadOperationSequenceNumber;
+    private final LogItemFactory<T> logItemFactory;
+    private long lastReadSequenceNumber;
+    private boolean closed;
 
     //endregion
 
@@ -35,15 +37,20 @@ public class DataFrameReader implements AutoCloseable {
     /**
      * Creates a new instance of the DataFrameReader class.
      *
-     * @param log         The DataFrameLog to read data frames from.
-     * @param containerId The Container Id for the DataFrameReader (used primarily for logging).
+     * @param log            The DataFrameLog to read data frames from.
+     * @param logItemFactory A LogItemFactory to create LogItems upon deserialization.
+     * @param containerId    The Container Id for the DataFrameReader (used primarily for logging).
      * @throws NullPointerException    If log is null.
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
-    public DataFrameReader(DurableDataLog log, String containerId) throws DurableDataLogException {
+    public DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, String containerId) throws DurableDataLogException {
+        Exceptions.throwIfNull(log, "log");
+        Exceptions.throwIfNull(logItemFactory, "logItemFactory");
+        Exceptions.throwIfNullOfEmpty(containerId, "containerId");
         this.traceObjectId = String.format("DataFrameReader[%s]", containerId);
         this.frameContentsEnumerator = new FrameEntryEnumerator(log, traceObjectId);
-        this.lastReadOperationSequenceNumber = Operation.NoSequenceNumber;
+        this.lastReadSequenceNumber = Operation.NoSequenceNumber;
+        this.logItemFactory = logItemFactory;
     }
 
     //endregion
@@ -53,11 +60,12 @@ public class DataFrameReader implements AutoCloseable {
     @Override
     public void close() {
         this.frameContentsEnumerator.close();
+        this.closed = true;
     }
 
     //endregion
 
-    //region Operations
+    //region AsyncIterator Implementation
 
     /**
      * Attempts to return the next Operation from the DataFrameLog.
@@ -66,41 +74,62 @@ public class DataFrameReader implements AutoCloseable {
      * @return A CompletableFuture that, when complete, will contain a ReadResult with the requested Operation. If no more
      * Operations exist, null will be returned.
      */
-    public CompletableFuture<ReadResult> getNextOperation(Duration timeout) {
+    public CompletableFuture<ReadResult<T>> getNext(Duration timeout) {
+        Exceptions.throwIfClosed(this.closed, closed);
+
         // Get the ByteArraySegments for the next entry (there could be one or more, depending on how many DataFrames
         // were used to split the original Operation).
-        return getNextOperationSegments(timeout).thenApply(segments ->
-        {
-            if (segments == null || !segments.hasData()) {
-                // We have reached the end.
-                return null;
-            }
-            else {
-                // Get the unified input stream for all the segments.
-                InputStream source = segments.getInputStream();
-
-                try {
-                    // Attempt to deserialize the entry. If the serialization was bad, this will throw an exception which we'll pass along.
-                    // In case of such failure, we still advance, because the serialization exception is not our issue to handle.
-                    Operation op = Operation.deserialize(source);
-                    long seqNo = op.getSequenceNumber();
-                    if (seqNo <= this.lastReadOperationSequenceNumber) {
-                        throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.", this.lastReadOperationSequenceNumber, seqNo));
+        CompletableFuture<ReadResult<T>> result = getNextOperationSegments(timeout)
+                .thenApply(segments ->
+                {
+                    if (segments == null || !segments.hasData()) {
+                        // We have reached the end.
+                        return null;
                     }
+                    else {
+                        // Get the unified input stream for all the segments.
+                        InputStream source = segments.getInputStream();
 
-                    this.lastReadOperationSequenceNumber = seqNo;
-                    return new ReadResult(op, segments.getDataFrameSequence(), segments.isLastFrameEntry());
-                }
-                catch (DataCorruptionException ex) {
-                    throw new CompletionException(ex);
-                }
-                catch (SerializationException ex) {
-                    throw new CompletionException(new DataCorruptionException("Deserialization failed.", ex));
-                }
-                // Any other exceptions are considered to be non-DataCorruption.
-            }
+                        try {
+                            // Attempt to deserialize the entry. If the serialization was bad, this will throw an exception which we'll pass along.
+                            // In case of such failure, we still advance, because the serialization exception is not our issue to handle.
+                            T logItem = this.logItemFactory.deserialize(source);
+                            long seqNo = logItem.getSequenceNumber();
+                            if (seqNo <= this.lastReadSequenceNumber) {
+                                throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.", this.lastReadSequenceNumber, seqNo));
+                            }
+
+                            this.lastReadSequenceNumber = seqNo;
+                            return new ReadResult<>(logItem, segments.getDataFrameSequence(), segments.isLastFrameEntry());
+                        }
+                        catch (DataCorruptionException ex) {
+                            throw new CompletionException(ex);
+                        }
+                        catch (SerializationException ex) {
+                            throw new CompletionException(new DataCorruptionException("Deserialization failed.", ex));
+                        }
+                        // Any other exceptions are considered to be non-DataCorruption.
+                    }
+                });
+
+        FutureHelpers.exceptionListener(result, ex -> {
+            // If we encountered any kind of reader exception, close the reader right away.
+            // We do not do retries at this layer. Retries should be handled by the DataLog.
+            // At this time, we close the reader for any kind of exception. In the future, we may decide to only do this
+            // for critical exceptions, such as DataCorruptionException or DataLogNotAvailableException, but be able
+            // to recover from other kinds of exceptions.
+            // Since there are many layers of iterators (DataFrame, DataFrameEntry, LogItems), handling an exception at
+            // the very top level is problematic, mostly because we would have to "rewind" some of the other iterators
+            // to a previous position, otherwise any retries may read the wrong data.
+            this.close();
         });
+
+        return result;
     }
+
+    //endregion
+
+    //region Read Implementation
 
     /**
      * Gets a collection of ByteArraySegments (SegmentCollection) that makes up the next Log Operation to be returned.
@@ -151,22 +180,22 @@ public class DataFrameReader implements AutoCloseable {
     //region ReadResult
 
     /**
-     * Represents a DataFrame Read Result, wrapping a Log Operation.
+     * Represents a DataFrame Read Result, wrapping a LogItem.
      */
-    public static class ReadResult {
-        private final Operation operation;
+    public static class ReadResult<T extends LogItem> {
+        private final T logItem;
         private final long dataFrameSequence;
         private final boolean lastFrameEntry;
 
         /**
          * Creates a new instance of the ReadResult class.
          *
-         * @param operation         The Log Operation to wrap.
-         * @param dataFrameSequence The Sequence Number of the Last Data Frame containing the operation.
-         * @param lastFrameEntry    Whether this Log Operation was the last entry in its Data Frame.
+         * @param logItem           The LogItem to wrap.
+         * @param dataFrameSequence The Sequence Number of the Last Data Frame containing the LogItem.
+         * @param lastFrameEntry    Whether this LogItem was the last entry in its Data Frame.
          */
-        protected ReadResult(Operation operation, long dataFrameSequence, boolean lastFrameEntry) {
-            this.operation = operation;
+        protected ReadResult(T logItem, long dataFrameSequence, boolean lastFrameEntry) {
+            this.logItem = logItem;
             this.dataFrameSequence = dataFrameSequence;
             this.lastFrameEntry = lastFrameEntry;
         }
@@ -176,12 +205,12 @@ public class DataFrameReader implements AutoCloseable {
          *
          * @return
          */
-        public Operation getOperation() {
-            return this.operation;
+        public T getItem() {
+            return this.logItem;
         }
 
         /**
-         * Gets a value indicating the Sequence Number of the Last Data Frame containing the Operation. If the operation
+         * Gets a value indicating the Sequence Number of the Last Data Frame containing the LogItem. If the LogItem
          * fits on exactly one DataFrame, this will return the Sequence number for that Data Frame; if it spans multiple
          * data frames, only the last data frame Sequence Number is returned.
          *
@@ -192,7 +221,7 @@ public class DataFrameReader implements AutoCloseable {
         }
 
         /**
-         * Gets a value indicating whether the wrapped Log Operation is the last entry in its Data Frame.
+         * Gets a value indicating whether the wrapped LogItem is the last entry in its Data Frame.
          *
          * @return
          */
@@ -202,7 +231,7 @@ public class DataFrameReader implements AutoCloseable {
 
         @Override
         public String toString() {
-            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getOperation(), getDataFrameSequence(), isLastFrameEntry());
+            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(), getDataFrameSequence(), isLastFrameEntry());
         }
     }
 
@@ -372,7 +401,7 @@ public class DataFrameReader implements AutoCloseable {
                         }
                         else {
                             // We just got a new frame.
-                            log.debug("{}: Read DataFrame (SequenceNumber = %d, Length = %d).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
+                            log.debug("{}: Read DataFrame (SequenceNumber = {}, Length = {}).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
                             this.currentFrameContents = dataFrame.getEntries();
                             if (this.currentFrameContents.hasNext()) {
                                 try {

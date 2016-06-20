@@ -11,7 +11,16 @@ import java.util.HashMap;
  */
 public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
     private final HashMap<String, InMemoryDurableDataLog.EntryCollection> persistedData = new HashMap<>();
+    private final int maxAppendSize;
     private boolean closed;
+
+    public InMemoryDurableDataLogFactory() {
+        this(-1);
+    }
+
+    public InMemoryDurableDataLogFactory(int maxAppendSize) {
+        this.maxAppendSize = maxAppendSize;
+    }
 
     @Override
     public DurableDataLog createDurableDataLog(String containerId) {
@@ -23,7 +32,7 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
         synchronized (this.persistedData) {
             entries = this.persistedData.getOrDefault(containerId, null);
             if (entries == null) {
-                entries = new InMemoryDurableDataLog.EntryCollection();
+                entries = this.maxAppendSize < 0 ? new InMemoryDurableDataLog.EntryCollection() : new InMemoryDurableDataLog.EntryCollection(this.maxAppendSize);
                 this.persistedData.put(containerId, entries);
             }
         }

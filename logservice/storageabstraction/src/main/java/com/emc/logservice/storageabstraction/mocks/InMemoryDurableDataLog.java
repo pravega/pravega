@@ -73,7 +73,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public int getMaxAppendLength() {
         ensurePreconditions();
-        return 1024 * 1024 - 8 * 1024;
+        return this.entries.getMaxAppendSize();
     }
 
     @Override
@@ -204,15 +204,25 @@ class InMemoryDurableDataLog implements DurableDataLog {
     static class EntryCollection {
         private final LinkedList<Entry> entries;
         private final AtomicReference<String> writeLock;
+        private final int maxAppendSize;
 
         public EntryCollection() {
+            this(1024 * 1024 - 8 * 1024);
+        }
+
+        public EntryCollection(int maxAppendSize) {
             this.entries = new LinkedList<>();
             this.writeLock = new AtomicReference<>();
+            this.maxAppendSize = maxAppendSize;
         }
 
         public void add(Entry entry, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
             this.entries.add(entry);
+        }
+
+        public int getMaxAppendSize() {
+            return this.maxAppendSize;
         }
 
         public int size() {

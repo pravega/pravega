@@ -34,14 +34,11 @@ public class Playground {
         //context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
-
         //testStreamSegmentContainer();
         testDurableLog();
         //testReadIndex();
         testOperationQueueProcessor();
-        testDataFrameBuilder();
     }
-
 
     private static void testStreamSegmentContainer() throws Exception {
         final String containerId = "123";
@@ -648,95 +645,6 @@ public class Playground {
                 processingTimeElapsedMillis,
                 opsPerSecond,
                 kbPerSecond));
-    }
-
-    private static void testDataFrameBuilder() throws Exception {
-        int entryCount = 5000;
-        int maxAppendLength = 1024 * 1024;
-        int frameSize = 1024 * 1024;
-        ArrayList<Function<Integer, Operation>> creators = getOperationCreators(maxAppendLength);
-
-        System.out.println("Generating entries...");
-        long totalAppendLength = 0;
-        ArrayList<CompletableOperation> entries = new ArrayList<>();
-        for (int i = 0; i < entryCount; i++) {
-            Function<Integer, Operation> creator = creators.get(i % creators.size());
-            Operation entry = creator.apply(i);
-            if (entry instanceof StreamSegmentAppendOperation) {
-                totalAppendLength += ((StreamSegmentAppendOperation) entry).getData().length;
-            }
-
-            entry.setSequenceNumber(i);
-            entries.add(new CompletableOperation(entry, null, null));
-        }
-        System.out.println(String.format("%d entries generated.", entryCount));
-
-        InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
-        DurableDataLog dataLog = dataLogFactory.createDurableDataLog(ContainerId);
-        dataLog.initialize(Timeout).join();
-        AtomicLong lastAck = new AtomicLong(-1);
-        Consumer<DataFrameBuilder.DataFrameCommitArgs> ackCallback = args ->
-        {
-            if (lastAck.get() >= args.getLastFullySerializedSequenceNumber()) {
-                System.out.println(String.format("Unexpected sequence number acked. Expected > %d, actual %d.", lastAck.get(), args));
-            }
-
-            lastAck.set(args.getLastFullySerializedSequenceNumber());
-        };
-
-        Consumer<Throwable> failCallback = ex -> System.out.println(String.format("Failed with exception. %s", ex));
-
-        DataFrameBuilder b = new DataFrameBuilder(dataLog, ackCallback, failCallback);
-
-        long startTime = System.nanoTime();
-        for (CompletableOperation e : entries) {
-            b.append(e.getOperation());
-        }
-
-        b.close();
-
-        long elapsedMillis = (System.nanoTime() - startTime) / 1000 / 1000;
-        double opsPerSecond = entries.size() / (elapsedMillis / 1000.0);
-        double kbPerSecond = totalAppendLength / (elapsedMillis / 1000.0) / 1024;
-        System.out.println(String.format("Finished writing. EntryCount = %d, Duration = %dms, Ops/Sec = %f, KB/s = %f.", entries.size(), elapsedMillis, opsPerSecond, kbPerSecond));
-
-        if ((int) lastAck.get() != entries.size() - 1) {
-            System.out.println(String.format("Not all entries were acked. Expected: %d, actual %d.", entries.size() - 1, lastAck.get()));
-        }
-
-        // DataFrameReader
-        startTime = System.nanoTime();
-        DataFrameReader reader = new DataFrameReader(dataLog, ContainerId);
-        Iterator<CompletableOperation> entryIterator = entries.iterator();
-        int readCount = 0;
-        while (true) {
-            Operation expectedEntry = entryIterator.hasNext() ? entryIterator.next().getOperation() : null;
-            DataFrameReader.ReadResult readResult = reader.getNextOperation(Duration.ofMinutes(1)).get();
-
-            if (expectedEntry == null) {
-                if (readResult != null) {
-                    System.out.println(String.format("DataFrameReader has more entries than expected (returned SeqNo %d).", readResult.getOperation().getSequenceNumber()));
-                }
-
-                break;
-            }
-            else if (readResult == null) {
-                System.out.println(String.format("DataFrameReader has no more entries, but at least one was expected (returned SeqNo %d).", expectedEntry.getSequenceNumber()));
-                break;
-            }
-            else {
-                if (!areEqual(expectedEntry, readResult.getOperation())) {
-                    System.out.println(String.format("Read Operation differs from original. Expected = '%s', Actual = '%s'.", expectedEntry, readResult.getOperation()));
-                }
-            }
-
-            readCount++;
-        }
-
-        elapsedMillis = (System.nanoTime() - startTime) / 1000 / 1000;
-        opsPerSecond = readCount / (elapsedMillis / 1000.0);
-        kbPerSecond = totalAppendLength / (elapsedMillis / 1000.0) / 1024;
-        System.out.println(String.format("Finished reading & verification. EntryCount = %d, Duration = %dms, Ops/Sec = %f, KB/s = %f.", readCount, elapsedMillis, opsPerSecond, kbPerSecond));
     }
 
     //region Helpers

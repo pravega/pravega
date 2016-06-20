@@ -22,13 +22,15 @@ public class DataFrameTests {
     public void testAppendRead() throws Exception {
         int maxFrameSize = 1024 * 1024;
         int maxRecordCount = 2500;
+        int minRecordSize = 0;
         int maxRecordSize = 1024;
-        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, maxRecordSize, ByteArraySegment::new);
+        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
         DataFrame df = new DataFrame(DefaultPreviousSequence, maxFrameSize);
         df.setFrameSequence(123456789);
-        appendRecords(allRecords, df);
+        int recordsAppended = appendRecords(allRecords, df);
+        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         df.seal();
 
         // Read them back.
@@ -43,13 +45,15 @@ public class DataFrameTests {
     public void testSerialization() throws Exception {
         int maxFrameSize = 2 * 1024 * 1024;
         int maxRecordCount = 4500;
+        int minRecordSize = 0;
         int maxRecordSize = 1024;
-        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, maxRecordSize, ByteArraySegment::new);
+        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
         DataFrame writeFrame = new DataFrame(DefaultPreviousSequence, maxFrameSize);
         writeFrame.setFrameSequence(123456789);
-        appendRecords(allRecords, writeFrame);
+        int recordsAppended = appendRecords(allRecords, writeFrame);
+        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
 
         byte[] serialization = new byte[writeFrame.getLength()];
@@ -154,7 +158,7 @@ public class DataFrameTests {
     }
 
     private int appendRecords(List<ByteArraySegment> allRecords, DataFrame dataFrame) {
-        int totalBytesAppended = 0;
+        int fullRecordsAppended = 0;
         boolean filledUpFrame = false;
         for (ByteArraySegment record : allRecords) {
             // Append the first half of the record as one DataFrame Entry.
@@ -162,7 +166,6 @@ public class DataFrameTests {
             int firstHalfLength = record.getLength() / 2;
             int bytesAppended = dataFrame.append(record.subSegment(0, firstHalfLength));
             dataFrame.endEntry(false); // false - we did not finish the record.
-            totalBytesAppended += bytesAppended;
             if (bytesAppended < firstHalfLength) {
                 // We filled out the frame.
                 filledUpFrame = true;
@@ -173,7 +176,7 @@ public class DataFrameTests {
             dataFrame.startNewEntry(false); // false - this is not the first entry for the record.
             int secondHalfLength = record.getLength() - firstHalfLength;
             bytesAppended = dataFrame.append(record.subSegment(firstHalfLength, secondHalfLength));
-            totalBytesAppended += bytesAppended;
+            fullRecordsAppended += bytesAppended;
             if (bytesAppended < secondHalfLength) {
                 // We filled out the frame.
                 dataFrame.endEntry(false); // false - we did not finish the record.
@@ -182,10 +185,11 @@ public class DataFrameTests {
             }
 
             dataFrame.endEntry(true); // true - we finished the record.
+            fullRecordsAppended++;
         }
 
         Assert.assertTrue("We did not fill up the DataFrame. This test may not exercise all of the features of DataFrame.", filledUpFrame);
 
-        return totalBytesAppended;
+        return fullRecordsAppended;
     }
 }

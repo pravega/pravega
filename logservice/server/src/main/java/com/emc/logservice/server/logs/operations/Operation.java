@@ -1,21 +1,19 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.server.LogItem;
 import com.emc.logservice.server.core.MagicGenerator;
 import com.emc.logservice.server.logs.SerializationException;
-import com.emc.logservice.contracts.StreamingException;
 
 import java.io.*;
-import java.util.HashMap;
 
 /**
  * Base class for a Log Operation.
  */
-public abstract class Operation {
+public abstract class Operation implements LogItem {
     //region Members
 
     public static final long NoSequenceNumber = Long.MIN_VALUE;
-    private static final OperationConstructors constructors = new OperationConstructors();
     private long sequenceNumber;
 
     //endregion
@@ -51,6 +49,7 @@ public abstract class Operation {
      *
      * @return The Sequence Number for this Operation.
      */
+    @Override
     public long getSequenceNumber() {
         return this.sequenceNumber;
     }
@@ -92,6 +91,7 @@ public abstract class Operation {
      * @throws IOException           If the given OutputStream threw one.
      * @throws IllegalStateException If the serialization conditions are not met.
      */
+    @Override
     public void serialize(OutputStream output) throws IOException {
         ensureSerializationCondition(this.sequenceNumber >= 0, "Sequence Number has not been assigned for this entry.");
 
@@ -174,24 +174,10 @@ public abstract class Operation {
      * Deserializes the content of this Operation.
      *
      * @param source The DataInputStream to read from.
-     * @throws IOException            If the DataInputStram threw one.
+     * @throws IOException            If the DataInputStream threw one.
      * @throws SerializationException If we detected an error, such as data corruption.
      */
     protected abstract void deserializeContent(DataInputStream source) throws IOException, SerializationException;
-
-    /**
-     * Attempts to
-     *
-     * @param input
-     * @return
-     * @throws IOException
-     * @throws SerializationException
-     */
-    public static Operation deserialize(InputStream input) throws SerializationException {
-        DataInputStream source = new DataInputStream(input);
-        OperationHeader header = new OperationHeader(source);
-        return constructors.create(header, source);
-    }
 
     // endregion
 
@@ -273,54 +259,4 @@ public abstract class Operation {
 
     //endregion
 
-    // region OperationConstructors (factory)
-
-    /**
-     * Helps collect and invoke constructors for Log Operations.
-     */
-    private static class OperationConstructors {
-        private final HashMap<Byte, OperationConstructor> constructors;
-
-        public OperationConstructors() {
-            constructors = new HashMap<>();
-            try {
-                //TODO: there might be a better way to do this dynamically...
-                map(StreamSegmentAppendOperation.OperationType, StreamSegmentAppendOperation::new);
-                map(StreamSegmentSealOperation.OperationType, StreamSegmentSealOperation::new);
-                map(MergeBatchOperation.OperationType, MergeBatchOperation::new);
-                map(MetadataPersistedOperation.OperationType, MetadataPersistedOperation::new);
-                map(StreamSegmentMapOperation.OperationType, StreamSegmentMapOperation::new);
-                map(BatchMapOperation.OperationType, BatchMapOperation::new);
-            }
-            catch (StreamingException se) {
-                throw new ExceptionInInitializerError(se);
-            }
-        }
-
-        public void map(byte operationType, OperationConstructor constructor) throws StreamingException {
-            synchronized (constructors) {
-                if (constructors.containsKey(operationType)) {
-                    throw new StreamingException(String.format("Duplicate Operation Type found: %d.", operationType));
-                }
-
-                constructors.put(operationType, constructor);
-            }
-        }
-
-        public Operation create(OperationHeader header, DataInputStream source) throws SerializationException {
-            OperationConstructor constructor = constructors.get(header.operationType);
-            if (constructor == null) {
-                throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type %d.", header.operationType));
-            }
-
-            return constructor.apply(header, source);
-        }
-
-        @FunctionalInterface
-        private interface OperationConstructor {
-            Operation apply(OperationHeader header, DataInputStream source) throws SerializationException;
-        }
-    }
-
-    // endregion
 }

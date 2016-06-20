@@ -2,9 +2,8 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.server.ExceptionHelpers;
-import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.server.LogItem;
 import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -12,11 +11,11 @@ import java.time.Duration;
 import java.util.function.Consumer;
 
 /**
- * Builds DataFrames from Log Operations. Splits the serialization of LogOperations across multiple Data Frames, if necessary,
+ * Builds DataFrames from LogItems. Splits the serialization of LogItems across multiple Data Frames, if necessary,
  * and publishes the finished Data Frames to the given DataFrameLog.
  */
 @Slf4j
-public class DataFrameBuilder implements AutoCloseable {
+public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Members
 
     private static final Duration DataFrameWriteTimeout = Duration.ofSeconds(30); // TODO: actual timeout.
@@ -62,18 +61,13 @@ public class DataFrameBuilder implements AutoCloseable {
     //region AutoCloseable Implementation
 
     @Override
-    public void close() throws SerializationException {
+    public void close() throws IOException {
         if (!this.closed) {
             // Stop accepting any new items.
             this.closed = true;
 
-            try {
-                // Seal & ship whatever frame we currently have (if any).
-                this.outputStream.flush();
-            }
-            catch (IOException ex) {
-                throw new SerializationException("DataFrameBuilder.close", "Unable to seal current frame.", ex);
-            }
+            // Seal & ship whatever frame we currently have (if any).
+            this.outputStream.flush();
 
             // Close the underlying stream (which destroys whatever we have in flight - but there shouldn't be any at this point).
             this.outputStream.close();
@@ -85,31 +79,39 @@ public class DataFrameBuilder implements AutoCloseable {
     //region Appending
 
     /**
-     * Appends a Log Operation to the DataFrameBuilder. If any exceptions happened during serialization, the Operation is failed,
-     * and its contents will be discarded from the Data Frame. Any exceptions that resulted from the Data Frame failing to commit
-     * will be routed through the dataFrameCommitFailureCallback callback.
+     * Appends a LogItem to the DataFrameBuilder. If any exceptions happened during serialization, whatever contents was
+     * written to the DataFrame will be discarded. Note that if a LogItem spans multiple DataFrames, in case of failure,
+     * the content serialized to already committed DataFrames will not be discarded. That case will have to be dealt with
+     * upon reading DataFrames from the DataFrameLog.
+     * <p/>
+     * Any exceptions that resulted from the Data Frame failing to commit will be routed through the dataFrameCommitFailureCallback
+     * callback, as well as being thrown from this exception.
      *
-     * @param operation The Operation to append.
+     * @param logItem The LogItem to append.
      * @throws ObjectClosedException If the DataFrameBuilder is closed.
-     * @throws IOException           If the operation failed to write to the DataLog.
+     * @throws NullPointerException  If logItem is null.
+     * @throws IOException           If the LogItem failed to serialize to the DataLog, or if one of the DataFrames containing
+     *                               the LogItem failed to commit to the DataFrameLog.
      */
-    public void append(Operation operation) throws IOException {
+    public void append(T logItem) throws IOException {
         Exceptions.throwIfClosed(this.closed, this);
+        long seqNo = logItem.getSequenceNumber();
+        Exceptions.throwIfIllegalArgument(this.lastSerializedSequenceNumber < seqNo, "logItem", "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
 
-        // TODO: consider checking Operation.getSequenceNumber() monotonicity. Make sure it sticks across multiple instances.
+        // Remember the last Started SeqNo, in case of failure.
         long previousLastStartedSequenceNumber = this.lastStartedSequenceNumber;
         try {
             // Indicate to the output stream that are about to write a new record.
             this.outputStream.startNewRecord();
 
             // Completely serialize the entry. Note that this may span more than one Data Frame.
-            this.lastStartedSequenceNumber = operation.getSequenceNumber();
-            operation.serialize(this.outputStream);
-            this.lastSerializedSequenceNumber = operation.getSequenceNumber();
+            this.lastStartedSequenceNumber = seqNo;
+            logItem.serialize(this.outputStream);
+            this.lastSerializedSequenceNumber = seqNo;
         }
-        catch (IOException ex) {
+        catch (Exception ex) {
             // Discard any information that we have about this record (pretty much revert back to where startNewEntry() would have begun writing).
-            // The try-catch inside handleDataFrameComplete() deals with the DataFrame-level handling; here we just deal with this operation.
+            // The try-catch inside handleDataFrameComplete() deals with the DataFrame-level handling; here we just deal with this LogItem.
             this.outputStream.discardRecord();
             this.lastSerializedSequenceNumber = previousLastStartedSequenceNumber;
             throw ex;
@@ -124,7 +126,6 @@ public class DataFrameBuilder implements AutoCloseable {
      * routed to the appropriate callback handlers given in this constructor.
      *
      * @param dataFrame The data frame to publish.
-     * @return True if we were able to publish the Data Frame, false otherwise.
      * @throws NullPointerException     If the data frame is null.
      * @throws IllegalArgumentException If the data frame is not sealed.
      * @throws IOException              When the DataFrame could not be committed.
@@ -132,34 +133,25 @@ public class DataFrameBuilder implements AutoCloseable {
     private void handleDataFrameComplete(DataFrame dataFrame) throws IOException {
         Exceptions.throwIfIllegalArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
-        // Write DataFrame to DataFrameLog
+        // Write DataFrame to DataFrameLog.
         try {
-            // TODO: Add to thread pool?
-            // TODO: if we want to do double buffering, we need to be careful not to break logic in this class and in OperationQueueProcessor,
-            //       which assumes that frames are committed before it moves on processing new elements. Doing Double Buffering will make that
-            //       class more complex.
+            // TODO: This looks like a place where some improvement can be made. In theory, we can try to write the frame
+            // in parallel to us building the next frame. We need to watch out for cases when a frame fails to commit,
+            // and how that affects future frames. That may complicate things here and in calling classes.
             this.targetLog.append(dataFrame.getData(), DataFrameWriteTimeout).get();
         }
         catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
-            if (realException instanceof DurableDataLogException) {
-                // This failure is due to us being unable to commit the DataFrame, and not because we were unable to write the Operation.
-                // This means the entire DataFrame has to be discarded.
-                // TODO: the frame was attempted to be committed many times (retry policy), so trying once more has little chance of success.
-                // TODO: consider if, instead of dropping all data in this frame, we could unseal it (inside DataFrameOutputStream) and try again...
-                this.outputStream.reset();
-            }
-
-            // Unable to write the Data Frame that contained all pending entries. The Target Log did try to repeat,
-            // but we need to admit failure now.
+            // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.
+            // The Target Log did try to repeat, but we need to admit failure now.
+            this.outputStream.reset();
             CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, realException, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
 
             // Even though we invoked the dataFrameCommitFailureCallback() - which was for the DurableLog to handle,
-            // we still need to fail the current call, which most likely leads to failing the operation that triggered this.
+            // we still need to fail the current call, which most likely leads to failing the LogItem that triggered this.
             throw new IOException(realException);
         }
 
-        //CallbackHelpers.invokeSafely(this.dataFrameCommitSuccessCallback, new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()), null);
         try {
             this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()));
         }
@@ -184,19 +176,21 @@ public class DataFrameBuilder implements AutoCloseable {
         /**
          * Creates a new instance of the DataFrameCommitArgs class.
          *
-         * @param lastFullySerializedSequenceNumber The Sequence Number of the last Log Operation that was fully serialized (and committed).
-         * @param lastStartedSequenceNumber         The Sequence Number of the last Log Operation that was started (but not necessarily committed).
+         * @param lastFullySerializedSequenceNumber The Sequence Number of the last LogItem that was fully serialized (and committed).
+         * @param lastStartedSequenceNumber         The Sequence Number of the last LogItem that was started (but not necessarily committed).
          * @param dataFrameSequence                 The Sequence Number of the Data Frame that was committed.
          */
         protected DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, long dataFrameSequence) {
+            assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" + lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
+            assert dataFrameSequence >= 0 : "negative dataFrameSequence";
             this.lastFullySerializedSequenceNumber = lastFullySerializedSequenceNumber;
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
             this.dataFrameSequence = dataFrameSequence;
         }
 
         /**
-         * Gets a value indicating the Sequence Number of the last Log Operation that was fully serialized (and committed).
-         * If this value is different than 'getLastStartedSequenceNumber' then we currently have an Operation that was split
+         * Gets a value indicating the Sequence Number of the last LogItem that was fully serialized (and committed).
+         * If this value is different than 'getLastStartedSequenceNumber' then we currently have a LogItem that was split
          * across multiple Data Frames, and the value returned from that function represents the Sequence Number for that entry.
          *
          * @return
@@ -206,8 +200,8 @@ public class DataFrameBuilder implements AutoCloseable {
         }
 
         /**
-         * Gets a value indicating the Sequence Number of the last Log Operation that was started (but not necessarily committed).
-         * If this value is different than 'getLastFullySerializedSequenceNumber' then we currently have an Operation that was split
+         * Gets a value indicating the Sequence Number of the last LogItem that was started (but not necessarily committed).
+         * If this value is different than 'getLastFullySerializedSequenceNumber' then we currently have a LogItem that was split
          * across multiple Data Frames, and the value returned from this function represents the Sequence Number for that entry.
          *
          * @return

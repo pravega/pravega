@@ -22,6 +22,7 @@ public class DurableLog implements OperationLog {
 
     private static final Duration CloseTimeout = Duration.ofSeconds(30); // TODO: make configurable.
     private final String traceObjectId;
+    private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
     private final DurableDataLog dataFrameLog;
     private final MemoryLogUpdater memoryLogUpdater;
@@ -55,6 +56,7 @@ public class DurableLog implements OperationLog {
 
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.metadata = metadata;
+        this.operationFactory  = new OperationFactory();
         this.truncationMarkers = new TruncationMarkerCollection();
         this.faultRegistry = new FaultHandlerRegistry();
         this.inMemoryOperationLog = new MemoryOperationLog();
@@ -253,17 +255,17 @@ public class DurableLog implements OperationLog {
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        try (DataFrameReader reader = new DataFrameReader(this.dataFrameLog, getId())) {
+        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.dataFrameLog, this.operationFactory, getId())) {
             DataFrameReader.ReadResult lastReadResult = null;
             while (true) {
                 // Fetch the next operation.
-                DataFrameReader.ReadResult readResult = reader.getNextOperation(timer.getRemaining()).join();
+                DataFrameReader.ReadResult<Operation> readResult = reader.getNext(timer.getRemaining()).join();
                 if (readResult == null) {
                     // We have reached the end.
                     break;
                 }
 
-                Operation operation = readResult.getOperation();
+                Operation operation = readResult.getItem();
 
                 // Update Metadata Sequence Number.
                 this.metadata.setOperationSequenceNumber(operation.getSequenceNumber());

@@ -30,7 +30,7 @@ public class DataFrameOutputStreamTests {
             writtenFrame.set(df);
         };
 
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(9, 1024); // This should fit in one frame of 10KB
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(9, 0, 1024); // This should fit in one frame of 10KB
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
             // Verify that we cannot write unless we have a record started.
             AssertExtensions.assertThrows(
@@ -91,7 +91,7 @@ public class DataFrameOutputStreamTests {
             writtenFrame.set(df);
         };
 
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(2, 1024);
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(2, 0, 1024);
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
             // Test 1: write record + reset + flush -> no frame.
             s.startNewRecord();
@@ -127,7 +127,7 @@ public class DataFrameOutputStreamTests {
     @Test
     public void testWriteSingleBytes() throws Exception {
         int maxFrameSize = 512; // Very small frame, so we can test switching over to new frames.
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 10240); // This should generate enough records that cross over boundaries.
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
         // Callback for when a frame is written.
         ArrayList<DataFrame> writtenFrames = new ArrayList<>();
@@ -147,7 +147,7 @@ public class DataFrameOutputStreamTests {
             s.flush();
         }
 
-        AssertExtensions.assertLessThan("No frame has been created during the test.", 0, writtenFrames.size());
+        AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
         DataFrameTestHelpers.checkReadRecords(writtenFrames, records, ByteArraySegment::new);
     }
 
@@ -157,7 +157,7 @@ public class DataFrameOutputStreamTests {
     @Test
     public void testWriteByteArrays() throws Exception {
         int maxFrameSize = 512; // Very small frame, so we can test switching over to new frames.
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 10240); // This should generate enough records that cross over boundaries.
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
 
         // Callback for when a frame is written.
         ArrayList<DataFrame> writtenFrames = new ArrayList<>();
@@ -174,7 +174,7 @@ public class DataFrameOutputStreamTests {
             s.flush();
         }
 
-        AssertExtensions.assertLessThan("No frame has been created during the test.", 0, writtenFrames.size());
+        AssertExtensions.assertGreaterThan("No frame has been created during the test.", 0, writtenFrames.size());
         DataFrameTestHelpers.checkReadRecords(writtenFrames, records, ByteArraySegment::new);
     }
 

@@ -12,6 +12,7 @@ import java.util.concurrent.CompletionException;
  */
 public abstract class OperationTestsBase<T extends Operation> {
     protected static final int MaxConfigIterations = 10;
+    private static final OperationFactory OperationFactory = new OperationFactory();
 
     @Test
     public void testSerialization() throws Exception {
@@ -36,7 +37,7 @@ public abstract class OperationTestsBase<T extends Operation> {
 
         //Deserialize.
         ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        Operation newOp = Operation.deserialize(inputStream);
+        Operation newOp = OperationFactory.deserialize(inputStream);
 
         // Verify operations are the same.
         OperationHelpers.assertEquals(baseOp, newOp);

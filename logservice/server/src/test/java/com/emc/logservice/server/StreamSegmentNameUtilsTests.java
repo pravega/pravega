@@ -23,7 +23,7 @@ public class StreamSegmentNameUtilsTests {
         for (int i = 0; i < batchCount; i++) {
             String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
             AssertExtensions.assertNotNullOrEmpty("generateBatchStreamSegmentName() did not generate any Segment Name.", batchName);
-            AssertExtensions.assertLessThan("generateBatchStreamSegmentName() generated a Segment Name that is shorter than the base.", segmentName.length(), batchName.length());
+            AssertExtensions.assertGreaterThan("generateBatchStreamSegmentName() generated a Segment Name that is shorter than the base.", segmentName.length(), batchName.length());
             parentName = StreamSegmentNameUtils.getParentStreamSegmentName(batchName);
             Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName, parentName);
 

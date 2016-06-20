@@ -125,7 +125,11 @@ public class AssertExtensions {
         while (readSoFar < maxLength) {
             int b1 = s1.read();
             int b2 = s2.read();
-            Assert.assertEquals(message + " InputStreams differ at index " + readSoFar, b1, b2); // This also includes the case when one stream ends prematurely.
+            if (b1 != b2) {
+                // This also includes the case when one stream ends prematurely.
+                Assert.fail(String.format("%s InputStreams differ at index %d. Expected %d, actual %d.", message, readSoFar, b1, b2));
+            }
+
             readSoFar++;
             if (b1 < 0) {
                 break;// We have reached the end of both streams.
@@ -134,47 +138,47 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that smaller < larger
+     * Asserts that expected > actual.
      *
      * @param message The message to include in the Assert calls.
-     * @param smaller The first value (smaller).
-     * @param larger  The second value (larger).
+     * @param expected The first value (smaller).
+     * @param actual  The second value (larger).
      */
-    public static void assertLessThan(String message, long smaller, long larger) {
-        Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, smaller, larger), smaller < larger);
+    public static void assertLessThan(String message, long expected, long actual) {
+        Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, expected, actual), expected > actual);
     }
 
     /**
-     * Asserts that smaller <= larger
+     * Asserts that expected >= actual.
      *
      * @param message The message to include in the Assert calls.
-     * @param smaller The first value (smaller).
-     * @param larger  The second value (larger).
+     * @param expected The first value (smaller).
+     * @param actual  The second value (larger).
      */
-    public static void assertLessThanOrEqual(String message, long smaller, long larger) {
-        Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, smaller, larger), smaller <= larger);
+    public static void assertLessThanOrEqual(String message, long expected, long actual) {
+        Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected, actual), expected >= actual);
     }
 
     /**
-     * Asserts that larger > smaller
+     * Asserts that expected > actual.
      *
      * @param message The message to include in the Assert calls.
-     * @param larger  The first value (larger).
-     * @param smaller The second value (smaller).
+     * @param expected  The first value (larger).
+     * @param actual The second value (smaller).
      */
-    public static void assertGreaterThan(String message, long larger, long smaller) {
-        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, smaller, larger), larger > smaller);
+    public static void assertGreaterThan(String message, long expected, long actual) {
+        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, expected, actual), expected < actual);
     }
 
     /**
-     * Asserts that larger >= smaller
+     * Asserts that expected >= actual.
      *
      * @param message The message to include in the Assert calls.
-     * @param larger  The first value (larger).
-     * @param smaller The second value (smaller).
+     * @param expected  The first value (larger).
+     * @param actual The second value (smaller).
      */
-    public static void assertGreaterThanOrEqual(String message, long larger, long smaller) {
-        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, smaller, larger), larger >= smaller);
+    public static void assertGreaterThanOrEqual(String message, long expected, long actual) {
+        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected, actual), expected <= actual);
     }
 
     /**
