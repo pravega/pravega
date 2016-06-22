@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -30,12 +29,12 @@ class LogHandle implements AutoCloseable {
      */
     public static final int MaxAppendLength = 1024 * 1024 - 8 * 1024;
 
-    private final DistributedLogManager logManager;
-    private final AsyncLogWriter logWriter;
     private final AtomicLong lastTransactionId;
     private final String logName;
     private final HashSet<DistributedLogReader> activeReaders;
     private final Consumer<LogHandle> handleClosedCallback;
+    private DistributedLogManager logManager;
+    private AsyncLogWriter logWriter;
     private boolean closed;
 
     //endregion
@@ -43,15 +42,12 @@ class LogHandle implements AutoCloseable {
     //region Constructor
 
     /**
-     * @param namespace
-     * @param logName
-     * @throws DataLogInitializationException
-     * @throws DataLogWriterNotPrimaryException
-     * @throws DataLogNotAvailableException
-     * @throws DurableDataLogException
+     * Creates a new instance of the LogHandle class.
+     *
+     * @param logName              The Distributed Log Name to bind to.
+     * @param handleClosedCallback A callback that will be invoked when this LogHandle is closed.
      */
-    public LogHandle(DistributedLogNamespace namespace, String logName, Consumer<LogHandle> handleClosedCallback) throws DurableDataLogException {
-        Exceptions.throwIfNull(namespace, "namespace");
+    public LogHandle(String logName, Consumer<LogHandle> handleClosedCallback) {
         Exceptions.throwIfNull(handleClosedCallback, "handleClosedCallback");
         Exceptions.throwIfNullOfEmpty(logName, "logName");
 
@@ -59,6 +55,65 @@ class LogHandle implements AutoCloseable {
         this.handleClosedCallback = handleClosedCallback;
         this.lastTransactionId = new AtomicLong(0);
         this.activeReaders = new HashSet<>();
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        if (!this.closed) {
+            try {
+                // Check for null for each of these components since we may be attempting to close them from the constructor
+                // due to an initialization failure.
+                if (this.logWriter != null) {
+                    FutureUtils.result(this.logWriter.asyncClose());
+                    log.debug("{}: Closed LogWriter.", this.logName);
+                }
+
+                if (this.logManager != null) {
+                    FutureUtils.result(this.logManager.asyncClose());
+                    log.debug("{}: Closed LogManager.", this.logName);
+                }
+            }
+            catch (IOException ex) {
+                //TODO: retry policy.
+                log.error("{}: Unable to close LogHandle. {}", this.logName, ex);
+            }
+
+            this.closed = true;
+
+            // Close all active readers.
+            List<DistributedLogReader> readersToClose;
+            synchronized (this.activeReaders) {
+                readersToClose = new ArrayList<>(this.activeReaders);
+            }
+
+            readersToClose.forEach(DistributedLogReader::close);
+            assert this.activeReaders.size() == 0 : "Not all readers were closed.";
+
+            log.info("{}: Closed (LastTransactionId = {}).", this.logName, this.lastTransactionId);
+            CallbackHelpers.invokeSafely(this.handleClosedCallback, this, null);
+        }
+    }
+
+    //endregion
+
+    //region Operations
+
+    /**
+     * Initializes the LogHandle and binds it to a Stream in the given DistributedLogNamespace.
+     *
+     * @param namespace The DistributedLog Namespace to bind to.
+     * @throws DataLogInitializationException
+     * @throws DataLogWriterNotPrimaryException
+     * @throws DataLogNotAvailableException
+     * @throws DurableDataLogException
+     */
+    public void initialize(DistributedLogNamespace namespace) throws DurableDataLogException {
+        Exceptions.throwIfNull(namespace, "namespace");
+        Exceptions.throwIfIllegalState(this.logManager == null, "LogHandle is already initialized.");
 
         // Initialize Log Manager and Log Writer.
         boolean success = false;
@@ -108,8 +163,6 @@ class LogHandle implements AutoCloseable {
         log.info("{}: Initialized (LastTransactionId = {}).", this.logName, this.lastTransactionId);
     }
 
-    //endregion
-
     /**
      * Gets a value indicating the DistributedLog LogName for this Handle.
      *
@@ -126,6 +179,7 @@ class LogHandle implements AutoCloseable {
      * @return
      */
     public long getLastTransactionId() {
+        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
         return this.lastTransactionId.get();
     }
 
@@ -139,6 +193,7 @@ class LogHandle implements AutoCloseable {
      */
     public CompletableFuture<Long> append(InputStream data, java.time.Duration timeout) {
         ensureNotClosed();
+        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
         Exceptions.throwIfNull(data, "data");
 
         final long transactionId = this.lastTransactionId.incrementAndGet();
@@ -202,11 +257,13 @@ class LogHandle implements AutoCloseable {
      * Creates a new Reader starting after the given Transaction Id.
      *
      * @param afterTransactionId The Transaction Id right before where to start.
-     * @return An AsyncInterator that returns DurableDataLog.ReadItems, each corresponding to an entry in the DurableLog Read.
+     * @return A CloseableIterator that returns DurableDataLog.ReadItems, each corresponding to an entry in the DurableLog Read.
      * @throws DurableDataLogException If the reader could not be opened.
      */
-    public AsyncIterator<DurableDataLog.ReadItem> getReader(long afterTransactionId) throws DurableDataLogException {
+    public CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> getReader(long afterTransactionId) throws DurableDataLogException {
         ensureNotClosed();
+        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
+
         DistributedLogReader reader;
         try {
             reader = new DistributedLogReader(afterTransactionId, this.logManager, this::unregisterReader);
@@ -226,46 +283,11 @@ class LogHandle implements AutoCloseable {
 
     public CompletableFuture<Void> truncate(long upToTransactionId, java.time.Duration timeout) {
         ensureNotClosed();
+        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
+
         log.info("{}: Truncate (TransactionId = {}.", this.logName, upToTransactionId);
         //TODO: implement.
         return null;
-    }
-
-    @Override
-    public void close() {
-        if (!this.closed) {
-            try {
-                // Check for null for each of these components since we may be attempting to close them from the constructor
-                // due to an initialization failure.
-                if (this.logWriter != null) {
-                    FutureUtils.result(this.logWriter.asyncClose());
-                    log.debug("{}: Closed LogWriter.", this.logName);
-                }
-
-                if (this.logManager != null) {
-                    FutureUtils.result(this.logManager.asyncClose());
-                    log.debug("{}: Closed LogManager.", this.logName);
-                }
-            }
-            catch (IOException ex) {
-                //TODO: retry policy.
-                log.error("{}: Unable to close LogHandle. {}", this.logName, ex);
-            }
-
-            this.closed = true;
-
-            // Close all active readers.
-            List<DistributedLogReader> readersToClose;
-            synchronized (this.activeReaders) {
-                readersToClose = new ArrayList<>(this.activeReaders);
-            }
-
-            readersToClose.forEach(DistributedLogReader::close);
-            assert this.activeReaders.size() == 0 : "Not all readers were closed.";
-
-            log.info("{}: Closed (LastTransactionId = {}).", this.logName, this.lastTransactionId);
-            CallbackHelpers.invokeSafely(this.handleClosedCallback, this, null);
-        }
     }
 
     @Override
@@ -288,9 +310,11 @@ class LogHandle implements AutoCloseable {
         }
     }
 
+    //endregion
+
     //region DistributedLogReader
 
-    private static class DistributedLogReader implements AsyncIterator<DurableDataLog.ReadItem> {
+    private static class DistributedLogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> {
         public final String traceObjectId;
         private final DistributedLogManager logManager;
         private final Consumer<DistributedLogReader> closeCallback;
@@ -312,27 +336,25 @@ class LogHandle implements AutoCloseable {
 
         //endregion
 
-        //region AsyncIterator Implementation
+        //region CloseableIterator Implementation
 
         @Override
-        public CompletableFuture<DurableDataLog.ReadItem> getNext(Duration timeout) {
-            return CompletableFuture.supplyAsync(() -> {
-                try {
-                    LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
-                    if (baseRecord == null) {
-                        log.debug("{}: LogReader.readNext (EndOfStream).", this.traceObjectId);
-                        return null;
-                    }
+        public synchronized DurableDataLog.ReadItem getNext(Duration timeout) throws DurableDataLogException {
+            try {
+                LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
+                if (baseRecord == null) {
+                    log.debug("{}: LogReader.readNext (EndOfStream).", this.traceObjectId);
+                    return null;
+                }
 
-                    this.lastTransactionId = baseRecord.getTransactionId();
-                    log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
-                    return new ReadItem(baseRecord);
-                }
-                catch (IOException ex) {
-                    // TODO: need to hook up a retry policy here.
-                    throw new CompletionException(new DurableDataLogException("Unable to read next item.", ex));
-                }
-            });
+                this.lastTransactionId = baseRecord.getTransactionId();
+                log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
+                return new ReadItem(baseRecord);
+            }
+            catch (IOException ex) {
+                // TODO: need to hook up a retry policy here.
+                throw new DurableDataLogException("Unable to read next item.", ex);
+            }
         }
 
         @Override

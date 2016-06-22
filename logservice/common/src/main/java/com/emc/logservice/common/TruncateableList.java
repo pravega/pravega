@@ -266,7 +266,7 @@ public class TruncateableList<T> {
          * @param maxCount  The maximum number of items to return with the iterator.
          */
         public NodeIterator(ListNode<T> firstNode, int maxCount) {
-            Exceptions.throwIfIllegalArgument(maxCount>=0, "maxCount");
+            Exceptions.throwIfIllegalArgument(maxCount >= 0, "maxCount");
 
             this.nextNode = firstNode;
             this.maxCount = maxCount;

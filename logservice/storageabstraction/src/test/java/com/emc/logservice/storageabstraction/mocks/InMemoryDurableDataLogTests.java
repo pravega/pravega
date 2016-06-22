@@ -1,8 +1,7 @@
 package com.emc.logservice.storageabstraction.mocks;
 
-import com.emc.logservice.common.AsyncIterator;
-import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
-import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.common.CloseableIterator;
+import com.emc.logservice.storageabstraction.*;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -184,11 +183,11 @@ public class InMemoryDurableDataLogTests {
     }
 
     private void testRead(DurableDataLog log, long afterSequenceNumber, TreeMap<Long, byte[]> writeData) throws Exception {
-        AsyncIterator<DurableDataLog.ReadItem> reader = log.getReader(afterSequenceNumber);
+        CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(afterSequenceNumber);
         SortedMap<Long, byte[]> expectedData = writeData.tailMap(afterSequenceNumber, false);
         Iterator<Long> expectedKeyIterator = expectedData.keySet().iterator();
         while (true) {
-            DurableDataLog.ReadItem nextItem = reader.getNext(Timeout).join();
+            DurableDataLog.ReadItem nextItem = reader.getNext(Timeout);
             if (nextItem == null) {
                 Assert.assertFalse("Reader reached the end but there were still items to be read.", expectedKeyIterator.hasNext());
                 break;

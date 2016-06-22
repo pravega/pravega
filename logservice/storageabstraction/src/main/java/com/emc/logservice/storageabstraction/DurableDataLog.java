@@ -1,6 +1,6 @@
 package com.emc.logservice.storageabstraction;
 
-import com.emc.logservice.common.AsyncIterator;
+import com.emc.logservice.common.CloseableIterator;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -65,11 +65,11 @@ public interface DurableDataLog extends AutoCloseable {
      * Reads a number of entries from the log.
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.
-     * @return An AsyncIterator with the result.
+     * @return A CloseableIterator with the result.
      * @throws DataLogNotAvailableException If it is not possible to reach the DataLog at the current time.
      * @throws DurableDataLogException If the operation was unable to open a reader.
      */
-    AsyncIterator<ReadItem> getReader(long afterSequence) throws DurableDataLogException;
+    CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;
 
     /**
      * Gets the maximum number of bytes allowed for a single append.

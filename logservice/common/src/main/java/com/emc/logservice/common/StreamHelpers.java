@@ -18,11 +18,15 @@ public final class StreamHelpers {
      * @throws IOException
      */
     public static int readAll(InputStream stream, byte[] target, int startOffset, int maxLength) throws IOException {
+        Exceptions.throwIfNull(stream, "stream");
+        Exceptions.throwIfNull(stream, "target");
+        Exceptions.throwIfIllegalArrayIndex(startOffset, 0, target.length, "startOffset");
+        Exceptions.throwIfIllegalArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
+
         int totalBytesRead = 0;
         while (totalBytesRead < maxLength) {
             int bytesRead = stream.read(target, startOffset + totalBytesRead, maxLength - totalBytesRead);
-            if (bytesRead <= 0) {
-                //TODO: the contract says that only -1 is end of stream. What do we do when we get 0 back? How can we block?
+            if (bytesRead < 0) {
                 // End of stream
                 break;
             }

@@ -11,8 +11,6 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.LinkedList;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
 
 /**
@@ -21,7 +19,7 @@ import java.util.stream.Stream;
  * they were serialized.
  */
 @Slf4j
-public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFrameReader.ReadResult<T>> {
+public class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
     //region Members
 
     private final FrameEntryEnumerator frameContentsEnumerator;
@@ -65,7 +63,7 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
 
     //endregion
 
-    //region AsyncIterator Implementation
+    //region CloseableIterator Implementation
 
     /**
      * Attempts to return the next Operation from the DataFrameLog.
@@ -74,45 +72,40 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
      * @return A CompletableFuture that, when complete, will contain a ReadResult with the requested Operation. If no more
      * Operations exist, null will be returned.
      */
-    public CompletableFuture<ReadResult<T>> getNext(Duration timeout) {
+    public ReadResult<T> getNext(Duration timeout) throws Exception {
         Exceptions.throwIfClosed(this.closed, closed);
 
-        // Get the ByteArraySegments for the next entry (there could be one or more, depending on how many DataFrames
-        // were used to split the original Operation).
-        CompletableFuture<ReadResult<T>> result = getNextOperationSegments(timeout)
-                .thenApply(segments ->
-                {
-                    if (segments == null || !segments.hasData()) {
-                        // We have reached the end.
-                        return null;
+        try {
+            // Get the ByteArraySegments for the next entry (there could be one or more, depending on how many DataFrames
+            // were used to split the original Operation).
+            SegmentCollection segments = getNextOperationSegments(timeout);
+            if (segments == null || !segments.hasData()) {
+                // We have reached the end.
+                return null;
+            }
+            else {
+                // Get the unified input stream for all the segments.
+                InputStream source = segments.getInputStream();
+
+                try {
+                    // Attempt to deserialize the entry. If the serialization was bad, this will throw an exception which we'll pass along.
+                    // In case of such failure, we still advance, because the serialization exception is not our issue to handle.
+                    T logItem = this.logItemFactory.deserialize(source);
+                    long seqNo = logItem.getSequenceNumber();
+                    if (seqNo <= this.lastReadSequenceNumber) {
+                        throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.", this.lastReadSequenceNumber, seqNo));
                     }
-                    else {
-                        // Get the unified input stream for all the segments.
-                        InputStream source = segments.getInputStream();
 
-                        try {
-                            // Attempt to deserialize the entry. If the serialization was bad, this will throw an exception which we'll pass along.
-                            // In case of such failure, we still advance, because the serialization exception is not our issue to handle.
-                            T logItem = this.logItemFactory.deserialize(source);
-                            long seqNo = logItem.getSequenceNumber();
-                            if (seqNo <= this.lastReadSequenceNumber) {
-                                throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected: larger than %d, found: %d.", this.lastReadSequenceNumber, seqNo));
-                            }
-
-                            this.lastReadSequenceNumber = seqNo;
-                            return new ReadResult<>(logItem, segments.getDataFrameSequence(), segments.isLastFrameEntry());
-                        }
-                        catch (DataCorruptionException ex) {
-                            throw new CompletionException(ex);
-                        }
-                        catch (SerializationException ex) {
-                            throw new CompletionException(new DataCorruptionException("Deserialization failed.", ex));
-                        }
-                        // Any other exceptions are considered to be non-DataCorruption.
-                    }
-                });
-
-        FutureHelpers.exceptionListener(result, ex -> {
+                    this.lastReadSequenceNumber = seqNo;
+                    return new ReadResult<>(logItem, segments.getDataFrameSequence(), segments.isLastFrameEntry());
+                }
+                catch (SerializationException ex) {
+                    throw new DataCorruptionException("Deserialization failed.", ex);
+                }
+                // Any other exceptions are considered to be non-DataCorruption.
+            }
+        }
+        catch (Exception ex) {
             // If we encountered any kind of reader exception, close the reader right away.
             // We do not do retries at this layer. Retries should be handled by the DataLog.
             // At this time, we close the reader for any kind of exception. In the future, we may decide to only do this
@@ -122,9 +115,8 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
             // the very top level is problematic, mostly because we would have to "rewind" some of the other iterators
             // to a previous position, otherwise any retries may read the wrong data.
             this.close();
-        });
-
-        return result;
+            throw ex;
+        }
     }
 
     //endregion
@@ -138,41 +130,33 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
      * @return A CompletableFuture that, when complete, will contain a SegmentCollection with the requested result. If no
      * more segments are available, either a null value or an empty SegmentCollection will be returned.
      */
-    private CompletableFuture<SegmentCollection> getNextOperationSegments(Duration timeout) {
-        return CompletableFuture.supplyAsync(() ->
-        {
-            SegmentCollection result = new SegmentCollection();
-            TimeoutTimer timer = new TimeoutTimer(timeout);
-            while (true) {
-                DataFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext(timer.getRemaining()).join();
-                if (nextEntry == null) {
-                    // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
-                    // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
-                    return null;
+    private SegmentCollection getNextOperationSegments(Duration timeout) throws Exception {
+        SegmentCollection result = new SegmentCollection();
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        while (true) {
+            DataFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext(timer.getRemaining());
+            if (nextEntry == null) {
+                // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
+                // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
+                return null;
+            }
+            else {
+                if (nextEntry.isFirstRecordEntry()) {
+                    // We encountered a 'First entry'. We need to discard whatever we have so far, and start
+                    // constructing a new Operation. This happens if an entry was committed partially, but we were
+                    // unable to write the rest of it.
+                    result.clear();
                 }
-                else {
-                    if (nextEntry.isFirstRecordEntry()) {
-                        // We encountered a 'First entry'. We need to discard whatever we have so far, and start
-                        // constructing a new Operation. This happens if an entry was committed partially, but we were
-                        // unable to write the rest of it.
-                        result.clear();
-                    }
 
-                    // Add the current entry's contents to the result.
-                    try {
-                        result.add(nextEntry.getData(), nextEntry.getDataFrameSequence(), nextEntry.isLastEntryInDataFrame());
-                    }
-                    catch (DataCorruptionException ex) {
-                        throw new CompletionException(ex);
-                    }
+                // Add the current entry's contents to the result.
+                result.add(nextEntry.getData(), nextEntry.getDataFrameSequence(), nextEntry.isLastEntryInDataFrame());
 
-                    if (nextEntry.isLastRecordEntry()) {
-                        // We are done. We found the last entry for a record.
-                        return result;
-                    }
+                if (nextEntry.isLastRecordEntry()) {
+                    // We are done. We found the last entry for a record.
+                    return result;
                 }
             }
-        });
+        }
     }
 
     //endregion
@@ -333,7 +317,7 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
     /**
      * Enumerates DataFrameEntries from all frames, in sequence.
      */
-    private static class FrameEntryEnumerator implements AutoCloseable {
+    private static class FrameEntryEnumerator implements CloseableIterator<DataFrame.DataFrameEntry, Exception> {
         //region Members
 
         private final String traceObjectId;
@@ -376,48 +360,35 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
          * @return A CompletableFuture that, when completed, will contain the next available DataFrameEntry. If no such
          * entry exists, it will contain a null value.
          */
-        public CompletableFuture<DataFrame.DataFrameEntry> getNext(Duration timeout) {
+        public DataFrame.DataFrameEntry getNext(Duration timeout) throws Exception {
             // Check to see if we are in the middle of a frame, in which case, just return the next element.
             if (this.currentFrameContents != null && this.currentFrameContents.hasNext()) {
-                try {
-                    DataFrame.DataFrameEntry result = this.currentFrameContents.pollNext();
-                    if (result != null) {
-                        return CompletableFuture.completedFuture(result);
-                    }
-                }
-                catch (Exception ex) {
-                    return FutureHelpers.failedFuture(ex);
+                DataFrame.DataFrameEntry result = this.currentFrameContents.pollNext();
+                if (result != null) {
+                    return result;
                 }
             }
 
             // We need to fetch a new frame.
-            return this.dataFrameEnumerator
-                    .getNext(timeout)
-                    .thenApply(dataFrame -> {
-                        if (dataFrame == null) {
-                            // No more frames to retrieve
-                            this.currentFrameContents = null;
-                            return null;
-                        }
-                        else {
-                            // We just got a new frame.
-                            log.debug("{}: Read DataFrame (SequenceNumber = {}, Length = {}).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
-                            this.currentFrameContents = dataFrame.getEntries();
-                            if (this.currentFrameContents.hasNext()) {
-                                try {
-                                    return this.currentFrameContents.pollNext();
-                                }
-                                catch (Exception ex) {
-                                    throw new CompletionException(ex);
-                                }
-                            }
-                            else {
-                                // The DataFrameEnumerator should not return empty frames. We can either go in a loop and try to get next,
-                                // or throw (which is correct, since we rely on DataFrameEnumerator to behave correctly.
-                                throw new CompletionException(new DataCorruptionException("Found empty DataFrame when non-empty was expected."));
-                            }
-                        }
-                    });
+            DataFrame dataFrame = this.dataFrameEnumerator.getNext(timeout);
+            if (dataFrame == null) {
+                // No more frames to retrieve
+                this.currentFrameContents = null;
+                return null;
+            }
+            else {
+                // We just got a new frame.
+                log.debug("{}: Read DataFrame (SequenceNumber = {}, Length = {}).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
+                this.currentFrameContents = dataFrame.getEntries();
+                if (this.currentFrameContents.hasNext()) {
+                    return this.currentFrameContents.pollNext();
+                }
+                else {
+                    // The DataFrameEnumerator should not return empty frames. We can either go in a loop and try to get next,
+                    // or throw (which is correct, since we rely on DataFrameEnumerator to behave correctly.
+                    throw new DataCorruptionException("Found empty DataFrame when non-empty was expected.");
+                }
+            }
         }
 
         //endregion
@@ -430,13 +401,13 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
     /**
      * Enumerates DataFrames from a DataFrameLog.
      */
-    private static class DataFrameEnumerator implements AutoCloseable {
+    private static class DataFrameEnumerator implements CloseableIterator<DataFrame, Exception> {
         //region Members
 
         private static final long InitialLastReadFrameSequence = -1;
         private final DurableDataLog log;
         private long lastReadFrameSequence;
-        private AsyncIterator<DurableDataLog.ReadItem> reader;
+        private CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader;
 
         //endregion
 
@@ -482,35 +453,34 @@ public class DataFrameReader<T extends LogItem> implements AsyncIterator<DataFra
          * @return A CompletableFuture that, when complete, will contain the next DataFrame from the log. If no such
          * frame exists, it will contain a null value.
          */
-        public CompletableFuture<DataFrame> getNext(Duration timeout) {
-            return this.reader.getNext(timeout).thenApply(nextItem -> {
-                if (nextItem == null) {
-                    // We have reached the end. Stop here.
-                    return null;
-                }
+        public DataFrame getNext(Duration timeout) throws Exception {
+            DurableDataLog.ReadItem nextItem = this.reader.getNext(timeout);
+            if (nextItem == null) {
+                // We have reached the end. Stop here.
+                return null;
+            }
 
-                DataFrame frame;
-                try {
-                    frame = new DataFrame(nextItem.getPayload());
-                    frame.setFrameSequence(nextItem.getSequence());
-                }
-                catch (SerializationException ex) {
-                    throw new CompletionException(new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex));
-                }
+            DataFrame frame;
+            try {
+                frame = new DataFrame(nextItem.getPayload());
+                frame.setFrameSequence(nextItem.getSequence());
+            }
+            catch (SerializationException ex) {
+                throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex);
+            }
 
-                if (frame.getFrameSequence() <= this.lastReadFrameSequence) {
-                    // FrameSequence must be a strictly monotonically increasing number.
-                    throw new CompletionException(new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.", this.lastReadFrameSequence, frame.getFrameSequence())));
-                }
+            if (frame.getFrameSequence() <= this.lastReadFrameSequence) {
+                // FrameSequence must be a strictly monotonically increasing number.
+                throw new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.", this.lastReadFrameSequence, frame.getFrameSequence()));
+            }
 
-                if (this.lastReadFrameSequence != InitialLastReadFrameSequence && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
-                    // Previous Frame Sequence is not match what the Current Frame claims it is.
-                    throw new CompletionException(new DataCorruptionException(String.format("DataFrame with Sequence %d has a PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).", frame.getFrameSequence(), frame.getPreviousFrameSequence(), this.lastReadFrameSequence)));
-                }
+            if (this.lastReadFrameSequence != InitialLastReadFrameSequence && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
+                // Previous Frame Sequence is not match what the Current Frame claims it is.
+                throw new DataCorruptionException(String.format("DataFrame with Sequence %d has a PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).", frame.getFrameSequence(), frame.getPreviousFrameSequence(), this.lastReadFrameSequence));
+            }
 
-                this.lastReadFrameSequence = frame.getFrameSequence();
-                return frame;
-            });
+            this.lastReadFrameSequence = frame.getFrameSequence();
+            return frame;
         }
 
         //endregion

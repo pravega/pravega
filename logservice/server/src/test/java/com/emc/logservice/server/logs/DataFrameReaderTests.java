@@ -126,25 +126,18 @@ public class DataFrameReaderTests {
             ErrorInjector<Exception> getReaderErrorInjector = new ErrorInjector<>(
                     count -> true, // Fail every time.
                     () -> new DataLogNotAvailableException("intentional getReader exception"));
-            dataLog.setReadErrorInjectors(getReaderErrorInjector, null, null);
+            dataLog.setReadErrorInjectors(getReaderErrorInjector, null);
             AssertExtensions.assertThrows(
                     "No exception or wrong type of exception thrown by getNext() with exception thrown by getReader().",
                     () -> new DataFrameReader<>(dataLog, logItemFactory, ContainerId),
                     ex -> ExceptionHelpers.getRealException(ex) == getReaderErrorInjector.getLastCycleException());
 
-            // Test 2: Sync failures during getNext().
-            ErrorInjector<Exception> readSyncErrorInjector = new ErrorInjector<>(
+            // Test 2: Failures during getNext().
+            ErrorInjector<Exception> readErrorInjector = new ErrorInjector<>(
                     count -> count % failReadSyncEvery == 0,
-                    () -> new DataLogNotAvailableException("intentional getNext sync exception"));
-            dataLog.setReadErrorInjectors(null, readSyncErrorInjector, null);
-            testReadWithException(dataLog, logItemFactory, ex -> ex == readSyncErrorInjector.getLastCycleException());
-
-            // Test 3: Async failures during getNext().
-            ErrorInjector<Exception> readAsyncErrorInjector = new ErrorInjector<>(
-                    count -> count % failReadAsyncEvery == 0,
-                    () -> new DataLogNotAvailableException("intentional getNext async exception"));
-            dataLog.setReadErrorInjectors(null, null, readAsyncErrorInjector);
-            testReadWithException(dataLog, logItemFactory, ex -> ex == readAsyncErrorInjector.getLastCycleException());
+                    () -> new DataLogNotAvailableException("intentional getNext exception"));
+            dataLog.setReadErrorInjectors(null, readErrorInjector);
+            testReadWithException(dataLog, logItemFactory, ex -> ex == readErrorInjector.getLastCycleException());
         }
     }
 
@@ -155,7 +148,7 @@ public class DataFrameReaderTests {
                 DataFrameReader.ReadResult<TestLogItem> readResult;
 
                 try {
-                    readResult = reader.getNext(Timeout).join();
+                    readResult = reader.getNext(Timeout);
                     Assert.assertFalse("getNext() succeeded after read exception was thrown.", encounteredException);
                     Assert.assertNotNull("Expected an exception but none got thrown.");
                 }
@@ -208,7 +201,7 @@ public class DataFrameReaderTests {
         boolean expectDifferentDataFrameSequence = true;
         while (true) {
             // Fetch the next operation.
-            DataFrameReader.ReadResult<TestLogItem> readResult = reader.getNext(Timeout).join();
+            DataFrameReader.ReadResult<TestLogItem> readResult = reader.getNext(Timeout);
             if (readResult == null) {
                 // We have reached the end.
                 break;

@@ -1,6 +1,8 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
+import com.emc.logservice.contracts.StreamSegmentMergedException;
+import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.*;
@@ -56,7 +58,7 @@ public class DurableLog implements OperationLog {
 
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.metadata = metadata;
-        this.operationFactory  = new OperationFactory();
+        this.operationFactory = new OperationFactory();
         this.truncationMarkers = new TruncationMarkerCollection();
         this.faultRegistry = new FaultHandlerRegistry();
         this.inMemoryOperationLog = new MemoryOperationLog();
@@ -225,7 +227,7 @@ public class DurableLog implements OperationLog {
                     try {
                         recoverFromDataFrameLog(metadataUpdater, timer.getRemaining());
                     }
-                    catch (DurableDataLogException | DataCorruptionException ex) {
+                    catch (Exception ex) {
                         throw new CompletionException(ex);
                     }
                 });
@@ -249,7 +251,7 @@ public class DurableLog implements OperationLog {
                 .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId));
     }
 
-    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater, Duration timeout) throws DataCorruptionException, DurableDataLogException {
+    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater, Duration timeout) throws Exception {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -259,7 +261,7 @@ public class DurableLog implements OperationLog {
             DataFrameReader.ReadResult lastReadResult = null;
             while (true) {
                 // Fetch the next operation.
-                DataFrameReader.ReadResult<Operation> readResult = reader.getNext(timer.getRemaining()).join();
+                DataFrameReader.ReadResult<Operation> readResult = reader.getNext(timer.getRemaining());
                 if (readResult == null) {
                     // We have reached the end.
                     break;
@@ -294,8 +296,8 @@ public class DurableLog implements OperationLog {
                         metadataUpdater.acceptOperation((StorageOperation) operation);
                     }
                 }
-                catch (Exception ex) {
-                    // MetadataUpdater can throw StreamSegmentSealedException or MetadataUpdateException.
+                catch (StreamSegmentSealedException | StreamSegmentMergedException | MetadataUpdateException ex) {
+                    // Metadata updates failures should not happen during recovery.
                     throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
                 }
 

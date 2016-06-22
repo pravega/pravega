@@ -72,12 +72,15 @@ public interface Storage extends AutoCloseable {
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 
     /**
-     * Concatenates two StreamSegments together.
+     * Concatenates two StreamSegments together. The Source StreamSegment will be appended as one atomic block at the end
+     * of the Target StreamSegment, after which the Source StreamSegment will cease to exist. Prior to this operation,
+     * the Source StreamSegment must be sealed.
      *
-     * @param targetStreamSegmentName The full name of the Target StreamSegment. The Source StreamSegment will be
-     *                                concatenated to this StreamSegment.
+     * @param targetStreamSegmentName The full name of the Target StreamSegment. After this operation is complete, this
+     *                                is the surviving StreamSegment.
      * @param sourceStreamSegmentName The full name of the Source StreamSegment. This StreamSegment will be concatenated
-     *                                to the Target StreamSegment.
+     *                                to the Target StreamSegment. After this operation is complete, this StreamSegment
+     *                                will be deleted.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
      * it will contain the cause of the failure.

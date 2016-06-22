@@ -183,7 +183,9 @@ class LogClient implements AutoCloseable {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 // Create a new handle, and pass in a callback so we unregister the handle when it's closed.
-                return new LogHandle(this.namespace, logId, this::handleLogHandleClosed);
+                LogHandle handle = new LogHandle(logId, this::handleLogHandleClosed);
+                handle.initialize(this.namespace);
+                return handle;
             }
             catch (DurableDataLogException ex) {
                 throw new CompletionException(ex);

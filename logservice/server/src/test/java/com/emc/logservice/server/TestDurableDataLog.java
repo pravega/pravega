@@ -1,6 +1,6 @@
 package com.emc.logservice.server;
 
-import com.emc.logservice.common.AsyncIterator;
+import com.emc.logservice.common.CloseableIterator;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
@@ -27,7 +27,6 @@ public class TestDurableDataLog implements DurableDataLog {
     private ErrorInjector<Exception> appendAsyncErrorInjector;
     private ErrorInjector<Exception> getReaderInitialErrorInjector;
     private ErrorInjector<Exception> readSyncErrorInjector;
-    private ErrorInjector<Exception> readAsyncErrorInjector;
 
     //endregion
 
@@ -69,9 +68,9 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public AsyncIterator<ReadItem> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getReaderInitialErrorInjector);
-        return new AsyncIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector, this.readAsyncErrorInjector);
+        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector);
     }
 
     @Override
@@ -103,17 +102,14 @@ public class TestDurableDataLog implements DurableDataLog {
     /**
      * Sets the ErrorInjectors for the read operation.
      *
-     * @param getReaderInjector      An ErrorInjector to throw sync exceptions during calls to getReader. If null, no exceptions
-     *                               will be thrown when calling getReader.
-     * @param readSyncErrorInjector  An ErrorInjector to throw sync exceptions during calls to getNext() from the iterator
-     *                               returned by getReader. If null, no sync exceptions will be thrown.
-     * @param readAsyncErrorInjector An ErrorInjector to throw async exceptions during calls to getNext() from the iterator
-     *                               returned by getReader. If null, no async exceptions will be thrown.
+     * @param getReaderInjector An ErrorInjector to throw sync exceptions during calls to getReader. If null, no exceptions
+     *                          will be thrown when calling getReader.
+     * @param readErrorInjector An ErrorInjector to throw sync exceptions during calls to getNext() from the iterator
+     *                          returned by getReader. If null, no sync exceptions will be thrown.
      */
-    public void setReadErrorInjectors(ErrorInjector<Exception> getReaderInjector, ErrorInjector<Exception> readSyncErrorInjector, ErrorInjector<Exception> readAsyncErrorInjector) {
+    public void setReadErrorInjectors(ErrorInjector<Exception> getReaderInjector, ErrorInjector<Exception> readErrorInjector) {
         this.getReaderInitialErrorInjector = getReaderInjector;
-        this.readSyncErrorInjector = readSyncErrorInjector;
-        this.readAsyncErrorInjector = readAsyncErrorInjector;
+        this.readSyncErrorInjector = readErrorInjector;
     }
 
     /**
@@ -127,9 +123,9 @@ public class TestDurableDataLog implements DurableDataLog {
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         final Duration Timeout = Duration.ofSeconds(30);
         ArrayList<T> result = new ArrayList<>();
-        AsyncIterator<DurableDataLog.ReadItem> reader = this.wrappedLog.getReader(-1);
+        CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
         while (true) {
-            DurableDataLog.ReadItem readItem = reader.getNext(Timeout).join();
+            DurableDataLog.ReadItem readItem = reader.getNext(Timeout);
             if (readItem == null) {
                 break;
             }
@@ -164,23 +160,20 @@ public class TestDurableDataLog implements DurableDataLog {
         R apply(T var1) throws Exception;
     }
 
-    private static class AsyncIteratorWrapper implements AsyncIterator<ReadItem> {
-        private final AsyncIterator<ReadItem> innerIterator;
+    private static class CloseableIteratorWrapper implements CloseableIterator<ReadItem, DurableDataLogException> {
+        private final CloseableIterator<ReadItem, DurableDataLogException> innerIterator;
         private final ErrorInjector<Exception> syncErrorInjector;
-        private final ErrorInjector<Exception> asyncErrorInjector;
 
-        public AsyncIteratorWrapper(AsyncIterator<ReadItem> innerIterator, ErrorInjector<Exception> syncErrorInjector, ErrorInjector<Exception> asyncErrorInjector) {
+        public CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> syncErrorInjector) {
             assert innerIterator != null;
             this.innerIterator = innerIterator;
             this.syncErrorInjector = syncErrorInjector;
-            this.asyncErrorInjector = asyncErrorInjector;
         }
 
         @Override
-        public CompletableFuture<ReadItem> getNext(Duration timeout) {
+        public ReadItem getNext(Duration timeout) throws DurableDataLogException {
             ErrorInjector.throwSyncExceptionIfNeeded(syncErrorInjector);
-            return ErrorInjector.throwAsyncExceptionIfNeeded(this.asyncErrorInjector)
-                                .thenCompose(v -> this.innerIterator.getNext(timeout));
+            return this.innerIterator.getNext(timeout);
         }
 
         @Override

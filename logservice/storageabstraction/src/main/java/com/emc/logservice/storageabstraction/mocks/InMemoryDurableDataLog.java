@@ -124,7 +124,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public AsyncIterator<ReadItem> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
         ensurePreconditions();
         return new ReadResultIterator(this.entries.iterator(), afterSequence);
     }
@@ -138,7 +138,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     //region ReadResultIterator
 
-    private static class ReadResultIterator implements AsyncIterator<ReadItem> {
+    private static class ReadResultIterator implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final Iterator<Entry> entryIterator;
         private final long afterSequence;
 
@@ -148,18 +148,17 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         @Override
-        public CompletableFuture<ReadItem> getNext(Duration timeout) {
-            ReadItem result = null;
-            while (this.entryIterator.hasNext() && result == null) {
+        public ReadItem getNext(Duration timeout) throws DurableDataLogException {
+            while (this.entryIterator.hasNext()) {
                 Entry e = this.entryIterator.next();
                 if (e.sequenceNumber <= afterSequence) {
                     continue;
                 }
 
-                result = new ReadResultItem(e);
+                return new ReadResultItem(e);
             }
 
-            return CompletableFuture.completedFuture(result);
+            return null;
         }
 
         @Override
