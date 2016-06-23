@@ -105,16 +105,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 	}
 
 	public void performNextWrite() {
+		OutstandingWrite write;
 		synchronized (lock) {
 			if (outstandingWrite != null || waiting.isEmpty()) {
 				return;
 			}
 			ByteBuf[] data = new ByteBuf[waiting.size()];
 			waiting.toArray(data);
-			outstandingWrite = new OutstandingWrite(data, segment, connectionId, connectionOffset);
+			write = new OutstandingWrite(data, segment, connectionId, connectionOffset);
 			waiting.clear();
+			outstandingWrite = write;
 		}
-		write(outstandingWrite);
+		write(write);
 	}
 
 	private void write(OutstandingWrite toWrite) {
