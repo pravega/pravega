@@ -1,5 +1,7 @@
 package com.emc.logservice.common;
 
+import com.google.common.base.Preconditions;
+
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -29,8 +31,8 @@ public class FixedByteArrayOutputStream extends OutputStream {
      * @throws ArrayIndexOutOfBoundsException If offset and/or length are invalid.
      */
     public FixedByteArrayOutputStream(byte[] array, int offset, int length) {
-        Exceptions.throwIfNull(array, "array");
-        Exceptions.throwIfIllegalArrayRange(offset, length, 0, array.length, "offset", "length");
+        Preconditions.checkNotNull(array, "array");
+        Exceptions.checkArrayRange(offset, length,  array.length, "offset", "length");
 
         this.array = array;
         this.offset = offset;

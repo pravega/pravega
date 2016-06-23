@@ -1,8 +1,8 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.*;
+import com.google.common.base.Preconditions;
 
 import java.util.HashSet;
 
@@ -27,8 +27,8 @@ public class MemoryLogUpdater {
      * @param cache                Cache.
      */
     public MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, Cache cache) {
-        Exceptions.throwIfNull(cache, "cache");
-        Exceptions.throwIfNull(inMemoryOperationLog, "inMemoryOperationLog");
+        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
 
         this.inMemoryOperationLog = inMemoryOperationLog;
         this.cache = cache;

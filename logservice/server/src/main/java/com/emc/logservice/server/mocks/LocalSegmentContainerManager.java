@@ -2,6 +2,7 @@ package com.emc.logservice.server.mocks;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.server.*;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -42,9 +43,9 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
      * @throws IllegalArgumentException If containerRegistry already has Containers registered in it.
      */
     public LocalSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
-        Exceptions.throwIfNull(containerRegistry, "containerRegistry");
-        Exceptions.throwIfNull(segmentToContainerMapper, "segmentToContainerMapper");
-        Exceptions.throwIfIllegalArgument(containerRegistry.getContainerCount() == 0, "containerRegistry", "containerRegistry already has containers registered.");
+        Preconditions.checkNotNull(containerRegistry, "containerRegistry");
+        Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
+        Exceptions.checkArgument(containerRegistry.getContainerCount() == 0, "containerRegistry", "containerRegistry already has containers registered.");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
@@ -114,7 +115,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     }
 
     private void ensureNotClosed() {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
     }
 
     //endregion

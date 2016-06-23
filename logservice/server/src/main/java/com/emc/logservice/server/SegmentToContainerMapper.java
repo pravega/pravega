@@ -14,7 +14,7 @@ public final class SegmentToContainerMapper {
      * @param containerCount The number of containers that are available.
      */
     public SegmentToContainerMapper(int containerCount) {
-        Exceptions.throwIfIllegalArgument(containerCount > 0, "containerCount", "containerCount must be a positive integer.");
+        Exceptions.checkArgument(containerCount > 0, "containerCount", "containerCount must be a positive integer.");
         this.containerCount = containerCount;
     }
 

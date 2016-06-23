@@ -2,6 +2,7 @@ package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.Exceptions;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,7 +34,7 @@ public class CompletableOperation {
      */
     public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture) {
         this(operation, callbackFuture::complete, callbackFuture::completeExceptionally);
-        Exceptions.throwIfIllegalArgument(!callbackFuture.isDone(), "callbackFuture", "CallbackFuture is already done.");
+        Exceptions.checkArgument(!callbackFuture.isDone(), "callbackFuture", "CallbackFuture is already done.");
     }
 
     /**
@@ -45,7 +46,7 @@ public class CompletableOperation {
      * @throws NullPointerException If operation is null.
      */
     public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler) {
-        Exceptions.throwIfNull(operation, "operation");
+        Preconditions.checkNotNull(operation, "operation");
         this.operation = operation;
         this.failureHandler = failureHandler;
         this.successHandler = successHandler;
@@ -69,7 +70,7 @@ public class CompletableOperation {
      */
     public void complete() {
         long seqNo = this.operation.getSequenceNumber();
-        Exceptions.throwIfIllegalState(seqNo>=0, "About to complete a CompletableOperation that has no sequence number.");
+        Preconditions.checkState(seqNo >= 0, "About to complete a CompletableOperation that has no sequence number.");
 
         this.done = true;
         if (this.successHandler != null) {

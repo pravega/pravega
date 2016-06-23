@@ -148,7 +148,7 @@ public class DataFrameReaderTests {
                 DataFrameReader.ReadResult<TestLogItem> readResult;
 
                 try {
-                    readResult = reader.getNext(Timeout);
+                    readResult = reader.getNext();
                     Assert.assertFalse("getNext() succeeded after read exception was thrown.", encounteredException);
                     Assert.assertNotNull("Expected an exception but none got thrown.");
                 }
@@ -201,7 +201,7 @@ public class DataFrameReaderTests {
         boolean expectDifferentDataFrameSequence = true;
         while (true) {
             // Fetch the next operation.
-            DataFrameReader.ReadResult<TestLogItem> readResult = reader.getNext(Timeout);
+            DataFrameReader.ReadResult<TestLogItem> readResult = reader.getNext();
             if (readResult == null) {
                 // We have reached the end.
                 break;

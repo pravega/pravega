@@ -1,6 +1,7 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ByteArraySegment;
+import com.emc.logservice.common.ConsumerWithException;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.TestDurableDataLog;
 import com.emc.nautilus.testcommon.AssertExtensions;
@@ -149,7 +150,7 @@ public class DataFrameBuilderTests {
             AtomicInteger lastAttemptIndex = new AtomicInteger();
             AtomicInteger failCount = new AtomicInteger();
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> successCommits = new ArrayList<>();
-            Consumer<DataFrameBuilder.DataFrameCommitArgs> commitCallback = cc -> {
+            ConsumerWithException<DataFrameBuilder.DataFrameCommitArgs, Exception> commitCallback = cc -> {
                 successCommits.add(cc);
                 lastCommitIndex.set((int) cc.getLastFullySerializedSequenceNumber());
             };

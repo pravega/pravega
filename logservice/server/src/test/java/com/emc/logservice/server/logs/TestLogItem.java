@@ -2,6 +2,7 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.server.LogItem;
+import com.google.common.base.Preconditions;
 
 import java.io.*;
 
@@ -36,7 +37,7 @@ class TestLogItem implements LogItem {
 
     public void failSerializationAfterComplete(double ratio, IOException exception) {
         if (exception != null) {
-            Exceptions.throwIfIllegalArgument(0 <= ratio && ratio < 1, "ratio");
+            Preconditions.checkArgument(0 <= ratio && ratio < 1, "ratio");
         }
 
         this.failAfterCompleteRatio = ratio;

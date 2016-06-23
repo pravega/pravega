@@ -2,6 +2,7 @@ package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.RecoverableMetadata;
+import com.google.common.base.Preconditions;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,8 +43,8 @@ public class TruncationMarkerCollection implements RecoverableMetadata {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
-        Exceptions.throwIfIllegalArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
-        Exceptions.throwIfIllegalArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
+        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
 
         this.truncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
     }
@@ -119,11 +120,11 @@ public class TruncationMarkerCollection implements RecoverableMetadata {
     }
 
     private void ensureRecoveryMode() {
-        Exceptions.throwIfIllegalState(this.recoveryMode.get(), "TruncationMarkerCollection is not in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(this.recoveryMode.get(), "TruncationMarkerCollection is not in recovery mode. Cannot execute this operation.");
     }
 
     private void ensureNonRecoveryMode() {
-        Exceptions.throwIfIllegalState(!this.recoveryMode.get(), "TruncationMarkerCollection is in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(!this.recoveryMode.get(), "TruncationMarkerCollection is in recovery mode. Cannot execute this operation.");
     }
 
     //endregion

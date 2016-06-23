@@ -187,7 +187,7 @@ public class InMemoryDurableDataLogTests {
         SortedMap<Long, byte[]> expectedData = writeData.tailMap(afterSequenceNumber, false);
         Iterator<Long> expectedKeyIterator = expectedData.keySet().iterator();
         while (true) {
-            DurableDataLog.ReadItem nextItem = reader.getNext(Timeout);
+            DurableDataLog.ReadItem nextItem = reader.getNext();
             if (nextItem == null) {
                 Assert.assertFalse("Reader reached the end but there were still items to be read.", expectedKeyIterator.hasNext());
                 break;

@@ -1,11 +1,11 @@
 package com.emc.logservice.server;
 
 import com.emc.logservice.common.CloseableIterator;
-import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
 import com.emc.nautilus.testcommon.ErrorInjector;
+import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -33,7 +33,7 @@ public class TestDurableDataLog implements DurableDataLog {
     //region Constructor
 
     private TestDurableDataLog(DurableDataLog wrappedLog) {
-        Exceptions.throwIfNull(wrappedLog, "wrappedLog");
+        Preconditions.checkNotNull(wrappedLog, "wrappedLog");
         this.wrappedLog = wrappedLog;
     }
 
@@ -121,11 +121,10 @@ public class TestDurableDataLog implements DurableDataLog {
      * @throws DurableDataLogException
      */
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
-        final Duration Timeout = Duration.ofSeconds(30);
         ArrayList<T> result = new ArrayList<>();
         CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
         while (true) {
-            DurableDataLog.ReadItem readItem = reader.getNext(Timeout);
+            DurableDataLog.ReadItem readItem = reader.getNext();
             if (readItem == null) {
                 break;
             }
@@ -171,9 +170,9 @@ public class TestDurableDataLog implements DurableDataLog {
         }
 
         @Override
-        public ReadItem getNext(Duration timeout) throws DurableDataLogException {
+        public ReadItem getNext() throws DurableDataLogException {
             ErrorInjector.throwSyncExceptionIfNeeded(syncErrorInjector);
-            return this.innerIterator.getNext(timeout);
+            return this.innerIterator.getNext();
         }
 
         @Override

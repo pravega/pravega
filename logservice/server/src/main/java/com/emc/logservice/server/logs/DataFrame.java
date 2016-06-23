@@ -1,10 +1,9 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
-import com.emc.logservice.contracts.RuntimeStreamingException;
+import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
-import java.util.NoSuchElementException;
 
 /**
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a record
@@ -171,7 +170,7 @@ public class DataFrame {
      * @throws IllegalStateException If the entry is sealed.
      */
     public boolean startNewEntry(boolean firstRecordEntry) {
-        Exceptions.throwIfIllegalState(!this.sealed, "DataFrame is sealed and cannot accept any more entries.");
+        Preconditions.checkState(!this.sealed, "DataFrame is sealed and cannot accept any more entries.");
         endEntry(true);
 
         if (getAvailableLength() < MinEntryLengthNeeded) {
@@ -273,7 +272,7 @@ public class DataFrame {
      */
     public void seal() {
         if (!this.sealed && !this.contents.isReadOnly()) {
-            Exceptions.throwIfIllegalState(writeEntryStartIndex < 0, "An open entry exists. Any open entries must be closed prior to sealing.");
+            Preconditions.checkState(writeEntryStartIndex < 0, "An open entry exists. Any open entries must be closed prior to sealing.");
 
             this.header.setContentLength(writePosition);
             this.header.commit();
@@ -296,19 +295,19 @@ public class DataFrame {
      * @param previousFrameSequence
      */
     private void formatForWriting(long previousFrameSequence) {
-        Exceptions.throwIfIllegalState(this.header == null && this.contents == null, "DataFrame already contains data; cannot re-format.");
+        Preconditions.checkState(this.header == null && this.contents == null, "DataFrame already contains data; cannot re-format.");
 
         //We want to use the DataFrame for at least 1 byte of data.
         int sourceLength = this.data.getLength();
-        Exceptions.throwIfIllegalArgument(sourceLength > FrameHeader.SerializationLength, "data", "Insufficient array length. Byte array must have a length of at least %d.", FrameHeader.SerializationLength + 1);
+        Exceptions.checkArgument(sourceLength > FrameHeader.SerializationLength, "data", "Insufficient array length. Byte array must have a length of at least %d.", FrameHeader.SerializationLength + 1);
 
         this.header = new FrameHeader(CurrentVersion, previousFrameSequence, this.data.subSegment(0, FrameHeader.SerializationLength));
         this.contents = this.data.subSegment(FrameHeader.SerializationLength, sourceLength - FrameHeader.SerializationLength);
     }
 
     private void ensureAppendConditions() {
-        Exceptions.throwIfIllegalState(!this.sealed, "DataFrame is sealed.");
-        Exceptions.throwIfIllegalState(this.writeEntryStartIndex >= 0, "No entry started.");
+        Preconditions.checkState(!this.sealed, "DataFrame is sealed.");
+        Preconditions.checkState(this.writeEntryStartIndex >= 0, "No entry started.");
     }
 
     //endregion
@@ -320,7 +319,7 @@ public class DataFrame {
      *
      * @return
      */
-    public IteratorWithException<DataFrameEntry, SerializationException> getEntries() {
+    public CloseableIterator<DataFrameEntry, SerializationException> getEntries() {
         // The true max length differs based on whether we are still writing this frame or if it's read-only.
         int maxLength = this.writePosition >= 0 ? this.writePosition : this.contents.getLength();
         return new DataFrameEntryIterator(this.contents.asReadOnly(), this.getFrameSequence(), maxLength);
@@ -416,7 +415,7 @@ public class DataFrame {
          * @throws IllegalArgumentException If the size of the headerContents ByteArraySegment is incorrect.
          */
         public EntryHeader(ByteArraySegment headerContents) {
-            Exceptions.throwIfIllegalArgument(headerContents.getLength() == HeaderSize, "headerContents", "Invalid headerContents size. Expected %d, given %d.", HeaderSize, headerContents.getLength());
+            Exceptions.checkArgument(headerContents.getLength() == HeaderSize, "headerContents", "Invalid headerContents size. Expected %d, given %d.", HeaderSize, headerContents.getLength());
 
             if (headerContents.isReadOnly()) {
                 // We are reading.
@@ -443,7 +442,7 @@ public class DataFrame {
          * @throws IllegalStateException If this EntryHeader was deserialized (and not new).
          */
         public void serialize() {
-            Exceptions.throwIfIllegalState(this.data != null && !this.data.isReadOnly(), "Cannot serialize a read-only EntryHeader.");
+            Preconditions.checkState(this.data != null && !this.data.isReadOnly(), "Cannot serialize a read-only EntryHeader.");
 
             // Write length.
             writeInt(this.data, 0, this.entryLength);
@@ -547,7 +546,7 @@ public class DataFrame {
          * @throws IllegalArgumentException If the target buffer has an incorrect length.
          */
         public FrameHeader(byte version, long previousFrameSequence, ByteArraySegment target) {
-            Exceptions.throwIfIllegalArgument(target.getLength() == SerializationLength, "target", "Unexpected length for target buffer. Expected %d, given %d.", SerializationLength, target.getLength());
+            Exceptions.checkArgument(target.getLength() == SerializationLength, "target", "Unexpected length for target buffer. Expected %d, given %d.", SerializationLength, target.getLength());
 
             this.version = version;
             this.previousFrameSequence = previousFrameSequence;
@@ -594,7 +593,7 @@ public class DataFrame {
          * @throws IllegalStateException If this FrameHeader was created from a read-only buffer (it was deserialized).
          */
         public void commit() {
-            Exceptions.throwIfIllegalState(this.buffer != null && !this.buffer.isReadOnly(), "Cannot commit a read-only FrameHeader");
+            Preconditions.checkState(this.buffer != null && !this.buffer.isReadOnly(), "Cannot commit a read-only FrameHeader");
             assert this.buffer.getLength() == SerializationLength;
 
             // We already checked the size of the target buffer (in the constructor); no need to do it here again.
@@ -756,7 +755,7 @@ public class DataFrame {
     /**
      * Represents an iterator over all entries within a DataFrame.
      */
-    private class DataFrameEntryIterator implements IteratorWithException<DataFrameEntry, SerializationException> {
+    private class DataFrameEntryIterator implements CloseableIterator<DataFrameEntry, SerializationException> {
         private final ByteArraySegment contents;
         private final long dataFrameSequence;
         private int currentPosition;
@@ -776,17 +775,21 @@ public class DataFrame {
             this.currentPosition = 0;
         }
 
-        //region IteratorWithException Implementation
+        //region AutoCloseable Implementation
 
         @Override
-        public boolean hasNext() {
-            return this.currentPosition < this.maxLength;
+        public void close() {
+            this.currentPosition = maxLength + 1;
         }
 
+        //endregion
+
+        //region CloseableIterator Implementation
+
         @Override
-        public DataFrameEntry pollNext() throws SerializationException {
-            if (!hasNext()) {
-                throw new NoSuchElementException("Reached the end of the DataFrame.");
+        public DataFrameEntry getNext() throws SerializationException {
+            if (!hasMoreElements()) {
+                return null;
             }
 
             // Integrity check. This means that we have a corrupt frame.
@@ -806,17 +809,11 @@ public class DataFrame {
             // Get the result contents && advance the positions.
             ByteArraySegment resultContents = this.contents.subSegment(this.currentPosition, header.getEntryLength());
             this.currentPosition += header.getEntryLength();
-            return new DataFrameEntry(header, resultContents, this.dataFrameSequence, !this.hasNext());
+            return new DataFrameEntry(header, resultContents, this.dataFrameSequence, !this.hasMoreElements());
         }
 
-        @Override
-        public DataFrameEntry next() {
-            try {
-                return pollNext();
-            }
-            catch (SerializationException ex) {
-                throw new RuntimeStreamingException("DataFrameEntryIterator.next", ex);
-            }
+        private boolean hasMoreElements() {
+            return this.currentPosition < this.maxLength;
         }
 
         //endregion

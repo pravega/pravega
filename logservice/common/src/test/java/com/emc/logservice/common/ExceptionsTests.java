@@ -8,158 +8,88 @@ import org.junit.Test;
  */
 public class ExceptionsTests {
     /**
-     * Tests the throwIfNull method.
+     * Tests the checkNotNullOrEmpty method.
      */
     @Test
-    public void testThrowIfNull() {
+    public void testCheckNotNullOrEmpty() {
         AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfNull with null argument.",
-                () -> Exceptions.throwIfNull(null, "null-arg"),
-                ex -> ex instanceof NullPointerException);
-
-        // This should not throw.
-        Exceptions.throwIfNull(new Object(), "non-null-arg");
-    }
-
-    /**
-     * Tests the throwIfNullOrEmpty method.
-     */
-    @Test
-    public void testThrowIfNullOrEmpty() {
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfNullOfEmpty with null argument.",
-                () -> Exceptions.throwIfNullOfEmpty(null, "null-arg"),
+                "Unexpected behavior for checkNotNullOrEmpty with null argument.",
+                () -> Exceptions.checkNotNullOrEmpty(null, "null-arg"),
                 ex -> ex instanceof NullPointerException);
 
         AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfNullOfEmpty with empty string argument.",
-                () -> Exceptions.throwIfNullOfEmpty("", "empty-arg"),
+                "Unexpected behavior for checkNotNullOrEmpty with empty string argument.",
+                () -> Exceptions.checkNotNullOrEmpty("", "empty-arg"),
                 ex -> ex instanceof IllegalArgumentException);
 
         // This should not throw.
-        Exceptions.throwIfNullOfEmpty("a", "valid-arg");
+        Exceptions.checkNotNullOrEmpty("a", "valid-arg");
     }
 
     /**
-     * Tests the throwIfIllegalArgument method.
+     * Tests the checkArgument method.
      */
     @Test
-    public void testThrowIfIllegalArgument() {
+    public void testCheckArgument() {
         AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalArgument(arg) with valid=false argument.",
-                () -> Exceptions.throwIfIllegalArgument(false, "invalid-arg"),
-                ex -> ex instanceof IllegalArgumentException);
-
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalArgument(arg, msg) with valid=false argument.",
-                () -> Exceptions.throwIfIllegalArgument(false, "invalid-arg", "format msg %s", "foo"),
+                "Unexpected behavior for checkArgument(arg, msg) with valid=false argument.",
+                () -> Exceptions.checkArgument(false, "invalid-arg", "format msg %s", "foo"),
                 ex -> ex instanceof IllegalArgumentException);
 
         // These should not throw.
-        Exceptions.throwIfIllegalArgument(true, "valid-arg");
-        Exceptions.throwIfIllegalArgument(true, "valid-arg", "format msg %s", "foo");
+        Exceptions.checkArgument(true, "valid-arg", "format msg %s", "foo");
     }
 
     /**
-     * Tests the throwIfIllegalArrayIndex method.
+     * Tests the checkArrayRange method.
      */
     @Test
-    public void testThrowIfIllegalArrayIndex() {
-        int minBound = 5;
-        int maxBound = 10;
-        for (int i = minBound - 1; i <= maxBound + 1; i++) {
-            boolean valid = i >= minBound && i < maxBound;
-            if (valid) {
-                // This should not throw.
-                Exceptions.throwIfIllegalArrayIndex(i, minBound, maxBound, "i");
-            }
-            else {
-                final int index = i;
-                AssertExtensions.assertThrows(
-                        String.format("Unexpected behavior for throwIfIllegalArrayIndex(index = %d, minbound = %d, maxbound = %d).", index, minBound, maxBound),
-                        () -> Exceptions.throwIfIllegalArrayIndex(index, minBound, maxBound, "i"),
-                        ex -> ex instanceof ArrayIndexOutOfBoundsException);
-            }
-        }
-
-        // Check for invalid bounds.
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalArrayIndex() with invalid bounds.",
-                () -> Exceptions.throwIfIllegalArrayIndex(10, 10, 10, "i"),
-                ex -> ex instanceof ArrayIndexOutOfBoundsException);
-
-        // Empty array.
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalArrayIndex() with empty array.",
-                () -> Exceptions.throwIfIllegalArrayIndex(0, 0, 0, "i"),
-                ex -> ex instanceof ArrayIndexOutOfBoundsException);
-    }
-
-    /**
-     * Tests the throwIfIllegalArrayRange method.
-     */
-    @Test
-    public void testThrowIfIllegalArrayRange() {
+    public void testCheckArrayRange() {
         // Run a range of fixed size over an interval and verify conditions.
 
-        int minBound = 10;
         int maxBound = 20;
         int length = 5;
-        for (int i = minBound - length - 1; i <= maxBound + 1; i++) {
-            boolean valid = i >= minBound && i + length <= maxBound;
+        for (int i = -1; i <= maxBound + 1; i++) {
+            boolean valid = i >= 0 && i + length <= maxBound;
             if (valid) {
-                Exceptions.throwIfIllegalArrayRange(i, length, minBound, maxBound, "start", "length");
+                Exceptions.checkArrayRange(i, length, maxBound, "start", "length");
             }
             else {
                 final int index = i;
                 AssertExtensions.assertThrows(
-                        String.format("Unexpected behavior for throwIfIllegalArrayRange(index = %d, length = %d, minbound = %d, maxbound = %d).", index, length, minBound, maxBound),
-                        () -> Exceptions.throwIfIllegalArrayRange(index, length, minBound, maxBound, "start", "length"),
+                        String.format("Unexpected behavior for checkArrayRange(index = %d, length = %d, maxbound = %d).", index, length, maxBound),
+                        () -> Exceptions.checkArrayRange(index, length, maxBound, "start", "length"),
                         ex -> ex instanceof ArrayIndexOutOfBoundsException);
             }
         }
 
         // Negative length.
         AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalArrayRange() with negative length.",
-                () -> Exceptions.throwIfIllegalArrayRange(10, -1, 8, 20, "start", "length"),
+                "Unexpected behavior for checkArrayRange() with negative length.",
+                () -> Exceptions.checkArrayRange(10, -1, 20, "start", "length"),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Empty array with empty range (this is a valid case).
-        Exceptions.throwIfIllegalArrayRange(0, 0, 0, 0, "start", "length");
+        Exceptions.checkArrayRange(0, 0, 0, "start", "length");
 
         // Empty array with non-empty range (not a valid case).
         AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalArrayRange() with non-empty range in an empty array.",
-                () -> Exceptions.throwIfIllegalArrayRange(0, 1, 0, 0, "start", "length"),
+                "Unexpected behavior for checkArrayRange() with non-empty range in an empty array.",
+                () -> Exceptions.checkArrayRange(0, 1, 0, "start", "length"),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
     /**
-     * Tests the throwIfClosed method.
+     * Tests the checkNotClosed method.
      */
     @Test
-    public void testThrowIfClosed() {
+    public void testCheckNotClosed() {
         AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfClosed() with closed=true argument.",
-                () -> Exceptions.throwIfClosed(true, "object"),
+                "Unexpected behavior for checkNotClosed() with closed=true argument.",
+                () -> Exceptions.checkNotClosed(true, "object"),
                 ex -> ex instanceof ObjectClosedException);
 
         // These should not throw.
-        Exceptions.throwIfClosed(false, "object");
-    }
-
-    /**
-     * Tests the throwIfIllegalState method.
-     */
-    @Test
-    public void testThrowIfIllegalState() {
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for throwIfIllegalState() with validState=false argument.",
-                () -> Exceptions.throwIfIllegalState(false, "format msg %s", "foo"),
-                ex -> ex instanceof IllegalStateException);
-
-        // These should not throw.
-        Exceptions.throwIfIllegalState(true, "format msg %s", "foo");
+        Exceptions.checkNotClosed(false, "object");
     }
 }

@@ -21,9 +21,9 @@ public class MemoryReadResultEntry extends ReadResultEntry {
      */
     public MemoryReadResultEntry(ByteArrayReadIndexEntry entry, int entryOffset, int length) {
         super(entry.getStreamSegmentOffset() + entryOffset, length);
-        Exceptions.throwIfIllegalArgument(entryOffset >= 0, "entryOffset", "EntryOffset must be non-negative.");
-        Exceptions.throwIfIllegalArgument(length > 0, "length", "Length must be a positive integer.");
-        Exceptions.throwIfIllegalArgument(entryOffset + length <= entry.getLength(), "entryOffset + length", "EntryOffset + Length must be less than the size of the entry data.");
+        Exceptions.checkArgument(entryOffset >= 0, "entryOffset", "EntryOffset must be non-negative.");
+        Exceptions.checkArgument(length > 0, "length", "Length must be a positive integer.");
+        Exceptions.checkArgument(entryOffset + length <= entry.getLength(), "entryOffset + length", "EntryOffset + Length must be less than the size of the entry data.");
 
         // Data Stream is readily available.
         this.dataStream = CompletableFuture.completedFuture(new ReadResultEntryContents(new ByteArrayInputStream(entry.getData(), entryOffset, length), length));

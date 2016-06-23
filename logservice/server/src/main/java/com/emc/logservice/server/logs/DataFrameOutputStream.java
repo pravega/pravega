@@ -1,6 +1,7 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
+import com.google.common.base.Preconditions;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -34,9 +35,9 @@ class DataFrameOutputStream extends OutputStream {
      * @throws NullPointerException     If any of the arguments are null.
      */
     public DataFrameOutputStream(int maxDataFrameSize, Supplier<Long> getPreviousFrameSequence, ConsumerWithException<DataFrame, IOException> dataFrameCompleteCallback) {
-        Exceptions.throwIfIllegalArgument(maxDataFrameSize > 0, "maxDataFrameSize", "Must be a positive integer.");
-        Exceptions.throwIfNull(getPreviousFrameSequence, "getPreviousFrameSequence");
-        Exceptions.throwIfNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
+        Exceptions.checkArgument(maxDataFrameSize > 0, "maxDataFrameSize", "Must be a positive integer.");
+        Preconditions.checkNotNull(getPreviousFrameSequence, "getPreviousFrameSequence");
+        Preconditions.checkNotNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
 
         this.maxDataFrameSize = maxDataFrameSize;
         this.getPreviousFrameSequence = getPreviousFrameSequence;
@@ -49,8 +50,8 @@ class DataFrameOutputStream extends OutputStream {
 
     @Override
     public void write(int b) throws IOException {
-        Exceptions.throwIfClosed(this.closed, this);
-        Exceptions.throwIfIllegalState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
 
         int attemptCount = 0;
         int totalBytesWritten = 0;
@@ -74,8 +75,8 @@ class DataFrameOutputStream extends OutputStream {
 
     @Override
     public void write(byte[] data, int offset, int length) throws IOException {
-        Exceptions.throwIfClosed(this.closed, this);
-        Exceptions.throwIfIllegalState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
 
         int totalBytesWritten = 0;
         int attemptsWithNoProgress = 0;
@@ -108,7 +109,7 @@ class DataFrameOutputStream extends OutputStream {
      */
     @Override
     public void flush() throws IOException {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         if (!this.hasDataInCurrentFrame) {
             // Nothing to do.
             return;
@@ -143,7 +144,7 @@ class DataFrameOutputStream extends OutputStream {
      * @throws SerializationException If we are unable to start a new record.
      */
     public void startNewRecord() throws IOException {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
 
         // If there is any data in the current frame, seal it and ship it. And create a new one with StartMagic = Last.EndMagic.
         if (this.currentFrame == null) {
@@ -163,7 +164,7 @@ class DataFrameOutputStream extends OutputStream {
      * Indicates to the stream that the currently open record is now ended.
      */
     public void endRecord() {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         if (this.currentFrame != null) {
             this.currentFrame.endEntry(true);
         }
@@ -175,7 +176,7 @@ class DataFrameOutputStream extends OutputStream {
      * will detect that such a record was discarded and skip over it upon reading.
      */
     public void discardRecord() {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         if (this.currentFrame != null) {
             this.currentFrame.discardEntry();
         }
@@ -185,13 +186,13 @@ class DataFrameOutputStream extends OutputStream {
      * Discards all the data currently accumulated in the current frame.
      */
     public void reset() {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         this.currentFrame = null;
         this.hasDataInCurrentFrame = false;
     }
 
     private void createNewFrame() {
-        Exceptions.throwIfIllegalState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
+        Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
 
         this.currentFrame = new DataFrame(this.getPreviousFrameSequence.get(), this.maxDataFrameSize);
         this.hasDataInCurrentFrame = false;

@@ -1,8 +1,9 @@
 package com.emc.logservice.server.reading;
 
 import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.contracts.*;
 import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.contracts.*;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.NoSuchElementException;
@@ -39,9 +40,9 @@ public class StreamSegmentReadResult implements ReadResult {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     protected StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String traceObjectId) {
-        Exceptions.throwIfIllegalArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
-        Exceptions.throwIfIllegalArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
-        Exceptions.throwIfNull(getNextItem, "getNextItem");
+        Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
+        Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
+        Preconditions.checkNotNull(getNextItem, "getNextItem");
 
         this.traceObjectId = traceObjectId;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
@@ -115,14 +116,14 @@ public class StreamSegmentReadResult implements ReadResult {
      */
     @Override
     public ReadResultEntry next() {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
 
         if (!hasNext()) {
             throw new NoSuchElementException("StreamSegmentReadResult has been read in its entirety.");
         }
 
         // If the previous entry hasn't finished yet, we cannot proceed.
-        Exceptions.throwIfIllegalState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
+        Preconditions.checkState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
         if (this.lastEntryFutureFollowup != null && !this.lastEntryFutureFollowup.isDone()) {
             // This is the follow-up code that we have from the previous execution. Even though the previous future may
             // have finished executing, the follow-up may not have, so wait for that as well.

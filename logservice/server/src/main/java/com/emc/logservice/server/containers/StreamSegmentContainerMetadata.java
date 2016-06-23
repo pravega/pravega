@@ -2,6 +2,7 @@ package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.server.*;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -31,7 +32,7 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
      * Creates a new instance of the StreamSegmentContainerMetadata.
      */
     public StreamSegmentContainerMetadata(String streamSegmentContainerId) {
-        Exceptions.throwIfNullOfEmpty(streamSegmentContainerId, "streamSegmentContainerId");
+        Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
         //TODO: need to define a MetadataReaderWriter class which we can pass to this. Metadata always need to be persisted somewhere.
         this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
@@ -91,8 +92,8 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     @Override
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            Exceptions.throwIfIllegalArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.throwIfIllegalArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
@@ -104,12 +105,12 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     @Override
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            Exceptions.throwIfIllegalArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.throwIfIllegalArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             UpdateableSegmentMetadata parentMetadata = this.streamMetadata.getOrDefault(parentStreamSegmentId, null);
-            Exceptions.throwIfIllegalArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.throwIfIllegalArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NoStreamSegmentId, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
+            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NoStreamSegmentId, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
@@ -155,7 +156,7 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
         ensureRecoveryMode();
 
         // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this is ok.
-        Exceptions.throwIfIllegalArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
+        Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
 
         this.sequenceNumber.set(value);
     }
@@ -190,11 +191,11 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     }
 
     private void ensureRecoveryMode() {
-        Exceptions.throwIfIllegalState(isRecoveryMode(), "", "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(isRecoveryMode(), "", "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
     }
 
     private void ensureNonRecoveryMode() {
-        Exceptions.throwIfIllegalState(!isRecoveryMode(), "", "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(!isRecoveryMode(), "", "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
     }
 
     //endregion

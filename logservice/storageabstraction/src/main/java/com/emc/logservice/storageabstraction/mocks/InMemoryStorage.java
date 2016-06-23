@@ -32,7 +32,7 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture.supplyAsync(() -> {
             synchronized (this.lock) {
                 if (this.streamSegments.containsKey(streamSegmentName)) {
@@ -80,7 +80,7 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture.runAsync(() -> {
             synchronized (this.lock) {
                 if (!this.streamSegments.containsKey(streamSegmentName)) {
@@ -92,7 +92,7 @@ public class InMemoryStorage implements Storage {
     }
 
     private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture.supplyAsync(() -> {
             synchronized (this.lock) {
                 StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
@@ -135,8 +135,8 @@ public class InMemoryStorage implements Storage {
         public CompletableFuture<Integer> read(long startOffset, byte[] target, int targetOffset, int length) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
-                    Exceptions.throwIfIllegalArrayRange(targetOffset, length, 0, target.length, "targetOffset", "length");
-                    Exceptions.throwIfIllegalArrayRange(startOffset, length, 0, this.length, "startOffset", "length");
+                    Exceptions.checkArrayRange(targetOffset, length, target.length, "targetOffset", "length");
+                    Exceptions.checkArrayRange(startOffset, length, this.length, "startOffset", "length");
 
                     long offset = startOffset;
                     int readBytes = 0;
@@ -209,7 +209,7 @@ public class InMemoryStorage implements Storage {
         }
 
         private void writeInternal(long startOffset, InputStream data, int length) {
-            Exceptions.throwIfIllegalArgument(length >= 0, "length", "bad length");
+            Exceptions.checkArgument(length >= 0, "length", "bad length");
             if (startOffset != this.length) {
                 throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
             }

@@ -1,5 +1,7 @@
 package com.emc.logservice.common;
 
+import com.google.common.base.Preconditions;
+
 import java.util.Properties;
 
 /**
@@ -38,8 +40,8 @@ public abstract class ComponentConfig {
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
     public ComponentConfig(Properties properties, String componentCode) throws MissingPropertyException, InvalidPropertyValueException {
-        Exceptions.throwIfNull(properties, "properties");
-        Exceptions.throwIfNullOfEmpty(componentCode, "componentCode");
+        Preconditions.checkNotNull(properties, "properties");
+        Exceptions.checkNotNullOrEmpty(componentCode, "componentCode");
 
         this.properties = properties;
         this.keyPrefix = componentCode + Separator;
@@ -221,7 +223,7 @@ public abstract class ComponentConfig {
     }
 
     private String getPropertyKey(String name) {
-        Exceptions.throwIfNullOfEmpty(name, "name");
+        Exceptions.checkNotNullOrEmpty(name, "name");
         return this.keyPrefix + name;
     }
 

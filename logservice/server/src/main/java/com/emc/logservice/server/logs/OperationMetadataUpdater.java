@@ -6,6 +6,7 @@ import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.StreamSegmentMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.*;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -34,8 +35,8 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @throws NullPointerException If any of the arguments are null.
      */
     public OperationMetadataUpdater(UpdateableContainerMetadata metadata, TruncationMarkerCollection truncationMarkers) {
-        Exceptions.throwIfNull(metadata, "metadata");
-        Exceptions.throwIfNull(truncationMarkers, "truncationMarkers");
+        Preconditions.checkNotNull(metadata, "metadata");
+        Preconditions.checkNotNull(truncationMarkers, "truncationMarkers");
 
         this.traceObjectId = String.format("OperationMetadataUpdater[%s]", metadata.getContainerId());
         this.metadata = metadata;
@@ -134,7 +135,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @throws NullPointerException    If the operation is null.
      */
     public void processMetadataOperation(MetadataOperation operation) throws MetadataUpdateException {
-        Exceptions.throwIfIllegalState(this.metadata.isRecoveryMode(), "Cannot process MetadataOperation in non-recovery mode.");
+        Preconditions.checkState(this.metadata.isRecoveryMode(), "Cannot process MetadataOperation in non-recovery mode.");
         log.trace("{}: PreProcess {}.", this.traceObjectId, operation);
         getCurrentTransaction().processMetadataOperation(operation);
     }
@@ -682,7 +683,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @throws StreamSegmentMergedException If the StreamSegment is already merged.
          */
         public void preProcessAsBatchStreamSegment(MergeBatchOperation operation) throws MetadataUpdateException, StreamSegmentMergedException {
-            Exceptions.throwIfIllegalArgument(this.streamSegmentMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
+            Exceptions.checkArgument(this.streamSegmentMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
 
             if (!this.sealed) {
                 throw new MetadataUpdateException("Batch StreamSegment to be merged needs to be sealed.");
@@ -704,7 +705,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
          * @throws IllegalArgumentException If the operation is for a different stream segment.
          */
         public void acceptAsBatchStreamSegment(MergeBatchOperation operation) {
-            Exceptions.throwIfIllegalArgument(this.streamSegmentMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
+            Exceptions.checkArgument(this.streamSegmentMetadata.getId() == operation.getBatchStreamSegmentId(), "operation", "Invalid Operation BatchStreamSegment Id.");
 
             this.sealed = true;
             this.merged = true;
@@ -736,7 +737,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         }
 
         private void ensureStreamId(StorageOperation operation) {
-            Exceptions.throwIfIllegalArgument(this.streamSegmentMetadata.getId() == operation.getStreamSegmentId(), "operation", "Invalid Log Operation StreamSegment Id.");
+            Exceptions.checkArgument(this.streamSegmentMetadata.getId() == operation.getStreamSegmentId(), "operation", "Invalid Log Operation StreamSegment Id.");
         }
 
         //endregion

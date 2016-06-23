@@ -1,7 +1,6 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ByteArraySegment;
-import com.emc.logservice.common.IteratorWithException;
+import com.emc.logservice.common.*;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 
@@ -14,6 +13,7 @@ import java.util.function.Function;
 class DataFrameTestHelpers {
     /**
      * Generates a collection of TestLogItems.
+     *
      * @param count
      * @param minSize
      * @param maxSize
@@ -108,9 +108,10 @@ class DataFrameTestHelpers {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
         for (DataFrame dataFrame : dataFrames) {
-            IteratorWithException<DataFrame.DataFrameEntry, SerializationException> reader = dataFrame.getEntries();
-            while (reader.hasNext()) {
-                DataFrame.DataFrameEntry entry = reader.pollNext();
+            CloseableIterator<DataFrame.DataFrameEntry, SerializationException> reader = dataFrame.getEntries();
+            DataFrame.DataFrameEntry entry;
+            boolean isLastEntryInFrame = true;
+            while ((entry = reader.getNext()) != null) {
 
                 // General DataFrameEntry validation.
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
@@ -119,15 +120,11 @@ class DataFrameTestHelpers {
                         dataFrame.getFrameSequence(),
                         entry.getDataFrameSequence());
 
-                // Verify the accuracy of isLastEntryInDataFrame() - if it's true, then hasNext() should be false.
-                Assert.assertEquals(
-                        "Unexpected value for isLastEntryInDataFrame()." + state.getPosition(),
-                        reader.hasNext(),
-                        !entry.isLastEntryInDataFrame());
-
                 if (entry.isFirstRecordEntry()) {
                     state.clearCurrentRecordEntries();
                 }
+
+                isLastEntryInFrame = entry.isLastEntryInDataFrame();
 
                 // Record the current entry
                 state.getCurrentRecordEntries().add(entry);
@@ -159,6 +156,12 @@ class DataFrameTestHelpers {
                     state.clearCurrentRecordEntries();
                 }
             }
+
+            // Verify the accuracy of isLastEntryInDataFrame() - if it's true, then hasNext() should be false.
+            Assert.assertEquals(
+                    "Unexpected value for isLastEntryInDataFrame()." + state.getPosition(),
+                    reader.getNext() == null,
+                    isLastEntryInFrame);
 
             state.moveToNextFrame();
         }

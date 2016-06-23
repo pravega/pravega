@@ -1,40 +1,38 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.*;
-import com.emc.logservice.contracts.StreamSegmentMergedException;
-import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.*;
-import com.emc.logservice.storageabstraction.*;
+import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.Iterator;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.function.Consumer;
+import java.util.concurrent.*;
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
  */
 @Slf4j
-public class DurableLog implements OperationLog {
+public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
-    private static final Duration CloseTimeout = Duration.ofSeconds(30); // TODO: make configurable.
+    private static final Duration RecoveryTimeout = Duration.ofSeconds(30);
     private final String traceObjectId;
     private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
     private final DurableDataLog dataFrameLog;
     private final MemoryLogUpdater memoryLogUpdater;
-    private final OperationQueue queue;
-    private final OperationQueueProcessor queueProcessor;
+    private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
     private final TruncationMarkerCollection truncationMarkers;
-    private final FaultHandlerRegistry faultRegistry;
-    private final AsyncLock StateTransitionLock = new AsyncLock();
-    private ContainerState state;
+    private final Executor executor;
+    private boolean closed;
 
     //endregion
 
@@ -48,25 +46,24 @@ public class DurableLog implements OperationLog {
      * @param cache               An Cache where to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, Cache cache) {
-        Exceptions.throwIfNull(metadata, "metadata");
-        Exceptions.throwIfNull(dataFrameLogFactory, "dataFrameLogFactory");
-        Exceptions.throwIfNull(cache, "cache");
+    public DurableLog(UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, Cache cache, Executor executor) {
+        Preconditions.checkNotNull(metadata, "metadata");
+        Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
+        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(executor, "executor");
 
         this.dataFrameLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
         assert this.dataFrameLog != null : "dataFrameLogFactory created null dataFrameLog.";
 
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.metadata = metadata;
+        this.executor = executor;
         this.operationFactory = new OperationFactory();
         this.truncationMarkers = new TruncationMarkerCollection();
-        this.faultRegistry = new FaultHandlerRegistry();
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
-        this.queue = new OperationQueue();
-        this.queueProcessor = new OperationQueueProcessor(this.metadata.getContainerId(), this.queue, new OperationMetadataUpdater(this.metadata, this.truncationMarkers), this.memoryLogUpdater, this.dataFrameLog);
-        this.queueProcessor.registerFaultHandler(this.faultRegistry::handle);
-        setState(ContainerState.Created);
+        this.operationProcessor = new OperationProcessor(this.metadata.getContainerId(), new OperationMetadataUpdater(this.metadata, this.truncationMarkers), this.memoryLogUpdater, this.dataFrameLog);
+        this.operationProcessor.addListener(new ServiceFailureListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
     }
 
     //endregion
@@ -75,81 +72,50 @@ public class DurableLog implements OperationLog {
 
     @Override
     public void close() {
-        if (this.state != ContainerState.Closed) {
-            if (this.state == ContainerState.Started) {
-                // Stop the container if it's currently running.
-                this.stop(CloseTimeout).join();
-            }
-
-            this.queueProcessor.close();
+        if (!this.closed) {
+            stopAsync().awaitTerminated();
+            this.operationProcessor.close();
             this.dataFrameLog.close();
-            setState(ContainerState.Closed);
+            this.closed = true;
         }
     }
 
     //endregion
 
+    //region AbstractService Implementation
+
+    @Override
+    protected void doStart() {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        performRecovery()
+                .thenRun(this.operationProcessor::startAsync)
+                .thenRunAsync(this.operationProcessor::awaitRunning, this.executor)
+                .whenComplete((v, ex) -> {
+                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+                    if (ex != null) {
+                        //TODO: we need to make sure we cleanup after ourselves. It's possible the operation processor is still running.
+                        notifyFailed(ex);
+                    }
+                    else {
+                        notifyStarted();
+                    }
+                });
+    }
+
+    @Override
+    protected void doStop() {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        this.operationProcessor.stopAsync();
+        this.executor.execute(() -> {
+            this.operationProcessor.awaitTerminated();
+            LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+            this.notifyStopped();
+        });
+    }
+
+    //endregion
+
     //region Container Implementation
-
-    @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        ensureNotClosed();
-        return this.StateTransitionLock.execute(() ->
-        {
-            int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "initialize");
-            ContainerState.Initialized.checkValidPreviousState(this.state);
-
-            // Perform Recovery and initialize all components.
-            return this
-                    .performRecovery(timer.getRemaining()) // Perform Recovery.
-                    .thenRun(() -> this.queueProcessor.initialize(timer.getRemaining())) // Initialize Queue Processor.
-                    .thenRun(() -> setState(ContainerState.Initialized)) // Update our internal state.
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "initialize", traceId));
-        });
-    }
-
-    @Override
-    public CompletableFuture<Void> start(Duration timeout) {
-        ensureNotClosed();
-        return this.StateTransitionLock.execute(() ->
-        {
-            int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "start");
-            ContainerState.Started.checkValidPreviousState(this.state);
-            return this.queueProcessor
-                    .start(timeout)
-                    .thenRun(() -> setState(ContainerState.Started))
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "start", traceId));
-        });
-    }
-
-    @Override
-    public CompletableFuture<Void> stop(Duration timeout) {
-        ensureNotClosed();
-        return this.StateTransitionLock.execute(() ->
-        {
-            int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "stop");
-            ContainerState.Stopped.checkValidPreviousState(this.state);
-
-            // Update the state first.
-            setState(ContainerState.Stopped);
-
-            // Stop the Operation Queue Processor.
-            return this.queueProcessor
-                    .stop(timeout)
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "stop", traceId));
-        });
-    }
-
-    @Override
-    public void registerFaultHandler(Consumer<Throwable> handler) {
-        this.faultRegistry.register(handler);
-    }
-
-    @Override
-    public ContainerState getState() {
-        return this.state;
-    }
 
     @Override
     public String getId() {
@@ -162,18 +128,13 @@ public class DurableLog implements OperationLog {
 
     @Override
     public CompletableFuture<Long> add(Operation operation, Duration timeout) {
-        ensureStarted();
-        CompletableFuture<Long> result = new CompletableFuture<>();
-
-        // Add to queue.
-        log.debug("{}: AddToQueue {}.", this.traceObjectId, operation);
-        this.queue.add(new CompletableOperation(operation, result));
-        return result;
+        ensureRunning();
+        return this.operationProcessor.process(operation);
     }
 
     @Override
     public CompletableFuture<Void> truncate(long upToSequenceNumber, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
         long dataFrameSeqNo = this.truncationMarkers.getClosestTruncationMarker(upToSequenceNumber);
         if (dataFrameSeqNo < 0) {
             // Nothing to truncate.
@@ -190,7 +151,7 @@ public class DurableLog implements OperationLog {
 
     @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
         log.debug("{}: Read (AfterSequenceNumber = {}, MaxCount = {}).", this.traceObjectId, afterSequenceNumber, maxCount);
         return CompletableFuture.completedFuture(this.inMemoryOperationLog.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount));
     }
@@ -199,13 +160,12 @@ public class DurableLog implements OperationLog {
 
     //region Recovery
 
-    private CompletableFuture<Void> performRecovery(Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
-
+    private CompletableFuture<Void> performRecovery() {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
-        ContainerState.Initialized.checkValidPreviousState(this.state);
+        Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
-        TimeoutTimer timer = new TimeoutTimer(timeout);
+        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
+        TimeoutTimer timer = new TimeoutTimer(RecoveryTimeout);
         log.info("{} Recovery started.", this.traceObjectId);
 
         // Put metadata (and entire container) into 'Recovery Mode'.
@@ -221,16 +181,16 @@ public class DurableLog implements OperationLog {
 
         CompletableFuture<Void> result = this.dataFrameLog
                 .initialize(timer.getRemaining()) // Initialize DataFrameLog.
-                .thenRun(() ->
+                .thenRunAsync(() ->
                 {
                     // Recover from DataFrameLog.
                     try {
-                        recoverFromDataFrameLog(metadataUpdater, timer.getRemaining());
+                        recoverFromDataFrameLog(metadataUpdater);
                     }
                     catch (Exception ex) {
                         throw new CompletionException(ex);
                     }
-                });
+                }, this.executor);
 
         // No need for error handling here. Any errors will be handles upstream, by whomever listens to our result.
         // We must exit recovery mode when done, regardless of outcome.
@@ -245,15 +205,14 @@ public class DurableLog implements OperationLog {
             else {
                 log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
             }
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
         });
 
-        return result
-                .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId));
+        return result;
     }
 
-    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater, Duration timeout) throws Exception {
+    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
-        TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
@@ -261,7 +220,7 @@ public class DurableLog implements OperationLog {
             DataFrameReader.ReadResult lastReadResult = null;
             while (true) {
                 // Fetch the next operation.
-                DataFrameReader.ReadResult<Operation> readResult = reader.getNext(timer.getRemaining());
+                DataFrameReader.ReadResult<Operation> readResult = reader.getNext();
                 if (readResult == null) {
                     // We have reached the end.
                     break;
@@ -316,23 +275,27 @@ public class DurableLog implements OperationLog {
 
     //region Helpers
 
-    private void ensureStarted() {
-        ensureNotClosed();
-        if (this.state != ContainerState.Started) {
-            throw new IllegalContainerStateException(this.getId(), this.state, ContainerState.Started);
+    private void ensureRunning() {
+        Exceptions.checkNotClosed(this.closed, this);
+        if (state() != State.RUNNING) {
+            throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
         }
     }
 
-    private void ensureNotClosed() {
-        Exceptions.throwIfClosed(this.state == ContainerState.Closed, this);
+    private void queueFailedHandler(Throwable cause) {
+        // The Queue Processor failed. We need to shut down right away.
+        log.warn("{}: QueueProcessor failed with exception {}", this.traceObjectId, cause);
+        stopAsync().awaitTerminated();
+        notifyFailed(cause);
     }
 
-    private void setState(ContainerState state) {
-        if (this.state != state) {
-            log.info("{}: StateTransition from {} to {}.", traceObjectId, this.state, state);
+    private void queueStoppedHandler() {
+        if (state() != State.STOPPING) {
+            // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
+            log.warn("{}: QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping. Shutting down DurableLog.", this.traceObjectId);
+            stopAsync().awaitTerminated();
+            notifyFailed(new StreamingException("QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
         }
-
-        this.state = state;
     }
 
     //endregion

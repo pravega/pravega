@@ -4,6 +4,7 @@ import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.LogItem;
 import com.emc.logservice.server.core.MagicGenerator;
 import com.emc.logservice.server.logs.SerializationException;
+import com.google.common.base.Preconditions;
 
 import java.io.*;
 
@@ -62,8 +63,8 @@ public abstract class Operation implements LogItem {
      * @throws IllegalArgumentException If the Sequence Number is negative.
      */
     public void setSequenceNumber(long value) {
-        Exceptions.throwIfIllegalState(this.sequenceNumber < 0, "Sequence Number has been previously set for this entry. Cannot set a new one.");
-        Exceptions.throwIfIllegalArgument(value >= 0, "Sequence Number must be a non-negative number.");
+        Preconditions.checkState(this.sequenceNumber < 0, "Sequence Number has been previously set for this entry. Cannot set a new one.");
+        Exceptions.checkArgument(value >= 0, "value", "Sequence Number must be a non-negative number.");
 
         this.sequenceNumber = value;
     }
@@ -159,7 +160,7 @@ public abstract class Operation implements LogItem {
      * @throws IllegalStateException The exception that is thrown.
      */
     protected void ensureSerializationCondition(boolean isTrue, String message) {
-        Exceptions.throwIfIllegalState(isTrue, "Unable to serialize Operation: {}", message);
+        Preconditions.checkState(isTrue, "Unable to serialize Operation: {}", message);
     }
 
     /**

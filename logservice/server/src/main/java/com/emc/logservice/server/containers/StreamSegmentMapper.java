@@ -7,6 +7,7 @@ import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.logservice.storageabstraction.Storage;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -45,9 +46,9 @@ public class StreamSegmentMapper {
      * @throws NullPointerException If any of the arguments are null.
      */
     public StreamSegmentMapper(UpdateableContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
-        Exceptions.throwIfNull(containerMetadata, "containerMetadata");
-        Exceptions.throwIfNull(durableLog, "durableLog");
-        Exceptions.throwIfNull(storage, "storage");
+        Preconditions.checkNotNull(containerMetadata, "containerMetadata");
+        Preconditions.checkNotNull(durableLog, "durableLog");
+        Preconditions.checkNotNull(storage, "storage");
 
         this.traceObjectId = String.format("StreamSegmentMapper[%s]", containerMetadata.getContainerId());
         this.containerMetadata = containerMetadata;
@@ -99,7 +100,7 @@ public class StreamSegmentMapper {
         int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewBatchStreamSegment", parentStreamSegmentName);
 
         //We cannot create a Batch StreamSegment for a what looks like a parent StreamSegment.
-        Exceptions.throwIfIllegalArgument(StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null, "parentStreamSegmentName", "Given Parent StreamSegmentName looks like a Batch StreamSegment Name. Cannot create a batch for a batch.");
+        Exceptions.checkArgument(StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null, "parentStreamSegmentName", "Given Parent StreamSegmentName looks like a Batch StreamSegment Name. Cannot create a batch for a batch.");
 
         // Validate that Parent StreamSegment exists.
         CompletableFuture<SegmentProperties> parentPropertiesFuture = null;
@@ -107,8 +108,8 @@ public class StreamSegmentMapper {
         if (isValidStreamSegmentId(parentStreamSegmentId)) {
             SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
             if (parentMetadata != null) {
-                Exceptions.throwIfIllegalArgument(!isValidStreamSegmentId(parentMetadata.getParentId()), "parentStreamSegmentName", "Given Parent StreamSegment is a Batch StreamSegment. Cannot create a batch for a batch.");
-                Exceptions.throwIfIllegalArgument(!parentMetadata.isDeleted() && !parentMetadata.isSealed(), "parentStreamSegmentName", "Given Parent StreamSegment is deleted or sealed. Cannot create a batch for it.");
+                Exceptions.checkArgument(!isValidStreamSegmentId(parentMetadata.getParentId()), "parentStreamSegmentName", "Given Parent StreamSegment is a Batch StreamSegment. Cannot create a batch for a batch.");
+                Exceptions.checkArgument(!parentMetadata.isDeleted() && !parentMetadata.isSealed(), "parentStreamSegmentName", "Given Parent StreamSegment is deleted or sealed. Cannot create a batch for it.");
                 parentPropertiesFuture = CompletableFuture.completedFuture(parentMetadata);
             }
         }

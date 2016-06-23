@@ -1,9 +1,9 @@
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.SerializationException;
+import com.google.common.base.Preconditions;
 
 import java.io.*;
 import java.util.UUID;
@@ -33,8 +33,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      */
     public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, AppendContext appendContext) {
         super(streamSegmentId);
-        Exceptions.throwIfNull(data, "data");
-        Exceptions.throwIfNull(appendContext, "appendContext");
+        Preconditions.checkNotNull(data, "data");
+        Preconditions.checkNotNull(appendContext, "appendContext");
 
         this.data = data;
         this.streamSegmentOffset = -1;

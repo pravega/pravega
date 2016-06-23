@@ -2,6 +2,7 @@ package com.emc.logservice.storageabstraction.mocks;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.*;
+import com.google.common.base.Preconditions;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,7 +24,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
     private boolean initialized;
 
     public InMemoryDurableDataLog(EntryCollection entries) {
-        Exceptions.throwIfNull(entries, "entries");
+        Preconditions.checkNotNull(entries, "entries");
         this.entries = entries;
         this.offset = Long.MIN_VALUE;
         this.lastAppendSequence = Long.MIN_VALUE;
@@ -132,8 +133,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //endregion
 
     private void ensurePreconditions() {
-        Exceptions.throwIfClosed(this.closed, this);
-        Exceptions.throwIfIllegalState(this.initialized, "InMemoryDurableDataLog is not initialized.");
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.initialized, "InMemoryDurableDataLog is not initialized.");
     }
 
     //region ReadResultIterator
@@ -148,7 +149,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         @Override
-        public ReadItem getNext(Duration timeout) throws DurableDataLogException {
+        public ReadItem getNext() throws DurableDataLogException {
             while (this.entryIterator.hasNext()) {
                 Entry e = this.entryIterator.next();
                 if (e.sequenceNumber <= afterSequence) {
@@ -246,7 +247,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         void acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
-            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             synchronized (this.writeLock) {
                 String existingLockOwner = this.writeLock.get();
                 if (existingLockOwner != null) {
@@ -258,14 +259,14 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         void forceAcquireLock(String clientId) {
-            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             synchronized (this.writeLock) {
                 this.writeLock.set(clientId);
             }
         }
 
         void releaseLock(String clientId) throws DataLogWriterNotPrimaryException {
-            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             synchronized (this.writeLock) {
                 String existingLockOwner = this.writeLock.get();
                 if (existingLockOwner == null || !existingLockOwner.equals(clientId)) {
@@ -277,7 +278,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         private void ensureLock(String clientId) throws DataLogWriterNotPrimaryException {
-            Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+            Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             String existingLockOwner = this.writeLock.get();
             if (existingLockOwner != null && !existingLockOwner.equals(clientId)) {
                 throw new DataLogWriterNotPrimaryException("Unable to perform operation because the write lock is owned by a different client " + clientId);

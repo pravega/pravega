@@ -1,5 +1,7 @@
 package com.emc.logservice.common;
 
+import com.google.common.base.Preconditions;
+
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,7 +33,7 @@ public class AutoReleaseLock implements AutoCloseable {
      */
 
     protected AutoReleaseLock(Lock baseLock, boolean upgradeable) {
-        Exceptions.throwIfNull(baseLock, "baseLock");
+        Preconditions.checkNotNull(baseLock, "baseLock");
 
         this.replacedLock = null;
         this.lock = baseLock;
@@ -49,7 +51,7 @@ public class AutoReleaseLock implements AutoCloseable {
      * @throws InterruptedException If the thread got interrupted while waiting for the lock to be acquired.
      */
     protected AutoReleaseLock(Lock baseLock, boolean upgradeable, Duration acquireTimeout) throws TimeoutException, InterruptedException {
-        Exceptions.throwIfNull(baseLock, "baseLock");
+        Preconditions.checkNotNull(baseLock, "baseLock");
 
         this.replacedLock = null;
         this.lock = baseLock;
@@ -69,9 +71,9 @@ public class AutoReleaseLock implements AutoCloseable {
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
     protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock) {
-        Exceptions.throwIfNull(baseLock, "baseLock");
-        Exceptions.throwIfNull(replacedLock, "replacedLock");
-        Exceptions.throwIfIllegalArgument(replacedLock.upgradeable, "replacedLock", "replacedLock is not upgradeable.");
+        Preconditions.checkNotNull(baseLock, "baseLock");
+        Preconditions.checkNotNull(replacedLock, "replacedLock");
+        Exceptions.checkArgument(replacedLock.upgradeable, "replacedLock", "replacedLock is not upgradeable.");
 
         this.lock = baseLock;
         this.upgradeable = false;
@@ -100,9 +102,9 @@ public class AutoReleaseLock implements AutoCloseable {
      * @throws IllegalArgumentException If the given replacedLock is not upgradeable.
      */
     protected AutoReleaseLock(AutoReleaseLock replacedLock, Lock baseLock, Duration acquireTimeout) throws TimeoutException, InterruptedException {
-        Exceptions.throwIfNull(baseLock, "baseLock");
-        Exceptions.throwIfNull(replacedLock, "replacedLock");
-        Exceptions.throwIfIllegalArgument(replacedLock.upgradeable, "replacedLock", "replacedLock is not upgradeable.");
+        Preconditions.checkNotNull(baseLock, "baseLock");
+        Preconditions.checkNotNull(replacedLock, "replacedLock");
+        Exceptions.checkArgument(replacedLock.upgradeable, "replacedLock", "replacedLock is not upgradeable.");
 
         this.lock = baseLock;
         this.upgradeable = false;

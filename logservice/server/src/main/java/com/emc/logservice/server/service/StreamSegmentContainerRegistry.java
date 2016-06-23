@@ -3,13 +3,14 @@ package com.emc.logservice.server.service;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.server.*;
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Service;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 /**
@@ -21,6 +22,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     private final SegmentContainerFactory factory;
     private final AbstractMap<String, ContainerWithHandle> containers;
+    private final Executor executor;
     private boolean closed;
 
     //endregion
@@ -31,12 +33,15 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
      * Creates a new instance of the StreamSegmentContainerRegistry.
      *
      * @param containerFactory The SegmentContainerFactory to use.
-     * @throws NullPointerException If containerFactory is null.
+     * @param executor         The Executor to use for async tasks.
+     * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentContainerRegistry(SegmentContainerFactory containerFactory) {
-        Exceptions.throwIfNull(containerFactory, "containerFactory");
+    public StreamSegmentContainerRegistry(SegmentContainerFactory containerFactory, Executor executor) {
+        Preconditions.checkNotNull(containerFactory, "containerFactory");
+        Preconditions.checkNotNull(executor, "executor");
 
         this.factory = containerFactory;
+        this.executor = executor;
         this.containers = new ConcurrentHashMap<>();
     }
 
@@ -84,7 +89,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         ensureNotClosed();
 
         // Check if container exists
-        Exceptions.throwIfIllegalArgument(!this.containers.containsKey(containerId), "containerId","Container %s is already registered.", containerId);
+        Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %s is already registered.", containerId);
 
         // If not, create one and register it.
         ContainerWithHandle newContainer = new ContainerWithHandle(this.factory.createStreamSegmentContainer(containerId), new SegmentContainerHandle(containerId));
@@ -97,29 +102,18 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         log.info("Registered SegmentContainer {}.", containerId);
 
-        // Attempt to Initialize and Start the container.
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        CompletableFuture<ContainerHandle> startFuture = newContainer.container
-                .initialize(timer.getRemaining())
-                .thenCompose(v -> {
-                    newContainer.container.registerFaultHandler(ex -> handleContainerFailure(containerId, ex));
+        // Attempt to Start the container.
+        ServiceFailureListener failureListener = new ServiceFailureListener(
+                () -> closeContainer(newContainer, true),
+                ex -> handleContainerFailure(newContainer, ex));
+        newContainer.container.addListener(failureListener, this.executor);
+        newContainer.container.startAsync();
 
-                    // Start the container.
-                    return newContainer.container.start(timer.getRemaining());
-                })
-                .thenApply(v -> {
-                    // The Container Manager may have gotten closed in the meantime. Check again and halt if needed.
-                    ensureNotClosed();
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    newContainer.container.awaitRunning();
                     return newContainer.handle;
-                });
-
-        // If start failed, close and unregister the container we just created.
-        FutureHelpers.exceptionListener(startFuture, ex -> {
-            log.error("Start Failure for SegmentContainer {}. {}", containerId, ex);
-            closeContainer(newContainer, true);
-        });
-
-        return startFuture;
+                }, this.executor);
     }
 
     @Override
@@ -131,7 +125,9 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         }
 
         // Stop the container and then unregister it.
-        return result.container.stop(timeout).thenRun(() -> closeContainer(result, false));
+        result.container.stopAsync();
+        return CompletableFuture.runAsync(result.container::awaitTerminated, this.executor)
+                                .thenRun(() -> closeContainer(result, false));
     }
 
     //endregion
@@ -144,16 +140,15 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         }
     }
 
-    private void handleContainerFailure(String containerId, Throwable exception) {
-        ContainerWithHandle toClose = this.containers.getOrDefault(containerId, null);
-        closeContainer(toClose, true);
-        log.error("Critical failure for SegmentContainer {}. {}", containerId, exception);
+    private void handleContainerFailure(ContainerWithHandle containerWithHandle, Throwable exception) {
+        closeContainer(containerWithHandle, true);
+        log.error("Critical failure for SegmentContainer {}. {}", containerWithHandle, exception);
     }
 
     private void closeContainer(ContainerWithHandle toClose, boolean notifyHandle) {
         assert toClose != null : "toClose is null.";
         toClose.container.close();
-        assert toClose.container.getState() == ContainerState.Closed : "Container is not closed.";
+        assert toClose.container.state() == Service.State.TERMINATED : "Container is not stopped.";
         this.containers.remove(toClose.handle.getContainerId());
         log.info("Unregistered SegmentContainer {}.", toClose.handle.getContainerId());
         if (notifyHandle) {
@@ -177,7 +172,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         @Override
         public String toString() {
-            return String.format("Container Id = %s, State = %s", this.container.getId(), this.container.getState());
+            return String.format("Container Id = %s, State = %s", this.container.getId(), this.container.state());
         }
     }
 

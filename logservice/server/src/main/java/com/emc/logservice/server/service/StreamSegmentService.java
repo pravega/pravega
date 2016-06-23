@@ -3,6 +3,7 @@ package com.emc.logservice.server.service;
 import com.emc.logservice.common.*;
 import com.emc.logservice.contracts.*;
 import com.emc.logservice.server.*;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -35,8 +36,8 @@ public class StreamSegmentService implements StreamSegmentStore {
      * @throws NullPointerException If segmentToContainerMapper is null.
      */
     public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
-        Exceptions.throwIfNull(segmentContainerRegistry, "segmentContainerRegistry");
-        Exceptions.throwIfNull(segmentToContainerMapper, "segmentToContainerMapper");
+        Preconditions.checkNotNull(segmentContainerRegistry, "segmentContainerRegistry");
+        Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
 
         this.segmentContainerRegistry = segmentContainerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;

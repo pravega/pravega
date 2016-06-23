@@ -1,6 +1,6 @@
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.Exceptions;
+import com.google.common.base.Preconditions;
 
 /**
  * Read Index Entry that redirects to a different StreamSegment.
@@ -20,7 +20,7 @@ public class RedirectReadIndexEntry extends ReadIndexEntry {
     protected RedirectReadIndexEntry(long streamSegmentOffset, long length, StreamSegmentReadIndex redirectReadIndex) {
         super(streamSegmentOffset, length);
 
-        Exceptions.throwIfNull(redirectReadIndex, "redirectReadIndex");
+        Preconditions.checkNotNull(redirectReadIndex, "redirectReadIndex");
         this.redirectReadIndex = redirectReadIndex;
     }
 

@@ -2,6 +2,7 @@ package com.emc.logservice.storageimplementation.distributedlog;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.*;
+import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.*;
 import com.twitter.distributedlog.exceptions.*;
 import com.twitter.distributedlog.namespace.DistributedLogNamespace;
@@ -12,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -48,8 +48,8 @@ class LogHandle implements AutoCloseable {
      * @param handleClosedCallback A callback that will be invoked when this LogHandle is closed.
      */
     public LogHandle(String logName, Consumer<LogHandle> handleClosedCallback) {
-        Exceptions.throwIfNull(handleClosedCallback, "handleClosedCallback");
-        Exceptions.throwIfNullOfEmpty(logName, "logName");
+        Preconditions.checkNotNull(handleClosedCallback, "handleClosedCallback");
+        Exceptions.checkNotNullOrEmpty(logName, "logName");
 
         this.logName = logName;
         this.handleClosedCallback = handleClosedCallback;
@@ -112,8 +112,8 @@ class LogHandle implements AutoCloseable {
      * @throws DurableDataLogException
      */
     public void initialize(DistributedLogNamespace namespace) throws DurableDataLogException {
-        Exceptions.throwIfNull(namespace, "namespace");
-        Exceptions.throwIfIllegalState(this.logManager == null, "LogHandle is already initialized.");
+        Preconditions.checkNotNull(namespace, "namespace");
+        Preconditions.checkState(this.logManager == null, "LogHandle is already initialized.");
 
         // Initialize Log Manager and Log Writer.
         boolean success = false;
@@ -179,7 +179,7 @@ class LogHandle implements AutoCloseable {
      * @return
      */
     public long getLastTransactionId() {
-        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
+        Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
         return this.lastTransactionId.get();
     }
 
@@ -193,8 +193,8 @@ class LogHandle implements AutoCloseable {
      */
     public CompletableFuture<Long> append(InputStream data, java.time.Duration timeout) {
         ensureNotClosed();
-        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
-        Exceptions.throwIfNull(data, "data");
+        Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
+        Preconditions.checkNotNull(data, "data");
 
         final long transactionId = this.lastTransactionId.incrementAndGet();
         CompletableFuture<Long> resultFuture = new CompletableFuture<>();
@@ -262,7 +262,7 @@ class LogHandle implements AutoCloseable {
      */
     public CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> getReader(long afterTransactionId) throws DurableDataLogException {
         ensureNotClosed();
-        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
+        Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
 
         DistributedLogReader reader;
         try {
@@ -283,7 +283,7 @@ class LogHandle implements AutoCloseable {
 
     public CompletableFuture<Void> truncate(long upToTransactionId, java.time.Duration timeout) {
         ensureNotClosed();
-        Exceptions.throwIfIllegalState(this.logManager != null, "LogHandle is not initialized.");
+        Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
 
         log.info("{}: Truncate (TransactionId = {}.", this.logName, upToTransactionId);
         //TODO: implement.
@@ -296,7 +296,7 @@ class LogHandle implements AutoCloseable {
     }
 
     private void ensureNotClosed() {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
     }
 
     private void unregisterReader(DistributedLogReader reader) {
@@ -324,8 +324,8 @@ class LogHandle implements AutoCloseable {
         //region Constructor
 
         public DistributedLogReader(long afterTransactionId, DistributedLogManager logManager, Consumer<DistributedLogReader> closeCallback) throws IOException {
-            Exceptions.throwIfNull(logManager, "logManager");
-            Exceptions.throwIfNull(closeCallback, "closeCallback");
+            Preconditions.checkNotNull(logManager, "logManager");
+            Preconditions.checkNotNull(closeCallback, "closeCallback");
 
             this.traceObjectId = String.format("%s@%d", logManager.getStreamName(), afterTransactionId);
             this.logManager = logManager;
@@ -339,7 +339,7 @@ class LogHandle implements AutoCloseable {
         //region CloseableIterator Implementation
 
         @Override
-        public synchronized DurableDataLog.ReadItem getNext(Duration timeout) throws DurableDataLogException {
+        public synchronized DurableDataLog.ReadItem getNext() throws DurableDataLogException {
             try {
                 LogRecordWithDLSN baseRecord = this.baseReader.readNext(false); // NonBlocking == false -> Blocking read
                 if (baseRecord == null) {

@@ -1,5 +1,7 @@
 package com.emc.logservice.common;
 
+import com.google.common.base.Preconditions;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -18,10 +20,10 @@ public final class StreamHelpers {
      * @throws IOException
      */
     public static int readAll(InputStream stream, byte[] target, int startOffset, int maxLength) throws IOException {
-        Exceptions.throwIfNull(stream, "stream");
-        Exceptions.throwIfNull(stream, "target");
-        Exceptions.throwIfIllegalArrayIndex(startOffset, 0, target.length, "startOffset");
-        Exceptions.throwIfIllegalArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(stream, "target");
+        Preconditions.checkElementIndex(startOffset, target.length, "startOffset");
+        Exceptions.checkArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
 
         int totalBytesRead = 0;
         while (totalBytesRead < maxLength) {

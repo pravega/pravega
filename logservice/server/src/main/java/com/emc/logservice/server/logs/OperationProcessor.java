@@ -1,68 +1,57 @@
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.common.*;
 import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.*;
 import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 /**
- * Single-thread Processor for OperationQueue. Takes all entries currently available from the OperationQueue,
- * generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
+ * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
+ * at once, generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
  */
 @Slf4j
-public class OperationQueueProcessor implements Container {
+public class OperationProcessor extends AbstractExecutionThreadService implements Container {
     //region Members
 
-    private static final Duration CloseTimeout = Duration.ofSeconds(30);
     private final String traceObjectId;
     private final String containerId;
-    private final OperationQueue operationQueue;
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryLogUpdater logUpdater;
     private final DurableDataLog durableDataLog;
-    private final FaultHandlerRegistry faultRegistry;
-    private final Object StateTransitionLock = new Object(); // TODO: consider using AsyncLock
-    private Thread runThread;
-    private ContainerState state;
-    private CompletableFuture<Void> stopFuture;
+    private BlockingDrainingQueue<CompletableOperation> operationQueue;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the OperationQueueProcessor class.
+     * Creates a new instance of the OperationProcessor class.
      *
      * @param containerId     The Id of the container this QueueProcessor belongs to.
-     * @param operationQueue  The Operation Queue to work on.
      * @param metadataUpdater An OperationMetadataUpdater to work with.
      * @param logUpdater      A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
      * @param durableDataLog  The DataFrameLog to write DataFrames to.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationQueueProcessor(String containerId, OperationQueue operationQueue, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog) {
-        Exceptions.throwIfNull(containerId, "containerId");
-        Exceptions.throwIfNull(operationQueue, "operationQueue");
-        Exceptions.throwIfNull(metadataUpdater, "metadataUpdater");
-        Exceptions.throwIfNull(logUpdater, "logUpdater");
-        Exceptions.throwIfNull(durableDataLog, "durableDataLog");
+    public OperationProcessor(String containerId, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog) {
+        Preconditions.checkNotNull(containerId, "containerId");
+        Preconditions.checkNotNull(metadataUpdater, "metadataUpdater");
+        Preconditions.checkNotNull(logUpdater, "logUpdater");
+        Preconditions.checkNotNull(durableDataLog, "durableDataLog");
 
-        this.traceObjectId = String.format("OperationQueueProcessor[%s]", containerId);
+        this.traceObjectId = String.format("OperationProcessor[%s]", containerId);
         this.containerId = containerId;
-        this.operationQueue = operationQueue;
         this.metadataUpdater = metadataUpdater;
         this.logUpdater = logUpdater;
         this.durableDataLog = durableDataLog;
-        this.faultRegistry = new FaultHandlerRegistry();
-        setState(ContainerState.Created);
     }
 
     //endregion
@@ -71,77 +60,50 @@ public class OperationQueueProcessor implements Container {
 
     @Override
     public void close() {
-        stop(CloseTimeout).join();
-        setState(ContainerState.Closed);
+        this.stopAsync().awaitTerminated();
+    }
+
+    //endregion
+
+    //region AbstractExecutionThreadService Implementation
+
+    @Override
+    protected void run() throws Exception {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
+        try {
+            this.operationQueue = new BlockingDrainingQueue<>();
+            while (this.isRunning()) {
+                runOnce();
+            }
+        }
+        catch (CancellationException ex) {
+            if (state() != State.STOPPING) {
+                // We only expect CancellationException if we are in the process of Stopping. All others are indicative
+                // of some failure.
+                throw ex;
+            }
+        }
+        finally {
+            this.operationQueue.close();
+            this.operationQueue = null;
+        }
+
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "run", traceId);
+    }
+
+    @Override
+    protected void triggerShutdown() {
+        // We are being told (externally) to stop. We need to first stop the queue, which will prevent any new items
+        // from being processed, as well as stopping the main worker thread.
+        BlockingDrainingQueue<CompletableOperation> queue = this.operationQueue;
+        if (queue != null) {
+            queue.close();
+        }
     }
 
     //endregion
 
     //region Container Implementation
-
-    @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "initialize");
-        synchronized (StateTransitionLock) {
-            ContainerState.Initialized.checkValidPreviousState(this.state);
-
-            // No real initialization work needed.
-            setState(ContainerState.Initialized);
-        }
-
-        LoggerHelpers.traceLeave(log, traceObjectId, "initialize", traceId);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletableFuture<Void> start(Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "start");
-        Thread runThread;
-        synchronized (StateTransitionLock) {
-            ContainerState.Started.checkValidPreviousState(this.state);
-            Exceptions.throwIfIllegalState(this.runThread == null, "OperationQueueProcessor is already running.");
-
-            this.runThread = runThread = new Thread(this::runContinuously);
-            setState(ContainerState.Started);
-        }
-
-        runThread.start();
-        LoggerHelpers.traceLeave(log, traceObjectId, "start", traceId);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletableFuture<Void> stop(Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "stop");
-        CompletableFuture<Void> result = null;
-        synchronized (StateTransitionLock) {
-            if (getState() != ContainerState.Started) {
-                // Only bother to stop if we are actually running.
-                return CompletableFuture.completedFuture(null);
-            }
-
-            if (this.runThread != null) {
-                this.stopFuture = result = new CompletableFuture<>();
-                this.runThread.interrupt();
-            }
-        }
-
-        if (result == null) {
-            result = CompletableFuture.completedFuture(null);
-        }
-
-        return result.thenRun(() -> LoggerHelpers.traceLeave(log, traceObjectId, "stop", traceId));
-    }
-
-    @Override
-    public void registerFaultHandler(Consumer<Throwable> handler) {
-        this.faultRegistry.register(handler);
-    }
-
-    @Override
-    public ContainerState getState() {
-        return this.state;
-    }
 
     @Override
     public String getId() {
@@ -150,36 +112,19 @@ public class OperationQueueProcessor implements Container {
 
     //endregion
 
-    //region Queue Processing
+    //region Operations
 
-    /**
-     * Main thread body. Runs in a continuous loop until interrupted.
-     */
-    private void runContinuously() {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "runContinuously");
-        try {
-            while (true) {
-                try {
-                    runOnce();
-                }
-                catch (InterruptedException ex) {
-                    // We are done. Exit.
-                    break;
-                }
-                catch (Exception ex) {
-                    // Catch-all for exceptions. If any exception bubbled up to here, we need to stop processing and
-                    // report the exception up.
-                    this.faultRegistry.handle(ex);
-                    break;
-                }
-            }
-        }
-        finally {
-            // Always run cleanup.
-            postRun();
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "runContinuously", traceId);
-        }
+    public CompletableFuture<Long> process(Operation operation) {
+        Preconditions.checkState(this.operationQueue != null, "OperationProcessor is not running.");
+        log.debug("{}: process {}.", this.traceObjectId, operation);
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        this.operationQueue.add(new CompletableOperation(operation, result));
+        return result;
     }
+
+    //endregion
+
+    //region Queue Processing
 
     /**
      * Single iteration of the Queue Processor.
@@ -190,17 +135,17 @@ public class OperationQueueProcessor implements Container {
      * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations as well.
      * </ol>
      *
-     * @throws InterruptedException
+     * @throws CancellationException
      */
-    private void runOnce() throws InterruptedException {
-        Queue<CompletableOperation> operations = this.operationQueue.takeAllEntries();
+    private void runOnce() throws DataCorruptionException, CancellationException {
+        Queue<CompletableOperation> operations = this.operationQueue.takeAllEntries().join();
         log.debug("{}: RunOnce (OperationCount = {}).", this.traceObjectId, operations.size());
         if (operations.size() == 0) {
             // takeAllEntries() should have been blocking and not return unless it has data. If we get an empty response, just try again.
             return;
         }
 
-        QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.faultRegistry::handle, this.traceObjectId);
+        QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.traceObjectId);
         try (DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail)) {
             for (CompletableOperation o : operations) {
                 boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
@@ -214,7 +159,15 @@ public class OperationQueueProcessor implements Container {
         }
         // Close the frame builder and ship any unsent frames.
         catch (Exception ex) {
+            // Fail the current batch of operations with the given exception.
             state.fail(ex);
+
+            // This is a nasty one. If we encountered a DataCorruptionException, it means we detected something abnormal
+            // in our container. We need to shutdown right away.
+            Throwable realCause = ExceptionHelpers.getRealException(ex);
+            if (realCause instanceof DataCorruptionException) {
+                throw (DataCorruptionException) realCause;
+            }
         }
     }
 
@@ -234,8 +187,8 @@ public class OperationQueueProcessor implements Container {
      * @param dataFrameBuilder The DataFrameBuilder to append the operation to.
      * @return True if processed successfully, false otherwise.
      */
-    private boolean processOperation(CompletableOperation operation, DataFrameBuilder dataFrameBuilder) {
-        Exceptions.throwIfIllegalState(!operation.isDone(), "The Operation has already been processed.");
+    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) {
+        Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
         // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
         Operation entry = operation.getOperation();
@@ -280,32 +233,6 @@ public class OperationQueueProcessor implements Container {
         return true;
     }
 
-    /**
-     * Post-run cleanup.
-     */
-    private void postRun() {
-        // Exiting: need to cleanup
-        CompletableFuture<Void> resultFuture;
-        synchronized (StateTransitionLock) {
-            // Make sure we set the container state to Stopped once we exit the main loop.
-            this.runThread = null;
-            resultFuture = this.stopFuture;
-            this.stopFuture = null;
-            setState(ContainerState.Stopped);
-        }
-
-        if (resultFuture != null) {
-            resultFuture.complete(null);
-        }
-    }
-
-    private void setState(ContainerState state) {
-        if (state != this.state) {
-            log.info("{}: StateTransition from {} to {}.", traceObjectId, this.state, state);
-            this.state = state;
-        }
-    }
-
     //endregion
 
     //region QueueProcessingState
@@ -319,18 +246,15 @@ public class OperationQueueProcessor implements Container {
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryLogUpdater logUpdater;
-        private final Consumer<Exception> criticalErrorHandler;
 
-        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, Consumer<Exception> criticalErrorHandler, String traceObjectId) {
+        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
             assert logUpdater != null : "logUpdater is null";
-            assert criticalErrorHandler != null : "criticalErrorHandler is null";
 
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
             this.logUpdater = logUpdater;
-            this.criticalErrorHandler = criticalErrorHandler;
         }
 
         /**
@@ -346,8 +270,9 @@ public class OperationQueueProcessor implements Container {
          * Commits all pending Metadata changes, assigns a TruncationMarker and acknowledges all the pending operations.
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
+         * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
          */
-        public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) {
+        public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Commit any changes to metadata.
@@ -363,9 +288,8 @@ public class OperationQueueProcessor implements Container {
                 }
                 catch (DataCorruptionException ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
-                    this.criticalErrorHandler.accept(ex);
                     e.fail(ex);
-                    return;
+                    throw ex;
                 }
 
                 e.complete();

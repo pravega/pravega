@@ -8,23 +8,22 @@ import com.emc.logservice.server.logs.PendingAppendsCollection;
 import com.emc.logservice.server.logs.operations.*;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.function.Consumer;
+import java.util.concurrent.*;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
  * same StreamSegmentContainer. Handles all operations that can be performed on such streams.
  */
 @Slf4j
-class StreamSegmentContainer implements SegmentContainer {
+class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
 
-    private static final Duration CloseTimeout = Duration.ofSeconds(30); //TODO: make configurable
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
@@ -32,9 +31,8 @@ class StreamSegmentContainer implements SegmentContainer {
     private final Storage storage;
     private final PendingAppendsCollection pendingAppendsCollection;
     private final StreamSegmentMapper segmentMapper;
-    private final FaultHandlerRegistry faultRegistry;
-    private final AsyncLock StateTransitionLock = new AsyncLock();
-    private ContainerState state;
+    private final Executor executor;
+    private boolean closed;
 
     //endregion
 
@@ -43,28 +41,30 @@ class StreamSegmentContainer implements SegmentContainer {
     /**
      * Creates a new instance of the StreamSegmentContainer class.
      *
-     * @param streamSegmentContainerId
-     * @param metadataRepository
-     * @param durableLogFactory
-     * @param cacheFactory
+     * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
+     * @param metadataRepository       The MetadataRepository to use.
+     * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
+     * @param cacheFactory             The CacheFactory to use to create Read Indices.
+     * @param storageFactory           The StorageFactory to use to create Storage Adapters.
+     * @param executor                 An Executor that can be used to run async tasks.
      */
-    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory) {
-        Exceptions.throwIfNullOfEmpty(streamSegmentContainerId, "streamSegmentContainerId");
-        Exceptions.throwIfNull(metadataRepository, "metadataRepository");
-        Exceptions.throwIfNull(durableLogFactory, "durableLogFactory");
-        Exceptions.throwIfNull(cacheFactory, "cacheFactory");
-        Exceptions.throwIfNull(storageFactory, "storageFactory");
+    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory, Executor executor) {
+        Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
+        Preconditions.checkNotNull(metadataRepository, "metadataRepository");
+        Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
+        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
+        Preconditions.checkNotNull(storageFactory, "storageFactory");
+        Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
-        this.faultRegistry = new FaultHandlerRegistry();
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
         this.readIndex = cacheFactory.createCache(this.metadata);
+        this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
-        this.durableLog.registerFaultHandler(this.faultRegistry::handle);
+        this.durableLog.addListener(new ServiceFailureListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
-        setState(ContainerState.Created);
     }
 
     //endregion
@@ -73,81 +73,45 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public void close() {
-        if (this.state != ContainerState.Closed) {
-            if (this.state == ContainerState.Started) {
-                // Stop the container if it's already running.
-                stop(CloseTimeout).join();
-            }
+        if (!this.closed) {
+            stopAsync().awaitTerminated();
 
             this.pendingAppendsCollection.close();
             this.durableLog.close();
             this.readIndex.close();
-            setState(ContainerState.Closed);
+            this.closed = true;
         }
     }
 
     //endregion
 
+    //region AbstractService Implementation
+
+    @Override
+    protected void doStart() {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        this.durableLog.startAsync();
+        this.executor.execute(() -> {
+            this.durableLog.awaitRunning();
+            LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+            notifyStarted();
+        });
+    }
+
+    @Override
+    protected void doStop() {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        this.durableLog.stopAsync();
+        this.executor.execute(() -> {
+            this.durableLog.awaitTerminated();
+            LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+            this.notifyStopped();
+        });
+    }
+
+    //endregion
+
     //region Container Implementation
-
-    @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
-        ensureNotClosed();
-        return this.StateTransitionLock.execute(() -> {
-            int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
-            ContainerState.Initialized.checkValidPreviousState(this.state);
-
-            return this.durableLog
-                    .initialize(timeout) // Initialize DurableLog.
-                    .thenRun(() -> setState(ContainerState.Initialized))// Update our internal state.
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId));
-        });
-    }
-
-    @Override
-    public CompletableFuture<Void> start(Duration timeout) {
-        ensureNotClosed();
-        return this.StateTransitionLock.execute(() ->
-        {
-            int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "start");
-            ContainerState.Started.checkValidPreviousState(this.state);
-
-            // Start the Operation Queue Processor.
-            return this.durableLog
-                    .start(timeout)
-                    .thenRun(() -> setState(ContainerState.Started))
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "start", traceId));
-        });
-    }
-
-    @Override
-    public CompletableFuture<Void> stop(Duration timeout) {
-        ensureNotClosed();
-        return this.StateTransitionLock.execute(() ->
-        {
-            int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "stop");
-            ContainerState.Stopped.checkValidPreviousState(this.state);
-
-            // Update the state first.
-            setState(ContainerState.Stopped);
-
-            // Stop the Operation Queue Processor.
-            return this.durableLog
-                    .stop(timeout)
-                    .thenRun(() -> LoggerHelpers.traceLeave(log, this.traceObjectId, "stop", traceId));
-        });
-    }
-
-    @Override
-    public void registerFaultHandler(Consumer<Throwable> handler) {
-        ensureNotClosed();
-        this.faultRegistry.register(handler);
-    }
-
-    @Override
-    public ContainerState getState() {
-        return this.state;
-    }
 
     @Override
     public String getId() {
@@ -160,7 +124,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("append", streamSegmentName, data.length, appendContext);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -179,7 +143,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("read", streamSegmentName, offset, maxLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -190,7 +154,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -205,7 +169,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("createStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -214,7 +178,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<String> createBatch(String parentStreamName, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("createBatch", parentStreamName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -223,7 +187,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("deleteStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -245,7 +209,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<Long> mergeBatch(String batchStreamSegmentName, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("mergeBatch", batchStreamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -265,7 +229,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -280,7 +244,7 @@ class StreamSegmentContainer implements SegmentContainer {
 
     @Override
     public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
-        ensureStarted();
+        ensureRunning();
 
         logRequest("getLastAppendContext", streamSegmentName, clientId);
         long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
@@ -305,26 +269,31 @@ class StreamSegmentContainer implements SegmentContainer {
 
     //region Helpers
 
-    private void ensureStarted() {
-        ensureNotClosed();
-        if (this.state != ContainerState.Started) {
-            throw new IllegalContainerStateException(this.getId(), this.state, ContainerState.Started);
-        }
-    }
-
-    private void ensureNotClosed() {
-        Exceptions.throwIfClosed(this.state == ContainerState.Closed, this);
-    }
-
-    private void setState(ContainerState state) {
-        if (this.state != state) {
-            log.info("{}: StateTransition from {} to {}.", this.traceObjectId, this.state, state);
-            this.state = state;
+    private void ensureRunning() {
+        Exceptions.checkNotClosed(this.closed, this);
+        if (state() != State.RUNNING) {
+            throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
         }
     }
 
     private void logRequest(String requestName, Object... args) {
         log.info("{}: {} {}", this.traceObjectId, requestName, args);
+    }
+
+    private void durableLogFailedHandler(Throwable cause) {
+        // The Queue Processor failed. We need to shut down right away.
+        log.warn("{}: DurableLog failed with exception {}", this.traceObjectId, cause);
+        stopAsync().awaitTerminated();
+        notifyFailed(cause);
+    }
+
+    private void durableLogStoppedHandler() {
+        if (state() != State.STOPPING) {
+            // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
+            log.warn("{}: DurableLog stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping. Shutting down StreamSegmentContainer.", this.traceObjectId);
+            stopAsync().awaitTerminated();
+            notifyFailed(new StreamingException("DurableLog stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping."));
+        }
     }
 
     //endregion

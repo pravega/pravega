@@ -4,6 +4,7 @@ import com.emc.logservice.common.CloseableIterator;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -32,8 +33,8 @@ class DistributedLogDataLog implements DurableDataLog {
      * @throws IllegalArgumentException If logName is an empty string.
      */
     public DistributedLogDataLog(String logName, LogClient client) {
-        Exceptions.throwIfNull(client, "client");
-        Exceptions.throwIfNullOfEmpty(logName, "logName");
+        Preconditions.checkNotNull(client, "client");
+        Exceptions.checkNotNullOrEmpty(logName, "logName");
 
         this.logName = logName;
         this.client = client;
@@ -56,7 +57,7 @@ class DistributedLogDataLog implements DurableDataLog {
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
-        Exceptions.throwIfIllegalState(this.handle == null, "DistributedLogDataLog is already initialized.");
+        Preconditions.checkState(this.handle == null, "DistributedLogDataLog is already initialized.");
         return this.client
                 .getLogHandle(this.logName)
                 .thenAccept(handle -> this.handle = handle);
@@ -93,7 +94,7 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     private void ensureInitialized() {
-        Exceptions.throwIfIllegalState(this.handle != null, "DistributedLogDataLog is not initialized.");
+        Preconditions.checkState(this.handle != null, "DistributedLogDataLog is not initialized.");
     }
 
     //endregion

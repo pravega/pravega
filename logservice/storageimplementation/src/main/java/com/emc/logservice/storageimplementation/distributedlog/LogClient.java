@@ -2,6 +2,7 @@ package com.emc.logservice.storageimplementation.distributedlog;
 
 import com.emc.logservice.common.*;
 import com.emc.logservice.storageabstraction.*;
+import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.DistributedLogConfiguration;
 import com.twitter.distributedlog.DistributedLogConstants;
 import com.twitter.distributedlog.namespace.DistributedLogNamespace;
@@ -44,8 +45,8 @@ class LogClient implements AutoCloseable {
      * @throws IllegalArgumentException If the clientId is invalid.
      */
     public LogClient(String clientId, DistributedLogConfig config) {
-        Exceptions.throwIfNull(config, "config");
-        Exceptions.throwIfNullOfEmpty(clientId, "clientId");
+        Preconditions.checkNotNull(config, "config");
+        Exceptions.checkNotNullOrEmpty(clientId, "clientId");
 
         this.clientId = clientId;
         this.config = config;
@@ -109,8 +110,8 @@ class LogClient implements AutoCloseable {
      */
     public void initialize() throws DurableDataLogException {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
-        Exceptions.throwIfClosed(this.closed, this);
-        Exceptions.throwIfIllegalState(this.namespace == null, "LogClient is already initialized.");
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(this.namespace == null, "LogClient is already initialized.");
 
         DistributedLogConfiguration conf = new DistributedLogConfiguration()
                 .setImmediateFlushEnabled(true)

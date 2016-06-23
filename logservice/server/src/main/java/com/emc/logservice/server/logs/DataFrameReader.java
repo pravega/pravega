@@ -5,11 +5,12 @@ import com.emc.logservice.server.*;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.InputStream;
 import java.io.SequenceInputStream;
-import java.time.Duration;
 import java.util.LinkedList;
 import java.util.stream.Stream;
 
@@ -42,9 +43,9 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
     public DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, String containerId) throws DurableDataLogException {
-        Exceptions.throwIfNull(log, "log");
-        Exceptions.throwIfNull(logItemFactory, "logItemFactory");
-        Exceptions.throwIfNullOfEmpty(containerId, "containerId");
+        Preconditions.checkNotNull(log, "log");
+        Preconditions.checkNotNull(logItemFactory, "logItemFactory");
+        Exceptions.checkNotNullOrEmpty(containerId, "containerId");
         this.traceObjectId = String.format("DataFrameReader[%s]", containerId);
         this.frameContentsEnumerator = new FrameEntryEnumerator(log, traceObjectId);
         this.lastReadSequenceNumber = Operation.NoSequenceNumber;
@@ -68,17 +69,16 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
     /**
      * Attempts to return the next Operation from the DataFrameLog.
      *
-     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when complete, will contain a ReadResult with the requested Operation. If no more
      * Operations exist, null will be returned.
      */
-    public ReadResult<T> getNext(Duration timeout) throws Exception {
-        Exceptions.throwIfClosed(this.closed, closed);
+    public ReadResult<T> getNext() throws Exception {
+        Exceptions.checkNotClosed(this.closed, closed);
 
         try {
             // Get the ByteArraySegments for the next entry (there could be one or more, depending on how many DataFrames
             // were used to split the original Operation).
-            SegmentCollection segments = getNextOperationSegments(timeout);
+            SegmentCollection segments = getNextOperationSegments();
             if (segments == null || !segments.hasData()) {
                 // We have reached the end.
                 return null;
@@ -126,15 +126,13 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
     /**
      * Gets a collection of ByteArraySegments (SegmentCollection) that makes up the next Log Operation to be returned.
      *
-     * @param timeout The timeout for the operation.
      * @return A CompletableFuture that, when complete, will contain a SegmentCollection with the requested result. If no
      * more segments are available, either a null value or an empty SegmentCollection will be returned.
      */
-    private SegmentCollection getNextOperationSegments(Duration timeout) throws Exception {
+    private SegmentCollection getNextOperationSegments() throws Exception {
         SegmentCollection result = new SegmentCollection();
-        TimeoutTimer timer = new TimeoutTimer(timeout);
         while (true) {
-            DataFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext(timer.getRemaining());
+            DataFrame.DataFrameEntry nextEntry = this.frameContentsEnumerator.getNext();
             if (nextEntry == null) {
                 // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
                 // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
@@ -250,7 +248,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          * @throws IllegalArgumentException If dataFrameSequence is invalid.
          */
         public void add(ByteArraySegment segment, long dataFrameSequence, boolean lastFrameEntry) throws DataCorruptionException {
-            Exceptions.throwIfNull(segment, "segment");
+            Preconditions.checkNotNull(segment, "segment");
 
             if (dataFrameSequence < this.dataFrameSequence) {
                 throw new DataCorruptionException(String.format("Invalid DataFrameSequence. Expected at least '%d', found '%d'.", this.dataFrameSequence, dataFrameSequence));
@@ -286,7 +284,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          */
         public InputStream getInputStream() {
             Stream<InputStream> ss = this.segments.stream().map(ByteArraySegment::getReader);
-            return new SequenceInputStream(new IteratorToEnumeration<>(ss.iterator()));
+            return new SequenceInputStream(Iterators.asEnumeration(ss.iterator()));
         }
 
         /**
@@ -322,7 +320,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
 
         private final String traceObjectId;
         private final DataFrameEnumerator dataFrameEnumerator;
-        private IteratorWithException<DataFrame.DataFrameEntry, SerializationException> currentFrameContents;
+        private CloseableIterator<DataFrame.DataFrameEntry, SerializationException> currentFrameContents;
 
         //endregion
 
@@ -356,21 +354,21 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
         /**
          * Attempts to return the next DataFrameEntry from the DataFrameLog.
          *
-         * @param timeout The timeout for the operation.
          * @return A CompletableFuture that, when completed, will contain the next available DataFrameEntry. If no such
          * entry exists, it will contain a null value.
          */
-        public DataFrame.DataFrameEntry getNext(Duration timeout) throws Exception {
+        public DataFrame.DataFrameEntry getNext() throws Exception {
             // Check to see if we are in the middle of a frame, in which case, just return the next element.
-            if (this.currentFrameContents != null && this.currentFrameContents.hasNext()) {
-                DataFrame.DataFrameEntry result = this.currentFrameContents.pollNext();
+            DataFrame.DataFrameEntry result;
+            if (this.currentFrameContents != null) {
+                result = this.currentFrameContents.getNext();
                 if (result != null) {
                     return result;
                 }
             }
 
             // We need to fetch a new frame.
-            DataFrame dataFrame = this.dataFrameEnumerator.getNext(timeout);
+            DataFrame dataFrame = this.dataFrameEnumerator.getNext();
             if (dataFrame == null) {
                 // No more frames to retrieve
                 this.currentFrameContents = null;
@@ -380,8 +378,9 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                 // We just got a new frame.
                 log.debug("{}: Read DataFrame (SequenceNumber = {}, Length = {}).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
                 this.currentFrameContents = dataFrame.getEntries();
-                if (this.currentFrameContents.hasNext()) {
-                    return this.currentFrameContents.pollNext();
+                result = this.currentFrameContents.getNext();
+                if (result != null) {
+                    return result;
                 }
                 else {
                     // The DataFrameEnumerator should not return empty frames. We can either go in a loop and try to get next,
@@ -421,7 +420,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
          */
         public DataFrameEnumerator(DurableDataLog log) throws DurableDataLogException {
-            Exceptions.throwIfNull(log, "log");
+            Preconditions.checkNotNull(log, "log");
 
             this.log = log;
             this.lastReadFrameSequence = InitialLastReadFrameSequence;
@@ -449,12 +448,11 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
         /**
          * Attempts to get the next DataFrame from the log.
          *
-         * @param timeout The timeout for the operation.
          * @return A CompletableFuture that, when complete, will contain the next DataFrame from the log. If no such
          * frame exists, it will contain a null value.
          */
-        public DataFrame getNext(Duration timeout) throws Exception {
-            DurableDataLog.ReadItem nextItem = this.reader.getNext(timeout);
+        public DataFrame getNext() throws Exception {
+            DurableDataLog.ReadItem nextItem = this.reader.getNext();
             if (nextItem == null) {
                 // We have reached the end. Stop here.
                 return null;

@@ -1,5 +1,7 @@
 package com.emc.logservice.common;
 
+import com.google.common.base.Preconditions;
+
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
@@ -266,7 +268,7 @@ public class TruncateableList<T> {
          * @param maxCount  The maximum number of items to return with the iterator.
          */
         public NodeIterator(ListNode<T> firstNode, int maxCount) {
-            Exceptions.throwIfIllegalArgument(maxCount >= 0, "maxCount");
+            Preconditions.checkArgument(maxCount >= 0, "maxCount");
 
             this.nextNode = firstNode;
             this.maxCount = maxCount;

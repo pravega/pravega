@@ -52,7 +52,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
      * @param value The length.
      */
     public void setStreamSegmentLength(long value) {
-        Exceptions.throwIfIllegalArgument(value >= 0, "value", "StreamSegment Length must be a non-negative number.");
+        Exceptions.checkArgument(value >= 0, "value", "StreamSegment Length must be a non-negative number.");
         this.streamSegmentLength = value;
     }
 

@@ -1,5 +1,7 @@
 package com.emc.logservice.common;
 
+import com.google.common.base.Preconditions;
+
 import java.util.function.Consumer;
 
 /**
@@ -16,7 +18,7 @@ public final class CallbackHelpers {
      * @throws NullPointerException If the consumer is null.
      */
     public static <T> void invokeSafely(Consumer<T> consumer, T argument, Consumer<Throwable> failureHandler) {
-        Exceptions.throwIfNull(consumer, "consumer");
+        Preconditions.checkNotNull(consumer, "consumer");
 
         try {
             consumer.accept(argument);

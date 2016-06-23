@@ -8,6 +8,8 @@ import com.emc.logservice.server.reading.ReadIndexFactory;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageabstraction.StorageFactory;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -17,7 +19,9 @@ import java.util.function.Supplier;
 public abstract class ServiceBuilder implements AutoCloseable {
     //region Members
 
+    private static final int ThreadPoolSize = 50; // TODO: this should be in a config.
     protected final SegmentToContainerMapper segmentToContainerMapper;
+    private final ExecutorService executorService;
     private OperationLogFactory operationLogFactory;
     private CacheFactory cacheFactory;
     private DurableDataLogFactory dataLogFactory;
@@ -33,6 +37,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     public ServiceBuilder(int containerCount) {
         this.segmentToContainerMapper = new SegmentToContainerMapper(containerCount);
+        this.executorService = Executors.newScheduledThreadPool(ThreadPoolSize);
     }
 
     //endregion
@@ -60,6 +65,8 @@ public abstract class ServiceBuilder implements AutoCloseable {
             this.storageFactory.close();
             this.storageFactory = null;
         }
+
+        this.executorService.shutdown();
     }
 
     //endregion
@@ -109,17 +116,17 @@ public abstract class ServiceBuilder implements AutoCloseable {
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this::createCacheFactory, cf -> this.cacheFactory = cf);
         StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory, olf -> this.operationLogFactory = olf);
-        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, cacheFactory, storageFactory);
+        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, cacheFactory, storageFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
         SegmentContainerFactory containerFactory = getSingleton(this.containerFactory, this::createSegmentContainerFactory, scf -> this.containerFactory = scf);
-        return new StreamSegmentContainerRegistry(containerFactory);
+        return new StreamSegmentContainerRegistry(containerFactory, this.executorService);
     }
 
     private OperationLogFactory createOperationLogFactory() {
         DurableDataLogFactory dataLogFactory = getSingleton(this.dataLogFactory, this::createDataLogFactory, dlf -> this.dataLogFactory = dlf);
-        return new DurableLogFactory(dataLogFactory);
+        return new DurableLogFactory(dataLogFactory, this.executorService);
     }
 
     private <T> T getSingleton(T instance, Supplier<T> creator, Consumer<T> setter) {

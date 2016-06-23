@@ -4,6 +4,7 @@ import com.emc.logservice.common.*;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.LogItem;
 import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     private static final Duration DataFrameWriteTimeout = Duration.ofSeconds(30); // TODO: actual timeout.
     private final DataFrameOutputStream outputStream;
     private final DurableDataLog targetLog;
-    private final Consumer<DataFrameCommitArgs> dataFrameCommitSuccessCallback;
+    private final ConsumerWithException<DataFrameCommitArgs, Exception> dataFrameCommitSuccessCallback;
     private final Consumer<Throwable> dataFrameCommitFailureCallback;
     private boolean closed;
     private long lastSerializedSequenceNumber;
@@ -44,10 +45,10 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If maxDataFrameSize <= 0
      */
-    public DataFrameBuilder(DurableDataLog targetLog, Consumer<DataFrameCommitArgs> dataFrameCommitSuccessCallback, Consumer<Throwable> dataFrameCommitFailureCallback) {
-        Exceptions.throwIfNull(targetLog, "targetLog");
-        Exceptions.throwIfNull(dataFrameCommitFailureCallback, "dataFrameCommitFailureCallback");
-        Exceptions.throwIfNull(dataFrameCommitSuccessCallback, "dataFrameCommitSuccessCallback");
+    public DataFrameBuilder(DurableDataLog targetLog, ConsumerWithException<DataFrameCommitArgs, Exception> dataFrameCommitSuccessCallback, Consumer<Throwable> dataFrameCommitFailureCallback) {
+        Preconditions.checkNotNull(targetLog, "targetLog");
+        Preconditions.checkNotNull(dataFrameCommitFailureCallback, "dataFrameCommitFailureCallback");
+        Preconditions.checkNotNull(dataFrameCommitSuccessCallback, "dataFrameCommitSuccessCallback");
 
         this.targetLog = targetLog;
         this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), targetLog::getLastAppendSequence, this::handleDataFrameComplete);
@@ -94,9 +95,9 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      *                               the LogItem failed to commit to the DataFrameLog.
      */
     public void append(T logItem) throws IOException {
-        Exceptions.throwIfClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed, this);
         long seqNo = logItem.getSequenceNumber();
-        Exceptions.throwIfIllegalArgument(this.lastSerializedSequenceNumber < seqNo, "logItem", "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
+        Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem", "Invalid sequence number. Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
 
         // Remember the last Started SeqNo, in case of failure.
         long previousLastStartedSequenceNumber = this.lastStartedSequenceNumber;
@@ -131,7 +132,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @throws IOException              When the DataFrame could not be committed.
      */
     private void handleDataFrameComplete(DataFrame dataFrame) throws IOException {
-        Exceptions.throwIfIllegalArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
+        Exceptions.checkArgument(dataFrame.isSealed(), "dataFrame", "Cannot publish a non-sealed DataFrame.");
 
         // Write DataFrame to DataFrameLog.
         try {
