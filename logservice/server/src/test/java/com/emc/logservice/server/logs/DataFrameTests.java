@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ByteArraySegment;
@@ -12,8 +30,8 @@ import java.util.List;
  * Unit tests for the DataFrame class.
  */
 public class DataFrameTests {
-    private static final long DefaultPreviousSequence = 12345;
-    private static final int EntryHeaderSize = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accesible from here.
+    private static final long DEFAULT_PREVIOUS_SEQUENCE = 12345;
+    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accesible from here.
 
     /**
      * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.
@@ -27,7 +45,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame df = new DataFrame(DefaultPreviousSequence, maxFrameSize);
+        DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
         df.setFrameSequence(123456789);
         int recordsAppended = appendRecords(allRecords, df);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
@@ -50,7 +68,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame writeFrame = new DataFrame(DefaultPreviousSequence, maxFrameSize);
+        DataFrame writeFrame = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
         writeFrame.setFrameSequence(123456789);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
@@ -71,7 +89,7 @@ public class DataFrameTests {
     @Test
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
-        DataFrame df = new DataFrame(DefaultPreviousSequence, dataFrameSize);
+        DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
         AssertExtensions.assertThrows(
                 "append(byte) worked even though no entry started.",
                 () -> df.append((byte) 1),
@@ -93,7 +111,7 @@ public class DataFrameTests {
         }
 
         // This is how many bytes we have available for writing (add something for the EntryHeader as well).
-        int usableFrameLength = bytesAppended + EntryHeaderSize;
+        int usableFrameLength = bytesAppended + ENTRY_HEADER_SIZE;
 
         // Discard everything we have so far, so our frame should revert back to an empty one.
         df.discardEntry();
@@ -138,9 +156,9 @@ public class DataFrameTests {
         started = df.startNewEntry(true);
         Assert.assertFalse("Able to start a new entry in a full frame.", started);
 
-        // Verify we were able to write the expected number of bytes. Each entry uses 'EntryHeaderSize' bytes for its header,
+        // Verify we were able to write the expected number of bytes. Each entry uses 'ENTRY_HEADER_SIZE' bytes for its header,
         // and we have 3 entries.
-        Assert.assertEquals("Unexpected number of bytes appended.", usableFrameLength - 3 * EntryHeaderSize, bytesAppended);
+        Assert.assertEquals("Unexpected number of bytes appended.", usableFrameLength - 3 * ENTRY_HEADER_SIZE, bytesAppended);
     }
 
     /**
@@ -150,8 +168,8 @@ public class DataFrameTests {
     public void testFrameSequence() {
         long newSequence = 67890;
         int dataFrameSize = 1000;
-        DataFrame df = new DataFrame(DefaultPreviousSequence, dataFrameSize);
-        Assert.assertEquals("Unexpected value for getPreviousSequence().", DefaultPreviousSequence, df.getPreviousFrameSequence());
+        DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
+        Assert.assertEquals("Unexpected value for getPreviousSequence().", DEFAULT_PREVIOUS_SEQUENCE, df.getPreviousFrameSequence());
 
         df.setFrameSequence(newSequence);
         Assert.assertEquals("Unexpected value for getFrameSequence().", newSequence, df.getFrameSequence());

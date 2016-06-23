@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server;
 
 import com.emc.nautilus.testcommon.AssertExtensions;
@@ -10,7 +28,7 @@ import java.util.HashMap;
  * Unit tests for SegmentToContainerMapper.
  */
 public class SegmentToContainerMapperTests {
-    private final static int MaxByte = 256;
+    private final static int MAX_BYTE = 256;
 
     /**
      * Tests that the constructor only allows valid configurations.
@@ -33,11 +51,11 @@ public class SegmentToContainerMapperTests {
         int containerCount = 128;
 
         // To generate names uniformly, we will generate any possible Name with this length.
-        // DO not make this any larger. This will very easily grow out of proportions (MaxByte ^ streamSegmentNameByteCount).
+        // DO not make this any larger. This will very easily grow out of proportions (MAX_BYTE ^ streamSegmentNameByteCount).
         int streamSegmentNameByteCount = 2;
 
         // Calculate how many segments we have.
-        int streamSegmentCount = (int) Math.pow(MaxByte, streamSegmentNameByteCount);
+        int streamSegmentCount = (int) Math.pow(MAX_BYTE, streamSegmentNameByteCount);
 
         // This is how much deviation we allow between min and max (container assignments).
         double maxDeviation = 0.01;
@@ -75,7 +93,7 @@ public class SegmentToContainerMapperTests {
     public void testBatchMapping() {
         int containerCount = 16;
         int streamSegmentNameByteCount = 1;
-        int streamSegmentCount = (int) Math.pow(MaxByte, streamSegmentNameByteCount);
+        int streamSegmentCount = (int) Math.pow(MAX_BYTE, streamSegmentNameByteCount);
         int batchPerParentCount = 10;
 
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
@@ -95,8 +113,8 @@ public class SegmentToContainerMapperTests {
     private String getSegmentName(int segmentId, int length) {
         char[] stringContents = new char[length];
         for (int i = 0; i < length; i++) {
-            stringContents[i] = (char) (segmentId % MaxByte);
-            segmentId /= MaxByte;
+            stringContents[i] = (char) (segmentId % MAX_BYTE);
+            segmentId /= MAX_BYTE;
         }
 
         return new String(stringContents);

@@ -1,7 +1,29 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.common.ByteArraySegment;
+import com.emc.logservice.common.CloseableIterator;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.server.DataCorruptionException;
+import com.emc.logservice.server.LogItem;
+import com.emc.logservice.server.LogItemFactory;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
@@ -48,7 +70,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
         Exceptions.checkNotNullOrEmpty(containerId, "containerId");
         this.traceObjectId = String.format("DataFrameReader[%s]", containerId);
         this.frameContentsEnumerator = new FrameEntryEnumerator(log, traceObjectId);
-        this.lastReadSequenceNumber = Operation.NoSequenceNumber;
+        this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
         this.logItemFactory = logItemFactory;
     }
 
@@ -82,8 +104,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
             if (segments == null || !segments.hasData()) {
                 // We have reached the end.
                 return null;
-            }
-            else {
+            } else {
                 // Get the unified input stream for all the segments.
                 InputStream source = segments.getInputStream();
 
@@ -98,14 +119,12 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
 
                     this.lastReadSequenceNumber = seqNo;
                     return new ReadResult<>(logItem, segments.getDataFrameSequence(), segments.isLastFrameEntry());
-                }
-                catch (SerializationException ex) {
+                } catch (SerializationException ex) {
                     throw new DataCorruptionException("Deserialization failed.", ex);
                 }
                 // Any other exceptions are considered to be non-DataCorruption.
             }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             // If we encountered any kind of reader exception, close the reader right away.
             // We do not do retries at this layer. Retries should be handled by the DataLog.
             // At this time, we close the reader for any kind of exception. In the future, we may decide to only do this
@@ -137,8 +156,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                 // 'null' means no more entries (or frames). Since we are still in the while loop, it means we were in the middle
                 // of an entry that hasn't been fully committed. We need to discard it and mark the end of the 'Operation stream'.
                 return null;
-            }
-            else {
+            } else {
                 if (nextEntry.isFirstRecordEntry()) {
                     // We encountered a 'First entry'. We need to discard whatever we have so far, and start
                     // constructing a new Operation. This happens if an entry was committed partially, but we were
@@ -373,16 +391,14 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                 // No more frames to retrieve
                 this.currentFrameContents = null;
                 return null;
-            }
-            else {
+            } else {
                 // We just got a new frame.
                 log.debug("{}: Read DataFrame (SequenceNumber = {}, Length = {}).", this.traceObjectId, dataFrame.getFrameSequence(), dataFrame.getLength());
                 this.currentFrameContents = dataFrame.getEntries();
                 result = this.currentFrameContents.getNext();
                 if (result != null) {
                     return result;
-                }
-                else {
+                } else {
                     // The DataFrameEnumerator should not return empty frames. We can either go in a loop and try to get next,
                     // or throw (which is correct, since we rely on DataFrameEnumerator to behave correctly.
                     throw new DataCorruptionException("Found empty DataFrame when non-empty was expected.");
@@ -403,7 +419,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
     private static class DataFrameEnumerator implements CloseableIterator<DataFrame, Exception> {
         //region Members
 
-        private static final long InitialLastReadFrameSequence = -1;
+        private static final long INITIAL_LAST_READ_FRAME_SEQUENCE = -1;
         private final DurableDataLog log;
         private long lastReadFrameSequence;
         private CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader;
@@ -423,10 +439,10 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
             Preconditions.checkNotNull(log, "log");
 
             this.log = log;
-            this.lastReadFrameSequence = InitialLastReadFrameSequence;
+            this.lastReadFrameSequence = INITIAL_LAST_READ_FRAME_SEQUENCE;
             if (this.reader == null) {
                 // We start from the beginning.
-                this.reader = this.log.getReader(InitialLastReadFrameSequence);
+                this.reader = this.log.getReader(INITIAL_LAST_READ_FRAME_SEQUENCE);
             }
         }
 
@@ -462,8 +478,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
             try {
                 frame = new DataFrame(nextItem.getPayload());
                 frame.setFrameSequence(nextItem.getSequence());
-            }
-            catch (SerializationException ex) {
+            } catch (SerializationException ex) {
                 throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex);
             }
 
@@ -472,7 +487,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                 throw new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame sequence greater than %d, found %d.", this.lastReadFrameSequence, frame.getFrameSequence()));
             }
 
-            if (this.lastReadFrameSequence != InitialLastReadFrameSequence && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
+            if (this.lastReadFrameSequence != INITIAL_LAST_READ_FRAME_SEQUENCE && this.lastReadFrameSequence != frame.getPreviousFrameSequence()) {
                 // Previous Frame Sequence is not match what the Current Frame claims it is.
                 throw new DataCorruptionException(String.format("DataFrame with Sequence %d has a PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).", frame.getFrameSequence(), frame.getPreviousFrameSequence(), this.lastReadFrameSequence));
             }

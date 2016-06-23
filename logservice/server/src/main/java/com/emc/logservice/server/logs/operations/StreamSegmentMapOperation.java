@@ -1,9 +1,29 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.server.logs.SerializationException;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 
 /**
  * Log Operation that represents a mapping of StreamSegment Name to a StreamSegment Id.
@@ -11,8 +31,8 @@ import java.io.*;
 public class StreamSegmentMapOperation extends MetadataOperation {
     //region Members
 
-    public static final byte OperationType = 4;
-    private static final byte Version = 0;
+    public static final byte OPERATION_TYPE = 4;
+    private static final byte CURRENT_VERSION = 0;
     private long streamSegmentId;
     private String streamSegmentName;
     private long streamSegmentLength;
@@ -97,12 +117,12 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     @Override
     protected byte getOperationType() {
-        return OperationType;
+        return OPERATION_TYPE;
     }
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        target.writeByte(Version);
+        target.writeByte(CURRENT_VERSION);
         target.writeLong(this.streamSegmentId);
         target.writeUTF(this.streamSegmentName);
         target.writeLong(this.streamSegmentLength);
@@ -112,7 +132,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, Version);
+        byte version = readVersion(source, CURRENT_VERSION);
         this.streamSegmentId = source.readLong();
         this.streamSegmentName = source.readUTF();
         this.streamSegmentLength = source.readLong();

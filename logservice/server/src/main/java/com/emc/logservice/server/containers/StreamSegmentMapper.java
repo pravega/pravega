@@ -1,8 +1,35 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.FutureHelpers;
+import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.common.TimeoutTimer;
+import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.contracts.StreamSegmentExistsException;
+import com.emc.logservice.contracts.StreamSegmentNotExistsException;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.StreamSegmentNameUtils;
+import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
@@ -29,8 +56,8 @@ public class StreamSegmentMapper {
     private final Storage storage;
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
     private final HashSet<Long> pendingIdAssignments;
-    private final Object SyncRoot = new Object();
-    private final Object MetadataLock = new Object();
+    private final Object assignmentLock = new Object();
+    private final Object metadataLock = new Object();
 
     //endregion
 
@@ -158,7 +185,7 @@ public class StreamSegmentMapper {
         // See if anyone else is currently waiting to get this StreamSegment's id.
         CompletableFuture<Long> result;
         boolean needsAssignment = false;
-        synchronized (SyncRoot) {
+        synchronized (assignmentLock) {
             result = this.pendingRequests.getOrDefault(streamSegmentName, null);
             if (result == null) {
                 needsAssignment = true;
@@ -191,7 +218,7 @@ public class StreamSegmentMapper {
      */
     private CompletableFuture<Long> assignBatchStreamSegmentId(SegmentProperties batchInfo, long parentStreamSegmentId, Duration timeout) {
         assert batchInfo != null : "batchInfo is null";
-        assert parentStreamSegmentId != SegmentMetadataCollection.NoStreamSegmentId : "parentStreamSegmentId is invalid.";
+        assert parentStreamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID : "parentStreamSegmentId is invalid.";
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return persistInDurableLog(batchInfo, parentStreamSegmentId, timer.getRemaining());
     }
@@ -209,7 +236,7 @@ public class StreamSegmentMapper {
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
                 .exceptionally(ex ->
                 {
-                    failAssignment(streamSegmentName, SegmentMetadataCollection.NoStreamSegmentId, ex);
+                    failAssignment(streamSegmentName, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, ex);
                     throw new CompletionException(ex);
                 });
     }
@@ -222,14 +249,14 @@ public class StreamSegmentMapper {
      * @return
      */
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, Duration timeout) {
-        return persistInDurableLog(streamSegmentInfo, SegmentMetadataCollection.NoStreamSegmentId, timeout);
+        return persistInDurableLog(streamSegmentInfo, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, timeout);
     }
 
     /**
      * Generates a unique Id for the StreamSegment with given info and persists that in DurableLog.
      *
      * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
-     * @param parentStreamSegmentId If different from SegmentMetadataCollection.NoStreamSegmentId, the given streamSegmentInfo
+     * @param parentStreamSegmentId If different from SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
      *                              will be mapped as a batch. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout
      * @return
@@ -237,7 +264,7 @@ public class StreamSegmentMapper {
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(streamSegmentInfo.getName(), SegmentMetadataCollection.NoStreamSegmentId, new StreamSegmentNotExistsException("StreamSegment does not exist."));
+            failAssignment(streamSegmentInfo.getName(), SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, new StreamSegmentNotExistsException("StreamSegment does not exist."));
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
         }
 
@@ -246,8 +273,7 @@ public class StreamSegmentMapper {
             // Looks like someone else beat us to it.
             completeAssignment(streamSegmentInfo.getName(), streamId);
             return CompletableFuture.completedFuture(streamId);
-        }
-        else {
+        } else {
             final long newStreamId = generateUniqueStreamId(streamSegmentInfo.getName());
             CompletableFuture<Long> logAddResult;
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
@@ -255,8 +281,7 @@ public class StreamSegmentMapper {
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
                 assert parentMetadata != null : "parentMetadata is null";
                 logAddResult = this.durableLog.add(new BatchMapOperation(parentStreamSegmentId, newStreamId, streamSegmentInfo), timeout);
-            }
-            else {
+            } else {
                 // Standalone StreamSegment.
                 logAddResult = this.durableLog.add(new StreamSegmentMapOperation(newStreamId, streamSegmentInfo), timeout);
             }
@@ -275,18 +300,17 @@ public class StreamSegmentMapper {
      *
      * @param streamSegmentId       The Id of the new StreamSegment to map.
      * @param streamSegmentInfo     The SegmentProperties for the new StreamSegment.
-     * @param parentStreamSegmentId If equal to SegmentMetadataCollection.NoStreamSegmentId, this will be mapped as a
+     * @param parentStreamSegmentId If equal to SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, this will be mapped as a
      *                              standalone StreamSegment. Otherwise, it will be mapped as a batch to the given
      *                              parentStreamSegmentId.
      */
     private void updateMetadata(long streamSegmentId, SegmentProperties streamSegmentInfo, long parentStreamSegmentId) {
-        synchronized (MetadataLock) {
+        synchronized (metadataLock) {
             // Map it to the stream name and update the Stream Metadata.
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
                 // Batch StreamSegment.
                 this.containerMetadata.mapStreamSegmentId(streamSegmentInfo.getName(), streamSegmentId, parentStreamSegmentId);
-            }
-            else {
+            } else {
                 // Standalone StreamSegment.
                 this.containerMetadata.mapStreamSegmentId(streamSegmentInfo.getName(), streamSegmentId);
             }
@@ -314,7 +338,7 @@ public class StreamSegmentMapper {
         // Get the last 32 bits of the current time (in millis), and move those to the upper portion of our ID.
         long streamId = System.currentTimeMillis() << 32;
         streamId |= streamSegmentName.hashCode() & 0xffffffffL;
-        synchronized (SyncRoot) {
+        synchronized (assignmentLock) {
             while (!isValidStreamSegmentId(streamId) || this.containerMetadata.getStreamSegmentMetadata(streamId) != null || this.pendingIdAssignments.contains(streamId)) {
                 streamId++;
             }
@@ -334,7 +358,7 @@ public class StreamSegmentMapper {
     private void completeAssignment(String streamSegmentName, long streamSegmentId) {
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
-        synchronized (SyncRoot) {
+        synchronized (assignmentLock) {
             pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
             this.pendingRequests.remove(streamSegmentName);
             this.pendingIdAssignments.remove(streamSegmentId);
@@ -355,7 +379,7 @@ public class StreamSegmentMapper {
     private void failAssignment(String streamSegmentName, long streamSegmentId, Throwable reason) {
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
-        synchronized (SyncRoot) {
+        synchronized (assignmentLock) {
             pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
             this.pendingRequests.remove(streamSegmentName);
             this.pendingIdAssignments.remove(streamSegmentId);
@@ -367,7 +391,7 @@ public class StreamSegmentMapper {
     }
 
     private boolean isValidStreamSegmentId(long id) {
-        return id != SegmentMetadataCollection.NoStreamSegmentId;
+        return id != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
     }
 
     //endregion

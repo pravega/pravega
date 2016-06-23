@@ -1,15 +1,50 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.StreamSegmentMergedException;
+import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.server.ContainerMetadata;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.emc.logservice.server.containers.StreamSegmentMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
-import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.server.logs.operations.BatchMapOperation;
+import com.emc.logservice.server.logs.operations.MergeBatchOperation;
+import com.emc.logservice.server.logs.operations.MetadataOperation;
+import com.emc.logservice.server.logs.operations.MetadataPersistedOperation;
+import com.emc.logservice.server.logs.operations.StorageOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 /**
@@ -96,8 +131,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         try {
             return transaction.getStreamSegmentMetadata(streamSegmentId);
-        }
-        catch (MetadataUpdateException ex) {
+        } catch (MetadataUpdateException ex) {
             return null;
         }
     }
@@ -106,7 +140,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
     public long getStreamSegmentId(String streamSegmentName) {
         UpdateTransaction transaction = this.currentTransaction;
         if (transaction == null) {
-            return ContainerMetadata.NoStreamSegmentId;
+            return ContainerMetadata.NO_STREAM_SEGMENT_ID;
         }
 
         return transaction.getExistingStreamId(streamSegmentName);
@@ -156,11 +190,9 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         TemporaryStreamSegmentMetadata streamMetadata = getCurrentTransaction().getStreamSegmentMetadata(operation.getStreamSegmentId());
         if (operation instanceof StreamSegmentAppendOperation) {
             streamMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
-        }
-        else if (operation instanceof StreamSegmentSealOperation) {
+        } else if (operation instanceof StreamSegmentSealOperation) {
             streamMetadata.preProcessOperation((StreamSegmentSealOperation) operation);
-        }
-        else if (operation instanceof MergeBatchOperation) {
+        } else if (operation instanceof MergeBatchOperation) {
             MergeBatchOperation mbe = (MergeBatchOperation) operation;
             TemporaryStreamSegmentMetadata batchStreamMetadata = getCurrentTransaction().getStreamSegmentMetadata(mbe.getBatchStreamSegmentId());
             batchStreamMetadata.preProcessAsBatchStreamSegment(mbe);
@@ -180,11 +212,9 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         TemporaryStreamSegmentMetadata streamMetadata = getCurrentTransaction().getStreamSegmentMetadata(operation.getStreamSegmentId());
         if (operation instanceof StreamSegmentAppendOperation) {
             streamMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
-        }
-        else if (operation instanceof StreamSegmentSealOperation) {
+        } else if (operation instanceof StreamSegmentSealOperation) {
             streamMetadata.acceptOperation((StreamSegmentSealOperation) operation);
-        }
-        else if (operation instanceof MergeBatchOperation) {
+        } else if (operation instanceof MergeBatchOperation) {
             MergeBatchOperation mbe = (MergeBatchOperation) operation;
             TemporaryStreamSegmentMetadata batchStreamMetadata = this.currentTransaction.getStreamSegmentMetadata(mbe.getBatchStreamSegmentId());
             batchStreamMetadata.acceptAsBatchStreamSegment(mbe);
@@ -225,8 +255,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             if (containerMetadata.isRecoveryMode()) {
                 this.newStreams = new HashMap<>();
                 this.newStreamsNames = new HashMap<>();
-            }
-            else {
+            } else {
                 this.newStreams = null;
                 this.newStreamsNames = null;
             }
@@ -245,8 +274,8 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 // the Batch StreamSegments may refer to one of these newly created StreamSegments, and the metadata
                 // will reject the operation if it can't find the parent.
                 // We need this because HashMap does not necessarily preserve order when iterating via values().
-                copySegmentMetadataToSource(newStreams.values(), s -> s.getParentId() == SegmentMetadataCollection.NoStreamSegmentId);
-                copySegmentMetadataToSource(newStreams.values(), s -> s.getParentId() != SegmentMetadataCollection.NoStreamSegmentId);
+                copySegmentMetadataToSource(newStreams.values(), s -> s.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
+                copySegmentMetadataToSource(newStreams.values(), s -> s.getParentId() != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
             }
 
             // We are done. Clear the transaction.
@@ -290,11 +319,9 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         public void processMetadataOperation(MetadataOperation operation) throws MetadataUpdateException {
             if (operation instanceof StreamSegmentMapOperation) {
                 processMetadataOperation((StreamSegmentMapOperation) operation);
-            }
-            else if (operation instanceof BatchMapOperation) {
+            } else if (operation instanceof BatchMapOperation) {
                 processMetadataOperation((BatchMapOperation) operation);
-            }
-            else if (operation instanceof MetadataPersistedOperation) {
+            } else if (operation instanceof MetadataPersistedOperation) {
                 processMetadataOperation((MetadataPersistedOperation) operation);
             }
         }
@@ -306,10 +333,9 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 }
 
                 //TODO: should we check (again?) if the container metadata has knowledge of this stream?
-                if (newMetadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
+                if (newMetadata.getParentId() != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
                     this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
-                }
-                else {
+                } else {
                     this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
                 }
 
@@ -328,7 +354,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
             // Verify Stream Name is not already mapped somewhere else.
             long existingStreamId = getExistingStreamId(operation.getStreamSegmentName());
-            if (existingStreamId != SegmentMetadataCollection.NoStreamSegmentId) {
+            if (existingStreamId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Stream Name that is already mapped in the metadata. Stream Name = '%s', Existing Id = %d, New Id = %d.", operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamId, operation.getStreamSegmentId()));
             }
 
@@ -355,7 +381,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
             // Verify Stream Name is not already mapped somewhere else.
             long existingStreamId = getExistingStreamId(operation.getBatchStreamSegmentName());
-            if (existingStreamId != SegmentMetadataCollection.NoStreamSegmentId) {
+            if (existingStreamId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
                 throw new MetadataUpdateException(String.format("Operation %d wants to map a Batch Stream Name that is already mapped in the metadata. Stream Name = '%s', Existing Id = %d, New Id = %d.", operation.getSequenceNumber(), operation.getBatchStreamSegmentName(), existingStreamId, operation.getBatchStreamSegmentId()));
             }
 
@@ -387,8 +413,8 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         private long getExistingStreamId(String streamName) {
             long existingStreamId = this.containerMetadata.getStreamSegmentId(streamName);
-            if (existingStreamId == SegmentMetadataCollection.NoStreamSegmentId) {
-                existingStreamId = this.newStreamsNames.getOrDefault(streamName, SegmentMetadataCollection.NoStreamSegmentId);
+            if (existingStreamId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+                existingStreamId = this.newStreamsNames.getOrDefault(streamName, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
             }
 
             return existingStreamId;
@@ -469,7 +495,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         @Override
         public Date getLastModified() {
-            return new Date();//TODO: implement properly.
+            return new Date(); //TODO: implement properly.
         }
 
         //endregion
@@ -630,7 +656,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 throw new StreamSegmentSealedException(this.streamSegmentMetadata.getName());
             }
 
-            if (this.streamSegmentMetadata.getParentId() != SegmentMetadataCollection.NoStreamSegmentId) {
+            if (this.streamSegmentMetadata.getParentId() != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
                 throw new MetadataUpdateException("Cannot merge a StreamSegment into a Batch StreamSegment.");
             }
 

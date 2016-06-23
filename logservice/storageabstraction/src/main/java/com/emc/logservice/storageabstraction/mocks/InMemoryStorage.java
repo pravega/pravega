@@ -1,13 +1,38 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.storageabstraction.mocks;
 
 import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.contracts.*;
+import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.contracts.StreamSegmentExistsException;
+import com.emc.logservice.contracts.StreamSegmentNotExistsException;
+import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.storageabstraction.BadOffsetException;
 import com.emc.logservice.storageabstraction.Storage;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -110,7 +135,7 @@ public class InMemoryStorage implements Storage {
     //region StreamSegmentData
 
     private static class StreamSegmentData {
-        private static final int BufferSize = 1024 * 1024;
+        private static final int BUFFER_SIZE = 1024 * 1024;
         private final String name;
         private final ArrayList<byte[]> data;
         private final Object lock = new Object();
@@ -143,7 +168,7 @@ public class InMemoryStorage implements Storage {
                     while (readBytes < length) {
                         int bufferSeq = getBufferSequence(offset);
                         int bufferOffset = getBufferOffset(offset);
-                        int bytesToCopy = Math.min(BufferSize - bufferOffset, length - readBytes);
+                        int bytesToCopy = Math.min(BUFFER_SIZE - bufferOffset, length - readBytes);
                         System.arraycopy(this.data.get(bufferSeq), bufferOffset, target, targetOffset + readBytes, bytesToCopy);
 
                         readBytes += bytesToCopy;
@@ -196,16 +221,16 @@ public class InMemoryStorage implements Storage {
             long endOffset = startOffset + length;
             int desiredSize = getBufferSequence(endOffset) + 1;
             while (this.data.size() < desiredSize) {
-                this.data.add(new byte[BufferSize]);
+                this.data.add(new byte[BUFFER_SIZE]);
             }
         }
 
         private int getBufferSequence(long offset) {
-            return (int) (offset / BufferSize);
+            return (int) (offset / BUFFER_SIZE);
         }
 
         private int getBufferOffset(long offset) {
-            return (int) (offset % BufferSize);
+            return (int) (offset % BUFFER_SIZE);
         }
 
         private void writeInternal(long startOffset, InputStream data, int length) {
@@ -226,7 +251,7 @@ public class InMemoryStorage implements Storage {
                 while (writtenBytes < length) {
                     int bufferSeq = getBufferSequence(offset);
                     int bufferOffset = getBufferOffset(offset);
-                    int readBytes = data.read(this.data.get(bufferSeq), bufferOffset, BufferSize - bufferOffset);
+                    int readBytes = data.read(this.data.get(bufferSeq), bufferOffset, BUFFER_SIZE - bufferOffset);
                     if (readBytes < 0) {
                         throw new IOException("reached end of stream while still expecting data");
                     }
@@ -235,8 +260,7 @@ public class InMemoryStorage implements Storage {
                 }
 
                 this.length = Math.max(this.length, startOffset + length);
-            }
-            catch (IOException exception) {
+            } catch (IOException exception) {
                 throw new CompletionException(exception);
             }
         }

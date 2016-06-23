@@ -1,21 +1,44 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.storageabstraction.mocks;
 
 import com.emc.logservice.common.CloseableIterator;
-import com.emc.logservice.storageabstraction.*;
+import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
+import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Unit tests for InMemoryDurableDataLog.
  */
 public class InMemoryDurableDataLogTests {
-    private static final Duration Timeout = Duration.ofSeconds(30);
-    private static final int writeCount = 250;
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int WRITE_COUNT = 250;
 
     //region General DurableDataLog Tests
 
@@ -28,17 +51,17 @@ public class InMemoryDurableDataLogTests {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
                     "append() worked before initialize()",
-                    () -> log.append(new ByteArrayInputStream("h".getBytes()), Timeout),
+                    () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
-            log.initialize(Timeout).join();
+            log.initialize(TIMEOUT).join();
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             long prevSeqNo = -1;
-            for (int i = 0; i < writeCount; i++) {
+            for (int i = 0; i < WRITE_COUNT; i++) {
                 byte[] writeData = String.format("Write_%s", i).getBytes();
                 ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
-                long seqNo = log.append(writeStream, Timeout).join();
+                long seqNo = log.append(writeStream, TIMEOUT).join();
 
                 AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevSeqNo, seqNo);
                 prevSeqNo = seqNo;
@@ -58,8 +81,8 @@ public class InMemoryDurableDataLogTests {
                     () -> log.getReader(0),
                     ex -> ex instanceof IllegalStateException);
 
-            log.initialize(Timeout).join();
-            TreeMap<Long, byte[]> writeData = populate(log, writeCount);
+            log.initialize(TIMEOUT).join();
+            TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
 
             // Test reading after each sequence number that we got back.
             for (long seqNo : writeData.keySet()) {
@@ -83,16 +106,16 @@ public class InMemoryDurableDataLogTests {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "truncate() worked before initialize()",
-                    () -> log.truncate(0, Timeout),
+                    () -> log.truncate(0, TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
-            log.initialize(Timeout).join();
-            TreeMap<Long, byte[]> writeData = populate(log, writeCount);
+            log.initialize(TIMEOUT).join();
+            TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
             ArrayList<Long> seqNos = new ArrayList<>(writeData.keySet());
 
             // Test truncating after each sequence number that we got back.
             for (long seqNo : seqNos) {
-                log.truncate(seqNo, Timeout).join();
+                log.truncate(seqNo, TIMEOUT).join();
                 writeData.remove(seqNo);
                 testRead(log, -1, writeData);
             }
@@ -112,32 +135,32 @@ public class InMemoryDurableDataLogTests {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
 
         try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
-            log.initialize(Timeout).join();
+            log.initialize(TIMEOUT).join();
 
             // 1. No two logs can use the same EntryCollection.
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
                     () -> {
                         try (DurableDataLog log2 = new InMemoryDurableDataLog(entries)) {
-                            log2.initialize(Timeout).join();
+                            log2.initialize(TIMEOUT).join();
                         }
                     },
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // Verify we can still append to the first log.
-            TreeMap<Long, byte[]> writeData = populate(log, writeCount);
+            TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
 
             // 2. If during the normal operation of a log, it loses its lock, it should no longer be able to append...
             entries.forceAcquireLock("ForceLock");
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> log.append(new ByteArrayInputStream("h".getBytes()), Timeout).join(),
+                    () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT).join(),
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... or to truncate ...
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> log.truncate(writeData.lastKey(), Timeout).join(),
+                    () -> log.truncate(writeData.lastKey(), TIMEOUT).join(),
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... but it should still be able to read.
@@ -155,13 +178,13 @@ public class InMemoryDurableDataLogTests {
         TreeMap<Long, byte[]> writeData;
         // Create first log and write some data to it.
         try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
-            log.initialize(Timeout).join();
-            writeData = populate(log, writeCount);
+            log.initialize(TIMEOUT).join();
+            writeData = populate(log, WRITE_COUNT);
         }
 
         // Close the first log, and open a second one, with the same EntryCollection in the constructor.
         try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
-            log.initialize(Timeout).join();
+            log.initialize(TIMEOUT).join();
 
             // Verify it contains the same entries.
             testRead(log, -1, writeData);
@@ -175,7 +198,7 @@ public class InMemoryDurableDataLogTests {
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = String.format("Write_%s", i).getBytes();
             ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
-            long seqNo = log.append(writeStream, Timeout).join();
+            long seqNo = log.append(writeStream, TIMEOUT).join();
             writtenData.put(seqNo, writeData);
         }
 

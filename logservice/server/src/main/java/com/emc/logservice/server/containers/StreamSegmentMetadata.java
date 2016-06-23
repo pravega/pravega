@@ -1,12 +1,36 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
-import com.emc.logservice.server.*;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -38,7 +62,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId) {
-        this(streamSegmentName, streamSegmentId, SegmentMetadataCollection.NoStreamSegmentId);
+        this(streamSegmentName, streamSegmentId, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
     }
 
     /**
@@ -51,7 +75,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(streamSegmentId != SegmentMetadataCollection.NoStreamSegmentId, "streamSegmentId");
+        Preconditions.checkArgument(streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "streamSegmentId");
 
         this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
         this.name = streamSegmentName;
@@ -173,7 +197,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != SegmentMetadataCollection.NoStreamSegmentId, "Cannot merge a non-batch StreamSegment.");
+        Preconditions.checkState(this.parentStreamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Cannot merge a non-batch StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;

@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.common;
 
 import org.slf4j.Logger;
@@ -8,7 +26,7 @@ import java.util.Random;
  * Extension methods for Logger class.
  */
 public final class LoggerHelpers {
-    private static final Random IdGenerator = new Random();
+    private static final Random ID_GENERATOR = new Random();
 
     /**
      * Traces the fact that a method entry has occurred.
@@ -23,7 +41,7 @@ public final class LoggerHelpers {
             return 0;
         }
 
-        int id = IdGenerator.nextInt();
+        int id = ID_GENERATOR.nextInt();
         log.trace("ENTER {}#{} {}.", method, id, args);
         return id;
     }
@@ -42,7 +60,7 @@ public final class LoggerHelpers {
             return 0;
         }
 
-        int id = IdGenerator.nextInt();
+        int id = ID_GENERATOR.nextInt();
         log.trace("{}: ENTER {}#{} {}.", objectId, method, id, args);
         return id;
     }
@@ -58,8 +76,7 @@ public final class LoggerHelpers {
     public static void traceLeave(Logger log, String method, long traceEnterId, Object... args) {
         if (args.length == 0) {
             log.trace("LEAVE {}#{}.", method, traceEnterId);
-        }
-        else {
+        } else {
             log.trace("LEAVE {}#{}: {}.", method, traceEnterId, args);
         }
     }
@@ -76,8 +93,7 @@ public final class LoggerHelpers {
     public static void traceLeave(Logger log, String objectId, String method, long traceEnterId, Object... args) {
         if (args.length == 0) {
             log.trace("{}: LEAVE {}#{}.", objectId, method, traceEnterId);
-        }
-        else {
+        } else {
             log.trace("{}: LEAVE {}#{}: {}.", objectId, method, traceEnterId, args);
         }
     }

@@ -1,33 +1,93 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.common.StreamHelpers;
-import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
-import com.emc.logservice.server.containers.*;
-import com.emc.logservice.server.logs.*;
-import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.ReadResult;
+import com.emc.logservice.contracts.ReadResultEntry;
+import com.emc.logservice.contracts.ReadResultEntryContents;
+import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.DataCorruptionException;
+import com.emc.logservice.server.MetadataRepository;
+import com.emc.logservice.server.SegmentContainer;
+import com.emc.logservice.server.SegmentContainerFactory;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.UpdateableSegmentMetadata;
+import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
+import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
+import com.emc.logservice.server.containers.StreamSegmentMapper;
+import com.emc.logservice.server.containers.TruncationMarkerCollection;
+import com.emc.logservice.server.logs.DurableLog;
+import com.emc.logservice.server.logs.DurableLogFactory;
+import com.emc.logservice.server.logs.MemoryLogUpdater;
+import com.emc.logservice.server.logs.MemoryOperationLog;
+import com.emc.logservice.server.logs.OperationMetadataUpdater;
+import com.emc.logservice.server.logs.OperationProcessor;
+import com.emc.logservice.server.logs.operations.BatchMapOperation;
+import com.emc.logservice.server.logs.operations.MergeBatchOperation;
+import com.emc.logservice.server.logs.operations.MetadataOperation;
+import com.emc.logservice.server.logs.operations.MetadataPersistedOperation;
+import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.server.logs.operations.StorageOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
-import com.emc.logservice.storageabstraction.*;
-import com.emc.logservice.storageabstraction.mocks.*;
-import com.google.common.util.concurrent.*;
+import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
+import com.emc.logservice.storageabstraction.mocks.InMemoryStorage;
+import com.emc.logservice.storageabstraction.mocks.InMemoryStorageFactory;
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Service;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Playground Test class.
  */
 public class Playground {
-    private static final Random Random = new Random();
-    private static final Duration Timeout = Duration.ofSeconds(30);
-    private static final String ContainerId = "123";
+    private static final Random RANDOM = new Random();
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final String CONTAINER_ID = "123";
 
     public static void main(String[] args) throws Exception {
         // testService();
@@ -156,8 +216,7 @@ public class Playground {
 
                 c.stopAsync().awaitTerminated();
             }
-        }
-        finally {
+        } finally {
             es.shutdown();
         }
     }
@@ -169,8 +228,8 @@ public class Playground {
 
         ExecutorService executor = Executors.newFixedThreadPool(streamCount * 2 + 1);
         try {
-            UpdateableContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
-            Cache index = new ReadIndex(metadata, ContainerId);
+            UpdateableContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            Cache index = new ReadIndex(metadata, CONTAINER_ID);
             index.enterRecoveryMode(metadata);
             index.exitRecoveryMode(metadata, true);
 
@@ -301,8 +360,7 @@ public class Playground {
                                 contents = entry.getContent().get();
                                 actualData = new byte[contents.getLength()];
                                 StreamHelpers.readAll(contents.getData(), actualData, 0, actualData.length);
-                            }
-                            catch (Exception ex) {
+                            } catch (Exception ex) {
                                 System.err.println(ex);
                                 return;
                             }
@@ -348,8 +406,7 @@ public class Playground {
                             op.setStreamSegmentOffset(appendOffset);
                             op.setSequenceNumber(seqNo++);
                             appender.add(op);
-                        }
-                        catch (DataCorruptionException ex) {
+                        } catch (DataCorruptionException ex) {
                             System.err.println(ex);
                             return;
                         }
@@ -379,8 +436,7 @@ public class Playground {
 
             if (futureWrites.size() != futureReads.size()) {
                 System.out.println(String.format("Unexpected number of future reads. Expected %d, actual %d.", futureWrites.size(), futureReads.size()));
-            }
-            else {
+            } else {
                 for (String write : futureWrites) {
                     if (!futureReads.contains(write)) {
                         System.out.println(String.format("Missing future write: '%s'.", write));
@@ -438,8 +494,7 @@ public class Playground {
                 index.read(batchStreamId, 0, (int) batchLength, Duration.ZERO);
                 System.out.println("ReadIndex allowed reading from a merged stream segment.");
                 return;
-            }
-            catch (Exception ex) {
+            } catch (Exception ex) {
             }
 
             //Check read result.
@@ -463,8 +518,7 @@ public class Playground {
 
             System.out.println("ReadIndex.completeMerge check complete.");
             //endregion
-        }
-        finally {
+        } finally {
             executor.shutdown();
         }
     }
@@ -494,8 +548,8 @@ public class Playground {
 
             ArrayList<UUID> clients = generateClientIds(clientCount);
             Storage storage = new InMemoryStorage();
-            StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
-            ReadIndex readIndex = new ReadIndex(metadata, ContainerId);
+            StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            ReadIndex readIndex = new ReadIndex(metadata, CONTAINER_ID);
             DurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
             try (DurableLog dl = new DurableLog(metadata, dataLogFactory, readIndex, es)) {
                 StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl, storage);
@@ -507,7 +561,7 @@ public class Playground {
                 long createStreamsStartNanos = System.nanoTime();
                 for (long streamId = 0; streamId < streamCount; streamId++) {
                     String name = getStreamName((int) streamId);
-                    streamSegmentMapper.createNewStreamSegment(name, Timeout).get();
+                    streamSegmentMapper.createNewStreamSegment(name, TIMEOUT).get();
                     streamNames.add(name);
                 }
 
@@ -544,7 +598,7 @@ public class Playground {
                 ArrayList<CompletableFuture<Long>> entryResults = new ArrayList<>();
                 for (Operation entry : writeEntries) {
                     long startNanos = System.nanoTime();
-                    CompletableFuture<Long> resultFuture = dl.add(entry, Timeout);
+                    CompletableFuture<Long> resultFuture = dl.add(entry, TIMEOUT);
                     resultFuture.thenAcceptAsync(seqNo -> latencies.put(seqNo, System.nanoTime() - startNanos));
                     entryResults.add(resultFuture);
                     if (isSynchronousAppend) {
@@ -634,8 +688,7 @@ public class Playground {
             }
 
             System.out.println(String.format("Operation latencies: Count = %d, Avg = %f, Min = %d, Max = %d", latencies.size(), sum / latencies.size() / 1000 / 1000.0, min / 1000 / 1000, max / 1000 / 1000));
-        }
-        finally {
+        } finally {
             es.shutdownNow();
         }
     }
@@ -647,14 +700,14 @@ public class Playground {
         int clientCount = 7;
         boolean sealAllStreams = true;
 
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(ContainerId);
+        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
-        DurableDataLog dataLog = dataLogFactory.createDurableDataLog(ContainerId);
-        dataLog.initialize(Timeout).join();
+        DurableDataLog dataLog = dataLogFactory.createDurableDataLog(CONTAINER_ID);
+        dataLog.initialize(TIMEOUT).join();
         TruncationMarkerCollection truncationMarkerCollection = new TruncationMarkerCollection();
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata, truncationMarkerCollection);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata, ContainerId));
-        OperationProcessor qp = new OperationProcessor(ContainerId, metadataUpdater, logUpdater, dataLog);
+        MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata, CONTAINER_ID));
+        OperationProcessor qp = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         qp.startAsync().awaitRunning();
 
         // Map the streams.
@@ -773,7 +826,7 @@ public class Playground {
         ArrayList<Operation> readEntries = new ArrayList<>();
         long lastReadSequence = -1;
         while (true) {
-            Iterator<Operation> readResult = dl.read(lastReadSequence, 100, Timeout).get();
+            Iterator<Operation> readResult = dl.read(lastReadSequence, 100, TIMEOUT).get();
             int readCount = 0;
             if (readResult != null) {
                 while (readResult.hasNext()) {
@@ -885,8 +938,8 @@ public class Playground {
 
     private static byte[] getAppendData(int maxAppendLength) {
         // TODO: try to use from the same buffer.
-        byte[] b = new byte[Math.max(1, Random.nextInt(maxAppendLength))];
-        Random.nextBytes(b);
+        byte[] b = new byte[Math.max(1, RANDOM.nextInt(maxAppendLength))];
+        RANDOM.nextBytes(b);
         return b;
     }
 
@@ -895,13 +948,13 @@ public class Playground {
     }
 
     private static <T extends Operation> void sortOperationList(ArrayList<T> operations) {
-        operations.sort(((o1, o2) -> (int) (o1.getSequenceNumber() - o2.getSequenceNumber())));
+        operations.sort((o1, o2) -> (int) (o1.getSequenceNumber() - o2.getSequenceNumber()));
     }
 
     private static ArrayList<UUID> generateClientIds(int count) {
         ArrayList<UUID> result = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            result.add(new UUID(Random.nextLong(), Random.nextLong()));
+            result.add(new UUID(RANDOM.nextLong(), RANDOM.nextLong()));
         }
 
         return result;
@@ -924,23 +977,18 @@ public class Playground {
         if (entry1 instanceof StorageOperation) {
             if (entry1 instanceof StreamSegmentSealOperation) {
                 return areEqual((StreamSegmentSealOperation) entry1, (StreamSegmentSealOperation) entry2);
-            }
-            else if (entry1 instanceof StreamSegmentAppendOperation) {
+            } else if (entry1 instanceof StreamSegmentAppendOperation) {
                 return areEqual((StreamSegmentAppendOperation) entry1, (StreamSegmentAppendOperation) entry2);
-            }
-            else if (entry1 instanceof MergeBatchOperation) {
+            } else if (entry1 instanceof MergeBatchOperation) {
                 return areEqual((MergeBatchOperation) entry1, (MergeBatchOperation) entry2);
             }
-        }
-        else if (entry1 instanceof MetadataOperation) {
+        } else if (entry1 instanceof MetadataOperation) {
             if (entry1 instanceof MetadataPersistedOperation) {
                 // nothing special here
                 return true;
-            }
-            else if (entry1 instanceof StreamSegmentMapOperation) {
+            } else if (entry1 instanceof StreamSegmentMapOperation) {
                 return areEqual((StreamSegmentMapOperation) entry1, (StreamSegmentMapOperation) entry2);
-            }
-            else if (entry1 instanceof BatchMapOperation) {
+            } else if (entry1 instanceof BatchMapOperation) {
                 return areEqual((BatchMapOperation) entry1, (BatchMapOperation) entry2);
             }
         }

@@ -1,7 +1,28 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ObjectClosedException;
-import com.emc.logservice.server.*;
+import com.emc.logservice.server.DataCorruptionException;
+import com.emc.logservice.server.ExceptionHelpers;
+import com.emc.logservice.server.LogItemFactory;
+import com.emc.logservice.server.TestDurableDataLog;
 import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.nautilus.testcommon.AssertExtensions;
@@ -11,20 +32,24 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
-import java.util.function.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Unit tests for DataFrameReader class.
  */
 public class DataFrameReaderTests {
-    private static final String ContainerId = "TestContainer";
-    private static final Duration Timeout = Duration.ofSeconds(30);
-    private static final int SmallRecordMinSize = 0;
-    private static final int SmallRecordMaxSize = 128;
-    private static final int LargeRecordMinSize = 1024;
-    private static final int LargeRecordMaxSize = 10240;
-    private static final int FrameSize = 512;
+    private static final String CONTAINER_ID = "TestContainer";
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int SMALL_RECORD_MIN_SIZE = 0;
+    private static final int SMALL_RECORD_MAX_SIZE = 128;
+    private static final int LARGE_RECORD_MIN_SIZE = 1024;
+    private static final int LARGE_RECORD_MAX_SIZE = 10240;
+    private static final int FRAME_SIZE = 512;
 
     /**
      * Tests the happy case: DataFrameReader can read from a DataLog when the are no exceptions.
@@ -33,8 +58,8 @@ public class DataFrameReaderTests {
     public void testReadsNoFailure() throws Exception {
         int failEvery = 7; // Fail every X records (write-wise).
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SmallRecordMinSize, SmallRecordMaxSize, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LargeRecordMinSize, LargeRecordMaxSize, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         // Have every other 'failEvery' record fail after writing 90% of itself.
         for (int i = 0; i < records.size(); i += failEvery) {
@@ -42,8 +67,8 @@ public class DataFrameReaderTests {
         }
 
         HashSet<Integer> failedIndices = new HashSet<>();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -51,15 +76,14 @@ public class DataFrameReaderTests {
                 for (int i = 0; i < records.size(); i++) {
                     try {
                         b.append(records.get(i));
-                    }
-                    catch (IOException ex) {
+                    } catch (IOException ex) {
                         failedIndices.add(i);
                     }
                 }
             }
 
             TestLogItemFactory logItemFactory = new TestLogItemFactory();
-            DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, ContainerId);
+            DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID);
             List<TestLogItem> readItems = readAll(reader);
             checkReadResult(records, failedIndices, readItems);
         }
@@ -72,11 +96,11 @@ public class DataFrameReaderTests {
     public void testReadsWithDeserializationFailure() throws Exception {
         int failDeserializationEvery = 11; // Fail deserialization every X records (write-wise).
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SmallRecordMinSize, SmallRecordMaxSize, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LargeRecordMinSize, LargeRecordMaxSize, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -106,11 +130,11 @@ public class DataFrameReaderTests {
         int failReadSyncEvery = 3; // Fail reads synchronously every X attempts.
         int failReadAsyncEvery = 5; // Fail reads asynchronously every X attempts.
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SmallRecordMinSize, SmallRecordMaxSize, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LargeRecordMinSize, LargeRecordMaxSize, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -129,7 +153,7 @@ public class DataFrameReaderTests {
             dataLog.setReadErrorInjectors(getReaderErrorInjector, null);
             AssertExtensions.assertThrows(
                     "No exception or wrong type of exception thrown by getNext() with exception thrown by getReader().",
-                    () -> new DataFrameReader<>(dataLog, logItemFactory, ContainerId),
+                    () -> new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID),
                     ex -> ExceptionHelpers.getRealException(ex) == getReaderErrorInjector.getLastCycleException());
 
             // Test 2: Failures during getNext().
@@ -142,7 +166,7 @@ public class DataFrameReaderTests {
     }
 
     private void testReadWithException(DurableDataLog dataLog, LogItemFactory<TestLogItem> logItemFactory, Predicate<Throwable> exceptionVerifier) throws Exception {
-        try (DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, ContainerId)) {
+        try (DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID)) {
             boolean encounteredException = false;
             while (true) {
                 DataFrameReader.ReadResult<TestLogItem> readResult;
@@ -151,8 +175,7 @@ public class DataFrameReaderTests {
                     readResult = reader.getNext();
                     Assert.assertFalse("getNext() succeeded after read exception was thrown.", encounteredException);
                     Assert.assertNotNull("Expected an exception but none got thrown.");
-                }
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     Throwable realException = ExceptionHelpers.getRealException(ex);
 
                     //Verify we were really expecting this exception.
@@ -160,8 +183,7 @@ public class DataFrameReaderTests {
                         // We've already encountered a read exception. Verify we cannot read anymore.
                         Assert.assertTrue("Wrong exception type (expecting ObjectClosedException). " + realException, realException instanceof ObjectClosedException);
                         break;
-                    }
-                    else {
+                    } else {
                         // First time we see an exception. Verify it's a Data Corruption Exception.
                         boolean isValidException = exceptionVerifier.test(realException);
                         Assert.assertTrue("Wrong exception: " + realException, isValidException);
@@ -212,8 +234,7 @@ public class DataFrameReaderTests {
             if (expectDifferentDataFrameSequence) {
                 AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, readResult.getDataFrameSequence());
                 expectDifferentDataFrameSequence = false;
-            }
-            else {
+            } else {
                 AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, readResult.getDataFrameSequence());
             }
 

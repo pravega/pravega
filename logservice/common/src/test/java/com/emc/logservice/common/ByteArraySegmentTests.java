@@ -1,10 +1,30 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.common;
 
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  * Unit tests for ByteArraySegment class.
@@ -16,17 +36,17 @@ public class ByteArraySegmentTests {
      */
     @Test
     public void testGetSet() {
-        final int IncrementValue = 7;
-        final int DecrementValue = 11;
+        final int incrementValue = 7;
+        final int decrementValue = 11;
         final byte[] buffer = createFormattedBuffer();
-        final int HalfOffset = buffer.length / 2;
-        ByteArraySegment s1 = new ByteArraySegment(buffer, 0, HalfOffset);
-        ByteArraySegment s2 = new ByteArraySegment(buffer, HalfOffset, buffer.length - HalfOffset);
+        final int halfOffset = buffer.length / 2;
+        ByteArraySegment s1 = new ByteArraySegment(buffer, 0, halfOffset);
+        ByteArraySegment s2 = new ByteArraySegment(buffer, halfOffset, buffer.length - halfOffset);
 
         //s1 - increment by 7
         for (int i = 0; i < s1.getLength(); i++) {
             Assert.assertEquals("Unexpected value for initial get in first half of buffer at index " + i, i, s1.get(i));
-            byte newValue = (byte) (s1.get(i) + IncrementValue);
+            byte newValue = (byte) (s1.get(i) + incrementValue);
             s1.set(i, newValue);
             Assert.assertEquals("Unexpected value for updated get in first half of buffer at index " + i, newValue, s1.get(i));
             Assert.assertEquals("Unexpected value for the base buffer (first half) at index " + i, newValue, buffer[i]);
@@ -34,11 +54,11 @@ public class ByteArraySegmentTests {
 
         //s2 - decrement by 11
         for (int i = 0; i < s2.getLength(); i++) {
-            Assert.assertEquals("Unexpected value for initial get in second half of buffer at index " + i, i + HalfOffset, s2.get(i));
-            byte newValue = (byte) (s2.get(i) - DecrementValue);
+            Assert.assertEquals("Unexpected value for initial get in second half of buffer at index " + i, i + halfOffset, s2.get(i));
+            byte newValue = (byte) (s2.get(i) - decrementValue);
             s2.set(i, newValue);
             Assert.assertEquals("Unexpected value for updated get in second half of buffer at index " + i, newValue, s2.get(i));
-            Assert.assertEquals("Unexpected value for the base buffer (second half) at index " + (i - HalfOffset), newValue, buffer[i + HalfOffset]);
+            Assert.assertEquals("Unexpected value for the base buffer (second half) at index " + (i - halfOffset), newValue, buffer[i + halfOffset]);
         }
     }
 
@@ -50,7 +70,7 @@ public class ByteArraySegmentTests {
         final byte[] buffer = createFormattedBuffer();
         ByteArraySegment s1 = new ByteArraySegment(buffer);
         int offset = 10;
-        byte[] newValues = new byte[]{ 99, 98, 97, 9, 6, 95, 94, 93, 92, 91, 90 };
+        byte[] newValues = new byte[]{99, 98, 97, 9, 6, 95, 94, 93, 92, 91, 90};
         s1.setSequence(offset, newValues);
         for (int i = 0; i < buffer.length; i++) {
             int expectedValue = i < offset || i >= offset + newValues.length ? i : newValues[i - offset];
@@ -65,17 +85,17 @@ public class ByteArraySegmentTests {
     @Test
     public void testCopyFrom() {
         final byte[] sourceBuffer = createFormattedBuffer();
-        final int TargetOffset = 11;
-        final byte[] targetBuffer = new byte[sourceBuffer.length + TargetOffset];
-        final int CopyLength = sourceBuffer.length - 7;
+        final int targetOffset = 11;
+        final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
+        final int copyLength = sourceBuffer.length - 7;
 
         ByteArraySegment source = new ByteArraySegment(sourceBuffer);
         ByteArraySegment target = new ByteArraySegment(targetBuffer);
 
         // Copy second part.
-        target.copyFrom(source, TargetOffset, CopyLength);
+        target.copyFrom(source, targetOffset, copyLength);
         for (int i = 0; i < targetBuffer.length; i++) {
-            int expectedValue = i < TargetOffset || i >= TargetOffset + CopyLength ? 0 : i - TargetOffset;
+            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
             Assert.assertEquals("Unexpected value after copyFrom (second half) in segment at offset " + i, expectedValue, target.get(i));
             Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
         }
@@ -87,16 +107,16 @@ public class ByteArraySegmentTests {
     @Test
     public void testCopyTo() {
         final byte[] sourceBuffer = createFormattedBuffer();
-        final int TargetOffset = 10;
-        final byte[] targetBuffer = new byte[sourceBuffer.length + TargetOffset];
-        final int CopyLength = sourceBuffer.length - 7;
+        final int targetOffset = 10;
+        final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
+        final int copyLength = sourceBuffer.length - 7;
 
         ByteArraySegment source = new ByteArraySegment(sourceBuffer);
 
         // Copy second part.
-        source.copyTo(targetBuffer, TargetOffset, CopyLength);
+        source.copyTo(targetBuffer, targetOffset, copyLength);
         for (int i = 0; i < targetBuffer.length; i++) {
-            int expectedValue = i < TargetOffset || i >= TargetOffset + CopyLength ? 0 : i - TargetOffset;
+            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
             Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
         }
     }
@@ -170,8 +190,7 @@ public class ByteArraySegmentTests {
                 // Upper half for even iterations.
                 startOffset = startOffset + segment.getLength() / 2;
                 segment = segment.subSegment(segment.getLength() / 2, segment.getLength() - segment.getLength() / 2);
-            }
-            else {
+            } else {
                 // Lower half for odd iterations.
                 segment = segment.subSegment(0, segment.getLength() / 2);
             }
@@ -196,7 +215,7 @@ public class ByteArraySegmentTests {
         checkReadOnlyException("copyFrom", () -> segment.copyFrom(new ByteArraySegment(new byte[10], 0, 10), 0, 10));
         checkReadOnlyException("getWriter", segment::getWriter);
         checkReadOnlyException("set", () -> segment.set(0, (byte) 0));
-        checkReadOnlyException("setSequence", () -> segment.setSequence(0, new byte[]{ 0 }));
+        checkReadOnlyException("setSequence", () -> segment.setSequence(0, new byte[]{0}));
 
         // Check to see that, even though we did get an exception, the buffer was not modified.
         for (int i = 0; i < buffer.length; i++) {

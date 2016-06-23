@@ -1,11 +1,36 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.common.AutoReleaseLock;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.ReadWriteAutoReleaseLock;
+import com.emc.logservice.server.RecoverableMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -50,11 +75,11 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
      * Gets the Id of the StreamSegment with given name.
      *
      * @param streamSegmentName The case-sensitive StreamSegment name.
-     * @return The Id of the StreamSegment, or NoStreamSegmentId if the Metadata has no knowledge of it.
+     * @return The Id of the StreamSegment, or NO_STREAM_SEGMENT_ID if the Metadata has no knowledge of it.
      */
     public long getStreamSegmentId(String streamSegmentName) {
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
-            return this.streamSegmentIds.getOrDefault(streamSegmentName, NoStreamSegmentId);
+            return this.streamSegmentIds.getOrDefault(streamSegmentName, NO_STREAM_SEGMENT_ID);
         }
     }
 
@@ -110,7 +135,7 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
 
             UpdateableSegmentMetadata parentMetadata = this.streamMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NoStreamSegmentId, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
@@ -124,8 +149,8 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
         Collection<String> result = new ArrayList<>();
         result.add(streamSegmentName);
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, SegmentMetadataCollection.NoStreamSegmentId);
-            if (streamSegmentId == SegmentMetadataCollection.NoStreamSegmentId) {
+            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
+            if (streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no batches associated
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);

@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs.operations;
 
 import org.junit.Assert;
@@ -18,11 +36,9 @@ public class OperationHelpers {
 
         if (expected instanceof StorageOperation) {
             assertEquals((StorageOperation) expected, (StorageOperation) actual);
-        }
-        else if (expected instanceof MetadataOperation) {
+        } else if (expected instanceof MetadataOperation) {
             assertEquals((MetadataOperation) expected, (MetadataOperation) actual);
-        }
-        else {
+        } else {
             Assert.fail("No comparison implemented for operation " + expected);
         }
     }
@@ -37,14 +53,11 @@ public class OperationHelpers {
         Assert.assertEquals("Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
         if (expected instanceof StreamSegmentSealOperation) {
             assertEquals((StreamSegmentSealOperation) expected, (StreamSegmentSealOperation) actual);
-        }
-        else if (expected instanceof StreamSegmentAppendOperation) {
+        } else if (expected instanceof StreamSegmentAppendOperation) {
             assertEquals((StreamSegmentAppendOperation) expected, (StreamSegmentAppendOperation) actual);
-        }
-        else if (expected instanceof MergeBatchOperation) {
+        } else if (expected instanceof MergeBatchOperation) {
             assertEquals((MergeBatchOperation) expected, (MergeBatchOperation) actual);
-        }
-        else {
+        } else {
             Assert.fail("No comparison implemented for operation " + expected);
         }
     }
@@ -94,14 +107,11 @@ public class OperationHelpers {
         if (expected instanceof MetadataPersistedOperation) {
             // nothing special here
             return;
-        }
-        else if (expected instanceof StreamSegmentMapOperation) {
+        } else if (expected instanceof StreamSegmentMapOperation) {
             assertEquals((StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
-        }
-        else if (expected instanceof BatchMapOperation) {
+        } else if (expected instanceof BatchMapOperation) {
             assertEquals((BatchMapOperation) expected, (BatchMapOperation) actual);
-        }
-        else {
+        } else {
             Assert.fail("No comparison implemented for operation " + expected);
         }
     }

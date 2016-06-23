@@ -1,11 +1,46 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.common.TimeoutTimer;
+import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.ReadResult;
+import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.contracts.StreamSegmentNotExistsException;
+import com.emc.logservice.contracts.StreamingException;
+import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.IllegalContainerStateException;
+import com.emc.logservice.server.MetadataRepository;
+import com.emc.logservice.server.OperationLogFactory;
+import com.emc.logservice.server.SegmentContainer;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.ServiceFailureListener;
+import com.emc.logservice.server.StreamSegmentInformation;
+import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.PendingAppendsCollection;
-import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.server.logs.operations.MergeBatchOperation;
+import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -13,8 +48,12 @@ import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Collection;
+import java.util.Date;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -248,7 +287,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getLastAppendContext", streamSegmentName, clientId);
         long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
-        if (streamSegmentId == StreamSegmentContainerMetadata.NoStreamSegmentId) {
+        if (streamSegmentId == StreamSegmentContainerMetadata.NO_STREAM_SEGMENT_ID) {
             // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
             return CompletableFuture.completedFuture(null);
         }

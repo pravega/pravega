@@ -1,10 +1,49 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.storageabstraction.*;
+import com.emc.logservice.common.CallbackHelpers;
+import com.emc.logservice.common.CloseableIterator;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.FutureHelpers;
+import com.emc.logservice.common.StreamHelpers;
+import com.emc.logservice.storageabstraction.DataLogInitializationException;
+import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
+import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
+import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.emc.logservice.storageabstraction.WriteFailureException;
+import com.emc.logservice.storageabstraction.WriteTooLongException;
 import com.google.common.base.Preconditions;
-import com.twitter.distributedlog.*;
-import com.twitter.distributedlog.exceptions.*;
+import com.twitter.distributedlog.AsyncLogWriter;
+import com.twitter.distributedlog.DLSN;
+import com.twitter.distributedlog.DistributedLogManager;
+import com.twitter.distributedlog.LogReader;
+import com.twitter.distributedlog.LogRecord;
+import com.twitter.distributedlog.LogRecordWithDLSN;
+import com.twitter.distributedlog.exceptions.BKTransmitException;
+import com.twitter.distributedlog.exceptions.LockingException;
+import com.twitter.distributedlog.exceptions.LogEmptyException;
+import com.twitter.distributedlog.exceptions.LogRecordTooLongException;
+import com.twitter.distributedlog.exceptions.OwnershipAcquireFailedException;
+import com.twitter.distributedlog.exceptions.StreamNotReadyException;
+import com.twitter.distributedlog.exceptions.WriteCancelledException;
 import com.twitter.distributedlog.namespace.DistributedLogNamespace;
 import com.twitter.distributedlog.util.FutureUtils;
 import com.twitter.util.Future;
@@ -13,7 +52,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -27,7 +68,7 @@ class LogHandle implements AutoCloseable {
     /**
      * Maximum append length, as specified by DistributedLog (this is hardcoded inside DLog's code).
      */
-    public static final int MaxAppendLength = 1024 * 1024 - 8 * 1024;
+    public static final int MAX_APPEND_LENGTH = 1024 * 1024 - 8 * 1024;
 
     private final AtomicLong lastTransactionId;
     private final String logName;
@@ -76,8 +117,7 @@ class LogHandle implements AutoCloseable {
                     FutureUtils.result(this.logManager.asyncClose());
                     log.debug("{}: Closed LogManager.", this.logName);
                 }
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 //TODO: retry policy.
                 log.error("{}: Unable to close LogHandle. {}", this.logName, ex);
             }
@@ -124,27 +164,22 @@ class LogHandle implements AutoCloseable {
             this.logWriter = this.logManager.startAsyncLogSegmentNonPartitioned();
             log.debug("{}: Opened LogWriter.", this.logName);
             success = true;
-        }
-        catch (OwnershipAcquireFailedException ex) {
+        } catch (OwnershipAcquireFailedException ex) {
             // This means one of two things:
             // 1. Someone else currently holds the exclusive write lock.
             // 2. Someone else held the exclusive write lock, crashed, and ZooKeeper did not figure it out yet (due to a long Session Timeout).
             throw new DataLogWriterNotPrimaryException(String.format("Unable to acquire exclusive Writer for log '%s'.", logName), ex);
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             // Log does not exist or some other issue happened. Note that LogNotFoundException inherits from IOException, so it's also handled here.
             throw new DataLogNotAvailableException(String.format("Unable to create DistributedLogManager for log '%s'.", logName), ex);
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             // General exception, configuration issue, etc.
             throw new DataLogInitializationException(String.format("Unable to create DistributedLogManager for log '%s'.", logName), ex);
-        }
-        finally {
+        } finally {
             if (!success) {
                 try {
                     close();
-                }
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     log.error("Unable to cleanup resources after the failed attempt to create a LogHandle for '{}'. {}", logName, ex);
                 }
             }
@@ -152,11 +187,9 @@ class LogHandle implements AutoCloseable {
 
         try {
             this.lastTransactionId.set(this.logManager.getLastTxId());
-        }
-        catch (LogEmptyException ex) {
+        } catch (LogEmptyException ex) {
             this.lastTransactionId.set(0);
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             throw new DataLogInitializationException(String.format("Unable to determine last transaction Id for log '%s'.", logName), ex);
         }
 
@@ -204,15 +237,14 @@ class LogHandle implements AutoCloseable {
         byte[] buffer;
         try {
             int dataLength = data.available();
-            if (dataLength > MaxAppendLength) {
-                return FutureHelpers.failedFuture(new WriteTooLongException(dataLength, MaxAppendLength));
+            if (dataLength > MAX_APPEND_LENGTH) {
+                return FutureHelpers.failedFuture(new WriteTooLongException(dataLength, MAX_APPEND_LENGTH));
             }
 
             buffer = new byte[dataLength];
             int bytesRead = StreamHelpers.readAll(data, buffer, 0, buffer.length);
             assert bytesRead == buffer.length : String.format("StreamHelpers.ReadAll did not read entire input stream. Expected %d, Actual %d.", buffer.length, bytesRead);
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             resultFuture.completeExceptionally(ex);
             return resultFuture;
         }
@@ -233,15 +265,12 @@ class LogHandle implements AutoCloseable {
                 if (cause instanceof StreamNotReadyException) {
                     // Temporary (rolling ledgers).
                     wrapException = new DataLogNotAvailableException("DistributedLog Stream not ready.", cause);
-                }
-                else if (cause instanceof WriteCancelledException || cause instanceof BKTransmitException) {
+                } else if (cause instanceof WriteCancelledException || cause instanceof BKTransmitException) {
                     // General write failure; try again.
                     wrapException = new WriteFailureException("Unable to write data to DistributedLog.", cause);
-                }
-                else if (cause instanceof LockingException) {
+                } else if (cause instanceof LockingException) {
                     wrapException = new DataLogWriterNotPrimaryException("LogHandle is not exclusive writer for DistributedLog log.", cause);
-                }
-                else if (cause instanceof LogRecordTooLongException) {
+                } else if (cause instanceof LogRecordTooLongException) {
                     // User error. Record is too long.
                     wrapException = new WriteTooLongException(cause);
                 }
@@ -267,8 +296,7 @@ class LogHandle implements AutoCloseable {
         DistributedLogReader reader;
         try {
             reader = new DistributedLogReader(afterTransactionId, this.logManager, this::unregisterReader);
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             throw new DurableDataLogException("Could not open reader.", ex);
         }
 
@@ -350,8 +378,7 @@ class LogHandle implements AutoCloseable {
                 this.lastTransactionId = baseRecord.getTransactionId();
                 log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
                 return new ReadItem(baseRecord);
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // TODO: need to hook up a retry policy here.
                 throw new DurableDataLogException("Unable to read next item.", ex);
             }
@@ -365,8 +392,7 @@ class LogHandle implements AutoCloseable {
 
                 // Invoke the close callback.
                 CallbackHelpers.invokeSafely(this.closeCallback, this, null);
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 log.error("{}: Unable to close LogReader. {}", this.traceObjectId, ex);
             }
         }

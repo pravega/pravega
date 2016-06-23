@@ -1,10 +1,40 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.contracts.*;
-import com.emc.logservice.server.*;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.common.TimeoutTimer;
+import com.emc.logservice.contracts.StreamSegmentMergedException;
+import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.contracts.StreamingException;
+import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.DataCorruptionException;
+import com.emc.logservice.server.IllegalContainerStateException;
+import com.emc.logservice.server.LogItemFactory;
+import com.emc.logservice.server.ServiceFailureListener;
+import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
-import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.server.logs.operations.MetadataOperation;
+import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.server.logs.operations.OperationFactory;
+import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.google.common.base.Preconditions;
@@ -13,7 +43,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.Iterator;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
@@ -22,7 +54,7 @@ import java.util.concurrent.*;
 public class DurableLog extends AbstractService implements OperationLog {
     //region Members
 
-    private static final Duration RecoveryTimeout = Duration.ofSeconds(30);
+    private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
     private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
@@ -95,8 +127,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                     if (ex != null) {
                         //TODO: we need to make sure we cleanup after ourselves. It's possible the operation processor is still running.
                         notifyFailed(ex);
-                    }
-                    else {
+                    } else {
                         notifyStarted();
                     }
                 });
@@ -165,7 +196,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
-        TimeoutTimer timer = new TimeoutTimer(RecoveryTimeout);
+        TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
         log.info("{} Recovery started.", this.traceObjectId);
 
         // Put metadata (and entire container) into 'Recovery Mode'.
@@ -186,8 +217,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                     // Recover from DataFrameLog.
                     try {
                         recoverFromDataFrameLog(metadataUpdater);
-                    }
-                    catch (Exception ex) {
+                    } catch (Exception ex) {
                         throw new CompletionException(ex);
                     }
                 }, this.executor);
@@ -201,8 +231,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             this.memoryLogUpdater.exitRecoveryMode(this.metadata, ex == null);
             if (ex == null) {
                 log.info("{} Recovery completed.", this.traceObjectId);
-            }
-            else {
+            } else {
                 log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
             }
             LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
@@ -235,8 +264,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 if (readResult.isLastFrameEntry()) {
                     // The current Log Operation was the last one in the frame. This is a Truncation Marker.
                     metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), readResult.getDataFrameSequence());
-                }
-                else if (lastReadResult != null && !lastReadResult.isLastFrameEntry() && readResult.getDataFrameSequence() != lastReadResult.getDataFrameSequence()) {
+                } else if (lastReadResult != null && !lastReadResult.isLastFrameEntry() && readResult.getDataFrameSequence() != lastReadResult.getDataFrameSequence()) {
                     // DataFrameSequence changed on this operation (and this operation spans multiple frames). The Truncation Marker is on this operation, but the previous frame.
                     metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), lastReadResult.getDataFrameSequence());
                 }
@@ -248,14 +276,12 @@ public class DurableLog extends AbstractService implements OperationLog {
                     log.debug("{} Recovering {}.", this.traceObjectId, operation);
                     if (operation instanceof MetadataOperation) {
                         metadataUpdater.processMetadataOperation((MetadataOperation) operation);
-                    }
-                    else if (operation instanceof StorageOperation) {
+                    } else if (operation instanceof StorageOperation) {
                         //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
                         metadataUpdater.preProcessOperation((StorageOperation) operation);
                         metadataUpdater.acceptOperation((StorageOperation) operation);
                     }
-                }
-                catch (StreamSegmentSealedException | StreamSegmentMergedException | MetadataUpdateException ex) {
+                } catch (StreamSegmentSealedException | StreamSegmentMergedException | MetadataUpdateException ex) {
                     // Metadata updates failures should not happen during recovery.
                     throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
                 }
