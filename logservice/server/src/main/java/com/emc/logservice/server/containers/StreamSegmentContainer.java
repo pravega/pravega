@@ -37,7 +37,6 @@ import com.emc.logservice.server.ServiceFailureListener;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.logs.OperationLog;
-import com.emc.logservice.server.logs.PendingAppendsCollection;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.server.logs;
+package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,14 +78,14 @@ public class PendingAppendsCollection implements AutoCloseable {
      * @param completionCallback A CompletableFuture that will indicate the outcome of the operation.
      */
     public void register(StreamSegmentAppendOperation operation, CompletableFuture<Long> completionCallback) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkNotNull(operation, "operation");
+        Preconditions.checkNotNull(operation, "completionCallback");
 
         if (operation.getAppendContext() != null) {
             // Create an entry and put it in the map.
             Entry e = new Entry(getKey(operation.getStreamSegmentId(), operation.getAppendContext().getClientId()), operation.getAppendContext(), completionCallback);
-            Entry oldEntry = this.entries.put(e.key, e);
+            this.entries.put(e.key, e);
 
             // Upon completion, regardless of outcome, remove it from the index.
             e.completionFuture.whenComplete((r, ex) -> this.entries.remove(e.key));
@@ -122,8 +123,8 @@ public class PendingAppendsCollection implements AutoCloseable {
 
     private static class Entry {
         public final String key;
-        public final AppendContext context;
         public final CompletableFuture<AppendContext> completionFuture;
+        private final AppendContext context;
 
         public Entry(String key, AppendContext context, CompletableFuture<Long> operationCompletion) {
             this.key = key;
