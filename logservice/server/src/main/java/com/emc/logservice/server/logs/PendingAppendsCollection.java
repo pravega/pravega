@@ -18,6 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
@@ -100,9 +101,7 @@ public class PendingAppendsCollection implements AutoCloseable {
      * this method returns null.
      */
     public CompletableFuture<AppendContext> get(long streamSegmentId, UUID clientId) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
 
         String key = getKey(streamSegmentId, clientId);
         Entry e = this.entries.getOrDefault(key, null);

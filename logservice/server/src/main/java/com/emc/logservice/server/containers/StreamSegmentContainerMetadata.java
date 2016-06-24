@@ -216,11 +216,11 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     }
 
     private void ensureRecoveryMode() {
-        Preconditions.checkState(isRecoveryMode(), "", "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(isRecoveryMode(), "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
     }
 
     private void ensureNonRecoveryMode() {
-        Preconditions.checkState(!isRecoveryMode(), "", "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(!isRecoveryMode(), "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
     }
 
     //endregion
