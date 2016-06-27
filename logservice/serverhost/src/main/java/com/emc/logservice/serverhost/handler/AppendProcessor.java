@@ -102,7 +102,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (info == null) {
                         offset = 0;
                     } else {
-                        if (!info.getClientId().equals(connectionId)) {
+                        if (!info.getClientId().equals(newConnection)) {
                             throw new IllegalStateException("Wrong connection Info returned");
                         }
                         offset = info.getClientOffset();
@@ -176,7 +176,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //TODO: Duplicated in LogServiceRequestProcessor.
     private void handleException(String segment, Throwable u) {
         if (u == null) {
-            throw new IllegalStateException("Neither offset nor exception!?");
+            IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
+            log.error("Error on segment: "+segment, exception);
+            throw exception;
         }
         if (u instanceof CompletionException) {
             u = u.getCause();
