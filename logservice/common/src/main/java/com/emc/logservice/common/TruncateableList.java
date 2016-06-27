@@ -152,6 +152,7 @@ public class TruncateableList<T> {
 
             // Clear the list.
             this.head = this.tail = null;
+            this.size = 0;
         }
     }
 

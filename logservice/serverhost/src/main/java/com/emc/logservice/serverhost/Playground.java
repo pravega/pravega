@@ -98,8 +98,8 @@ public class Playground {
 
         //testStreamSegmentContainer();
         testDurableLog();
-        testReadIndex();
-        testOperationQueueProcessor();
+        //testReadIndex();
+        //testOperationQueueProcessor();
     }
 
     private static void testService() throws Exception {

@@ -4,7 +4,10 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.*;
+import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -23,13 +26,11 @@ public class AssertExtensions {
         try {
             runnable.run();
             Assert.fail(message + " No exception has been thrown.");
-        }
-        catch (CompletionException ex) {
+        } catch (CompletionException ex) {
             if (!tester.test(ex.getCause())) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex.getCause());
             }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             if (!tester.test(ex)) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
             }
@@ -48,13 +49,11 @@ public class AssertExtensions {
         try {
             futureSupplier.get().join();
             Assert.fail(message + " No exception has been thrown.");
-        }
-        catch (CompletionException ex) {
+        } catch (CompletionException ex) {
             if (!tester.test(getRealException(ex))) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + getRealException(ex));
             }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             if (!tester.test(ex)) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
             }
@@ -73,13 +72,11 @@ public class AssertExtensions {
         try {
             future.join();
             Assert.fail(message + " No exception has been thrown.");
-        }
-        catch (CompletionException ex) {
+        } catch (CompletionException ex) {
             if (!tester.test(getRealException(ex))) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + getRealException(ex));
             }
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             if (!tester.test(ex)) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
             }
@@ -138,11 +135,28 @@ public class AssertExtensions {
     }
 
     /**
+     * Asserts that the contents of the given collections are the same (in any order).
+     *
+     * @param message  The message to include in the Assert calls.
+     * @param expected A collection to check against.
+     * @param actual   The collection to check.
+     * @param <T>
+     */
+    public static <T extends Comparable<? super T>> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual) {
+        Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
+        for (T e : expected) {
+            if (!actual.contains(e)) {
+                Assert.fail(String.format("%s Element %s does not exist.", message, e));
+            }
+        }
+    }
+
+    /**
      * Asserts that expected > actual.
      *
-     * @param message The message to include in the Assert calls.
+     * @param message  The message to include in the Assert calls.
      * @param expected The first value (smaller).
-     * @param actual  The second value (larger).
+     * @param actual   The second value (larger).
      */
     public static void assertLessThan(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, expected, actual), expected > actual);
@@ -151,9 +165,9 @@ public class AssertExtensions {
     /**
      * Asserts that expected >= actual.
      *
-     * @param message The message to include in the Assert calls.
+     * @param message  The message to include in the Assert calls.
      * @param expected The first value (smaller).
-     * @param actual  The second value (larger).
+     * @param actual   The second value (larger).
      */
     public static void assertLessThanOrEqual(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected, actual), expected >= actual);
@@ -162,9 +176,9 @@ public class AssertExtensions {
     /**
      * Asserts that expected > actual.
      *
-     * @param message The message to include in the Assert calls.
-     * @param expected  The first value (larger).
-     * @param actual The second value (smaller).
+     * @param message  The message to include in the Assert calls.
+     * @param expected The first value (larger).
+     * @param actual   The second value (smaller).
      */
     public static void assertGreaterThan(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, expected, actual), expected < actual);
@@ -173,9 +187,9 @@ public class AssertExtensions {
     /**
      * Asserts that expected >= actual.
      *
-     * @param message The message to include in the Assert calls.
-     * @param expected  The first value (larger).
-     * @param actual The second value (smaller).
+     * @param message  The message to include in the Assert calls.
+     * @param expected The first value (larger).
+     * @param actual   The second value (smaller).
      */
     public static void assertGreaterThanOrEqual(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected, actual), expected <= actual);

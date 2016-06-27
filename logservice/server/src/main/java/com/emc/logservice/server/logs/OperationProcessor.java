@@ -32,8 +32,7 @@ import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.CancellationException;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -98,15 +97,12 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             while (this.isRunning()) {
                 runOnce();
             }
-        } catch (CancellationException ex) {
+        } catch (InterruptedException ex) {
             if (state() != State.STOPPING) {
-                // We only expect CancellationException if we are in the process of Stopping. All others are indicative
+                // We only expect InterruptedException if we are in the process of Stopping. All others are indicative
                 // of some failure.
                 throw ex;
             }
-        } finally {
-            this.operationQueue.close();
-            this.operationQueue = null;
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "run", traceId);
@@ -156,10 +152,12 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations as well.
      * </ol>
      *
-     * @throws CancellationException
+     * @throws InterruptedException
+     * @throws DataCorruptionException
      */
-    private void runOnce() throws DataCorruptionException, CancellationException {
-        Queue<CompletableOperation> operations = this.operationQueue.takeAllEntries().join();
+
+    private void runOnce() throws DataCorruptionException, InterruptedException {
+        List<CompletableOperation> operations = this.operationQueue.takeAllEntries();
         log.debug("{}: RunOnce (OperationCount = {}).", this.traceObjectId, operations.size());
         if (operations.size() == 0) {
             // takeAllEntries() should have been blocking and not return unless it has data. If we get an empty response, just try again.

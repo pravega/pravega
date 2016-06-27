@@ -18,11 +18,10 @@
 
 package com.emc.logservice.common;
 
-import com.google.common.base.Preconditions;
-
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Represents a thread-safe queue that dequeues all elements at once. Blocks the Dequeue if empty until new elements arrive.
@@ -32,20 +31,22 @@ import java.util.concurrent.CompletableFuture;
 public class BlockingDrainingQueue<T> implements AutoCloseable {
     //region Members
 
-    private Queue<T> currentQueue;
-    private final Object queuelock = new Object();
-    private CompletableFuture<Void> notEmptyWaiter;
+    private final ReentrantLock lock;
+    private final Condition notEmpty;
+    private final ArrayList<T> contents;
     private boolean closed;
 
-    //endregion
+    ///endregion
 
-    //region Constructor
+    // region Constructor
 
     /**
      * Creates a new instance of the BlockingDrainingQueue class.
      */
     public BlockingDrainingQueue() {
-        swapQueue();
+        this.lock = new ReentrantLock();
+        this.notEmpty = lock.newCondition();
+        this.contents = new ArrayList<>();
     }
 
     //endregion
@@ -54,25 +55,18 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
 
     @Override
     public void close() {
-        CompletableFuture<Void> waitingFuture = null;
-        synchronized (queuelock) {
-            if (!this.closed) {
-                this.closed = true;
-                waitingFuture = this.notEmptyWaiter;
-                this.notEmptyWaiter = null;
+        if (!this.closed) {
+            this.closed = true;
+            lock.lock();
+            try {
+                this.notEmpty.signal();
+            } finally {
+                lock.unlock();
             }
-        }
-
-        if (waitingFuture != null) {
-            // CompletableFuture.cancel() may not interrupt the waiting thread, but it does cancel the future with a
-            // CancellationException, which is what we want.
-            waitingFuture.cancel(true);
         }
     }
 
     //endregion
-
-    //region Operations
 
     /**
      * Adds a new item to the queue.
@@ -81,19 +75,15 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
      * @throws ObjectClosedException If the Queue is closed.
      */
     public void add(T item) {
-        CompletableFuture<Void> waitingFuture = null;
-        synchronized (queuelock) {
-            Exceptions.checkNotClosed(this.closed, this);
-            this.currentQueue.add(item);
+        Exceptions.checkNotClosed(this.closed, this);
 
-            // See if we have someone waiting for the queue not to be empty anymore. If so, signal them.
-            if (this.notEmptyWaiter != null) {
-                waitingFuture = this.notEmptyWaiter;
-            }
-        }
-
-        if (waitingFuture != null) {
-            waitingFuture.complete(null);
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            this.contents.add(item);
+            this.notEmpty.signal();
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -105,52 +95,23 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
      * @throws ObjectClosedException If the Queue is closed.
      * @throws IllegalStateException If another call to takeAllEntries is in progress.
      */
-    public CompletableFuture<Queue<T>> takeAllEntries() {
-        synchronized (queuelock) {
-            Exceptions.checkNotClosed(this.closed, this);
-            Preconditions.checkState(this.notEmptyWaiter == null, "Another call to takeAllEntries is in progress. Cannot have more than one concurrent requests.");
-
-            if (this.currentQueue.isEmpty()) {
-                // There is nothing in the queue currently. Setup a future to be notified and then wait on that.
-                CompletableFuture<Queue<T>> result = new CompletableFuture<>();
-                this.notEmptyWaiter = new CompletableFuture<>();
-                this.notEmptyWaiter.whenComplete((r, ex) -> {
-                    if (ex != null) {
-                        result.completeExceptionally(ex);
-                    } else {
-                        Queue<T> queueItems = swapQueue();
-                        assert queueItems != null && queueItems.size() > 0 : "Queue unblocked but without a result.";
-                        result.complete(queueItems);
-                    }
-                });
-
-                // When we are done with our result, whether normally, or internally canceled or externally cancelled,
-                // we need to cleanup after ourselves to allow a subsequent call to takeAllEntries to succeed.
-                result.whenComplete((r, ex) -> this.notEmptyWaiter = null);
-                return result;
-            } else {
-                //Queue is not empty. Take whatever we have right now and return that.
-                Queue<T> queueItems = swapQueue();
-                return CompletableFuture.completedFuture(queueItems);
+    public List<T> takeAllEntries() throws InterruptedException {
+        Exceptions.checkNotClosed(this.closed, this);
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            while (this.contents.isEmpty()) {
+                this.notEmpty.await();
+                if (this.closed) {
+                    throw new InterruptedException();
+                }
             }
+
+            List<T> result = new ArrayList<>(this.contents);
+            this.contents.clear();
+            return result;
+        } finally {
+            lock.unlock();
         }
     }
-
-    /**
-     * Swaps the current queue with a new, empty one.
-     *
-     * @return The current (previous) queue.
-     */
-    private Queue<T> swapQueue() {
-        Queue<T> newQueue = new LinkedList<>();
-        Queue<T> oldQueue;
-        synchronized (queuelock) {
-            oldQueue = this.currentQueue;
-            this.currentQueue = newQueue;
-        }
-
-        return oldQueue;
-    }
-
-    //endregion
 }
