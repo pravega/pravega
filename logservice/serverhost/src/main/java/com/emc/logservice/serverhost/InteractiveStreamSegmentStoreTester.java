@@ -1,19 +1,49 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.StreamHelpers;
-import com.emc.logservice.contracts.*;
+import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.ReadResultEntry;
+import com.emc.logservice.contracts.ReadResultEntryContents;
+import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.InterruptedIOException;
+import java.io.PrintStream;
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.AbstractMap;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 
 /**
@@ -22,9 +52,9 @@ import java.util.function.Consumer;
 public class InteractiveStreamSegmentStoreTester {
     //region Members
 
-    private static final Duration Timeout = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private final StreamSegmentStore streamSegmentStore;
-    private final Duration DefaultTimeout = Duration.ofSeconds(30);
+    private final Duration defaultTimeout = Duration.ofSeconds(30);
     private final PrintStream out;
     private final PrintStream errorLogger;
     private final BufferedReader in;
@@ -59,17 +89,15 @@ public class InteractiveStreamSegmentStoreTester {
         ServiceBuilder serviceBuilder;
         if (useDistributedLog) {
             serviceBuilder = new DistributedLogServiceBuilder(containerCount);
-        }
-        else {
+        } else {
             serviceBuilder = new InMemoryServiceBuilder(containerCount);
         }
 
         try {
-            serviceBuilder.getContainerManager().initialize(Timeout).join();
+            serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
             InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
-        }
-        finally {
+        } finally {
             serviceBuilder.close();
         }
     }
@@ -81,7 +109,7 @@ public class InteractiveStreamSegmentStoreTester {
     public void run() {
         log("InteractiveStreamStoreTester: ClientId = %s.", clientId);
         log("Available commands:");
-        for (String syntax : Commands.Syntaxes.values()) {
+        for (String syntax : Commands.SYNTAXES.values()) {
             log("\t%s", syntax);
         }
         try {
@@ -95,71 +123,69 @@ public class InteractiveStreamSegmentStoreTester {
 
                 try {
                     switch (commandName) {
-                        case Commands.Create:
+                        case Commands.CREATE:
                             createStream(commandParser);
                             break;
-                        case Commands.Delete:
+                        case Commands.DELETE:
                             deleteStream(commandParser);
                             break;
-                        case Commands.Seal:
+                        case Commands.SEAL:
                             sealStream(commandParser);
                             break;
-                        case Commands.Get:
+                        case Commands.GET:
                             getStreamInfo(commandParser);
                             break;
-                        case Commands.Append:
+                        case Commands.APPEND:
                             appendToStream(commandParser);
                             break;
-                        case Commands.Read:
+                        case Commands.READ:
                             readFromStream(commandParser);
                             break;
-                        case Commands.CreateBatch:
+                        case Commands.CREATE_BATCH:
                             createBatch(commandParser);
                             break;
-                        case Commands.MergeBatch:
+                        case Commands.MERGE_BATCH:
                             mergeBatch(commandParser);
                             break;
                         default:
                             log("Unknown command '%s'.", commandName);
                             break;
                     }
-                }
-                catch (InvalidCommandSyntax ex) {
+                } catch (InvalidCommandSyntax ex) {
                     log(ex.getMessage());
                 }
             }
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             log(ex, "Could not read from input.");
         }
     }
 
     private void createStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Create));
+        checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.CREATE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createStreamSegment(name, DefaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
+        await(this.streamSegmentStore.createStreamSegment(name, defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
     }
 
     private void deleteStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Delete));
+        checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.DELETE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.deleteStreamSegment(name, DefaultTimeout), r -> log(startTime, "Deleted StreamSegment %s.", name));
+        await(this.streamSegmentStore.deleteStreamSegment(name, defaultTimeout), r -> log(startTime, "Deleted StreamSegment %s.", name));
     }
 
     private void sealStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Get));
+        checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.GET));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.sealStreamSegment(name, DefaultTimeout), r -> log(startTime, "Sealed StreamSegment %s.", name));
+        await(this.streamSegmentStore.sealStreamSegment(name, defaultTimeout), r -> log(startTime, "Sealed StreamSegment %s.", name));
     }
 
     private void getStreamInfo(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
-        checkArguments(name != null && name.length() > 0, Commands.Syntaxes.get(Commands.Get));
+        checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.GET));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.getStreamSegmentInfo(name, DefaultTimeout), result ->
+        await(this.streamSegmentStore.getStreamSegmentInfo(name, defaultTimeout), result ->
                 log(startTime, "Name = %s, Length = %d, Sealed = %s, Deleted = %s.", result.getName(), result.getLength(), result.isSealed(), result.isDeleted()));
     }
 
@@ -167,14 +193,14 @@ public class InteractiveStreamSegmentStoreTester {
         String name = parsedCommand.getNext();
         String data = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0 && data != null && data.length() > 0,
-                Commands.Syntaxes.get(Commands.Append));
+                Commands.SYNTAXES.get(Commands.APPEND));
         appendToStream(name, data.getBytes());
     }
 
     private void appendToStream(String name, byte[] data) {
         AppendContext context = new AppendContext(clientId, appendCount++);
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.append(name, data, context, DefaultTimeout), r -> log(startTime, "Appended %d bytes at offset %d.", data.length, r));
+        await(this.streamSegmentStore.append(name, data, context, defaultTimeout), r -> log(startTime, "Appended %d bytes at offset %d.", data.length, r));
     }
 
     private void readFromStream(CommandLineParser parsedCommand) {
@@ -183,11 +209,11 @@ public class InteractiveStreamSegmentStoreTester {
         int offset = parsedCommand.getNextOrDefault(Integer.MIN_VALUE);
         int length = parsedCommand.getNextOrDefault(Integer.MIN_VALUE);
 
-        checkArguments(name != null && name.length() > 0 && offset >= 0 && length > 0, Commands.Syntaxes.get(Commands.Read));
+        checkArguments(name != null && name.length() > 0 && offset >= 0 && length > 0, Commands.SYNTAXES.get(Commands.READ));
 
         final int readId = this.readCount++;
         log("Started Read #%d from %s.", readId, name);
-        await(this.streamSegmentStore.read(name, offset, length, DefaultTimeout), readResult ->
+        await(this.streamSegmentStore.read(name, offset, length, defaultTimeout), readResult ->
                 CompletableFuture.runAsync(() -> {
                     while (readResult.hasNext()) {
                         ReadResultEntry entry = readResult.next();
@@ -197,12 +223,10 @@ public class InteractiveStreamSegmentStoreTester {
                             StreamHelpers.readAll(contents.getData(), rawData, 0, rawData.length);
                             String data = new String(rawData);
                             log("Read #%d (Offset=%d, Remaining=%d): %s", readId, entry.getStreamSegmentOffset(), readResult.getMaxResultLength() - readResult.getConsumedLength(), data);
-                        }
-                        catch (CancellationException | InterruptedIOException ex) {
+                        } catch (CancellationException | InterruptedIOException ex) {
                             log("Read #%d (Offset=%d) has been interrupted.", readId, entry.getStreamSegmentOffset());
                             return;
-                        }
-                        catch (Exception ex) {
+                        } catch (Exception ex) {
                             log(ex, "Read #%d (Offset=%d)", readId, entry.getStreamSegmentOffset());
                         }
                     }
@@ -213,24 +237,23 @@ public class InteractiveStreamSegmentStoreTester {
 
     private void createBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String parentName = parsedCommand.getNext();
-        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CreateBatch, Commands.ParentStreamSegmentName));
+        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_BATCH, Commands.PARENT_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createBatch(parentName, DefaultTimeout), r -> log(startTime, "Created BatchStreamSegment %s with parent %s.", r, parentName));
+        await(this.streamSegmentStore.createBatch(parentName, defaultTimeout), r -> log(startTime, "Created BatchStreamSegment %s with parent %s.", r, parentName));
     }
 
     private void mergeBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String batchStreamName = parsedCommand.getNext();
-        checkArguments(batchStreamName != null && batchStreamName.length() > 0, Commands.combine(Commands.MergeBatch, Commands.BatchStreamSegmentName));
+        checkArguments(batchStreamName != null && batchStreamName.length() > 0, Commands.combine(Commands.MERGE_BATCH, Commands.BATCH_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.mergeBatch(batchStreamName, DefaultTimeout), r -> log(startTime, "Merged BatchStreamSegment %s into parent stream.", batchStreamName));
+        await(this.streamSegmentStore.mergeBatch(batchStreamName, defaultTimeout), r -> log(startTime, "Merged BatchStreamSegment %s into parent stream.", batchStreamName));
     }
 
     private <T> void await(CompletableFuture<T> future, Consumer<T> callback) {
         try {
             T result = future.join();
             CallbackHelpers.invokeSafely(callback, result, ex -> log(ex, "Callback failure"));
-        }
-        catch (CompletionException ex) {
+        } catch (CompletionException ex) {
             log(ex, "Unable to complete operation.");
         }
     }
@@ -278,34 +301,34 @@ public class InteractiveStreamSegmentStoreTester {
     //region Commands
 
     private static class Commands {
-        public static final String Create = "create";
-        public static final String Delete = "delete";
-        public static final String Seal = "seal";
-        public static final String Get = "get";
-        public static final String Append = "append";
-        public static final String Read = "read";
-        public static final String CreateBatch = "batch-create";
-        public static final String MergeBatch = "batch-merge";
+        public static final String CREATE = "create";
+        public static final String DELETE = "delete";
+        public static final String SEAL = "seal";
+        public static final String GET = "get";
+        public static final String APPEND = "append";
+        public static final String READ = "read";
+        public static final String CREATE_BATCH = "batch-create";
+        public static final String MERGE_BATCH = "batch-merge";
 
-        public static final AbstractMap<String, String> Syntaxes = new TreeMap<>();
+        public static final AbstractMap<String, String> SYNTAXES = new TreeMap<>();
 
         static {
-            Syntaxes.put(Create, Commands.combine(Create, Commands.StreamSegmentName));
-            Syntaxes.put(Delete, Commands.combine(Delete, Commands.StreamSegmentName));
-            Syntaxes.put(Append, Commands.combine(Append, Commands.StreamSegmentName, Commands.AppendData));
-            Syntaxes.put(Read, Commands.combine(Read, Commands.StreamSegmentName));
-            Syntaxes.put(Seal, Commands.combine(Seal, Commands.StreamSegmentName));
-            Syntaxes.put(Get, Commands.combine(Get, Commands.StreamSegmentName, Commands.Offset, Commands.Length));
-            Syntaxes.put(CreateBatch, Commands.combine(CreateBatch, Commands.ParentStreamSegmentName));
-            Syntaxes.put(MergeBatch, Commands.combine(MergeBatch, Commands.BatchStreamSegmentName));
+            SYNTAXES.put(CREATE, Commands.combine(CREATE, Commands.STREAM_SEGMENT_NAME));
+            SYNTAXES.put(DELETE, Commands.combine(DELETE, Commands.STREAM_SEGMENT_NAME));
+            SYNTAXES.put(APPEND, Commands.combine(APPEND, Commands.STREAM_SEGMENT_NAME, Commands.APPEND_DATA));
+            SYNTAXES.put(READ, Commands.combine(READ, Commands.STREAM_SEGMENT_NAME));
+            SYNTAXES.put(SEAL, Commands.combine(SEAL, Commands.STREAM_SEGMENT_NAME));
+            SYNTAXES.put(GET, Commands.combine(GET, Commands.STREAM_SEGMENT_NAME, Commands.OFFSET, Commands.LENGTH));
+            SYNTAXES.put(CREATE_BATCH, Commands.combine(CREATE_BATCH, Commands.PARENT_STREAM_SEGMENT_NAME));
+            SYNTAXES.put(MERGE_BATCH, Commands.combine(MERGE_BATCH, Commands.BATCH_STREAM_SEGMENT_NAME));
         }
 
-        private static final String ParentStreamSegmentName = "<parent-stream-segment-name>";
-        private static final String BatchStreamSegmentName = "<batch-stream-segment-name>";
-        private static final String StreamSegmentName = "<stream-segment-name>";
-        private static final String AppendData = "<append-string>";
-        private static final String Offset = "<offset>";
-        private static final String Length = "<length>";
+        private static final String PARENT_STREAM_SEGMENT_NAME = "<parent-stream-segment-name>";
+        private static final String BATCH_STREAM_SEGMENT_NAME = "<batch-stream-segment-name>";
+        private static final String STREAM_SEGMENT_NAME = "<stream-segment-name>";
+        private static final String APPEND_DATA = "<append-string>";
+        private static final String OFFSET = "<offset>";
+        private static final String LENGTH = "<length>";
 
         private static String combine(String commandName, String... args) {
             StringBuilder result = new StringBuilder();
@@ -324,8 +347,8 @@ public class InteractiveStreamSegmentStoreTester {
     //region CommandLineParser
 
     private static class CommandLineParser {
-        private static char Space = ' ';
-        private static char Quote = '"';
+        private static final char SPACE = ' ';
+        private static final char QUOTE = '"';
         private final String input;
         private int pos;
 
@@ -337,7 +360,7 @@ public class InteractiveStreamSegmentStoreTester {
         public String getNext() {
 
             //Skip over consecutive spaces.
-            while (pos < this.input.length() && input.charAt(pos) == Space) {
+            while (pos < this.input.length() && input.charAt(pos) == SPACE) {
                 pos++;
             }
 
@@ -346,15 +369,15 @@ public class InteractiveStreamSegmentStoreTester {
             }
 
             //pos is at the start of a word
-            int nextQuotePos = this.input.indexOf(Quote, pos);
+            int nextQuotePos = this.input.indexOf(QUOTE, pos);
             if (nextQuotePos == pos) {
                 //we are sitting on a quote; find the next quote and then return the whole contents.
                 pos = nextQuotePos + 1;
-                return getResult(Quote);
+                return getResult(QUOTE);
             }
 
             //No quote; just find the next space.
-            return getResult(Space);
+            return getResult(SPACE);
         }
 
         public int getNextOrDefault(int defaultValue) {
@@ -365,8 +388,7 @@ public class InteractiveStreamSegmentStoreTester {
 
             try {
                 return Integer.parseInt(next);
-            }
-            catch (NumberFormatException ex) {
+            } catch (NumberFormatException ex) {
                 return defaultValue;
             }
         }

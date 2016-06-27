@@ -1,8 +1,31 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.server.*;
-import com.emc.logservice.server.logs.operations.*;
+import com.emc.logservice.common.BlockingDrainingQueue;
+import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.server.Container;
+import com.emc.logservice.server.DataCorruptionException;
+import com.emc.logservice.server.ExceptionHelpers;
+import com.emc.logservice.server.logs.operations.CompletableOperation;
+import com.emc.logservice.server.logs.operations.Operation;
+import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -75,15 +98,13 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             while (this.isRunning()) {
                 runOnce();
             }
-        }
-        catch (CancellationException ex) {
+        } catch (CancellationException ex) {
             if (state() != State.STOPPING) {
                 // We only expect CancellationException if we are in the process of Stopping. All others are indicative
                 // of some failure.
                 throw ex;
             }
-        }
-        finally {
+        } finally {
             this.operationQueue.close();
             this.operationQueue = null;
         }
@@ -199,8 +220,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             // That's why acceptance has to happen only after a successful append to the DataFrameBuilder.
             try {
                 this.metadataUpdater.preProcessOperation((StorageOperation) entry);
-            }
-            catch (Exception ex) {
+            } catch (Exception ex) {
                 // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
                 operation.fail(ex);
                 return false;
@@ -213,8 +233,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
         try {
             dataFrameBuilder.append(operation.getOperation());
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             operation.fail(ex);
             return false;
         }
@@ -222,8 +241,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         if (entry instanceof StorageOperation) {
             try {
                 this.metadataUpdater.acceptOperation((StorageOperation) entry);
-            }
-            catch (MetadataUpdateException ex) {
+            } catch (MetadataUpdateException ex) {
                 // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
                 operation.fail(ex);
                 return false;
@@ -285,8 +303,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
                     logUpdater.add(e.getOperation());
-                }
-                catch (DataCorruptionException ex) {
+                } catch (DataCorruptionException ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
                     throw ex;

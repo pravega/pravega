@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.common;
 
 import com.emc.nautilus.testcommon.AssertExtensions;
@@ -13,16 +31,16 @@ import java.util.function.Predicate;
  * Unit tests for the ComponentConfig class.
  */
 public class ComponentConfigTests {
-    private static final int componentCount = 5;
-    private static final int propertyOfTypePerComponentCount = 5;
-    private static final String PropertyPrefix = "Property_";
-    private static final ArrayList<Function<Integer, String>> generatorFunctions = new ArrayList<>();
+    private static final int COMPONENT_COUNT = 5;
+    private static final int PROPERTY_OF_TYPE_PER_COMPONENT_COUNT = 5;
+    private static final String PROPERTY_PREFIX = "Property_";
+    private static final ArrayList<Function<Integer, String>> GENERATOR_FUNCTIONS = new ArrayList<>();
 
     static {
-        generatorFunctions.add(ComponentConfigTests::getStringValue);
-        generatorFunctions.add(propertyId -> Integer.toString(ComponentConfigTests.getInt32Value(propertyId)));
-        generatorFunctions.add(propertyId -> Long.toString(ComponentConfigTests.getInt64Value(propertyId)));
-        generatorFunctions.add(propertyId -> Boolean.toString(ComponentConfigTests.getBooleanValue(propertyId)));
+        GENERATOR_FUNCTIONS.add(ComponentConfigTests::getStringValue);
+        GENERATOR_FUNCTIONS.add(propertyId -> Integer.toString(ComponentConfigTests.getInt32Value(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> Long.toString(ComponentConfigTests.getInt64Value(propertyId)));
+        GENERATOR_FUNCTIONS.add(propertyId -> Boolean.toString(ComponentConfigTests.getBooleanValue(propertyId)));
     }
 
     /**
@@ -66,7 +84,7 @@ public class ComponentConfigTests {
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
-        for (int componentId = 0; componentId < ComponentConfigTests.componentCount; componentId++) {
+        for (int componentId = 0; componentId < ComponentConfigTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
             ComponentConfig config = new TestConfig(props, componentCode);
             for (String fullyQualifiedPropertyName : props.stringPropertyNames()) {
@@ -79,15 +97,13 @@ public class ComponentConfigTests {
                         // This is a value that should exist and be returned by methodToTest.
                         String actualValue = methodToTest.apply(config, propName).toString();
                         Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
-                    }
-                    else {
+                    } else {
                         AssertExtensions.assertThrows(
                                 String.format("ComponentConfig returned property and interpreted it with the wrong type. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
                                 () -> methodToTest.apply(config, propName),
                                 ex -> !(ex instanceof MissingPropertyException));
                     }
-                }
-                else {
+                } else {
                     // This is a different component. Make sure it is not included here.
                     AssertExtensions.assertThrows(
                             String.format("ComponentConfig returned property that was for a different component. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
@@ -100,11 +116,11 @@ public class ComponentConfigTests {
 
     private void populateData(Properties props) {
         int propertyId = 0;
-        for (int componentId = 0; componentId < ComponentConfigTests.componentCount; componentId++) {
+        for (int componentId = 0; componentId < ComponentConfigTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
-            for (Function<Integer, String> gf : ComponentConfigTests.generatorFunctions) {
-                populateSingleTypeData(props, componentCode, propertyId, ComponentConfigTests.propertyOfTypePerComponentCount, gf);
-                propertyId += ComponentConfigTests.propertyOfTypePerComponentCount;
+            for (Function<Integer, String> gf : ComponentConfigTests.GENERATOR_FUNCTIONS) {
+                populateSingleTypeData(props, componentCode, propertyId, ComponentConfigTests.PROPERTY_OF_TYPE_PER_COMPONENT_COUNT, gf);
+                propertyId += ComponentConfigTests.PROPERTY_OF_TYPE_PER_COMPONENT_COUNT;
             }
         }
     }
@@ -125,16 +141,16 @@ public class ComponentConfigTests {
     }
 
     private static String getPropertyName(int propertyId) {
-        return String.format("%s%d", PropertyPrefix, propertyId);
+        return String.format("%s%d", PROPERTY_PREFIX, propertyId);
     }
 
     private static int getPropertyId(String fullyQualifiedPropertyName) {
-        int pos = fullyQualifiedPropertyName.indexOf(PropertyPrefix);
+        int pos = fullyQualifiedPropertyName.indexOf(PROPERTY_PREFIX);
         if (pos < 0) {
             Assert.fail("Internal test error: Unable to determine property if from property name " + fullyQualifiedPropertyName);
         }
 
-        return Integer.parseInt(fullyQualifiedPropertyName.substring(pos + PropertyPrefix.length()));
+        return Integer.parseInt(fullyQualifiedPropertyName.substring(pos + PROPERTY_PREFIX.length()));
     }
 
     private static int getInt32Value(int propertyId) {
@@ -154,7 +170,7 @@ public class ComponentConfigTests {
     }
 
     private static boolean isInt32(String propertyValue) {
-        return isInt64(propertyValue) && propertyValue.charAt(0) == '-';// only getInt32Value generates negative numbers.
+        return isInt64(propertyValue) && propertyValue.charAt(0) == '-'; // only getInt32Value generates negative numbers.
     }
 
     private static boolean isInt64(String propertyValue) {

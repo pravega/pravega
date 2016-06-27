@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.common;
 
 import com.google.common.base.Preconditions;
@@ -15,7 +33,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
     //region Members
 
     private Queue<T> currentQueue;
-    private final Object QueueLock = new Object();
+    private final Object queuelock = new Object();
     private CompletableFuture<Void> notEmptyWaiter;
     private boolean closed;
 
@@ -37,7 +55,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
     @Override
     public void close() {
         CompletableFuture<Void> waitingFuture = null;
-        synchronized (QueueLock) {
+        synchronized (queuelock) {
             if (!this.closed) {
                 this.closed = true;
                 waitingFuture = this.notEmptyWaiter;
@@ -64,7 +82,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
      */
     public void add(T item) {
         CompletableFuture<Void> waitingFuture = null;
-        synchronized (QueueLock) {
+        synchronized (queuelock) {
             Exceptions.checkNotClosed(this.closed, this);
             this.currentQueue.add(item);
 
@@ -88,7 +106,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
      * @throws IllegalStateException If another call to takeAllEntries is in progress.
      */
     public CompletableFuture<Queue<T>> takeAllEntries() {
-        synchronized (QueueLock) {
+        synchronized (queuelock) {
             Exceptions.checkNotClosed(this.closed, this);
             Preconditions.checkState(this.notEmptyWaiter == null, "Another call to takeAllEntries is in progress. Cannot have more than one concurrent requests.");
 
@@ -99,8 +117,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
                 this.notEmptyWaiter.whenComplete((r, ex) -> {
                     if (ex != null) {
                         result.completeExceptionally(ex);
-                    }
-                    else {
+                    } else {
                         Queue<T> queueItems = swapQueue();
                         assert queueItems != null && queueItems.size() > 0 : "Queue unblocked but without a result.";
                         result.complete(queueItems);
@@ -111,8 +128,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
                 // we need to cleanup after ourselves to allow a subsequent call to takeAllEntries to succeed.
                 result.whenComplete((r, ex) -> this.notEmptyWaiter = null);
                 return result;
-            }
-            else {
+            } else {
                 //Queue is not empty. Take whatever we have right now and return that.
                 Queue<T> queueItems = swapQueue();
                 return CompletableFuture.completedFuture(queueItems);
@@ -128,7 +144,7 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
     private Queue<T> swapQueue() {
         Queue<T> newQueue = new LinkedList<>();
         Queue<T> oldQueue;
-        synchronized (QueueLock) {
+        synchronized (queuelock) {
             oldQueue = this.currentQueue;
             this.currentQueue = newQueue;
         }

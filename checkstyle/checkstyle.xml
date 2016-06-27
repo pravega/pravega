@@ -80,7 +80,7 @@
       <property name="allowEmptyConstructors" value="true"/>
       <property name="allowEmptyMethods" value="true"/>
     </module>
-    <module name="Indentation"/>
+    <!--<module name="Indentation"/> TODO: this needs to be re-enabled once we figure out the lambda indentation problem -->
     <module name="MethodParamPad"/>
     <module name="ParenPad"/>
     <module name="TypecastParenPad"/>

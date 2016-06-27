@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.common;
 
 import org.junit.Assert;
@@ -17,25 +35,24 @@ public class StreamHelpersTests {
      */
     @Test
     public void testReadAll() throws IOException {
-        final int ItemCount = 100;
-        final byte[] buffer = new byte[ItemCount];
-        final int ReadStartOffset = 5;
-        final int ReadLength = ItemCount - ReadStartOffset - 5;
-        for (int i = 0; i < ItemCount; i++) {
+        final int itemCount = 100;
+        final byte[] buffer = new byte[itemCount];
+        final int readStartOffset = 5;
+        final int readLength = itemCount - readStartOffset - 5;
+        for (int i = 0; i < itemCount; i++) {
             buffer[i] = (byte) i;
         }
 
         TestInputStream is = new TestInputStream(buffer);
 
-        byte[] readResult = new byte[ItemCount + 10];
-        int readBytes = StreamHelpers.readAll(is, readResult, ReadStartOffset, ReadLength);
-        Assert.assertEquals("Unexpected number of bytes read.", ReadLength, readBytes);
+        byte[] readResult = new byte[itemCount + 10];
+        int readBytes = StreamHelpers.readAll(is, readResult, readStartOffset, readLength);
+        Assert.assertEquals("Unexpected number of bytes read.", readLength, readBytes);
         for (int i = 0; i < readResult.length; i++) {
-            if (i < ReadStartOffset || i >= ReadStartOffset + ReadLength) {
+            if (i < readStartOffset || i >= readStartOffset + readLength) {
                 Assert.assertEquals("readAll wrote data at wrong offsset " + i, 0, readResult[i]);
-            }
-            else {
-                int originalOffset = i - ReadStartOffset;
+            } else {
+                int originalOffset = i - readStartOffset;
                 Assert.assertEquals("unexpected value at target index " + i, buffer[originalOffset], readResult[i]);
             }
         }
@@ -57,11 +74,9 @@ public class StreamHelpersTests {
             if (pause) {
                 pause = false;
                 return -1;
-            }
-            else if (pos >= buffer.length) {
+            } else if (pos >= buffer.length) {
                 return -1;
-            }
-            else {
+            } else {
                 pause = true;
                 return buffer[pos++];
             }

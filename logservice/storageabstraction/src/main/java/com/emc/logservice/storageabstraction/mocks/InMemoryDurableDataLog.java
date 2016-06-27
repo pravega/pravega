@@ -1,13 +1,37 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.storageabstraction.mocks;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.storageabstraction.*;
+import com.emc.logservice.common.CloseableIterator;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.StreamHelpers;
+import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
+import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,8 +62,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         if (!this.closed) {
             try {
                 this.entries.releaseLock(this.clientId);
-            }
-            catch (DataLogWriterNotPrimaryException ex) {
+            } catch (DataLogWriterNotPrimaryException ex) {
                 // Nothing. Just let it go.
             }
 
@@ -52,16 +75,14 @@ class InMemoryDurableDataLog implements DurableDataLog {
         return CompletableFuture.runAsync(() -> {
             try {
                 this.entries.acquireLock(this.clientId);
-            }
-            catch (DataLogWriterNotPrimaryException ex) {
+            } catch (DataLogWriterNotPrimaryException ex) {
                 throw new CompletionException(ex);
             }
 
             if (this.entries.size() == 0) {
                 this.offset = 0;
                 this.lastAppendSequence = Long.MIN_VALUE;
-            }
-            else {
+            } else {
                 Entry last = this.entries.getLast();
                 this.offset = last.sequenceNumber + last.data.length;
                 this.lastAppendSequence = last.sequenceNumber;
@@ -98,8 +119,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
                     this.offset += entry.data.length;
                     this.lastAppendSequence = entry.sequenceNumber;
                 }
-            }
-            catch (DataLogWriterNotPrimaryException | IOException ex) {
+            } catch (DataLogWriterNotPrimaryException | IOException ex) {
                 throw new CompletionException(ex);
             }
 
@@ -115,8 +135,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
                 while (this.entries.size() > 0 && this.entries.getFirst().sequenceNumber <= upToSequence) {
                     try {
                         this.entries.removeFirst(this.clientId);
-                    }
-                    catch (DataLogWriterNotPrimaryException ex) {
+                    } catch (DataLogWriterNotPrimaryException ex) {
                         throw new CompletionException(ex);
                     }
                 }

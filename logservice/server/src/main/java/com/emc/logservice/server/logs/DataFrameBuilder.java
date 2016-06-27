@@ -1,6 +1,26 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.*;
+import com.emc.logservice.common.CallbackHelpers;
+import com.emc.logservice.common.ConsumerWithException;
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.LogItem;
 import com.emc.logservice.storageabstraction.DurableDataLog;
@@ -19,7 +39,7 @@ import java.util.function.Consumer;
 public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     //region Members
 
-    private static final Duration DataFrameWriteTimeout = Duration.ofSeconds(30); // TODO: actual timeout.
+    private static final Duration DATA_FRAME_WRITE_TIMEOUT = Duration.ofSeconds(30); // TODO: actual timeout.
     private final DataFrameOutputStream outputStream;
     private final DurableDataLog targetLog;
     private final ConsumerWithException<DataFrameCommitArgs, Exception> dataFrameCommitSuccessCallback;
@@ -89,10 +109,9 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * callback, as well as being thrown from this exception.
      *
      * @param logItem The LogItem to append.
-     * @throws ObjectClosedException If the DataFrameBuilder is closed.
-     * @throws NullPointerException  If logItem is null.
-     * @throws IOException           If the LogItem failed to serialize to the DataLog, or if one of the DataFrames containing
-     *                               the LogItem failed to commit to the DataFrameLog.
+     * @throws NullPointerException If logItem is null.
+     * @throws IOException          If the LogItem failed to serialize to the DataLog, or if one of the DataFrames containing
+     *                              the LogItem failed to commit to the DataFrameLog.
      */
     public void append(T logItem) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
@@ -109,8 +128,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             this.lastStartedSequenceNumber = seqNo;
             logItem.serialize(this.outputStream);
             this.lastSerializedSequenceNumber = seqNo;
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             // Discard any information that we have about this record (pretty much revert back to where startNewEntry() would have begun writing).
             // The try-catch inside handleDataFrameComplete() deals with the DataFrame-level handling; here we just deal with this LogItem.
             this.outputStream.discardRecord();
@@ -139,9 +157,8 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // TODO: This looks like a place where some improvement can be made. In theory, we can try to write the frame
             // in parallel to us building the next frame. We need to watch out for cases when a frame fails to commit,
             // and how that affects future frames. That may complicate things here and in calling classes.
-            this.targetLog.append(dataFrame.getData(), DataFrameWriteTimeout).get();
-        }
-        catch (Exception ex) {
+            this.targetLog.append(dataFrame.getData(), DATA_FRAME_WRITE_TIMEOUT).get();
+        } catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
             // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.
             // The Target Log did try to repeat, but we need to admit failure now.
@@ -155,8 +172,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
         try {
             this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()));
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
             throw new IOException(ex);
         }

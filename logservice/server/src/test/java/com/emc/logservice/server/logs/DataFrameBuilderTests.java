@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ByteArraySegment;
@@ -11,7 +29,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -19,13 +39,13 @@ import java.util.function.Consumer;
  * Unit tests for DataFrameBuilder class.
  */
 public class DataFrameBuilderTests {
-    private static final String ContainerId = "TestContainer";
-    private static final Duration Timeout = Duration.ofSeconds(30);
-    private static final int SmallRecordMinSize = 0;
-    private static final int SmallRecordMaxSize = 128;
-    private static final int LargeRecordMinSize = 1024;
-    private static final int LargeRecordMaxSize = 10240;
-    private static final int FrameSize = 512;
+    private static final String CONTAINER_ID = "TestContainer";
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int SMALL_RECORD_MIN_SIZE = 0;
+    private static final int SMALL_RECORD_MAX_SIZE = 128;
+    private static final int LARGE_RECORD_MIN_SIZE = 1024;
+    private static final int LARGE_RECORD_MAX_SIZE = 10240;
+    private static final int FRAME_SIZE = 512;
 
     /**
      * Tests the happy case: append a set of LogItems, and make sure that frames that get output contain all of them.
@@ -35,11 +55,11 @@ public class DataFrameBuilderTests {
     @Test
     public void testAppendNoFailure() throws Exception {
         // Happy case: append a bunch of data, and make sure the frames that get output contain it.
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SmallRecordMinSize, SmallRecordMaxSize, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LargeRecordMinSize, LargeRecordMaxSize, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -79,8 +99,8 @@ public class DataFrameBuilderTests {
     public void testAppendWithSerializationFailure() throws Exception {
         int failEvery = 7; // Fail every X records.
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SmallRecordMinSize, SmallRecordMaxSize, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LargeRecordMinSize, LargeRecordMaxSize, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         // Have every other 'failEvery' record fail after writing 90% of itself.
         for (int i = 0; i < records.size(); i += failEvery) {
@@ -88,8 +108,8 @@ public class DataFrameBuilderTests {
         }
         HashSet<Integer> failedIndices = new HashSet<>();
 
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -97,8 +117,7 @@ public class DataFrameBuilderTests {
                 for (int i = 0; i < records.size(); i++) {
                     try {
                         b.append(records.get(i));
-                    }
-                    catch (IOException ex) {
+                    } catch (IOException ex) {
                         failedIndices.add(i);
                     }
                 }
@@ -127,12 +146,12 @@ public class DataFrameBuilderTests {
         int failSyncEvery = 7; // Fail synchronously every X DataFrames.
         int failAsyncEvery = 11; // Fail async every X DataFrames.
 
-        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SmallRecordMinSize, SmallRecordMaxSize, 0);
-        records.addAll(DataFrameTestHelpers.generateLogItems(100, LargeRecordMinSize, LargeRecordMaxSize, records.size()));
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(100, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
+        records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         HashSet<Integer> failedIndices = new HashSet<>();
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
             ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
                     count -> count % failSyncEvery == 0,
@@ -175,8 +194,7 @@ public class DataFrameBuilderTests {
                     try {
                         lastAttemptIndex.set(i);
                         b.append(records.get(i));
-                    }
-                    catch (IOException ex) {
+                    } catch (IOException ex) {
                         failedIndices.add(i);
                     }
                 }
@@ -201,10 +219,10 @@ public class DataFrameBuilderTests {
     @Test
     public void testClose() throws Exception {
         // Append two records, make sure they are not flushed, close the Builder, then make sure they are flushed.
-        try (TestDurableDataLog dataLog = TestDurableDataLog.create(ContainerId, FrameSize)) {
-            dataLog.initialize(Timeout).join();
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT).join();
 
-            ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SmallRecordMinSize, SmallRecordMaxSize, 0);
+            ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {

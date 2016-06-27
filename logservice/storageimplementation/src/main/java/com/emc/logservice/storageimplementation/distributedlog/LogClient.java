@@ -1,7 +1,28 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.common.*;
-import com.emc.logservice.storageabstraction.*;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.storageabstraction.DataLogInitializationException;
+import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
+import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.DistributedLogConfiguration;
 import com.twitter.distributedlog.DistributedLogConstants;
@@ -23,7 +44,7 @@ import java.util.concurrent.CompletionException;
 class LogClient implements AutoCloseable {
     //region Members
 
-    private static final String DistributedLogUriFormat = "distributedlog://%s:%d/%s";
+    private static final String DISTRIBUTED_LOG_URI_FORMAT = "distributedlog://%s:%d/%s";
     private final DistributedLogConfig config;
     private final HashMap<String, CompletableFuture<LogHandle>> handles;
     private final String clientId;
@@ -51,7 +72,7 @@ class LogClient implements AutoCloseable {
         this.clientId = clientId;
         this.config = config;
         this.handles = new HashMap<>();
-        String rawUri = String.format(DistributedLogUriFormat, config.getDistributedLogHost(), config.getDistributedLogPort(), config.getDistributedLogNamespace());
+        String rawUri = String.format(DISTRIBUTED_LOG_URI_FORMAT, config.getDistributedLogHost(), config.getDistributedLogPort(), config.getDistributedLogNamespace());
         this.namespaceUri = URI.create(rawUri);
         this.traceObjectId = String.format("%s#%s", rawUri, this.clientId);
     }
@@ -76,8 +97,7 @@ class LogClient implements AutoCloseable {
                     try {
                         handle = cf.join();
                         handle.close();
-                    }
-                    catch (Exception ex) {
+                    } catch (Exception ex) {
                         String handleId = handle == null ? "(null)" : handle.getLogName();
                         log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handleId, ex);
                     }
@@ -129,12 +149,10 @@ class LogClient implements AutoCloseable {
                     .clientId(this.clientId)
                     .build();
             log.info("{} Opened DistributedLog Namespace.", this.traceObjectId);
-        }
-        catch (IllegalArgumentException | NullPointerException ex) {
+        } catch (IllegalArgumentException | NullPointerException ex) {
             //configuration issue
             throw new DataLogInitializationException("Unable to create a DistributedLog Namespace. DistributedLog reports bad configuration.", ex);
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             // Namespace not available, ZooKeeper not reachable, some other environment issue.
             throw new DataLogNotAvailableException("Unable to access DistributedLog Namespace.", ex);
         }
@@ -187,8 +205,7 @@ class LogClient implements AutoCloseable {
                 LogHandle handle = new LogHandle(logId, this::handleLogHandleClosed);
                 handle.initialize(this.namespace);
                 return handle;
-            }
-            catch (DurableDataLogException ex) {
+            } catch (DurableDataLogException ex) {
                 throw new CompletionException(ex);
             }
         });

@@ -1,13 +1,40 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.*;
+import com.emc.logservice.common.AutoReleaseLock;
+import com.emc.logservice.common.Exceptions;
+import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
-import com.emc.logservice.server.*;
+import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -122,8 +149,7 @@ public class ReadIndex implements Cache {
                 if (this.metadata.getStreamSegmentMetadata(ssId) == null) {
                     missingIds.add(Long.toString(ssId));
                 }
-            }
-            else {
+            } else {
                 index.triggerFutureReads();
             }
         }
@@ -188,8 +214,7 @@ public class ReadIndex implements Cache {
                 Exceptions.checkArgument(metadata != null, "finalMetadataSource", "Final Metadata has no knowledge of StreamSegment Id {}.", e.getKey());
                 e.getValue().exitRecoveryMode(metadata);
             }
-        }
-        else {
+        } else {
             // Recovery was unsuccessful. Clear the contents of the cache to avoid further issues.
             clear();
         }

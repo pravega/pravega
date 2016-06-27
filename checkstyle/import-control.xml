@@ -1,6 +1,6 @@
 <!DOCTYPE import-control PUBLIC
-"-//Puppy Crawl//DTD Import Control 1.1//EN"
-"http://www.puppycrawl.com/dtds/import_control_1_1.dtd">
+        "-//Puppy Crawl//DTD Import Control 1.1//EN"
+        "http://www.puppycrawl.com/dtds/import_control_1_1.dtd">
 <!--
 // Licensed to the Apache Software Foundation (ASF) under one or more
 // contributor license agreements.  See the NOTICE file distributed with
@@ -18,26 +18,26 @@
 // limitations under the License.
 -->
 
-<import-control pkg="com.emc.nautilus">
+<import-control pkg="com.emc">
 
-  <!-- THINK HARD ABOUT THE LAYERING OF THE PROJECT BEFORE CHANGING THIS FILE -->
+    <!-- THINK HARD ABOUT THE LAYERING OF THE PROJECT BEFORE CHANGING THIS FILE -->
 
-  <!-- common library dependencies -->
-  <allow pkg="java" />
-  <allow pkg="javax.management" />
-  <allow pkg="org.slf4j" />
-  <allow pkg="org.junit" />
-  <allow pkg="org.easymock" />
-  <allow pkg="org.powermock" />
-  <allow pkg="java.security" />
-  <allow pkg="javax.net.ssl" />
-  <allow pkg="javax.security" />
-  <allow pkg="org.ietf.jgss" />
-
-
-  <subpackage name="test">
-    <allow pkg="org.bouncycastle" />
-  </subpackage>
-
+    <!-- common library dependencies -->
+    <allow pkg="java"/>
+    <allow pkg="javax.management"/>
+    <allow pkg="org.slf4j"/>
+    <allow pkg="org.junit"/>
+    <allow pkg="org.easymock"/>
+    <allow pkg="org.powermock"/>
+    <allow pkg="java.security"/>
+    <allow pkg="javax.net.ssl"/>
+    <allow pkg="javax.security"/>
+    <allow pkg="org.ietf.jgss"/>
+    <allow pkg="com.google"/>
+    <allow pkg="com.emc"/>
+    <allow pkg="com.twitter"/>
+    <allow pkg="lombok"/>
+    <allow pkg="ch.qos.logback"/>
+    <allow pkg="io.netty"/>
 
 </import-control>

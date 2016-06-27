@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.common.Exceptions;
@@ -6,7 +24,10 @@ import com.emc.logservice.server.core.MagicGenerator;
 import com.emc.logservice.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Base class for a Log Operation.
@@ -14,7 +35,7 @@ import java.io.*;
 public abstract class Operation implements LogItem {
     //region Members
 
-    public static final long NoSequenceNumber = Long.MIN_VALUE;
+    public static final long NO_SEQUENCE_NUMBER = Long.MIN_VALUE;
     private long sequenceNumber;
 
     //endregion
@@ -25,7 +46,7 @@ public abstract class Operation implements LogItem {
      * Creates a new instance of the Operation class.
      */
     public Operation() {
-        this.sequenceNumber = NoSequenceNumber;
+        this.sequenceNumber = NO_SEQUENCE_NUMBER;
     }
 
     /**
@@ -124,8 +145,7 @@ public abstract class Operation implements LogItem {
 
             // Read the magic value at the end. This must match the beginning magic - this way we know we reached the end properly.
             endMagic = source.readInt();
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             throw new SerializationException("Operation.deserialize", "Unable to read from the InputStream.", ex);
         }
 
@@ -188,6 +208,8 @@ public abstract class Operation implements LogItem {
      * Header for a serialized Operation.
      */
     protected static class OperationHeader {
+        private static final byte HEADER_VERSION = 0;
+
         /**
          * The type of the operation.
          */
@@ -202,7 +224,6 @@ public abstract class Operation implements LogItem {
          * Magic value.
          */
         public final int magic;
-        private static final byte HeaderVersion = 0;
 
         /**
          * Creates a new instance of the OperationHeader class.
@@ -225,16 +246,14 @@ public abstract class Operation implements LogItem {
         public OperationHeader(DataInputStream source) throws SerializationException {
             try {
                 byte headerVersion = source.readByte();
-                if (headerVersion == HeaderVersion) {
+                if (headerVersion == HEADER_VERSION) {
                     this.magic = source.readInt();
                     this.operationType = source.readByte();
                     this.sequenceNumber = source.readLong();
-                }
-                else {
+                } else {
                     throw new SerializationException("OperationHeader.deserialize", String.format("Unsupported version: %d.", headerVersion));
                 }
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 throw new SerializationException("OperationHeader.deserialize", "Unable to deserialize Operation Header", ex);
             }
         }
@@ -246,7 +265,7 @@ public abstract class Operation implements LogItem {
          * @throws IOException If the DataOutputStream threw one.
          */
         public void serialize(DataOutputStream target) throws IOException {
-            target.writeByte(HeaderVersion);
+            target.writeByte(HEADER_VERSION);
             target.writeInt(this.magic);
             target.writeByte(this.operationType);
             target.writeLong(this.sequenceNumber);
@@ -259,5 +278,4 @@ public abstract class Operation implements LogItem {
     }
 
     //endregion
-
 }
