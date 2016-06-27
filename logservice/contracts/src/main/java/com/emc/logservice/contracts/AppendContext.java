@@ -20,9 +20,12 @@ package com.emc.logservice.contracts;
 
 import java.util.UUID;
 
+import lombok.Data;
+
 /**
  * Externally-specified Append Context.
  */
+@Data
 public class AppendContext {
     private final UUID clientId;
     private final long clientOffset;
@@ -36,24 +39,6 @@ public class AppendContext {
     public AppendContext(UUID clientId, long clientOffset) {
         this.clientId = clientId;
         this.clientOffset = clientOffset;
-    }
-
-    /**
-     * Gets a value indicating the Unique Id of the client.
-     *
-     * @return
-     */
-    public UUID getClientId() {
-        return this.clientId;
-    }
-
-    /**
-     * Gets a value indicating the append offset within the client context.
-     *
-     * @return
-     */
-    public long getClientOffset() {
-        return this.clientOffset;
     }
 
     @Override
