@@ -1,10 +1,7 @@
 package com.emc.logservice.serverhost.handler;
 
-import static org.junit.Assert.fail;
-import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -15,10 +12,11 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.nautilus.common.netty.FailingRequestProcessor;
 import com.emc.nautilus.common.netty.ServerConnection;
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
-import com.emc.nautilus.common.netty.WireCommands.DataAppended;
-import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import com.emc.nautilus.common.netty.WireCommands.*;
+
+import static org.junit.Assert.fail;
+
+import static org.mockito.Mockito.*;
 
 import io.netty.buffer.Unpooled;
 
@@ -36,7 +34,7 @@ public class AppendProcessorTest {
 		CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
 		contextFuture.complete(new AppendContext(clientId, 0));
 		when(store.getLastAppendContext(streamSegmentName, clientId)).thenReturn(contextFuture);
-		CompletableFuture<Long> result = new CompletableFuture<Long>();
+		CompletableFuture<Long> result = new CompletableFuture<>();
 		result.complete((long) data.length);
 		when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))
 			.thenReturn(result);
