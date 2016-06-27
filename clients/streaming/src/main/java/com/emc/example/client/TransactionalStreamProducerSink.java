@@ -15,7 +15,7 @@ public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> //
 
 	public void invoke(IN value) throws TxFailedException {
 		if (openTxn == null) {
-			openTxn = producer.startTransaction( 60000);
+			openTxn = producer.startTransaction(60000);
 			
 		}
 		String routingKey = getRoutingKey(value);
@@ -28,11 +28,11 @@ public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> //
 	}
 
 	public byte[] snapshotState() {
-		return serializeOpenTxns();
+		return serializeOpenTxn();
 	}
 
 	public void restoreState(byte[] state) {
-		restoreOpenTxns(state);
+		restoreOpenTxn(state);
 	}
 
 	// ...
@@ -41,12 +41,12 @@ public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> //
 		return null;
 	}
 
-	private byte[] serializeOpenTxns() {
+	private byte[] serializeOpenTxn() {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
-	private void restoreOpenTxns(byte[] state) {
+	private void restoreOpenTxn(byte[] state) {
 		// TODO Auto-generated method stub
 
 	}
