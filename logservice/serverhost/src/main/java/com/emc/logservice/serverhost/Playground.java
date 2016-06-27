@@ -19,6 +19,8 @@
 package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.LoggerContext;
+import lombok.Cleanup;
+
 import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.AppendContext;
@@ -701,12 +703,14 @@ public class Playground {
         boolean sealAllStreams = true;
 
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+        @Cleanup
         InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
         DurableDataLog dataLog = dataLogFactory.createDurableDataLog(CONTAINER_ID);
         dataLog.initialize(TIMEOUT).join();
         TruncationMarkerCollection truncationMarkerCollection = new TruncationMarkerCollection();
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata, truncationMarkerCollection);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata, CONTAINER_ID));
+        @Cleanup
         OperationProcessor qp = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         qp.startAsync().awaitRunning();
 

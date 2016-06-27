@@ -51,7 +51,7 @@ import java.util.function.BiFunction;
 @Slf4j
 public class AppendProcessor extends DelegatingRequestProcessor {
 
-    private static final Duration TIMEOUT = Duration.ofMinutes(1);
+    static final Duration TIMEOUT = Duration.ofMinutes(1);
     static final int HIGH_WATER_MARK = 128 * 1024;
     static final int LOW_WATER_MARK = 64 * 1024;
 
@@ -102,7 +102,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (info == null) {
                         offset = 0;
                     } else {
-                        if (!info.getClientId().equals(connectionId)) {
+                        if (!info.getClientId().equals(newConnection)) {
                             throw new IllegalStateException("Wrong connection Info returned");
                         }
                         offset = info.getClientOffset();
@@ -176,7 +176,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //TODO: Duplicated in LogServiceRequestProcessor.
     private void handleException(String segment, Throwable u) {
         if (u == null) {
-            throw new IllegalStateException("Neither offset nor exception!?");
+            IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
+            log.error("Error on segment: "+segment, exception);
+            throw exception;
         }
         if (u instanceof CompletionException) {
             u = u.getCause();
@@ -194,7 +196,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             //TODO: don't know what to do here...
             connection.drop();
             log.error("Unknown excpetion on append for segment " + segment, u);
-            throw new IllegalStateException("Unknown exception.", u);
         }
     }
 

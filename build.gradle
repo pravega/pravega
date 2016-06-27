@@ -47,6 +47,7 @@ allprojects {
         compile 'org.projectlombok:lombok:1.16.8'
         compile 'io.netty:netty-all:4.0.36.Final'
         // put maven reference for twitter DL
+		testCompile "org.mockito:mockito-core:2.+"
     }
 
 }
@@ -58,12 +59,14 @@ project('common') {}
 project('clients:log') {
     dependencies {
         compile project(':common')
+        testCompile project(':testcommon')
     }
 }
 
 project('clients:streaming') {
     dependencies {
         compile project(':clients:log')
+        testCompile project(':testcommon')
     }
 }
 
@@ -133,6 +136,7 @@ project('integrationtests') {
         compile project(':clients:streaming')
         compile project(':logservice:server')
         compile project(':logservice:serverhost')
+        testCompile project(':testcommon')
     }
     task startServer(type: JavaExec) {
         main = "com.emc.logservice.serverhost.ServiceStarter"
