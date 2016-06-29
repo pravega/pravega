@@ -353,7 +353,11 @@ public class DataFrame {
             throw new SerializationException("DataFrame.deserialize", String.format("Given buffer has insufficient number of bytes for this DataFrame. Expected %d, actual %d.", this.header.getSerializationLength() + this.header.getContentLength(), this.contents.getLength()));
         }
 
-        this.contents = this.data.subSegment(this.header.getSerializationLength(), this.header.getContentLength());
+        if (this.header.getContentLength() == 0) {
+            this.contents = this.data.subSegment(0, 0); // Empty contents...
+        } else {
+            this.contents = this.data.subSegment(this.header.getSerializationLength(), this.header.getContentLength());
+        }
     }
 
     //endregion

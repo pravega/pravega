@@ -20,6 +20,8 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.BlockingDrainingQueue;
 import com.emc.logservice.common.LoggerHelpers;
+import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.contracts.RuntimeStreamingException;
 import com.emc.logservice.server.Container;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
@@ -48,7 +50,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryLogUpdater logUpdater;
     private final DurableDataLog durableDataLog;
-    private BlockingDrainingQueue<CompletableOperation> operationQueue;
+    private final BlockingDrainingQueue<CompletableOperation> operationQueue;
 
     //endregion
 
@@ -74,6 +76,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         this.metadataUpdater = metadataUpdater;
         this.logUpdater = logUpdater;
         this.durableDataLog = durableDataLog;
+        this.operationQueue = new BlockingDrainingQueue<>();
     }
 
     //endregion
@@ -82,7 +85,13 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
 
     @Override
     public void close() {
-        this.stopAsync().awaitTerminated();
+        this.stopAsync();
+        if (this.state() == State.TERMINATED || this.state() == State.FAILED) {
+            // Already terminated.
+            return;
+        }
+
+        this.awaitTerminated();
     }
 
     //endregion
@@ -92,17 +101,23 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     @Override
     protected void run() throws Exception {
         int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
+        Throwable closingException = null;
         try {
-            this.operationQueue = new BlockingDrainingQueue<>();
-            while (this.isRunning()) {
+            while (isRunning()) {
                 runOnce();
             }
         } catch (InterruptedException ex) {
+            closingException = ex;
             if (state() != State.STOPPING) {
                 // We only expect InterruptedException if we are in the process of Stopping. All others are indicative
                 // of some failure.
                 throw ex;
             }
+        } catch (DataCorruptionException ex) {
+            closingException = ex;
+            throw ex;
+        } finally {
+            closeQueue(closingException);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "run", traceId);
@@ -112,10 +127,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     protected void triggerShutdown() {
         // We are being told (externally) to stop. We need to first stop the queue, which will prevent any new items
         // from being processed, as well as stopping the main worker thread.
-        BlockingDrainingQueue<CompletableOperation> queue = this.operationQueue;
-        if (queue != null) {
-            queue.close();
-        }
+        closeQueue(null);
     }
 
     //endregion
@@ -131,8 +143,17 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
 
     //region Operations
 
+    /**
+     * Processes the given Operation. This method returns when the given Operation has been added to the internal queue.
+     *
+     * @param operation The Operation to process.
+     * @return A CompletableFuture that, when completed, will indicate the Operation has finished processing. If the
+     * Operation completed successfully, the Future will contain the Sequence Number of the Operation. If the Operation
+     * failed, it will contain the exception that caused the failure.
+     * @throws IllegalStateException If the OperationProcessor is not running.
+     */
     public CompletableFuture<Long> process(Operation operation) {
-        Preconditions.checkState(this.operationQueue != null, "OperationProcessor is not running.");
+        Preconditions.checkState(isRunning(), "OperationProcessor is not running.");
         log.debug("{}: process {}.", this.traceObjectId, operation);
         CompletableFuture<Long> result = new CompletableFuture<>();
         this.operationQueue.add(new CompletableOperation(operation, result));
@@ -159,33 +180,46 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     private void runOnce() throws DataCorruptionException, InterruptedException {
         List<CompletableOperation> operations = this.operationQueue.takeAllEntries();
         log.debug("{}: RunOnce (OperationCount = {}).", this.traceObjectId, operations.size());
-        if (operations.size() == 0) {
-            // takeAllEntries() should have been blocking and not return unless it has data. If we get an empty response, just try again.
-            return;
-        }
+        int currentIndex = 0;
+        while (currentIndex < operations.size()) {
+            QueueProcessingState state = null;
+            try {
+                // Resume processing operations from where we left off.
+                // In the happy case, this loop is only executed once. But we need the bigger while loop in case we
+                // encountered a non-fatal exception. There is no point in failing the whole set of operations if only
+                // one set failed.
+                state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.traceObjectId);
+                DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
+                for (; currentIndex < operations.size(); currentIndex++) {
+                    CompletableOperation o = operations.get(currentIndex);
+                    boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
 
-        QueueProcessingState state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.traceObjectId);
-        try (DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail)) {
-            for (CompletableOperation o : operations) {
-                boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
-
-                // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
-                // We only commit data frames when we attempt to start a new record (if it's full) or if we try to close it, so we will not miss out on it.
-                if (processedSuccessfully) {
-                    state.addPending(o);
+                    // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
+                    // We only commit data frames when we attempt to start a new record (if it's full) or if we try to close it, so we will not miss out on it.
+                    if (processedSuccessfully) {
+                        state.addPending(o);
+                    }
                 }
-            }
-        }
-        // Close the frame builder and ship any unsent frames.
-        catch (Exception ex) {
-            // Fail the current batch of operations with the given exception.
-            state.fail(ex);
 
-            // This is a nasty one. If we encountered a DataCorruptionException, it means we detected something abnormal
-            // in our container. We need to shutdown right away.
-            Throwable realCause = ExceptionHelpers.getRealException(ex);
-            if (realCause instanceof DataCorruptionException) {
-                throw (DataCorruptionException) realCause;
+                // Only close the DataFrameBuilder (which means flush whatever we have in it to the DataLog) if everything
+                // went well. If we had any exceptions, and we fail the State, then we must not flush anything out.
+                dataFrameBuilder.close();
+            } catch (Exception ex) {
+                // Fail the current set of operations with the given exception. Unless a DataCorruptionException (see below),
+                // we will proceed with the next batch of operations.
+                Throwable realCause = ExceptionHelpers.getRealException(ex);
+                if (state != null) {
+                    state.fail(realCause);
+                }
+
+                if (realCause instanceof DataCorruptionException) {
+                    // This is a nasty one. If we encountered a DataCorruptionException, it means we detected something abnormal
+                    // in our container. We need to shutdown right away.
+
+                    // But first, fail any Operations that we did not have a chance to process yet.
+                    cancelIncompleteOperations(operations, realCause);
+                    throw (DataCorruptionException) realCause;
+                }
             }
         }
     }
@@ -233,6 +267,13 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             dataFrameBuilder.append(operation.getOperation());
         } catch (Exception ex) {
             operation.fail(ex);
+            Throwable cause = ExceptionHelpers.getRealException(ex);
+            if (cause instanceof DataCorruptionException) {
+                // Besides failing the operation, DataCorruptionExceptions are pretty serious. We should shut down the
+                // Operation Processor if we ever encounter one.
+                throw new RuntimeStreamingException("Encountered a possible corruption.", cause);
+            }
+
             return false;
         }
 
@@ -247,6 +288,44 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         }
 
         return true;
+    }
+
+    /**
+     * Closes the Operation Queue and fails all Operations in it with the given exception.
+     *
+     * @param causingException The exception to fail with. If null, it will default to ObjectClosedException.
+     */
+    private void closeQueue(Throwable causingException) {
+        BlockingDrainingQueue<CompletableOperation> queue = this.operationQueue;
+        if (queue != null) {
+            // Close the queue and extract any outstanding Operations from it.
+            List<CompletableOperation> remainingOperations = queue.close();
+            if (remainingOperations != null && remainingOperations.size() > 0) {
+                // If any outstanding Operations were left in the queue, they need to be failed.
+                // If no other cause was passed, assume we are closing the queue because we are shutting down.
+                Throwable failException = causingException != null ? causingException : new ObjectClosedException(this);
+                cancelIncompleteOperations(remainingOperations, failException);
+            }
+        }
+    }
+
+    /**
+     * Cancels those Operations in the given list that have not yet completed with the given exception.
+     *
+     * @param operations
+     * @param failException
+     */
+    private void cancelIncompleteOperations(List<CompletableOperation> operations, Throwable failException) {
+        assert failException != null : "no exception to set";
+        int cancelCount = 0;
+        for (CompletableOperation o : operations) {
+            if (!o.isDone()) {
+                o.fail(failException);
+                cancelCount++;
+            }
+        }
+
+        log.debug("{}: Cancelling {} operations because with exception: {}.", this.traceObjectId, cancelCount, failException.toString());
     }
 
     //endregion

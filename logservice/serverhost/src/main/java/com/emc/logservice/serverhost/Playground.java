@@ -19,9 +19,6 @@
 package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.LoggerContext;
-import lombok.Cleanup;
-
-import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
@@ -38,13 +35,10 @@ import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
 import com.emc.logservice.server.containers.StreamSegmentMapper;
-import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.DurableLog;
 import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.logs.MemoryLogUpdater;
 import com.emc.logservice.server.logs.MemoryOperationLog;
-import com.emc.logservice.server.logs.OperationMetadataUpdater;
-import com.emc.logservice.server.logs.OperationProcessor;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.MetadataOperation;
@@ -57,15 +51,11 @@ import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
-import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
 import com.emc.logservice.storageabstraction.mocks.InMemoryStorage;
 import com.emc.logservice.storageabstraction.mocks.InMemoryStorageFactory;
-import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import com.google.common.util.concurrent.AbstractService;
-import com.google.common.util.concurrent.Service;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
@@ -81,7 +71,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Playground Test class.
@@ -92,8 +81,6 @@ public class Playground {
     private static final String CONTAINER_ID = "123";
 
     public static void main(String[] args) throws Exception {
-        // testService();
-
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         //context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
@@ -101,85 +88,6 @@ public class Playground {
         //testStreamSegmentContainer();
         testDurableLog();
         //testReadIndex();
-        //testOperationQueueProcessor();
-    }
-
-    private static void testService() throws Exception {
-        ExecutorService e = Executors.newFixedThreadPool(10);
-        System.out.println("SINGLE THREAD");
-        SingleThreadTestService s = new SingleThreadTestService();
-        s.addListener(new TestServiceListener(), e);
-        s.startAsync().awaitRunning();
-        s.awaitTerminated();
-
-        System.out.println("GENERAL");
-        GeneralTestService s2 = new GeneralTestService();
-        s2.addListener(new TestServiceListener(), e);
-        s2.startAsync().awaitRunning();
-        Thread.sleep(500);
-        s2.stopAsync().awaitTerminated();
-
-        e.shutdownNow();
-    }
-
-    private static class GeneralTestService extends AbstractService {
-        @Override
-        protected void doStart() {
-            System.out.println("GeneralTestService.doStart");
-            this.notifyStarted();
-        }
-
-        @Override
-        protected void doStop() {
-            System.out.println("GeneralTestService.doStop");
-            this.notifyStopped();
-        }
-    }
-
-    private static class SingleThreadTestService extends AbstractExecutionThreadService {
-        @Override
-        protected void startUp() throws Exception {
-            System.out.println("SingleThreadTestService.startUp");
-        }
-
-        @Override
-        protected void shutDown() throws Exception {
-            System.out.println("SingleThreadTestService.shutDown");
-        }
-
-        @Override
-        protected void run() throws Exception {
-            System.out.println("SingleThreadTestService.run.enter");
-            Thread.sleep(500);
-            System.out.println("SingleThreadTestService.run.exit");
-        }
-    }
-
-    private static class TestServiceListener extends Service.Listener {
-        @Override
-        public void starting() {
-            System.out.println("Monitor: Service Started");
-        }
-
-        @Override
-        public void running() {
-            System.out.println("Monitor: Service Running");
-        }
-
-        @Override
-        public void stopping(Service.State from) {
-            System.out.println("Monitor: Service Stopping (from " + from + ")");
-        }
-
-        @Override
-        public void terminated(Service.State from) {
-            System.out.println("Monitor: Service Terminated (from " + from + ")");
-        }
-
-        @Override
-        public void failed(Service.State from, Throwable failure) {
-            System.out.println("Monitor: Service Failed (from " + from + ") with exception " + failure.toString());
-        }
     }
 
     private static void testStreamSegmentContainer() throws Exception {
@@ -693,99 +601,6 @@ public class Playground {
         } finally {
             es.shutdownNow();
         }
-    }
-
-    private static void testOperationQueueProcessor() throws Exception {
-        int maxAppendLength = 64 * 1024;
-        int streamCount = 50;
-        int appendsPerStream = 1000;
-        int clientCount = 7;
-        boolean sealAllStreams = true;
-
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-        @Cleanup
-        InMemoryDurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
-        DurableDataLog dataLog = dataLogFactory.createDurableDataLog(CONTAINER_ID);
-        dataLog.initialize(TIMEOUT).join();
-        TruncationMarkerCollection truncationMarkerCollection = new TruncationMarkerCollection();
-        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(metadata, truncationMarkerCollection);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(new MemoryOperationLog(), new ReadIndex(metadata, CONTAINER_ID));
-        @Cleanup
-        OperationProcessor qp = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
-        qp.startAsync().awaitRunning();
-
-        // Map the streams.
-        System.out.println("Creating streams ...");
-        long createStreamsStartNanos = System.nanoTime();
-        ArrayList<String> streamNames = new ArrayList<>();
-        for (long streamId = 0; streamId < streamCount; streamId++) {
-            String name = getStreamName((int) streamId);
-            streamNames.add(name);
-            metadata.mapStreamSegmentId(name, streamId);
-            metadata.getStreamSegmentMetadata(streamId).setDurableLogLength(0);
-            metadata.getStreamSegmentMetadata(streamId).setStorageLength(0);
-        }
-
-        long createStreamsElapsedNanos = System.nanoTime() - createStreamsStartNanos;
-
-        System.out.println("Generating entries ...");
-        ArrayList<UUID> clients = generateClientIds(clientCount);
-        long totalAppendSize = 0;
-        ArrayList<Operation> entries = new ArrayList<>();
-        for (int i = 0; i < appendsPerStream; i++) {
-            for (String streamName : streamNames) {
-                long streamId = metadata.getStreamSegmentId(streamName);
-                byte[] appendData = getAppendData(maxAppendLength);
-                entries.add(new StreamSegmentAppendOperation(streamId, appendData, getAppendContext(clients, (int) totalAppendSize)));
-                totalAppendSize += appendData.length;
-            }
-        }
-
-        if (sealAllStreams) {
-            for (String streamName : streamNames) {
-                long streamId = metadata.getStreamSegmentId(streamName);
-                entries.add(new StreamSegmentSealOperation(streamId));
-            }
-        }
-
-        AtomicLong processingEndTimeNanos = new AtomicLong(0);
-        //Add some appends
-        System.out.println("Queuing entries ...");
-        long produceStartNanos = System.nanoTime();
-        for (Operation entry : entries) {
-            CompletableFuture<Long> cf = qp.process(entry);
-            cf.thenAcceptAsync(seqNo -> {
-                if (seqNo >= entries.get(entries.size() - 1).getSequenceNumber()) {
-                    processingEndTimeNanos.set(System.nanoTime());
-                }
-            });
-
-            FutureHelpers.exceptionListener(cf, ex -> {
-                System.err.println(String.format("Operation '%s' failed.", entry));
-                System.err.println(ex);
-            });
-        }
-
-        long producingElapsedNanos = System.nanoTime() - produceStartNanos;
-
-        System.out.println("Finished producing.");
-
-        Thread.sleep(2000);
-        qp.stopAsync().awaitTerminated();
-        System.out.println("QueueProcessor stopped.");
-
-        printMetadata(metadata, streamNames);
-
-        long processingTimeElapsedMillis = (processingEndTimeNanos.get() - produceStartNanos) / 1000 / 1000;
-        double opsPerSecond = entries.size() / (processingTimeElapsedMillis / 1000.0);
-        double kbPerSecond = (totalAppendSize / 1024.0) / (processingTimeElapsedMillis / 1000.0);
-        System.out.println();
-        System.out.println(String.format("Elapsed time: CreateStreams = %dms, Produce = %dms, Processing = %dms. OPS/sec = %f, KB/s = %f",
-                createStreamsElapsedNanos / 1000 / 1000,
-                producingElapsedNanos / 1000 / 1000,
-                processingTimeElapsedMillis,
-                opsPerSecond,
-                kbPerSecond));
     }
 
     //region Helpers

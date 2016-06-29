@@ -20,7 +20,9 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.StreamSegmentException;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
+import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
@@ -175,15 +177,20 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * the pending transaction and it is updated accordingly (if needed).
      *
      * @param operation The operation to pre-process.
-     * @throws MetadataUpdateException      If the given operation was rejected given the current state of the metadata.
-     * @throws StreamSegmentSealedException If the given operation was for a StreamSegment that was previously sealed and
-     *                                      that is incompatible with a sealed stream
-     * @throws StreamSegmentMergedException If the given operation was for a StreamSegment that was previously merged.
-     * @throws NullPointerException         If the operation is null.
+     * @throws MetadataUpdateException         If the given operation was rejected given the current state of the metadata.
+     * @throws StreamSegmentNotExistsException If the given operation was for a StreamSegment that was is marked as deleted.
+     * @throws StreamSegmentSealedException    If the given operation was for a StreamSegment that was previously sealed and
+     *                                         that is incompatible with a sealed stream.
+     * @throws StreamSegmentMergedException    If the given operation was for a StreamSegment that was previously merged.
+     * @throws NullPointerException            If the operation is null.
      */
-    public void preProcessOperation(StorageOperation operation) throws MetadataUpdateException, StreamSegmentSealedException, StreamSegmentMergedException {
+    public void preProcessOperation(StorageOperation operation) throws MetadataUpdateException, StreamSegmentException {
         log.trace("{}: PreProcess {}.", this.traceObjectId, operation);
         TemporaryStreamSegmentMetadata streamMetadata = getCurrentTransaction().getStreamSegmentMetadata(operation.getStreamSegmentId());
+        if (streamMetadata.isDeleted()) {
+            throw new StreamSegmentNotExistsException(streamMetadata.getName());
+        }
+
         if (operation instanceof StreamSegmentAppendOperation) {
             streamMetadata.preProcessOperation((StreamSegmentAppendOperation) operation);
         } else if (operation instanceof StreamSegmentSealOperation) {
@@ -450,6 +457,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         private long currentDurableLogLength;
         private boolean sealed;
         private boolean merged;
+        private boolean deleted;
         private int changeCount;
 
         //endregion
@@ -469,6 +477,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             this.currentDurableLogLength = this.streamSegmentMetadata.getDurableLogLength();
             this.sealed = this.streamSegmentMetadata.isSealed();
             this.merged = this.streamSegmentMetadata.isMerged();
+            this.deleted = this.streamSegmentMetadata.isDeleted();
             this.changeCount = 0;
             this.lastCommittedAppends = new HashMap<>();
         }
@@ -489,7 +498,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         @Override
         public boolean isDeleted() {
-            return false;
+            return this.deleted;
         }
 
         @Override

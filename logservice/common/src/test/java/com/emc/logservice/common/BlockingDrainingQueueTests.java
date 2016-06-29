@@ -36,14 +36,13 @@ public class BlockingDrainingQueueTests {
     @Test
     public void testQueueDequeue() throws Exception {
         final int itemCount = 10;
-        try (BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>()) {
-            for (int i = 0; i < itemCount; i++) {
-                queue.add(i);
-                List<Integer> entries = queue.takeAllEntries();
-                Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
-                int value = entries.get(0);
-                Assert.assertEquals("Unexpected value polled from queue.", i, value);
-            }
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        for (int i = 0; i < itemCount; i++) {
+            queue.add(i);
+            List<Integer> entries = queue.takeAllEntries();
+            Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
+            int value = entries.get(0);
+            Assert.assertEquals("Unexpected value polled from queue.", i, value);
         }
     }
 
@@ -55,27 +54,26 @@ public class BlockingDrainingQueueTests {
         final int valueToQueue = 1234;
 
         AtomicReference<List<Integer>> result = new AtomicReference<>();
-        try (BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>()) {
-            CompletableFuture<Void> resultSet = new CompletableFuture<>();
-            Thread t = new Thread(() -> {
-                try {
-                    result.set(queue.takeAllEntries());
-                    resultSet.complete(null);
-                } catch (Exception ex) {
-                    resultSet.completeExceptionally(ex);
-                }
-            });
+        BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
+        CompletableFuture<Void> resultSet = new CompletableFuture<>();
+        Thread t = new Thread(() -> {
+            try {
+                result.set(queue.takeAllEntries());
+                resultSet.complete(null);
+            } catch (Exception ex) {
+                resultSet.completeExceptionally(ex);
+            }
+        });
 
-            t.start();
+        t.start();
 
-            // Verify the queue hasn't returned before we actually set the result.
-            Assert.assertNull("Queue unblocked before result was set.", result.get());
+        // Verify the queue hasn't returned before we actually set the result.
+        Assert.assertNull("Queue unblocked before result was set.", result.get());
 
-            // Queue the value
-            queue.add(valueToQueue);
+        // Queue the value
+        queue.add(valueToQueue);
 
-            resultSet.join();
-        }
+        resultSet.join();
 
         // Verify result.
         Assert.assertNotNull("Queue did not unblock after adding a value.", result.get());
@@ -106,13 +104,15 @@ public class BlockingDrainingQueueTests {
         // Verify the queue hasn't returned before we actually set the result.
         Assert.assertNull("Queue unblocked before result was set.", result.get());
         Thread.sleep(10);
-        queue.close();
+        List<Integer> queueContents = queue.close();
 
         // Verify result.
         AssertExtensions.assertThrows(
                 "Future was not cancelled with the correct exception.",
                 resultSet::join,
                 ex -> ex instanceof InterruptedException);
+
         Assert.assertNull("Queue returned an item even if it got closed.", result.get());
+        Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());
     }
 }

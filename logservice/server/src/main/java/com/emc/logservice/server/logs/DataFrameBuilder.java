@@ -132,7 +132,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // Discard any information that we have about this record (pretty much revert back to where startNewEntry() would have begun writing).
             // The try-catch inside handleDataFrameComplete() deals with the DataFrame-level handling; here we just deal with this LogItem.
             this.outputStream.discardRecord();
-            this.lastSerializedSequenceNumber = previousLastStartedSequenceNumber;
+            this.lastStartedSequenceNumber = previousLastStartedSequenceNumber;
             throw ex;
         }
 
@@ -157,7 +157,11 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // TODO: This looks like a place where some improvement can be made. In theory, we can try to write the frame
             // in parallel to us building the next frame. We need to watch out for cases when a frame fails to commit,
             // and how that affects future frames. That may complicate things here and in calling classes.
-            this.targetLog.append(dataFrame.getData(), DATA_FRAME_WRITE_TIMEOUT).get();
+            long frameSequence = this.targetLog.append(dataFrame.getData(), DATA_FRAME_WRITE_TIMEOUT).get();
+
+            // Need to assign the DataFrameSequence that we got back from the DataLog. This is used to record truncation markers.
+            dataFrame.setFrameSequence(frameSequence);
+            assert dataFrame.getPreviousFrameSequence() < frameSequence : "DataLog assigned non-monotonical sequence number";
         } catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
             // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to be discarded.

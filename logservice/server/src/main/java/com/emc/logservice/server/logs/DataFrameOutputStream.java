@@ -139,7 +139,11 @@ class DataFrameOutputStream extends OutputStream {
         this.currentFrame.seal();
 
         // Invoke the callback. At the end of this, the frame is committed so we can get rid of it.
-        this.dataFrameCompleteCallback.accept(this.currentFrame);
+        if (!this.currentFrame.isEmpty()) {
+            // Only flush something if it's not empty.
+            this.dataFrameCompleteCallback.accept(this.currentFrame);
+        }
+
         reset();
     }
 

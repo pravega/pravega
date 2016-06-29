@@ -28,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @param <T> The type of the items in the queue.
  */
-public class BlockingDrainingQueue<T> implements AutoCloseable {
+public class BlockingDrainingQueue<T> {
     //region Members
 
     private final ReentrantLock lock;
@@ -51,22 +51,28 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
 
     //endregion
 
-    //region AutoCloseable Implementation
+    //region Operations
 
-    @Override
-    public void close() {
-        if (!this.closed) {
-            this.closed = true;
-            lock.lock();
-            try {
+    /**
+     * Closes the queue and prevents any other access to it. Any blocked call to takeAllItems() will fail with InterruptedException.
+     *
+     * @return If the queue has any more items in it, these will be returned here. The items are guaranteed not to be
+     * returned both here and via takeAllItems().
+     */
+    public List<T> close() {
+        lock.lock();
+        try {
+            if (!this.closed) {
+                this.closed = true;
                 this.notEmpty.signal();
-            } finally {
-                lock.unlock();
+                return swapContents();
             }
+        } finally {
+            lock.unlock();
         }
-    }
 
-    //endregion
+        return new ArrayList<>();
+    }
 
     /**
      * Adds a new item to the queue.
@@ -75,15 +81,13 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
      * @throws ObjectClosedException If the Queue is closed.
      */
     public void add(T item) {
-        Exceptions.checkNotClosed(this.closed, this);
-
-        final ReentrantLock lock = this.lock;
-        lock.lock();
+        this.lock.lock();
         try {
+            Exceptions.checkNotClosed(this.closed, this);
             this.contents.add(item);
             this.notEmpty.signal();
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
     }
 
@@ -94,12 +98,13 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
      * @return All the items currently in the queue.
      * @throws ObjectClosedException If the Queue is closed.
      * @throws IllegalStateException If another call to takeAllEntries is in progress.
+     * @throws InterruptedException  If the call is waiting for an empty queue to become non-empty and the queue is closed
+     *                               while waiting.
      */
     public List<T> takeAllEntries() throws InterruptedException {
-        Exceptions.checkNotClosed(this.closed, this);
-        final ReentrantLock lock = this.lock;
-        lock.lock();
+        this.lock.lock();
         try {
+            Exceptions.checkNotClosed(this.closed, this);
             while (this.contents.isEmpty()) {
                 this.notEmpty.await();
                 if (this.closed) {
@@ -107,11 +112,17 @@ public class BlockingDrainingQueue<T> implements AutoCloseable {
                 }
             }
 
-            List<T> result = new ArrayList<>(this.contents);
-            this.contents.clear();
-            return result;
+            return swapContents();
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
     }
+
+    private List<T> swapContents() {
+        List<T> result = new ArrayList<>(this.contents);
+        this.contents.clear();
+        return result;
+    }
+
+    // endregion
 }
