@@ -43,17 +43,21 @@ import lombok.Cleanup;
 
 public class AppendEncodeDecodeTest {
 
-    private Level origionalLevel;
+    private final String testStream = "Test Stream Name";
+    private final CommandEncoder encoder = new CommandEncoder();
+    private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
+    private final CommandDecoder decoder = new CommandDecoder();
+    private Level origionalLogLevel;
 
     @Before
     public void setup() {
-        origionalLevel = ResourceLeakDetector.getLevel();
+        origionalLogLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
     }
 
     @After
     public void teardown() {
-        ResourceLeakDetector.setLevel(origionalLevel);
+        ResourceLeakDetector.setLevel(origionalLogLevel);
     }
 
     private final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
@@ -67,10 +71,6 @@ public class AppendEncodeDecodeTest {
         }
     }
 
-    private final String testStream = "Test Stream Name";
-    private final CommandEncoder encoder = new CommandEncoder();
-    private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
-    private final CommandDecoder decoder = new CommandDecoder();
 
     @Test(expected = IllegalStateException.class)
     public void testAppendWithoutSetup() throws Exception {
