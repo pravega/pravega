@@ -9,38 +9,38 @@ import com.emc.nautilus.streaming.Serializer;
 import com.emc.nautilus.streaming.TxFailedException;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
-	private final Serializer<Type> serializer;
-	private final SegmentOutputStream out;
-	private UUID txId;
+    private final Serializer<Type> serializer;
+    private final SegmentOutputStream out;
+    private final UUID txId;
 
-	SegmentTransactionImpl(UUID txId, SegmentOutputStream out, Serializer<Type> serializer) {
-		this.txId = txId;
-		this.out = out;
-		this.serializer = serializer;
-	}
+    SegmentTransactionImpl(UUID txId, SegmentOutputStream out, Serializer<Type> serializer) {
+        this.txId = txId;
+        this.out = out;
+        this.serializer = serializer;
+    }
 
-	@Override
-	public void publish(Type event) throws TxFailedException {
-		try {
-			ByteBuffer buffer = serializer.serialize(event);
-			out.write(buffer);
-		} catch (SegmentSealedExcepetion e) {
-			throw new TxFailedException();
-		}
-	}
+    @Override
+    public void publish(Type event) throws TxFailedException {
+        try {
+            ByteBuffer buffer = serializer.serialize(event);
+            out.write(buffer, null);
+        } catch (SegmentSealedExcepetion e) {
+            throw new TxFailedException();
+        }
+    }
 
-	@Override
-	public UUID getId() {
-		return txId;
-	}
+    @Override
+    public UUID getId() {
+        return txId;
+    }
 
-	@Override
-	public void flush() throws TxFailedException {
-		try {
-			out.flush();
-		} catch (SegmentSealedExcepetion e) {
-			throw new TxFailedException();
-		}
-	}
+    @Override
+    public void flush() throws TxFailedException {
+        try {
+            out.flush();
+        } catch (SegmentSealedExcepetion e) {
+            throw new TxFailedException();
+        }
+    }
 
 }

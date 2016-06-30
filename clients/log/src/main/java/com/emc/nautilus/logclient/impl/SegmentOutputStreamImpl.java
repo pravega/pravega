@@ -1,27 +1,12 @@
 package com.emc.nautilus.logclient.impl;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.*;
 
-import com.emc.nautilus.common.netty.ClientConnection;
-import com.emc.nautilus.common.netty.ConnectionFactory;
-import com.emc.nautilus.common.netty.ConnectionFailedException;
-import com.emc.nautilus.common.netty.FailingReplyProcessor;
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
-import com.emc.nautilus.common.netty.WireCommands.DataAppended;
-import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
-import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
-import com.emc.nautilus.common.netty.WireCommands.WrongHost;
+import com.emc.nautilus.common.netty.*;
+import com.emc.nautilus.common.netty.WireCommands.*;
 import com.emc.nautilus.common.utils.ReusableLatch;
 import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
@@ -45,11 +30,10 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	private static final class State {
 		private final Object lock = new Object();
 		private boolean closed = false;
-		private AckListener ackListener; // Held but never called
 		private ClientConnection connection;
 		private Exception exception = null;
 		private final ReusableLatch connectionSetup = new ReusableLatch();
-		private final ConcurrentSkipListSet<AppendData> inflight = new ConcurrentSkipListSet<>();
+		private final ConcurrentSkipListMap<AppendData,CompletableFuture<Void>> inflight = new ConcurrentSkipListMap<>();
 		private final ReusableLatch inflightEmpty = new ReusableLatch(true);
 		private long writeOffset = 0;
 
@@ -105,23 +89,23 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
-		private AppendData createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff) {
+		private AppendData createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff, CompletableFuture<Void> callback) {
 			synchronized (lock) {
 				writeOffset += buff.remaining();
 				AppendData append = new AppendData(connectionId, writeOffset, Unpooled.wrappedBuffer(buff));
 				inflightEmpty.reset();
-				inflight.add(append);
+				inflight.put(append, callback);
 				return append;
 			}
 		}
 
-		private List<AppendData> removeInflightBelow(long connectionOffset) {
+		private List<CompletableFuture<Void>> removeInflightBelow(long connectionOffset) {
 			synchronized (lock) {
-				ArrayList<AppendData> result = new ArrayList<>();
-				for (Iterator<AppendData> iter = inflight.iterator(); iter.hasNext();) {
-					AppendData append = iter.next();
-					if (append.getConnectionOffset() <= connectionOffset) {
-						result.add(append);
+				ArrayList<CompletableFuture<Void>> result = new ArrayList<>();
+				for (Iterator<Entry<AppendData, CompletableFuture<Void>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
+					Entry<AppendData, CompletableFuture<Void>> append = iter.next();
+					if (append.getKey().getConnectionOffset() <= connectionOffset) {
+						result.add(append.getValue());
 						iter.remove();
 					} else {
 						break;
@@ -136,19 +120,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 		private List<AppendData> getAllInflight() {
 			synchronized (lock) {
-				return new ArrayList<>(inflight);
-			}
-		}
-
-		private void setAckListener(AckListener callback) {
-			synchronized (lock) {
-				ackListener = callback;
-			}
-		}
-
-		private AckListener getAckListener() {
-			synchronized (lock) {
-				return ackListener;
+				return new ArrayList<>(inflight.keySet());
 			}
 		}
 
@@ -196,9 +168,10 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		}
 
 		private void ackUpTo(long ackLevel) {
-			AckListener ackListener = state.getAckListener();
-			for (AppendData toAck : state.removeInflightBelow(ackLevel)) {
-				ackListener.ack(toAck.getConnectionOffset());
+			for (CompletableFuture<Void> toAck : state.removeInflightBelow(ackLevel)) {
+				if (toAck != null) {
+					toAck.complete(null);
+				}
 			}
 		}
 
@@ -208,24 +181,17 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 	}
-
-	@Override
-	public void setWriteAckListener(AckListener callback) {
-		state.setAckListener(callback);
-	}
-
+	
 	@Override
 	@Synchronized
-	public long write(ByteBuffer buff) throws SegmentSealedExcepetion {
+	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedExcepetion {
 		if (state.isClosed()) {
 			throw new IllegalStateException("LogOutputStream was already closed");
 		}
 		
 		ClientConnection connection = connection();
-		AppendData append = state.createNewInflightAppend(connectionId, segment, buff);
+		AppendData append = state.createNewInflightAppend(connectionId, segment, buff, callback);
 		connection.send(append);
-		
-		return append.getConnectionOffset();
 	}
 
 	//TODO: This really needs to be fixed to have proper retry with backoff.

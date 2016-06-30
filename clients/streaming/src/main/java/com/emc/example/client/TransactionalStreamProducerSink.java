@@ -1,7 +1,5 @@
 package com.emc.example.client;
 
-import java.util.Map;
-
 import com.emc.example.client.dummy.RichSinkFunction;
 import com.emc.nautilus.streaming.Producer;
 import com.emc.nautilus.streaming.Transaction;
@@ -9,45 +7,45 @@ import com.emc.nautilus.streaming.TxFailedException;
 
 public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> // ...
 {
-	//
-	private Transaction<IN> openTxn;
-	Producer<IN> producer;
+    //
+    private Transaction<IN> openTxn;
+    Producer<IN> producer;
 
-	public void invoke(IN value) throws TxFailedException {
-		if (openTxn == null) {
-			openTxn = producer.startTransaction(60000);
-			
-		}
-		String routingKey = getRoutingKey(value);
-		openTxn.publish(routingKey, value);
-	}
+    public void invoke(IN value) throws TxFailedException {
+        if (openTxn == null) {
+            openTxn = producer.startTransaction(60000);
 
-	// ...
-	public void notifyCheckpointComplete() throws TxFailedException {
-			openTxn.commit();
-	}
+        }
+        String routingKey = getRoutingKey(value);
+        openTxn.publish(routingKey, value);
+    }
 
-	public byte[] snapshotState() {
-		return serializeOpenTxn();
-	}
+    // ...
+    public void notifyCheckpointComplete() throws TxFailedException {
+        openTxn.commit();
+    }
 
-	public void restoreState(byte[] state) {
-		restoreOpenTxn(state);
-	}
+    public byte[] snapshotState() {
+        return serializeOpenTxn();
+    }
 
-	// ...
-	private String getRoutingKey(IN value) {
-		// TODO Auto-generated method stub
-		return null;
-	}
+    public void restoreState(byte[] state) {
+        restoreOpenTxn(state);
+    }
 
-	private byte[] serializeOpenTxn() {
-		// TODO Auto-generated method stub
-		return null;
-	}
+    // ...
+    private String getRoutingKey(IN value) {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
-	private void restoreOpenTxn(byte[] state) {
-		// TODO Auto-generated method stub
+    private byte[] serializeOpenTxn() {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
-	}
+    private void restoreOpenTxn(byte[] state) {
+        // TODO Auto-generated method stub
+
+    }
 }
