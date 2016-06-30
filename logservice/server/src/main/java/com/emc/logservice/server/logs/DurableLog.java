@@ -43,7 +43,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -123,19 +122,24 @@ public class DurableLog extends AbstractService implements OperationLog {
     protected void doStart() {
         int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
 
-        // TODO: rework the startup process to run on a single thread in ExecutorService and get rid of CompletableFutures.
-        performRecovery()
-                .thenRun(this.operationProcessor::startAsync)
-                .thenRunAsync(this.operationProcessor::awaitRunning, this.executor)
-                .whenComplete((v, ex) -> {
-                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
-                    if (ex != null) {
-                        //TODO: we need to make sure we cleanup after ourselves. It's possible the operation processor is still running.
-                        notifyFailed(ex);
-                    } else {
-                        notifyStarted();
-                    }
-                });
+        this.executor.execute(() -> {
+            try {
+                performRecovery();
+                this.operationProcessor.startAsync().awaitRunning();
+            } catch (Exception ex) {
+                if (this.operationProcessor.isRunning()) {
+                    // Make sure we stop the operation processor if we started it.
+                    this.operationProcessor.stopAsync();
+                }
+
+                notifyFailed(ex);
+                return;
+            }
+
+            // If we got here, all is good. We were able to start successfully.
+            notifyStarted();
+            LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+        });
     }
 
     @Override
@@ -193,10 +197,16 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameSequenceNumber = {}).", this.traceObjectId, upToSequenceNumber, dataFrameSeqNo);
-        return this.dataFrameLog
-                .truncate(dataFrameSeqNo, timer.getRemaining()) // Truncate DataFrameLog.
-                .thenApply(r -> this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= upToSequenceNumber)) // Truncate InMemory Transaction Log.
-                .thenRun(() -> this.truncationMarkers.removeTruncationMarkers(upToSequenceNumber)); // Remove old truncation markers.
+
+        return snapshotMetadata()
+                .thenCompose(v -> this.dataFrameLog.truncate(dataFrameSeqNo, timer.getRemaining())) // Truncate DataFrameLog.
+                .thenRun(() -> {
+                    // Truncate InMemory Transaction Log.
+                    this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= upToSequenceNumber);
+
+                    // Remove old truncation markers.
+                    this.truncationMarkers.removeTruncationMarkers(upToSequenceNumber);
+                });
     }
 
     @Override
@@ -212,7 +222,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     //region Recovery
 
-    private CompletableFuture<Void> performRecovery() {
+    private void performRecovery() throws Exception {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
@@ -231,34 +241,23 @@ public class DurableLog extends AbstractService implements OperationLog {
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata, this.truncationMarkers);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
-        CompletableFuture<Void> result = this.dataFrameLog
-                .initialize(timer.getRemaining()) // Initialize DataFrameLog.
-                .thenRunAsync(() ->
-                {
-                    // Recover from DataFrameLog.
-                    try {
-                        recoverFromDataFrameLog(metadataUpdater);
-                    } catch (Exception ex) {
-                        throw new CompletionException(ex);
-                    }
-                }, this.executor);
-
-        // No need for error handling here. Any errors will be handles upstream, by whomever listens to our result.
-        // We must exit recovery mode when done, regardless of outcome.
-        result.whenComplete((r, ex) ->
-        {
+        boolean success = false;
+        try {
+            this.dataFrameLog.initialize(timer.getRemaining());
+            recoverFromDataFrameLog(metadataUpdater);
+            log.info("{} Recovery completed.", this.traceObjectId);
+            success = true;
+        } catch (Exception ex) {
+            log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
+            throw ex;
+        } finally {
+            // We must exit recovery mode when done, regardless of outcome.
             this.metadata.exitRecoveryMode();
             this.truncationMarkers.exitRecoveryMode();
-            this.memoryLogUpdater.exitRecoveryMode(this.metadata, ex == null);
-            if (ex == null) {
-                log.info("{} Recovery completed.", this.traceObjectId);
-            } else {
-                log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
-            }
-            LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
-        });
+            this.memoryLogUpdater.exitRecoveryMode(this.metadata, success);
+        }
 
-        return result;
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
     }
 
     private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
@@ -321,6 +320,11 @@ public class DurableLog extends AbstractService implements OperationLog {
     //endregion
 
     //region Helpers
+
+    private CompletableFuture<Void> snapshotMetadata() {
+
+        return CompletableFuture.completedFuture(null);
+    }
 
     private void ensureRunning() {
         Exceptions.checkNotClosed(this.closed, this);

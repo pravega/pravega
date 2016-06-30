@@ -71,8 +71,8 @@ public class TestDurableDataLog implements DurableDataLog {
     //region DurableDataLog Implementation
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
-        return this.wrappedLog.initialize(timeout);
+    public void initialize(Duration timeout) throws DurableDataLogException {
+        this.wrappedLog.initialize(timeout);
     }
 
     @Override
@@ -83,7 +83,7 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Void> truncate(long upToSequence, Duration timeout) {
+    public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
         return this.wrappedLog.truncate(upToSequence, timeout);
     }
 

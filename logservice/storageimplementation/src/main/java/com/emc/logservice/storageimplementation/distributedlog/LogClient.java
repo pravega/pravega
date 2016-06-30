@@ -34,8 +34,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 
 /**
  * General client for DistributedLog.
@@ -46,7 +44,7 @@ class LogClient implements AutoCloseable {
 
     private static final String DISTRIBUTED_LOG_URI_FORMAT = "distributedlog://%s:%d/%s";
     private final DistributedLogConfig config;
-    private final HashMap<String, CompletableFuture<LogHandle>> handles;
+    private final HashMap<String, LogHandle> handles;
     private final String clientId;
     private final URI namespaceUri;
     private final String traceObjectId;
@@ -85,22 +83,17 @@ class LogClient implements AutoCloseable {
     public void close() {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "close", this.closed);
         if (!this.closed) {
-            ArrayList<CompletableFuture<LogHandle>> handlesToClose;
+            ArrayList<LogHandle> handlesToClose;
             synchronized (this.handles) {
                 handlesToClose = new ArrayList<>(this.handles.values());
                 this.handles.clear();
             }
 
-            for (CompletableFuture<LogHandle> cf : handlesToClose) {
-                if (cf.isDone() && !cf.isCompletedExceptionally()) {
-                    LogHandle handle = null;
-                    try {
-                        handle = cf.join();
-                        handle.close();
-                    } catch (Exception ex) {
-                        String handleId = handle == null ? "(null)" : handle.getLogName();
-                        log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handleId, ex);
-                    }
+            for (LogHandle handle : handlesToClose) {
+                try {
+                    handle.close();
+                } catch (Exception ex) {
+                    log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handle == null ? "(null)" : handle.getLogName(), ex);
                 }
             }
 
@@ -168,8 +161,8 @@ class LogClient implements AutoCloseable {
      * the Future will contain the exception that caused the failure. All Log-related exceptions will inherit from the
      * DurableDataLogException class.
      */
-    public CompletableFuture<LogHandle> getLogHandle(String logName) {
-        CompletableFuture<LogHandle> handle;
+    public LogHandle getLogHandle(String logName) throws DurableDataLogException {
+        LogHandle handle;
         boolean newHandle = false;
         synchronized (this.handles) {
             // Try to get an existing handle.
@@ -178,37 +171,23 @@ class LogClient implements AutoCloseable {
             // If no such thing, create a new one and return the Future for it. As such, if we get concurrent requests
             // for the same log id, we will be not trying to create multiple such handles.
             if (handle == null) {
-                handle = createLogHandle(logName);
-                this.handles.put(logName, handle);
                 newHandle = true;
+                handle = new LogHandle(logName, this::handleLogHandleClosed);
+                try {
+                    this.handles.put(logName, handle);
+                    handle.initialize(this.namespace);
+                } catch (Exception ex) {
+                    handle.close();
+                    throw ex;
+                }
             }
         }
 
         if (newHandle) {
             log.trace("{} Registered handle for '{}'.", this.traceObjectId, logName);
-
-            // If we are creating a new handle and it failed, remove the "bad handle" from the map.
-            handle.whenComplete((result, ex) -> {
-                if (ex != null) {
-                    unregisterLogHandle(logName);
-                }
-            });
         }
 
         return handle;
-    }
-
-    private CompletableFuture<LogHandle> createLogHandle(String logId) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // Create a new handle, and pass in a callback so we unregister the handle when it's closed.
-                LogHandle handle = new LogHandle(logId, this::handleLogHandleClosed);
-                handle.initialize(this.namespace);
-                return handle;
-            } catch (DurableDataLogException ex) {
-                throw new CompletionException(ex);
-            }
-        });
     }
 
     private void handleLogHandleClosed(LogHandle handle) {

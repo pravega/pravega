@@ -88,7 +88,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
-        dataLog.initialize(TIMEOUT).join();
+        dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         operationProcessor.startAsync().awaitRunning();
@@ -142,7 +142,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
-        dataLog.initialize(TIMEOUT).join();
+        dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         operationProcessor.startAsync().awaitRunning();
@@ -231,7 +231,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
-        dataLog.initialize(TIMEOUT).join();
+        dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         operationProcessor.startAsync().awaitRunning();
@@ -293,7 +293,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
-        dataLog.initialize(TIMEOUT).join();
+        dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         operationProcessor.startAsync().awaitRunning();
@@ -351,7 +351,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Setup an OperationProcessor and start it.
         @Cleanup
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
-        dataLog.initialize(TIMEOUT).join();
+        dataLog.initialize(TIMEOUT);
         @Cleanup
         OperationProcessor operationProcessor = new OperationProcessor(CONTAINER_ID, metadataUpdater, logUpdater, dataLog);
         operationProcessor.startAsync().awaitRunning();

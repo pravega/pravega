@@ -30,18 +30,13 @@ import java.util.concurrent.CompletableFuture;
 public interface DurableDataLog extends AutoCloseable {
     /**
      * Initializes the DurableDataLog and performs any recovery steps that may be required.
-     * The exceptions that can be returned in the CompletableFuture (asynchronously) can be:
-     * <ul>
-     * <li>DataLogNotAvailableException - When it is not possible to reach the DataLog at the current time.
-     * <li>DataLogWriterNotPrimaryException - When the DurableDataLog could not acquire the exclusive write lock for its log.
-     * <li>DataLogInitializationException - When a general initialization failure occurred.
-     * </ul>
      *
      * @param timeout
-     * @return A CompletableFuture that, when completed, will indicate that the operation has completed. If the operation
-     * failed, this Future will complete with the appropriate exception.
+     * @throws DataLogNotAvailableException     When it is not possible to reach the DataLog at the current time.
+     * @throws DataLogWriterNotPrimaryException When the DurableDataLog could not acquire the exclusive write lock for its log.
+     * @throws DataLogInitializationException   When a general initialization failure occurred.
      */
-    CompletableFuture<Void> initialize(Duration timeout);
+    void initialize(Duration timeout) throws DurableDataLogException;
 
     /**
      * Adds a new entry to the log.
@@ -74,10 +69,11 @@ public interface DurableDataLog extends AutoCloseable {
      * @param upToSequence The Sequence up to where to truncate. This is the value returned either by append() or obtained
      *                     via read().
      * @param timeout      The timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the truncation completed. If the operation
-     * failed, this Future will complete with the appropriate exception.
+     * @return A CompletableFuture that, when completed, will indicate whether any truncation completed. If anything was
+     * truncated, the result of the Future will be 'true'; if no truncation was necessary, the result of the Future will
+     * be 'false'. If the operation failed, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Void> truncate(long upToSequence, Duration timeout);
+    CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout);
 
     /**
      * Reads a number of entries from the log.
@@ -85,7 +81,7 @@ public interface DurableDataLog extends AutoCloseable {
      * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return A CloseableIterator with the result.
      * @throws DataLogNotAvailableException If it is not possible to reach the DataLog at the current time.
-     * @throws DurableDataLogException If the operation was unable to open a reader.
+     * @throws DurableDataLogException      If the operation was unable to open a reader.
      */
     CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;
 

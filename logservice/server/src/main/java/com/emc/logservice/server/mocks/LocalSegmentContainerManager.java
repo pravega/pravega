@@ -86,9 +86,11 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
         // Close all containers that are still open.
         ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
-        ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
-        for (ContainerHandle handle : toClose) {
-            results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT).thenAccept(v -> unregisterHandle(handle)));
+        synchronized (this.handles) {
+            ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
+            for (ContainerHandle handle : toClose) {
+                results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT));
+            }
         }
 
         // Wait for all the containers to be closed.
@@ -119,21 +121,25 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     //region Helpers
 
     private void unregisterHandle(ContainerHandle handle) {
-        assert this.handles.containsKey(handle.getContainerId()) : "unregistered handle " + handle.getContainerId();
-        this.handles.remove(handle.getContainerId());
+        synchronized (this.handles) {
+            assert this.handles.containsKey(handle.getContainerId()) : "found unregistered handle " + handle.getContainerId();
+            this.handles.remove(handle.getContainerId());
+        }
+
         log.info("Container {} has been unregistered.", handle.getContainerId());
     }
 
     private void registerHandle(ContainerHandle handle) {
         assert handle != null : "handle is null.";
-        assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
-        this.handles.put(handle.getContainerId(), handle);
+        synchronized (this.handles) {
+            assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
+            this.handles.put(handle.getContainerId(), handle);
 
-        handle.setContainerStoppedListener(id -> {
-            log.error("Container {} has failed and is now in a Stopped state.", handle.getContainerId());
-            unregisterHandle(handle);
-            //TODO: need to restart container.
-        });
+            handle.setContainerStoppedListener(id -> {
+                unregisterHandle(handle);
+                //TODO: need to restart container.
+            });
+        }
 
         log.info("Container {} has been registered.", handle.getContainerId());
     }

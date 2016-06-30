@@ -46,7 +46,7 @@ public class InMemoryDurableDataLogTests {
      * Tests the ability to append to a DurableDataLog.
      */
     @Test
-    public void testAppend() {
+    public void testAppend() throws Exception{
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
@@ -54,7 +54,7 @@ public class InMemoryDurableDataLogTests {
                     () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
-            log.initialize(TIMEOUT).join();
+            log.initialize(TIMEOUT);
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
             long prevSeqNo = -1;
@@ -81,7 +81,7 @@ public class InMemoryDurableDataLogTests {
                     () -> log.getReader(0),
                     ex -> ex instanceof IllegalStateException);
 
-            log.initialize(TIMEOUT).join();
+            log.initialize(TIMEOUT);
             TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
 
             // Test reading after each sequence number that we got back.
@@ -109,7 +109,7 @@ public class InMemoryDurableDataLogTests {
                     () -> log.truncate(0, TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
-            log.initialize(TIMEOUT).join();
+            log.initialize(TIMEOUT);
             TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
             ArrayList<Long> seqNos = new ArrayList<>(writeData.keySet());
 
@@ -135,14 +135,14 @@ public class InMemoryDurableDataLogTests {
         InMemoryDurableDataLog.EntryCollection entries = new InMemoryDurableDataLog.EntryCollection();
 
         try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
-            log.initialize(TIMEOUT).join();
+            log.initialize(TIMEOUT);
 
             // 1. No two logs can use the same EntryCollection.
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
                     () -> {
                         try (DurableDataLog log2 = new InMemoryDurableDataLog(entries)) {
-                            log2.initialize(TIMEOUT).join();
+                            log2.initialize(TIMEOUT);
                         }
                     },
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
@@ -178,13 +178,13 @@ public class InMemoryDurableDataLogTests {
         TreeMap<Long, byte[]> writeData;
         // Create first log and write some data to it.
         try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
-            log.initialize(TIMEOUT).join();
+            log.initialize(TIMEOUT);
             writeData = populate(log, WRITE_COUNT);
         }
 
         // Close the first log, and open a second one, with the same EntryCollection in the constructor.
         try (DurableDataLog log = new InMemoryDurableDataLog(entries)) {
-            log.initialize(TIMEOUT).join();
+            log.initialize(TIMEOUT);
 
             // Verify it contains the same entries.
             testRead(log, -1, writeData);

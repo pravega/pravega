@@ -79,12 +79,13 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     @Override
     public void close() {
         if (!this.closed) {
-            // Mark the class as Closed first; this will prevent others from
+            // Mark the class as Closed first; this will prevent others from creating new containers.
             this.closed = true;
 
+            // Close all open containers and notify their handles - as this was an unrequested stop.
             ArrayList<ContainerWithHandle> toClose = new ArrayList<>(this.containers.values());
             for (ContainerWithHandle c : toClose) {
-                closeContainer(c, true);
+                c.container.close();
             }
 
             assert this.containers.size() == 0 : "Not all containers have been unregistered.";
@@ -129,11 +130,11 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         log.info("Registered SegmentContainer {}.", containerId);
 
-        // Attempt to Start the container.
-        ServiceShutdownListener failureListener = new ServiceShutdownListener(
-                () -> closeContainer(newContainer, true),
+        // Attempt to Start the container, but first, attach a shutdown listener so we know to unregister it when it's stopped.
+        ServiceShutdownListener shutdownListener = new ServiceShutdownListener(
+                () -> unregisterContainer(newContainer),
                 ex -> handleContainerFailure(newContainer, ex));
-        newContainer.container.addListener(failureListener, this.executor);
+        newContainer.container.addListener(shutdownListener, this.executor);
         newContainer.container.startAsync();
 
         return CompletableFuture.supplyAsync(
@@ -153,8 +154,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         // Stop the container and then unregister it.
         result.container.stopAsync();
-        return CompletableFuture.runAsync(result.container::awaitTerminated, this.executor)
-                                .thenRun(() -> closeContainer(result, false));
+        return CompletableFuture.runAsync(result.container::awaitTerminated, this.executor);
     }
 
     //endregion
@@ -168,19 +168,16 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     }
 
     private void handleContainerFailure(ContainerWithHandle containerWithHandle, Throwable exception) {
-        closeContainer(containerWithHandle, true);
+        unregisterContainer(containerWithHandle);
         log.error("Critical failure for SegmentContainer {}. {}", containerWithHandle, exception);
     }
 
-    private void closeContainer(ContainerWithHandle toClose, boolean notifyHandle) {
-        assert toClose != null : "toClose is null.";
-        toClose.container.close();
-        assert toClose.container.state() == Service.State.TERMINATED : "Container is not stopped.";
-        this.containers.remove(toClose.handle.getContainerId());
-        log.info("Unregistered SegmentContainer {}.", toClose.handle.getContainerId());
-        if (notifyHandle) {
-            toClose.handle.notifyContainerStopped();
-        }
+    private void unregisterContainer(ContainerWithHandle containerWithHandle) {
+        assert containerWithHandle != null : "containerWithHandle is null.";
+        assert containerWithHandle.container.state() == Service.State.TERMINATED : "Container is not stopped.";
+        this.containers.remove(containerWithHandle.handle.getContainerId());
+        containerWithHandle.handle.notifyContainerStopped();
+        log.info("Unregistered SegmentContainer {}.", containerWithHandle.handle.getContainerId());
     }
 
     //endregion
@@ -231,7 +228,8 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         }
 
         /**
-         * Notifies the Container Stopped Listener that the container for this handle has stopped processing.
+         * Notifies the Container Stopped Listener that the container for this handle has stopped processing,
+         * whether normally or via an exception.
          */
         void notifyContainerStopped() {
             Consumer<String> handler = containerStoppedListener;

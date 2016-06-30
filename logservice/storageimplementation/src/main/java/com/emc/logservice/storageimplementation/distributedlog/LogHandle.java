@@ -49,6 +49,7 @@ import com.twitter.distributedlog.util.FutureUtils;
 import com.twitter.util.Future;
 import com.twitter.util.FutureEventListener;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -309,13 +310,12 @@ class LogHandle implements AutoCloseable {
         return reader;
     }
 
-    public CompletableFuture<Void> truncate(long upToTransactionId, java.time.Duration timeout) {
+    public CompletableFuture<Boolean> truncate(long upToTransactionId, java.time.Duration timeout) {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
 
         log.info("{}: Truncate (TransactionId = {}.", this.logName, upToTransactionId);
-        //TODO: implement.
-        return null;
+        throw new NotImplementedException("Truncate has not yet been implemented.");
     }
 
     @Override

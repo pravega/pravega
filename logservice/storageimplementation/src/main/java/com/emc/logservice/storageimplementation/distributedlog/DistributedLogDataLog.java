@@ -74,11 +74,9 @@ class DistributedLogDataLog implements DurableDataLog {
     //region DurableDataLog Implementation
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
+    public void initialize(Duration timeout) throws DurableDataLogException {
         Preconditions.checkState(this.handle == null, "DistributedLogDataLog is already initialized.");
-        return this.client
-                .getLogHandle(this.logName)
-                .thenAccept(handle -> this.handle = handle);
+        this.handle = this.client.getLogHandle(this.logName);
     }
 
     @Override
@@ -88,7 +86,7 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Void> truncate(long upToSequence, Duration timeout) {
+    public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
         ensureInitialized();
         return this.handle.truncate(upToSequence, timeout);
     }

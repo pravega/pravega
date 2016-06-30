@@ -59,7 +59,7 @@ public class DataFrameBuilderTests {
         records.addAll(DataFrameTestHelpers.generateLogItems(100, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MAX_SIZE, records.size()));
 
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
-            dataLog.initialize(TIMEOUT).join();
+            dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -109,7 +109,7 @@ public class DataFrameBuilderTests {
         HashSet<Integer> failedIndices = new HashSet<>();
 
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
-            dataLog.initialize(TIMEOUT).join();
+            dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
             Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
@@ -151,7 +151,7 @@ public class DataFrameBuilderTests {
 
         HashSet<Integer> failedIndices = new HashSet<>();
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
-            dataLog.initialize(TIMEOUT).join();
+            dataLog.initialize(TIMEOUT);
 
             ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
                     count -> count % failSyncEvery == 0,
@@ -220,7 +220,7 @@ public class DataFrameBuilderTests {
     public void testClose() throws Exception {
         // Append two records, make sure they are not flushed, close the Builder, then make sure they are flushed.
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
-            dataLog.initialize(TIMEOUT).join();
+            dataLog.initialize(TIMEOUT);
 
             ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SMALL_RECORD_MIN_SIZE, SMALL_RECORD_MAX_SIZE, 0);
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();

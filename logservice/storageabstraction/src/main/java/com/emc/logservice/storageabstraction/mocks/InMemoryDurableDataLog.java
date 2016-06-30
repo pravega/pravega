@@ -71,25 +71,23 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Void> initialize(Duration timeout) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                this.entries.acquireLock(this.clientId);
-            } catch (DataLogWriterNotPrimaryException ex) {
-                throw new CompletionException(ex);
-            }
+    public void initialize(Duration timeout) {
+        try {
+            this.entries.acquireLock(this.clientId);
+        } catch (DataLogWriterNotPrimaryException ex) {
+            throw new CompletionException(ex);
+        }
 
-            if (this.entries.size() == 0) {
-                this.offset = 0;
-                this.lastAppendSequence = Long.MIN_VALUE;
-            } else {
-                Entry last = this.entries.getLast();
-                this.offset = last.sequenceNumber + last.data.length;
-                this.lastAppendSequence = last.sequenceNumber;
-            }
+        if (this.entries.size() == 0) {
+            this.offset = 0;
+            this.lastAppendSequence = Long.MIN_VALUE;
+        } else {
+            Entry last = this.entries.getLast();
+            this.offset = last.sequenceNumber + last.data.length;
+            this.lastAppendSequence = last.sequenceNumber;
+        }
 
-            this.initialized = true;
-        });
+        this.initialized = true;
     }
 
     @Override
@@ -128,17 +126,21 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Void> truncate(long upToSequence, Duration timeout) {
+    public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
         ensurePreconditions();
-        return CompletableFuture.runAsync(() -> {
+        return CompletableFuture.supplyAsync(() -> {
             synchronized (this.entries) {
+                boolean any = false;
                 while (this.entries.size() > 0 && this.entries.getFirst().sequenceNumber <= upToSequence) {
                     try {
                         this.entries.removeFirst(this.clientId);
+                        any = true;
                     } catch (DataLogWriterNotPrimaryException ex) {
                         throw new CompletionException(ex);
                     }
                 }
+
+                return any;
             }
         });
     }
