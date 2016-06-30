@@ -168,7 +168,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      */
     public void processMetadataOperation(MetadataOperation operation) throws MetadataUpdateException {
         Preconditions.checkState(this.metadata.isRecoveryMode(), "Cannot process MetadataOperation in non-recovery mode.");
-        log.trace("{}: PreProcess {}.", this.traceObjectId, operation);
+        log.trace("{}: Process {}.", this.traceObjectId, operation);
         getCurrentTransaction().processMetadataOperation(operation);
     }
 

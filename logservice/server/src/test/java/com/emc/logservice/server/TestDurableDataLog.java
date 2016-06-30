@@ -47,6 +47,7 @@ public class TestDurableDataLog implements DurableDataLog {
     private ErrorInjector<Exception> getReaderInitialErrorInjector;
     private ErrorInjector<Exception> readSyncErrorInjector;
     private Consumer<ReadItem> readInterceptor;
+    private Consumer<Long> truncateCallback;
 
     //endregion
 
@@ -84,7 +85,16 @@ public class TestDurableDataLog implements DurableDataLog {
 
     @Override
     public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
-        return this.wrappedLog.truncate(upToSequence, timeout);
+        Consumer<Long> truncateCallback = this.truncateCallback;
+        return this.wrappedLog
+                .truncate(upToSequence, timeout)
+                .thenApply(result -> {
+                    if (result && truncateCallback != null) {
+                        truncateCallback.accept(upToSequence);
+                    }
+
+                    return result;
+                });
     }
 
     @Override
@@ -106,6 +116,15 @@ public class TestDurableDataLog implements DurableDataLog {
     //endregion
 
     //region Test Helper Methods
+
+    /**
+     * Sets the Truncation callback, which will be called if a truncation actually happened.
+     *
+     * @param callback
+     */
+    public void setTruncateCallback(Consumer<Long> callback) {
+        this.truncateCallback = callback;
+    }
 
     /**
      * Sets the ErrorInjectors for append exceptions.

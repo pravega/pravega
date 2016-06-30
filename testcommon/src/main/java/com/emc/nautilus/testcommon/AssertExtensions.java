@@ -194,7 +194,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that expected > actual.
+     * Asserts that expected < actual.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The first value (larger).
@@ -205,7 +205,7 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that expected >= actual.
+     * Asserts that expected <= actual.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The first value (larger).

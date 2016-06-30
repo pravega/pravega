@@ -29,6 +29,7 @@ import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.ServiceShutdownListener;
+import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.TestDurableDataLog;
 import com.emc.logservice.server.TestDurableDataLogFactory;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
@@ -36,6 +37,7 @@ import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.OperationHelpers;
 import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
@@ -53,6 +55,7 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -116,7 +119,6 @@ public class DurableLogTests extends OperationLogTestBase {
         performReadIndexChecks(completionFutures, readIndex);
 
         // Stop the processor.
-        System.out.println("waiting to shut down");
         durableLog.stopAsync().awaitTerminated();
     }
 
@@ -599,19 +601,162 @@ public class DurableLogTests extends OperationLogTestBase {
     //endregion
 
     /**
-     * Tests the truncate() method prior to recovering the DurableLog.
+     * Tests the truncate() method without doing any recovery.
      */
     @Test
-    public void testTruncatePreRecovery() {
+    public void testTruncateWithoutRecovery() {
+        int streamSegmentCount = 50;
+        int appendsPerStreamSegment = 20;
 
+        // Setup a DurableLog and start it.
+        AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
+        AtomicReference<Boolean> truncationOccurred = new AtomicReference<>();
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), dataLog::set);
+        @Cleanup
+        Storage storage = new InMemoryStorage();
+        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+
+        @Cleanup
+        CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+        @Cleanup
+        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        // First DurableLog. We use this for generating data.
+        try (DurableLog durableLog = new DurableLog(metadata, dataLogFactory, readIndex, executorService.get())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Hook up a listener to figure out when truncation actually happens.
+            dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
+
+            // Generate some test data (we need to do this after we started the DurableLog because in the process of
+            // recovery, it wipes away all existing metadata).
+            HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata, durableLog, storage);
+            List<Operation> queuedOperations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, false, false);
+            List<LogTestHelpers.OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
+            LogTestHelpers.allOf(completionFutures).join();
+
+            // Get a list of all the operations, before truncation.
+            List<Operation> originalOperations = readAllDurableLog(durableLog);
+
+            // Truncate up to each operation and:
+            // * If the DataLog was truncated:
+            // ** Verify the appropriate operations were truncated from the DL
+            // At the end, verify all operations and all entries in the DataLog were truncated.
+            for (int i = 0; i < originalOperations.size(); i++) {
+                Operation currentOperation = originalOperations.get(i);
+                truncationOccurred.set(false);
+                durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT).join();
+                Iterator<Operation> reader = durableLog.read(-1, 1, TIMEOUT).join();
+                if (truncationOccurred.get()) {
+                    // Verify all operations up to, and including this one have been removed.
+                    if (i < originalOperations.size() - 1) {
+                        Assert.assertTrue("Not expecting an empty log after truncating the not-last Operation.", reader.hasNext());
+                        Operation firstOp = reader.next();
+                        OperationHelpers.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
+                    } else {
+                        Assert.assertFalse("Not expecting any items to be left in the log after truncating the last Operation.", reader.hasNext());
+                    }
+                } else {
+                    // Verify the Operation Log is still intact.
+                    Assert.assertTrue("No elements left in the log even though no truncation occurred.", reader.hasNext());
+                    Operation firstOp = reader.next();
+                    AssertExtensions.assertLessThanOrEqual("It appears that Operations were removed from the Log even though no truncation happened.", currentOperation.getSequenceNumber(), firstOp.getSequenceNumber());
+                }
+            }
+
+            // Verify that we can still queue operations to the DurableLog and they can be read.
+            // In this case we'll just queue some StreamSegmentMapOperations.
+            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(Integer.MAX_VALUE, new StreamSegmentInformation("foo", 0, false, false, new Date()));
+            durableLog.add(newOp, TIMEOUT).join();
+            List<Operation> newOperations = readAllDurableLog(durableLog);
+            Assert.assertEquals("Unexpected number of operations added after full truncation.", 1, newOperations.size());
+            Assert.assertEquals("Unexpected Operation encountered after full truncation.", newOp, newOperations.get(0));
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
+        }
     }
 
     /**
-     * Tests the truncate() method after recovering the DurableLog.
+     * Tests the truncate() method while performing recovery.
      */
-    @Test
-    public void testTruncatePostRecovery() {
+    //@Test
+    public void testTruncateWithRecovery() {
+        Assert.fail("Need to implement metadata checkpoint and fix truncation.");
+        int streamSegmentCount = 50;
+        int appendsPerStreamSegment = 20;
 
+        // Setup a DurableLog and start it.
+        AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
+        AtomicReference<Boolean> truncationOccurred = new AtomicReference<>();
+        @Cleanup
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), dataLog::set);
+        @Cleanup
+        Storage storage = new InMemoryStorage();
+        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+
+        @Cleanup
+        CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+
+        @Cleanup
+        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        HashSet<Long> streamSegmentIds;
+        List<LogTestHelpers.OperationWithCompletion> completionFutures;
+        List<Operation> originalOperations;
+
+        // First DurableLog. We use this for generating data.
+        try (DurableLog durableLog = new DurableLog(metadata, dataLogFactory, readIndex, executorService.get())) {
+            durableLog.startAsync().awaitRunning();
+
+            // Generate some test data (we need to do this after we started the DurableLog because in the process of
+            // recovery, it wipes away all existing metadata).
+            streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata, durableLog, storage);
+            List<Operation> queuedOperations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, false, false);
+            completionFutures = processOperations(queuedOperations, durableLog);
+            LogTestHelpers.allOf(completionFutures).join();
+
+            // Get a list of all the operations, before truncation.
+            originalOperations = readAllDurableLog(durableLog);
+
+            // Stop the processor.
+            durableLog.stopAsync().awaitTerminated();
+        }
+
+        // Truncate up to each operation and:
+        // * If the DataLog was truncated:
+        // ** Shut down DurableLog, re-start it (recovery) and verify the operations are as they should.
+        // At the end, verify all operations and all entries in the DataLog were truncated.
+        DurableLog durableLog = new DurableLog(metadata, dataLogFactory, readIndex, executorService.get());
+        try {
+            durableLog.startAsync().awaitRunning();
+            dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
+            for (int i = 0; i < originalOperations.size(); i++) {
+                Operation currentOperation = originalOperations.get(i);
+                truncationOccurred.set(false);
+                durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT).join();
+                Iterator<Operation> reader = durableLog.read(-1, 1, TIMEOUT).join();
+                if (truncationOccurred.get()) {
+                    // Close current DurableLog and start a brand new one, forcing recovery.
+                    durableLog.close();
+                    System.out.println("Recovery");
+                    durableLog = new DurableLog(metadata, dataLogFactory, readIndex, executorService.get());
+                    durableLog.startAsync().awaitRunning();
+                    dataLog.get().setTruncateCallback(seqNo -> truncationOccurred.set(true));
+
+                    // Verify all operations up to, and including this one have been removed.
+                    if (i < originalOperations.size() - 1) {
+                        Assert.assertTrue("Not expecting an empty log after truncating the not-last Operation.", reader.hasNext());
+                        Operation firstOp = reader.next();
+                        OperationHelpers.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
+                    } else {
+                        Assert.assertFalse("Not expecting any items to be left in the log after truncating the last Operation.", reader.hasNext());
+                    }
+                }
+            }
+        } finally {
+            // This closes whatever current instance this variable refers to, not necessarily the first one.
+            durableLog.close();
+        }
     }
 
     private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog) throws Exception {

@@ -322,7 +322,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region Helpers
 
     private CompletableFuture<Void> snapshotMetadata() {
-
+        // TODO: Implement properly. And include in Unit Tests.
         return CompletableFuture.completedFuture(null);
     }
 
