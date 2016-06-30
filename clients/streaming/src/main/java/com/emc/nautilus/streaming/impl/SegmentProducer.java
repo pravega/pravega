@@ -1,6 +1,7 @@
 package com.emc.nautilus.streaming.impl;
 
 import java.util.List;
+import java.util.concurrent.Future;
 
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 

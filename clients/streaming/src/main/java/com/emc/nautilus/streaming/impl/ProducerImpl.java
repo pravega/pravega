@@ -56,7 +56,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
 		for (SegmentId segment : newSegments) {
 			SegmentOutputStream log = logClient.openSegmentForAppending(segment.getQualifiedName(), config.getSegmentConfig());
-			producers.put(segment, new SegmentProducerImpl<Type>(log, serializer));
+			producers.put(segment, new SegmentProducerImpl<>(log, serializer));
 		}
 		List<Event<Type>> toResend = new ArrayList<>();
 		for (SegmentId l : oldLogs) {
@@ -78,7 +78,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 		}
 		CompletableFuture<Void> result = new CompletableFuture<>();
 		synchronized (producers) {
-			if (!attemptPublish(new Event<Type>(routingKey, event, result))) {
+			if (!attemptPublish(new Event<>(routingKey, event, result))) {
 				handleLogSealed();
 			}
 		}

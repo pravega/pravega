@@ -1,26 +1,17 @@
 package com.emc.nautilus.logclient;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
 // Defines a Log output stream.
 public abstract class SegmentOutputStream implements AutoCloseable {
-	@FunctionalInterface
-	public interface AckListener {
-		void ack(long connectionOffset);
-	}
-
 	/**
-	 * Sets the callback to invoke when acknowledgments arrive for appends. This
-	 * method should only be called once.
+	 * @param buff Data to be written
+	 * @param onComplete future to be completed when data has been replicated and stored durrabably.
+	 * @return 
 	 */
-	public abstract void setWriteAckListener(AckListener callback);
-
-	/**
-	 * @return the connectionOffset. This is the value that will be passed to
-	 *         the ack listener when the buffer has been durablably stored.
-	 */
-	public abstract long write(ByteBuffer buff) throws SegmentSealedExcepetion;
+	public abstract void write(ByteBuffer buff, CompletableFuture<Void> onComplete) throws SegmentSealedExcepetion;
 
 	@Override
 	public abstract void close() throws SegmentSealedExcepetion;

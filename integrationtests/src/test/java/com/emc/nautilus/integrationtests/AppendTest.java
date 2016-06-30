@@ -1,7 +1,5 @@
 package com.emc.nautilus.integrationtests;
 
-import static org.junit.Assert.assertEquals;
-
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -17,31 +15,19 @@ import org.junit.Test;
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
-import com.emc.logservice.serverhost.handler.AppendProcessor;
-import com.emc.logservice.serverhost.handler.LogServiceConnectionListener;
-import com.emc.logservice.serverhost.handler.LogServiceRequestProcessor;
-import com.emc.logservice.serverhost.handler.ServerConnectionInboundHandler;
-import com.emc.nautilus.common.netty.CommandDecoder;
-import com.emc.nautilus.common.netty.CommandEncoder;
-import com.emc.nautilus.common.netty.ConnectionFactory;
-import com.emc.nautilus.common.netty.Reply;
-import com.emc.nautilus.common.netty.Request;
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
-import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
-import com.emc.nautilus.common.netty.WireCommands.DataAppended;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
-import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import com.emc.logservice.serverhost.handler.*;
+import com.emc.nautilus.common.netty.*;
+import com.emc.nautilus.common.netty.WireCommands.*;
 import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
 import com.emc.nautilus.logclient.SegmentOutputStream;
-import com.emc.nautilus.logclient.SegmentOutputStream.AckListener;
 import com.emc.nautilus.logclient.impl.LogServiceClientImpl;
 import com.emc.nautilus.streaming.Producer;
 import com.emc.nautilus.streaming.ProducerConfig;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.impl.JavaSerializer;
 import com.emc.nautilus.streaming.impl.SingleSegmentStreamManagerImpl;
+
+import static org.junit.Assert.assertEquals;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -152,16 +138,10 @@ public class AppendTest {
 		logClient.createSegment(segmentName);
 		@Cleanup("close")
 		SegmentOutputStream out = logClient.openSegmentForAppending(segmentName, null);
-		CompletableFuture<Long> ack = new CompletableFuture<Long>();
-		out.setWriteAckListener(new AckListener() {
-			@Override
-			public void ack(long connectionOffset) {
-				ack.complete(connectionOffset);
-			}
-		});
-		out.write(ByteBuffer.wrap(testString.getBytes()));
+		CompletableFuture<Void> ack = new CompletableFuture<>();
+		out.write(ByteBuffer.wrap(testString.getBytes()), ack);
 		out.flush();
-		assertEquals(testString.length(), ack.get(5, TimeUnit.SECONDS).longValue());
+		assertEquals(null, ack.get(5, TimeUnit.SECONDS));
 	}
 
 	@Test

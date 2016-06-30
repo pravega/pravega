@@ -23,7 +23,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 	public void publish(Type event) throws TxFailedException {
 		try {
 			ByteBuffer buffer = serializer.serialize(event);
-			out.write(buffer);
+			out.write(buffer, null);
 		} catch (SegmentSealedExcepetion e) {
 			throw new TxFailedException();
 		}
