@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 /**
  * Service Listeners that invokes callbacks when the monitored service terminates or fails.
  */
-public class ServiceFailureListener extends Service.Listener {
+public class ServiceShutdownListener extends Service.Listener {
     //region Members
 
     private final Runnable terminatedCallback;
@@ -36,13 +36,13 @@ public class ServiceFailureListener extends Service.Listener {
     //region Constructor
 
     /**
-     * Creates a new instance of the ServiceFailureListener class.
+     * Creates a new instance of the ServiceShutdownListener class.
      *
      * @param terminatedCallback An optional callback that will be invoked when the monitored service terminates.
      * @param failureCallback    An optional callback that will be invoked when the monitored service fails. The argument
      *                           to this callback is the exception that caused the service to fail.
      */
-    public ServiceFailureListener(Runnable terminatedCallback, Consumer<Throwable> failureCallback) {
+    public ServiceShutdownListener(Runnable terminatedCallback, Consumer<Throwable> failureCallback) {
         this.terminatedCallback = terminatedCallback;
         this.failureCallback = failureCallback;
     }
@@ -60,6 +60,22 @@ public class ServiceFailureListener extends Service.Listener {
     public void failed(Service.State from, Throwable failure) {
         if (this.failureCallback != null) {
             this.failureCallback.accept(failure);
+        }
+    }
+
+    /**
+     * Awaits for the given Service to shut down, whether normally or exceptionally.
+     *
+     * @param service       The service to monitor.
+     * @param throwIfFailed Throw the resulting exception if the service ended up in a FAILED state.
+     */
+    public static void awaitShutdown(Service service, boolean throwIfFailed) {
+        try {
+            service.awaitTerminated();
+        } catch (IllegalStateException ex) {
+            if (throwIfFailed || service.state() != Service.State.FAILED) {
+                throw ex;
+            }
         }
     }
 }

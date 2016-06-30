@@ -33,7 +33,7 @@ import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.ServiceFailureListener;
+import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.logs.OperationLog;
@@ -100,7 +100,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.readIndex = cacheFactory.createCache(this.metadata);
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
-        this.durableLog.addListener(new ServiceFailureListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
+        this.durableLog.addListener(new ServiceShutdownListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
     }

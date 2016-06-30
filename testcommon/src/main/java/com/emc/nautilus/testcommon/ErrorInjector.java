@@ -57,7 +57,7 @@ public class ErrorInjector<TEx extends Throwable> {
      */
     private TEx generateExceptionIfNecessary() {
         this.lastCycleException = null;
-        if (countTrigger.test(this.count.getAndDecrement())) {
+        if (countTrigger.test(this.count.getAndIncrement())) {
             this.lastCycleException = errorGenerator.get();
             assert this.lastCycleException != null;
             return this.lastCycleException;

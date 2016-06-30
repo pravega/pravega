@@ -27,7 +27,7 @@ import com.emc.logservice.server.ContainerHandle;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.SegmentContainerFactory;
 import com.emc.logservice.server.SegmentContainerRegistry;
-import com.emc.logservice.server.ServiceFailureListener;
+import com.emc.logservice.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import lombok.extern.slf4j.Slf4j;
@@ -130,7 +130,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         log.info("Registered SegmentContainer {}.", containerId);
 
         // Attempt to Start the container.
-        ServiceFailureListener failureListener = new ServiceFailureListener(
+        ServiceShutdownListener failureListener = new ServiceShutdownListener(
                 () -> closeContainer(newContainer, true),
                 ex -> handleContainerFailure(newContainer, ex));
         newContainer.container.addListener(failureListener, this.executor);

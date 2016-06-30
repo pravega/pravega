@@ -5,6 +5,7 @@ import org.junit.Assert;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -152,12 +153,31 @@ public class AssertExtensions {
     }
 
     /**
+     * Asserts that the given lists contain equivalent elements (at the same indices), based on the given tester function.
+     *
+     * @param message  The message to include in the Assert calls.
+     * @param expected The list to check against.
+     * @param actual   The list to check.
+     * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each list are equivalent.
+     * @param <T>
+     */
+    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiConsumerWithMessage<T, T> tester) {
+        Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            T expectedItem = expected.get(i);
+            T actualItem = actual.get(i);
+            tester.accept(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), expectedItem, actualItem);
+        }
+    }
+
+    /**
      * Asserts that expected > actual.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The first value (smaller).
      * @param actual   The second value (larger).
      */
+
     public static void assertLessThan(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, expected, actual), expected > actual);
     }
@@ -229,5 +249,9 @@ public class AssertExtensions {
 
     public interface RunnableWithException {
         void run() throws Exception;
+    }
+
+    public interface BiConsumerWithMessage<T, U> {
+        void accept(String message, T var1, U var2);
     }
 }

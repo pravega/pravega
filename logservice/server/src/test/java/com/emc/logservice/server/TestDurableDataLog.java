@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static com.emc.nautilus.testcommon.ErrorInjector.throwAsyncExceptionIfNeeded;
 
@@ -45,6 +46,7 @@ public class TestDurableDataLog implements DurableDataLog {
     private ErrorInjector<Exception> appendAsyncErrorInjector;
     private ErrorInjector<Exception> getReaderInitialErrorInjector;
     private ErrorInjector<Exception> readSyncErrorInjector;
+    private Consumer<ReadItem> readInterceptor;
 
     //endregion
 
@@ -88,7 +90,7 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getReaderInitialErrorInjector);
-        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector);
+        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector, this.readInterceptor);
     }
 
     @Override
@@ -131,6 +133,15 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     /**
+     * Sets the Read Interceptor that will be called with every getNext() invocation from the iterator returned by getReader.
+     *
+     * @param interceptor
+     */
+    public void setReadInterceptor(Consumer<ReadItem> interceptor) {
+        this.readInterceptor = interceptor;
+    }
+
+    /**
      * Retrieves all the entries from the DurableDataLog and converts them to the desired type.
      *
      * @param converter
@@ -167,8 +178,18 @@ public class TestDurableDataLog implements DurableDataLog {
     public static TestDurableDataLog create(String containerId, int maxAppendSize) {
         try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize)) {
             DurableDataLog log = factory.createDurableDataLog(containerId);
-            return new TestDurableDataLog(log);
+            return create(log);
         }
+    }
+
+    /**
+     * Creates a new TestDurableDataLog wrapping the given one.
+     *
+     * @param wrappedLog
+     * @return
+     */
+    public static TestDurableDataLog create(DurableDataLog wrappedLog) {
+        return new TestDurableDataLog(wrappedLog);
     }
 
     //endregion
@@ -179,18 +200,25 @@ public class TestDurableDataLog implements DurableDataLog {
 
     private static class CloseableIteratorWrapper implements CloseableIterator<ReadItem, DurableDataLogException> {
         private final CloseableIterator<ReadItem, DurableDataLogException> innerIterator;
-        private final ErrorInjector<Exception> syncErrorInjector;
+        private final ErrorInjector<Exception> getNextErrorInjector;
+        private final Consumer<ReadItem> readInterceptor;
 
-        public CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> syncErrorInjector) {
+        public CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
             assert innerIterator != null;
             this.innerIterator = innerIterator;
-            this.syncErrorInjector = syncErrorInjector;
+            this.getNextErrorInjector = getNextErrorInjector;
+            this.readInterceptor = readInterceptor;
         }
 
         @Override
         public ReadItem getNext() throws DurableDataLogException {
-            ErrorInjector.throwSyncExceptionIfNeeded(syncErrorInjector);
-            return this.innerIterator.getNext();
+            ErrorInjector.throwSyncExceptionIfNeeded(getNextErrorInjector);
+            ReadItem readItem = this.innerIterator.getNext();
+            if (this.readInterceptor != null) {
+                this.readInterceptor.accept(readItem);
+            }
+
+            return readItem;
         }
 
         @Override

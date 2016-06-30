@@ -21,16 +21,19 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.StreamSegmentNameUtils;
 import com.emc.logservice.server.UpdateableContainerMetadata;
+import com.emc.logservice.server.containers.StreamSegmentMapper;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.logservice.storageabstraction.Storage;
 import com.google.common.collect.Iterators;
 import org.junit.Assert;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -70,6 +73,29 @@ public class LogTestHelpers {
     }
 
     /**
+     * Creates a number of StreamSegments in the given Metadata and OperationLog.
+     *
+     * @param streamSegmentCount
+     * @param containerMetadata
+     * @param durableLog
+     * @param storage
+     * @return
+     */
+    public static HashSet<Long> createStreamSegments(int streamSegmentCount, UpdateableContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage);
+        HashSet<Long> result = new HashSet<>();
+        for (int i = 0; i < streamSegmentCount; i++) {
+            String name = getStreamSegmentName(i);
+            long streamSegmentId = mapper
+                    .createNewStreamSegment(name, Duration.ZERO)
+                    .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
+            result.add(streamSegmentId);
+        }
+
+        return result;
+    }
+
+    /**
      * Updates the given Container Metadata to have a number of Batches mapped to the given StreamSegment Ids.
      *
      * @param streamSegmentIds
@@ -91,6 +117,23 @@ public class LogTestHelpers {
                 containerMetadata.mapStreamSegmentId(batchName, batchId, streamSegmentId);
                 containerMetadata.getStreamSegmentMetadata(batchId).setDurableLogLength(0);
                 containerMetadata.getStreamSegmentMetadata(batchId).setStorageLength(0);
+            }
+        }
+
+        return result;
+    }
+
+    public static AbstractMap<Long, Long> createBatches(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, UpdateableContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+        HashMap<Long, Long> result = new HashMap<>();
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage);
+        for (long streamSegmentId : streamSegmentIds) {
+            String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
+
+            for (int i = 0; i < batchesPerStreamSegment; i++) {
+                long batchId = mapper
+                        .createNewBatchStreamSegment(streamSegmentName, Duration.ZERO)
+                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
+                result.put(batchId, streamSegmentId);
             }
         }
 

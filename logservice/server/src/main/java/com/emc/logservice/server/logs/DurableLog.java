@@ -27,7 +27,7 @@ import com.emc.logservice.server.Cache;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.LogItemFactory;
-import com.emc.logservice.server.ServiceFailureListener;
+import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.MetadataOperation;
@@ -45,6 +45,7 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Represents an OperationLog that durably stores Log Operations it receives.
@@ -63,6 +64,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final UpdateableContainerMetadata metadata;
     private final TruncationMarkerCollection truncationMarkers;
     private final Executor executor;
+    private final AtomicReference<Throwable> stopException = new AtomicReference<>();
     private boolean closed;
 
     //endregion
@@ -94,7 +96,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
         this.operationProcessor = new OperationProcessor(this.metadata.getContainerId(), new OperationMetadataUpdater(this.metadata, this.truncationMarkers), this.memoryLogUpdater, this.dataFrameLog);
-        this.operationProcessor.addListener(new ServiceFailureListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
+        this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
     }
 
     //endregion
@@ -104,7 +106,9 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public void close() {
         if (!this.closed) {
-            stopAsync().awaitTerminated();
+            stopAsync();
+            ServiceShutdownListener.awaitShutdown(this, false);
+
             this.operationProcessor.close();
             this.dataFrameLog.close();
             this.closed = true;
@@ -118,6 +122,8 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStart() {
         int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+
+        // TODO: rework the startup process to run on a single thread in ExecutorService and get rid of CompletableFutures.
         performRecovery()
                 .thenRun(this.operationProcessor::startAsync)
                 .thenRunAsync(this.operationProcessor::awaitRunning, this.executor)
@@ -136,10 +142,24 @@ public class DurableLog extends AbstractService implements OperationLog {
     protected void doStop() {
         int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
         this.operationProcessor.stopAsync();
+
         this.executor.execute(() -> {
-            this.operationProcessor.awaitTerminated();
+            ServiceShutdownListener.awaitShutdown(this.operationProcessor, false);
+
+            Throwable cause = this.stopException.get();
+            if (cause == null && this.operationProcessor.state() == State.FAILED) {
+                cause = this.operationProcessor.failureCause();
+            }
+
+            if (cause == null) {
+                // Normal shutdown.
+                notifyStopped();
+            } else {
+                // Shutdown caused by some failure.
+                notifyFailed(cause);
+            }
+
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-            this.notifyStopped();
         });
     }
 
@@ -183,6 +203,8 @@ public class DurableLog extends AbstractService implements OperationLog {
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         ensureRunning();
         log.debug("{}: Read (AfterSequenceNumber = {}, MaxCount = {}).", this.traceObjectId, afterSequenceNumber, maxCount);
+        // TODO: have this Future block if we are trying to read at the very end of the log. We will need this once
+        // we implement the LogSynchronizer.
         return CompletableFuture.completedFuture(this.inMemoryOperationLog.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount));
     }
 
@@ -310,16 +332,16 @@ public class DurableLog extends AbstractService implements OperationLog {
     private void queueFailedHandler(Throwable cause) {
         // The Queue Processor failed. We need to shut down right away.
         log.warn("{}: QueueProcessor failed with exception {}", this.traceObjectId, cause);
-        stopAsync().awaitTerminated();
-        notifyFailed(cause);
+        this.stopException.set(cause);
+        stopAsync();
     }
 
     private void queueStoppedHandler() {
-        if (state() != State.STOPPING) {
+        if (state() != State.STOPPING && state() != State.FAILED) {
             // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
             log.warn("{}: QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping. Shutting down DurableLog.", this.traceObjectId);
-            stopAsync().awaitTerminated();
-            notifyFailed(new StreamingException("QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
+            this.stopException.set(new StreamingException("QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
+            stopAsync();
         }
     }
 

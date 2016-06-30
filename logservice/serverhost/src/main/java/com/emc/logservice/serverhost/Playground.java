@@ -34,27 +34,14 @@ import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
-import com.emc.logservice.server.containers.StreamSegmentMapper;
-import com.emc.logservice.server.logs.DurableLog;
 import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.logs.MemoryLogUpdater;
 import com.emc.logservice.server.logs.MemoryOperationLog;
-import com.emc.logservice.server.logs.operations.BatchMapOperation;
-import com.emc.logservice.server.logs.operations.MergeBatchOperation;
-import com.emc.logservice.server.logs.operations.MetadataOperation;
-import com.emc.logservice.server.logs.operations.MetadataPersistedOperation;
-import com.emc.logservice.server.logs.operations.Operation;
-import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
 import com.emc.logservice.server.reading.ReadIndex;
 import com.emc.logservice.server.reading.ReadIndexFactory;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
-import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
-import com.emc.logservice.storageabstraction.mocks.InMemoryStorage;
 import com.emc.logservice.storageabstraction.mocks.InMemoryStorageFactory;
 import org.slf4j.LoggerFactory;
 
@@ -63,12 +50,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -86,7 +71,6 @@ public class Playground {
         context.reset();
 
         //testStreamSegmentContainer();
-        testDurableLog();
         //testReadIndex();
     }
 
@@ -433,176 +417,6 @@ public class Playground {
         }
     }
 
-    private static void testDurableLog() throws Exception {
-        boolean isSynchronousAppend = false;
-        int maxAppendLength = 64 * 1024;
-        int streamCount = 50;
-        int appendsPerStream = 500;
-        int clientCount = 7;
-        boolean sealAllStreams = true;
-
-        ExecutorService es = Executors.newScheduledThreadPool(10);
-        try {
-            // Write a bunch of entries to DurableLog.
-
-            ArrayList<String> streamNames = new ArrayList<>();
-            ArrayList<Operation> writeEntries = new ArrayList<>();
-            HashMap<Long, ArrayList<StreamSegmentAppendOperation>> appendsByStream = new HashMap<>();
-            ConcurrentHashMap<Long, Long> latencies = new ConcurrentHashMap<>();
-            ArrayList<Operation> readEntries;
-            ArrayList<Operation> readEntriesAfterRecovery;
-            long createStreamsElapsedNanos;
-            long totalAppendSize = 0;
-            long writeTimeMillis;
-            long readElapsedMillis;
-
-            ArrayList<UUID> clients = generateClientIds(clientCount);
-            Storage storage = new InMemoryStorage();
-            StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            ReadIndex readIndex = new ReadIndex(metadata, CONTAINER_ID);
-            DurableDataLogFactory dataLogFactory = new InMemoryDurableDataLogFactory();
-            try (DurableLog dl = new DurableLog(metadata, dataLogFactory, readIndex, es)) {
-                StreamSegmentMapper streamSegmentMapper = new StreamSegmentMapper(metadata, dl, storage);
-
-                dl.startAsync().awaitRunning();
-
-                // Map the streams.
-                System.out.println("Creating streams ...");
-                long createStreamsStartNanos = System.nanoTime();
-                for (long streamId = 0; streamId < streamCount; streamId++) {
-                    String name = getStreamName((int) streamId);
-                    streamSegmentMapper.createNewStreamSegment(name, TIMEOUT).get();
-                    streamNames.add(name);
-                }
-
-                createStreamsElapsedNanos = System.nanoTime() - createStreamsStartNanos;
-
-                System.out.println("Generating entries ...");
-                for (int i = 0; i < appendsPerStream; i++) {
-                    for (String streamName : streamNames) {
-                        long streamId = metadata.getStreamSegmentId(streamName);
-                        byte[] appendData = getAppendData(maxAppendLength);
-                        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(streamId, appendData, getAppendContext(clients, (int) totalAppendSize));
-                        writeEntries.add(op);
-                        ArrayList<StreamSegmentAppendOperation> opList = appendsByStream.getOrDefault(streamId, null);
-                        if (opList == null) {
-                            opList = new ArrayList<>();
-                            appendsByStream.put(streamId, opList);
-                        }
-
-                        opList.add(op);
-                        totalAppendSize += appendData.length;
-                    }
-                }
-
-                if (sealAllStreams) {
-                    for (String streamName : streamNames) {
-                        long streamId = metadata.getStreamSegmentId(streamName);
-                        writeEntries.add(new StreamSegmentSealOperation(streamId));
-                    }
-                }
-
-                //Add some appends
-                System.out.println("Queuing entries ...");
-                long writeStartNanos = System.nanoTime();
-                ArrayList<CompletableFuture<Long>> entryResults = new ArrayList<>();
-                for (Operation entry : writeEntries) {
-                    long startNanos = System.nanoTime();
-                    CompletableFuture<Long> resultFuture = dl.add(entry, TIMEOUT);
-                    resultFuture.thenAcceptAsync(seqNo -> latencies.put(seqNo, System.nanoTime() - startNanos));
-                    entryResults.add(resultFuture);
-                    if (isSynchronousAppend) {
-                        resultFuture.get();
-                    }
-                }
-
-                // Wait for all the entries to complete...and there must be a more elegant way of doing this...
-                for (CompletableFuture<Long> er : entryResults) {
-                    er.get();
-                }
-
-                writeTimeMillis = (System.nanoTime() - writeStartNanos) / 1000 / 1000;
-                System.out.println("Finished producing.");
-
-                // Order write entries by seq no (this is the order in which they were processed).
-                sortOperationList(writeEntries);
-                appendsByStream.values().forEach(Playground::sortOperationList);
-
-                // Read from DurableLog.
-                System.out.println("Reading entries from DurableLog ...");
-                long readStartNanos = System.nanoTime();
-                readEntries = readDurableLog(dl);
-
-                readElapsedMillis = (System.nanoTime() - readStartNanos) / 1000 / 1000;
-                System.out.println("Finished reading.");
-
-                // Check readDurableLog result
-                if (!checkAndPrintComparison(writeEntries, 0, readEntries, streamCount)) {
-                    return;
-                }
-
-                System.out.println("DurableLog Read check complete.");
-
-                System.out.println("Reading entries from ReadIndex ...");
-                checkReadIndex(readIndex, appendsByStream);
-                System.out.println("Read index check complete.");
-
-                // Close DurableLog and create a new one (recover)
-                dl.stopAsync().awaitTerminated();
-            }
-
-            System.out.println("Performing recovery ...");
-            long recoveryStartNanos = System.nanoTime();
-            long recoveryElapsedMillis;
-            try (DurableLog dl = new DurableLog(metadata, dataLogFactory, readIndex, es)) {
-                dl.startAsync().awaitRunning();
-
-                recoveryElapsedMillis = (System.nanoTime() - recoveryStartNanos) / 1000 / 1000;
-                System.out.println("Finished recovery.");
-
-                // Read from DurableLog.
-                readEntriesAfterRecovery = readDurableLog(dl);
-                if (!checkAndPrintComparison(readEntries, 0, readEntriesAfterRecovery, 0)) {
-                    dl.close();
-                    return;
-                }
-
-                System.out.println("DurableLog Read (post recovery) check complete.");
-                checkReadIndex(readIndex, appendsByStream);
-                System.out.println("Read index (post recovery) check complete.");
-
-                dl.stopAsync().awaitTerminated();
-            }
-
-            printMetadata(metadata, streamNames, clients);
-
-            double writeOpsPerSecond = writeEntries.size() / (writeTimeMillis / 1000.0);
-            double writeKbPerSecond = (totalAppendSize / 1024.0) / (writeTimeMillis / 1000.0);
-            System.out.println();
-            System.out.println(String.format("Elapsed time: CreateStreams = %d ms, Write = %d ms, %f ops/s, %f KB/s, Read = %d ms, Recovery = %d ms",
-                    createStreamsElapsedNanos / 1000 / 1000,
-                    writeTimeMillis,
-                    writeOpsPerSecond,
-                    writeKbPerSecond,
-                    readElapsedMillis,
-                    recoveryElapsedMillis));
-
-            System.out.println();
-            long max = Long.MIN_VALUE;
-            long min = Long.MAX_VALUE;
-            long sum = 0;
-            for (long l : latencies.values()) {
-                sum += l;
-                max = Math.max(max, l);
-                min = Math.min(min, l);
-            }
-
-            System.out.println(String.format("Operation latencies: Count = %d, Avg = %f, Min = %d, Max = %d", latencies.size(), sum / latencies.size() / 1000 / 1000.0, min / 1000 / 1000, max / 1000 / 1000));
-        } finally {
-            es.shutdownNow();
-        }
-    }
-
     //region Helpers
 
     private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, Cache index, String expectedContents, boolean verbose) throws Exception {
@@ -639,79 +453,6 @@ public class Playground {
                         actual));
             }
         }
-    }
-
-    private static ArrayList<Operation> readDurableLog(DurableLog dl) throws Exception {
-        ArrayList<Operation> readEntries = new ArrayList<>();
-        long lastReadSequence = -1;
-        while (true) {
-            Iterator<Operation> readResult = dl.read(lastReadSequence, 100, TIMEOUT).get();
-            int readCount = 0;
-            if (readResult != null) {
-                while (readResult.hasNext()) {
-                    Operation entry = readResult.next();
-                    readEntries.add(entry);
-                    lastReadSequence = entry.getSequenceNumber();
-                    readCount++;
-                }
-            }
-
-            if (readCount == 0) {
-                break;
-            }
-        }
-
-        return readEntries;
-    }
-
-    private static void checkReadIndex(ReadIndex readIndex, HashMap<Long, ArrayList<StreamSegmentAppendOperation>> appendsByStream) throws Exception {
-        for (long streamId : appendsByStream.keySet()) {
-            ArrayList<StreamSegmentAppendOperation> appends = appendsByStream.get(streamId);
-            for (StreamSegmentAppendOperation append : appends) {
-                ReadResult readResult = readIndex.read(streamId, append.getStreamSegmentOffset(), append.getData().length, Duration.ZERO);
-                if (!readResult.hasNext()) {
-                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. No data returned by read index.", streamId, append.getStreamSegmentOffset(), append.getData().length));
-                    break;
-                }
-                ReadResultEntry entry = readResult.next();
-                if (entry.isEndOfStreamSegment()) {
-                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. Read Index indicates end of stream, but it shouldn't be.", streamId, append.getStreamSegmentOffset(), append.getData().length));
-                    break;
-                }
-                if (!entry.getContent().isDone()) {
-                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. Read Index returned a non-completed entry, which is unexpected for a memory read.", streamId, append.getStreamSegmentOffset(), append.getData().length));
-                    break;
-                }
-
-                ReadResultEntryContents entryContents = entry.getContent().get();
-                byte[] readData = new byte[entryContents.getLength()];
-                StreamHelpers.readAll(entryContents.getData(), readData, 0, readData.length);
-                if (!areEqual(append.getData(), readData)) {
-                    System.out.println(String.format("Read check failed. StreamId = %d, Offset = %d, ReadLength = %d. Unexpected result (Length = %d).", streamId, append.getStreamSegmentOffset(), append.getData().length, readData.length));
-                    break;
-                }
-            }
-        }
-    }
-
-    private static boolean checkAndPrintComparison(ArrayList<Operation> expected, int expectedOffset, ArrayList<Operation> actual, int actualOffset) throws Exception {
-        // Check readDurableLog result
-        if (expected.size() - expectedOffset != actual.size() - actualOffset) {
-            System.out.println(String.format("Expected entry count != actual entry count. Expected %d, actual %d.", expected.size() - expectedOffset, actual.size() - actualOffset));
-            return false;
-        }
-
-        int maxCount = Math.min(expected.size() - expectedOffset, actual.size() - actualOffset);
-        for (int i = 0; i < maxCount; i++) {
-            Operation e = expected.get(i + expectedOffset);
-            Operation a = actual.get(i + actualOffset);
-            if (!areEqual(e, a)) {
-                System.out.println(String.format("Entry mismatch. Expected %s, actual %s.", expected, actual));
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static void printMetadata(UpdateableContainerMetadata metadata, Collection<String> streamNames) {
@@ -755,19 +496,8 @@ public class Playground {
         return "/foo/foo." + index + ".stream";
     }
 
-    private static byte[] getAppendData(int maxAppendLength) {
-        // TODO: try to use from the same buffer.
-        byte[] b = new byte[Math.max(1, RANDOM.nextInt(maxAppendLength))];
-        RANDOM.nextBytes(b);
-        return b;
-    }
-
     private static String getAppendString(byte[] data) {
         return new String(data);
-    }
-
-    private static <T extends Operation> void sortOperationList(ArrayList<T> operations) {
-        operations.sort((o1, o2) -> (int) (o1.getSequenceNumber() - o2.getSequenceNumber()));
     }
 
     private static ArrayList<UUID> generateClientIds(int count) {
@@ -782,67 +512,6 @@ public class Playground {
     private static AppendContext getAppendContext(ArrayList<UUID> clientIds, int index) {
         UUID clientId = clientIds.get(index % clientIds.size());
         return new AppendContext(clientId, index);
-    }
-
-    private static boolean areEqual(Operation entry1, Operation entry2) throws Exception {
-        if (!entry1.getClass().equals(entry2.getClass())) {
-            return false;
-        }
-
-        if (entry1.getSequenceNumber() != entry2.getSequenceNumber()) {
-            return false;
-        }
-
-        if (entry1 instanceof StorageOperation) {
-            if (entry1 instanceof StreamSegmentSealOperation) {
-                return areEqual((StreamSegmentSealOperation) entry1, (StreamSegmentSealOperation) entry2);
-            } else if (entry1 instanceof StreamSegmentAppendOperation) {
-                return areEqual((StreamSegmentAppendOperation) entry1, (StreamSegmentAppendOperation) entry2);
-            } else if (entry1 instanceof MergeBatchOperation) {
-                return areEqual((MergeBatchOperation) entry1, (MergeBatchOperation) entry2);
-            }
-        } else if (entry1 instanceof MetadataOperation) {
-            if (entry1 instanceof MetadataPersistedOperation) {
-                // nothing special here
-                return true;
-            } else if (entry1 instanceof StreamSegmentMapOperation) {
-                return areEqual((StreamSegmentMapOperation) entry1, (StreamSegmentMapOperation) entry2);
-            } else if (entry1 instanceof BatchMapOperation) {
-                return areEqual((BatchMapOperation) entry1, (BatchMapOperation) entry2);
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean areEqual(StreamSegmentSealOperation e1, StreamSegmentSealOperation e2) {
-        return e1.getStreamSegmentId() == e2.getStreamSegmentId()
-                && e1.getStreamSegmentLength() == e2.getStreamSegmentLength();
-    }
-
-    private static boolean areEqual(StreamSegmentAppendOperation e1, StreamSegmentAppendOperation e2) {
-        return e1.getStreamSegmentId() == e2.getStreamSegmentId()
-                && e1.getStreamSegmentOffset() == e2.getStreamSegmentOffset()
-                && areEqual(e1.getData(), e2.getData());
-    }
-
-    private static boolean areEqual(MergeBatchOperation e1, MergeBatchOperation e2) {
-        return e1.getBatchStreamSegmentId() == e2.getBatchStreamSegmentId()
-                && e1.getBatchStreamSegmentLength() == e2.getBatchStreamSegmentLength()
-                && e1.getStreamSegmentId() == e2.getStreamSegmentId()
-                && e1.getTargetStreamSegmentOffset() == e2.getTargetStreamSegmentOffset();
-    }
-
-    private static boolean areEqual(StreamSegmentMapOperation e1, StreamSegmentMapOperation e2) {
-        return e1.getStreamSegmentId() == e2.getStreamSegmentId()
-                && e1.getStreamSegmentLength() == e2.getStreamSegmentLength()
-                && e1.getStreamSegmentName().equals(e2.getStreamSegmentName());
-    }
-
-    private static boolean areEqual(BatchMapOperation e1, BatchMapOperation e2) {
-        return e1.getBatchStreamSegmentId() == e1.getBatchStreamSegmentId()
-                && e1.getBatchStreamSegmentName().equals(e2.getBatchStreamSegmentName())
-                && e1.getParentStreamSegmentId() == e2.getParentStreamSegmentId();
     }
 
     private static boolean areEqual(byte[] b1, byte[] b2) {

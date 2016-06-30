@@ -25,6 +25,8 @@ import com.emc.logservice.contracts.RuntimeStreamingException;
 import com.emc.logservice.server.Container;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
+import com.emc.logservice.server.IllegalContainerStateException;
+import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.logs.operations.CompletableOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StorageOperation;
@@ -85,13 +87,8 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
 
     @Override
     public void close() {
-        this.stopAsync();
-        if (this.state() == State.TERMINATED || this.state() == State.FAILED) {
-            // Already terminated.
-            return;
-        }
-
-        this.awaitTerminated();
+        stopAsync();
+        ServiceShutdownListener.awaitShutdown(this, false);
     }
 
     //endregion
@@ -150,10 +147,13 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * @return A CompletableFuture that, when completed, will indicate the Operation has finished processing. If the
      * Operation completed successfully, the Future will contain the Sequence Number of the Operation. If the Operation
      * failed, it will contain the exception that caused the failure.
-     * @throws IllegalStateException If the OperationProcessor is not running.
+     * @throws IllegalContainerStateException If the OperationProcessor is not running.
      */
     public CompletableFuture<Long> process(Operation operation) {
-        Preconditions.checkState(isRunning(), "OperationProcessor is not running.");
+        if (!isRunning()) {
+            throw new IllegalContainerStateException("OperationProcessor is not running.");
+        }
+
         log.debug("{}: process {}.", this.traceObjectId, operation);
         CompletableFuture<Long> result = new CompletableFuture<>();
         this.operationQueue.add(new CompletableOperation(operation, result));

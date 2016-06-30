@@ -18,16 +18,13 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.contracts.ReadResult;
-import com.emc.logservice.contracts.ReadResultEntryContents;
 import com.emc.logservice.contracts.StreamSegmentException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.server.Cache;
 import com.emc.logservice.server.DataCorruptionException;
-import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
-import com.emc.logservice.server.ServiceHelpers;
+import com.emc.logservice.server.IllegalContainerStateException;
+import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.TestDurableDataLog;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
@@ -46,10 +43,7 @@ import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,18 +51,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 /**
  * Unit tests for OperationProcessor class.
  */
-public class OperationProcessorTests {
+public class OperationProcessorTests extends OperationLogTestBase {
     private static final String CONTAINER_ID = "TestContainer";
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
@@ -376,11 +366,10 @@ public class OperationProcessorTests {
                 ex -> ex instanceof DataCorruptionException);
 
         // Wait for the service to fail (and make sure it failed).
-        CompletableFuture<Void> serviceShutDown = ServiceHelpers.awaitShutDown(operationProcessor);
         AssertExtensions.assertThrows(
                 "Operation Processor did not shut down with failure.",
-                serviceShutDown::join,
-                ex -> true);
+                () -> ServiceShutdownListener.awaitShutdown(operationProcessor, true),
+                ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected service state after encountering DataCorruptionException.", Service.State.FAILED, operationProcessor.state());
 
         // Verify that the "right" operations failed, while the others succeeded.
@@ -410,15 +399,16 @@ public class OperationProcessorTests {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for intentionally failed Operation.",
                         oc.completion::join,
-                        ex -> ex instanceof DataCorruptionException);
+                        ex -> ex instanceof DataCorruptionException
+                                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException)));
                 encounteredFirstFailure = true;
             } else {
                 AssertExtensions.assertThrows(
                         "Unexpected exception for failed Operation.",
                         oc.completion::join,
                         ex -> ex instanceof DataCorruptionException
-                                || ex instanceof IllegalStateException
-                                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalStateException)));
+                                || ex instanceof IllegalContainerStateException
+                                || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException)));
             }
         }
 
@@ -475,90 +465,6 @@ public class OperationProcessorTests {
             }
 
             lastReadResult = readResult;
-        }
-    }
-
-    private void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> batches, Collection<LogTestHelpers.OperationWithCompletion> operations, SegmentMetadataCollection metadata, boolean expectBatchesMerged, boolean expectSegmentsSealed) {
-        // Verify that batches are merged
-        for (long batchId : batches.keySet()) {
-            SegmentMetadata batchMetadata = metadata.getStreamSegmentMetadata(batchId);
-            if (invalidStreamSegmentIds.contains(batchId)) {
-                Assert.assertTrue("Unexpected data for a Batch that was invalid.", batchMetadata == null || batchMetadata.getDurableLogLength() == 0);
-            } else {
-                Assert.assertEquals("Unexpected batch seal state for batch " + batchId, expectBatchesMerged, batchMetadata.isSealed());
-                Assert.assertEquals("Unexpected batch merge state for batch " + batchId, expectBatchesMerged, batchMetadata.isMerged());
-            }
-        }
-
-        // Verify the end state of each stream segment (length, sealed).
-        AbstractMap<Long, Integer> expectedLengths = LogTestHelpers.getExpectedLengths(operations);
-        for (long streamSegmentId : streamSegmentIds) {
-            SegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(streamSegmentId);
-            if (invalidStreamSegmentIds.contains(streamSegmentId)) {
-                Assert.assertTrue("Unexpected data for a StreamSegment that was invalid.", segmentMetadata == null || segmentMetadata.getDurableLogLength() == 0);
-            } else {
-                Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId, expectSegmentsSealed, segmentMetadata.isSealed());
-                Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId, (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
-            }
-        }
-    }
-
-    private void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, Cache readIndex) throws Exception {
-        AbstractMap<Long, Integer> expectedLengths = LogTestHelpers.getExpectedLengths(operations);
-        AbstractMap<Long, InputStream> expectedData = LogTestHelpers.getExpectedContents(operations);
-        for (Map.Entry<Long, InputStream> e : expectedData.entrySet()) {
-            int expectedLength = expectedLengths.getOrDefault(e.getKey(), -1);
-            @Cleanup
-            ReadResult readResult = readIndex.read(e.getKey(), 0, expectedLength, TIMEOUT);
-            int readLength = 0;
-            while (readResult.hasNext()) {
-                ReadResultEntryContents entry = readResult.next().getContent().join();
-                int length = entry.getLength();
-                readLength += length;
-                int streamSegmentOffset = expectedLengths.getOrDefault(e.getKey(), 0);
-                expectedLengths.put(e.getKey(), streamSegmentOffset + length);
-                AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. StreamSegmentId = %d, Offset = %d.", e.getKey(), streamSegmentOffset), e.getValue(), entry.getData(), length);
-            }
-
-            Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(), expectedLength, readLength);
-        }
-    }
-
-    private static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
-        private final boolean failAtBeginning;
-
-        public FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
-            super(base.getStreamSegmentId(), base.getData(), base.getAppendContext());
-            this.failAtBeginning = failAtBeginning;
-        }
-
-        @Override
-        protected void serializeContent(DataOutputStream target) throws IOException {
-            if (!this.failAtBeginning) {
-                super.serializeContent(target);
-            }
-
-            throw new IOException("intentional failure");
-        }
-    }
-
-    private static class CorruptedMemoryOperationLog extends MemoryOperationLog {
-        private final long corruptAtIndex;
-        private final AtomicLong addCount;
-
-        public CorruptedMemoryOperationLog(int corruptAtIndex) {
-            this.corruptAtIndex = corruptAtIndex;
-            this.addCount = new AtomicLong();
-        }
-
-        @Override
-        public boolean addIf(Operation item, Predicate<Operation> lastItemChecker) {
-            if (this.addCount.incrementAndGet() == this.corruptAtIndex) {
-                // Still add the item, but report that we haven't added it.
-                return false;
-            }
-
-            return super.addIf(item, lastItemChecker);
         }
     }
 }
