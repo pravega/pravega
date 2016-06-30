@@ -9,15 +9,14 @@ public interface ClientConnection {
 	 * @throws ConnectionFailedException The connection has died, and can no
 	 *             longer be used.
 	 */
-	void send(WireCommand cmd); //TODO: Should throw ConnectionFailedException
+	void send(WireCommand cmd); // TODO: Should throw ConnectionFailedException
 
 	/**
-	 * @param cp Sets the command processor to receive incoming replies from
-	 *            the server. This method may only be
-	 *            called once.
+	 * @param cp Sets the command processor to receive incoming replies from the
+	 *            server. This method may only be called once.
 	 */
 	void setResponseProcessor(ReplyProcessor cp);
-	
+
 	/**
 	 * Drop the connection. No further operations may be performed.
 	 */

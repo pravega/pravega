@@ -11,7 +11,7 @@ import com.emc.nautilus.streaming.TxFailedException;
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 	private final Serializer<Type> serializer;
 	private final SegmentOutputStream out;
-	private UUID txId;
+	private final UUID txId;
 
 	SegmentTransactionImpl(UUID txId, SegmentOutputStream out, Serializer<Type> serializer) {
 		this.txId = txId;

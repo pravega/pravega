@@ -38,8 +38,8 @@ public class SegmentId {
 	}
 
 	/**
-	 * @return True if this segment is a replacement or partial replacement for the
-	 *         one passed.
+	 * @return True if this segment is a replacement or partial replacement for
+	 *         the one passed.
 	 */
 	public boolean succeeds(SegmentId other) {
 		return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && name.equals(other.name)

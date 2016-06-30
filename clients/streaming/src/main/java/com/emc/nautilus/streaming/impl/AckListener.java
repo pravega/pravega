@@ -4,5 +4,5 @@ package com.emc.nautilus.streaming.impl;
 public interface AckListener {
 
 	void ack(String eventId);
-	
+
 }

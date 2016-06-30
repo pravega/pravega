@@ -1,21 +1,12 @@
 package com.emc.nautilus.streaming.impl;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.emc.nautilus.logclient.EndOfSegmentException;
 import com.emc.nautilus.logclient.LogServiceClient;
 import com.emc.nautilus.logclient.SegmentInputStream;
-import com.emc.nautilus.streaming.Consumer;
-import com.emc.nautilus.streaming.ConsumerConfig;
-import com.emc.nautilus.streaming.Position;
-import com.emc.nautilus.streaming.RateChangeListener;
-import com.emc.nautilus.streaming.SegmentId;
-import com.emc.nautilus.streaming.Serializer;
-import com.emc.nautilus.streaming.Stream;
+import com.emc.nautilus.streaming.*;
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
@@ -26,8 +17,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 	private final Orderer<Type> orderer;
 	private final RateChangeListener rateChangeListener;
 	private final ConsumerConfig config;
-	private List<SegmentConsumer<Type>> consumers = new ArrayList<>();
-	private Map<SegmentId, Long> futureOwnedLogs;
+	private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
+	private final Map<SegmentId, Long> futureOwnedLogs;
 
 	ConsumerImpl(Stream stream, LogServiceClient logClient, Serializer<Type> deserializer, PositionImpl position,
 			Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
@@ -65,7 +56,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 		if (replacment.isPresent()) {
 			SegmentId segmentId = replacment.get();
 			Long position = futureOwnedLogs.remove(segmentId);
-			SegmentInputStream in = logServiceClient.openLogForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
+			SegmentInputStream in = logServiceClient.openLogForReading(	segmentId.getQualifiedName(),
+																		config.getSegmentConfig());
 			in.setOffset(position);
 			consumers.add(new LogConsumerImpl<Type>(segmentId, in, deserializer));
 			rateChangeListener.rateChanged(stream, false);
@@ -78,7 +70,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 	public Position getPosition() {
 		synchronized (consumers) {
 			Map<SegmentId, Long> positions = consumers.stream()
-					.collect(Collectors.toMap(e -> e.getLogId(), e -> e.getOffset()));
+				.collect(Collectors.toMap(e -> e.getLogId(), e -> e.getOffset()));
 			return new PositionImpl(positions, futureOwnedLogs);
 		}
 	}
@@ -91,7 +83,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 	@Override
 	public void setPosition(Position state) {
 		synchronized (consumers) {
-		// TODO Auto-generated method stub
+			// TODO Auto-generated method stub
 		}
 	}
 

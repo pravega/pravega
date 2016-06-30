@@ -1,11 +1,6 @@
 package com.emc.nautilus.streaming.impl;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.nio.ByteBuffer;
 
 import com.emc.nautilus.streaming.Serializer;
@@ -29,7 +24,8 @@ public class JavaSerializer<T extends Serializable> implements Serializer<T> {
 
 	@Override
 	public T deserialize(ByteBuffer serializedValue) {
-		ByteArrayInputStream bin = new ByteArrayInputStream(serializedValue.array(), serializedValue.position(),
+		ByteArrayInputStream bin = new ByteArrayInputStream(serializedValue.array(),
+				serializedValue.position(),
 				serializedValue.remaining());
 		ObjectInputStream oin;
 		try {

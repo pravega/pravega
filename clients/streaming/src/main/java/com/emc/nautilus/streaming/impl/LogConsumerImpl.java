@@ -22,7 +22,7 @@ public class LogConsumerImpl<Type> implements SegmentConsumer<Type> {
 	@Override
 	public Type getNextEvent(long timeout) throws EndOfSegmentException {
 		ByteBuffer buffer;
-		synchronized (in) { //TODO: This implementation sucks.
+		synchronized (in) { // TODO: This implementation sucks.
 			buffer = ByteBuffer.allocate(4);
 			in.read(buffer);
 			int length = buffer.getInt();

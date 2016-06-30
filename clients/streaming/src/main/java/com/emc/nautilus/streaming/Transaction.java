@@ -6,8 +6,12 @@ public interface Transaction<Type> {
 		OPEN,
 		DROPPED
 	}
+
 	void publish(String routingKey, Type event) throws TxFailedException;
+
 	void commit() throws TxFailedException;
+
 	void drop();
+
 	Status checkStatus();
 }

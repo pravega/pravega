@@ -28,7 +28,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
 	public void publish(Event<Type> m) throws SegmentSealedExcepetion {
 		checkSealedAndClosed();
 		ByteBuffer buffer = serializer.serialize(m.getValue());
-		out.write(buffer, m.getCallback());			
+		out.write(buffer, m.getCallback());
 		outstanding.add(m);
 	}
 

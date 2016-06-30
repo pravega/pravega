@@ -1,7 +1,5 @@
 package com.emc.example.client;
 
-import java.util.Map;
-
 import com.emc.example.client.dummy.RichSinkFunction;
 import com.emc.nautilus.streaming.Producer;
 import com.emc.nautilus.streaming.Transaction;
@@ -16,7 +14,7 @@ public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> //
 	public void invoke(IN value) throws TxFailedException {
 		if (openTxn == null) {
 			openTxn = producer.startTransaction(60000);
-			
+
 		}
 		String routingKey = getRoutingKey(value);
 		openTxn.publish(routingKey, value);
@@ -24,7 +22,7 @@ public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> //
 
 	// ...
 	public void notifyCheckpointComplete() throws TxFailedException {
-			openTxn.commit();
+		openTxn.commit();
 	}
 
 	public byte[] snapshotState() {

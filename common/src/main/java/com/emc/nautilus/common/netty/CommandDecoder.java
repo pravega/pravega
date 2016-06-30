@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class CommandDecoder extends ByteToMessageDecoder {
-	
+
 	private UUID connectionId;
 	private long connectionOffset;
 	private ByteBuf appendHeader;

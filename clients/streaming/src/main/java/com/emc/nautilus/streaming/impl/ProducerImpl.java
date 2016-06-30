@@ -1,10 +1,6 @@
 package com.emc.nautilus.streaming.impl;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -12,15 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.emc.nautilus.logclient.LogServiceClient;
 import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
-import com.emc.nautilus.streaming.EventRouter;
-import com.emc.nautilus.streaming.Producer;
-import com.emc.nautilus.streaming.ProducerConfig;
-import com.emc.nautilus.streaming.SegmentId;
-import com.emc.nautilus.streaming.Serializer;
-import com.emc.nautilus.streaming.Stream;
-import com.emc.nautilus.streaming.StreamSegments;
-import com.emc.nautilus.streaming.Transaction;
-import com.emc.nautilus.streaming.TxFailedException;
+import com.emc.nautilus.streaming.*;
 
 public class ProducerImpl<Type> implements Producer<Type> {
 
@@ -55,7 +43,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
 		oldLogs.removeAll(logs.segments);
 
 		for (SegmentId segment : newSegments) {
-			SegmentOutputStream log = logClient.openSegmentForAppending(segment.getQualifiedName(), config.getSegmentConfig());
+			SegmentOutputStream log = logClient.openSegmentForAppending(segment.getQualifiedName(),
+																		config.getSegmentConfig());
 			producers.put(segment, new SegmentProducerImpl<>(log, serializer));
 		}
 		List<Event<Type>> toResend = new ArrayList<>();
@@ -122,7 +111,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 	private class TransactionImpl implements Transaction<Type> {
 
 		private final Map<SegmentId, SegmentTransaction<Type>> inner;
-		private UUID txId;
+		private final UUID txId;
 
 		TransactionImpl(UUID txId, Map<SegmentId, SegmentTransaction<Type>> transactions) {
 			this.txId = txId;
@@ -160,7 +149,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 	public Transaction<Type> startTransaction(long timeout) {
 		UUID txId = txManager.createTransaction(stream, timeout);
 		Map<SegmentId, SegmentTransaction<Type>> transactions = new HashMap<>();
-		ArrayList<SegmentId> segmentIds;  
+		ArrayList<SegmentId> segmentIds;
 		synchronized (producers) {
 			segmentIds = new ArrayList<>(producers.keySet());
 		}

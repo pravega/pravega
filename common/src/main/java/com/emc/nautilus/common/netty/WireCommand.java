@@ -5,5 +5,6 @@ import java.io.IOException;
 
 public interface WireCommand {
 	WireCommands.Type getType();
+
 	void writeFields(DataOutput out) throws IOException;
 }

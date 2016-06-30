@@ -3,18 +3,7 @@ package com.emc.nautilus.streaming.impl;
 import java.util.Collections;
 
 import com.emc.nautilus.logclient.LogServiceClient;
-import com.emc.nautilus.streaming.Consumer;
-import com.emc.nautilus.streaming.ConsumerConfig;
-import com.emc.nautilus.streaming.EventRouter;
-import com.emc.nautilus.streaming.SegmentId;
-import com.emc.nautilus.streaming.Position;
-import com.emc.nautilus.streaming.Producer;
-import com.emc.nautilus.streaming.ProducerConfig;
-import com.emc.nautilus.streaming.RateChangeListener;
-import com.emc.nautilus.streaming.Serializer;
-import com.emc.nautilus.streaming.Stream;
-import com.emc.nautilus.streaming.StreamConfiguration;
-import com.emc.nautilus.streaming.StreamSegments;
+import com.emc.nautilus.streaming.*;
 
 import lombok.Getter;
 
@@ -33,7 +22,7 @@ public class SingleSegmentStreamImpl implements Stream {
 			return logId;
 		}
 	};
-	
+
 	public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config, LogServiceClient logClient) {
 		this.scope = scope;
 		this.name = name;
@@ -41,7 +30,6 @@ public class SingleSegmentStreamImpl implements Stream {
 		this.logClient = logClient;
 		this.logId = new SegmentId(scope, name, 1, 0);
 	}
-	
 
 	@Override
 	public StreamSegments getSegments(long time) {
@@ -67,7 +55,8 @@ public class SingleSegmentStreamImpl implements Stream {
 	public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
 			RateChangeListener l) {
 		return null;
-		//return new ConsumerImpl<>(this, logClient, s, startingPosition, orderer, l, config);
+		// return new ConsumerImpl<>(this, logClient, s, startingPosition,
+		// orderer, l, config);
 	}
 
 }

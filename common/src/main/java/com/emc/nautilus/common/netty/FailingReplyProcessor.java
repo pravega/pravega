@@ -1,20 +1,6 @@
 package com.emc.nautilus.common.netty;
 
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
-import com.emc.nautilus.common.netty.WireCommands.BatchCreated;
-import com.emc.nautilus.common.netty.WireCommands.BatchMerged;
-import com.emc.nautilus.common.netty.WireCommands.DataAppended;
-import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
-import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
-import com.emc.nautilus.common.netty.WireCommands.SegmentDeleted;
-import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
-import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
-import com.emc.nautilus.common.netty.WireCommands.SegmentSealed;
-import com.emc.nautilus.common.netty.WireCommands.StreamSegmentInfo;
-import com.emc.nautilus.common.netty.WireCommands.WrongHost;
+import com.emc.nautilus.common.netty.WireCommands.*;
 
 public class FailingReplyProcessor implements ReplyProcessor {
 
@@ -27,7 +13,7 @@ public class FailingReplyProcessor implements ReplyProcessor {
 	public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
 		throw new IllegalStateException("Unexpected operation");
 	}
-	
+
 	@Override
 	public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
 		throw new IllegalStateException("Unexpected operation");
