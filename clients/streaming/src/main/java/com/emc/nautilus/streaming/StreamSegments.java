@@ -6,6 +6,6 @@ import lombok.Data;
 
 @Data
 public class StreamSegments {
-	public final List<SegmentId> segments;
-	public final long time;
+    public final List<SegmentId> segments;
+    public final long time;
 }

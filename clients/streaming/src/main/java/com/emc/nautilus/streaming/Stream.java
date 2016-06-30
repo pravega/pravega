@@ -1,18 +1,18 @@
 package com.emc.nautilus.streaming;
 
 public interface Stream {
-	String getName();
+    String getName();
 
-	StreamConfiguration getConfig();
+    StreamConfiguration getConfig();
 
-	StreamSegments getSegments(long time);
+    StreamSegments getSegments(long time);
 
-	StreamSegments getLatestSegments();
+    StreamSegments getLatestSegments();
 
-	long getRate(long time);
+    long getRate(long time);
 
-	<T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
+    <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
 
-	<T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
-			RateChangeListener l);
+    <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
+            RateChangeListener l);
 }

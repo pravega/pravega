@@ -6,9 +6,9 @@ import com.emc.nautilus.logclient.SegmentInputConfiguration;
 
 public class ConsumerConfig implements Serializable {
 
-	public SegmentInputConfiguration getSegmentConfig() {
-		// TODO Auto-generated method stub
-		return null;
-	}
+    public SegmentInputConfiguration getSegmentConfig() {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
 }

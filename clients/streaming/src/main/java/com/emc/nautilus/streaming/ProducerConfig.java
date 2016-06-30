@@ -9,6 +9,6 @@ import lombok.Data;
 @Data
 public class ProducerConfig implements Serializable {
 
-	private final SegmentOutputConfiguration segmentConfig;
+    private final SegmentOutputConfiguration segmentConfig;
 
 }

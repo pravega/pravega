@@ -4,11 +4,11 @@ import lombok.Data;
 
 @Data
 public class ScalingingPolicy { // TODO
-	enum Type {
-		FIXED,
-		BY_RATE
-	}
+    enum Type {
+        FIXED,
+        BY_RATE
+    }
 
-	private final Type type;
-	private final long value;
+    private final Type type;
+    private final long value;
 }

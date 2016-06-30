@@ -1,7 +1,7 @@
 package com.emc.nautilus.streaming;
 
 public interface StreamConfiguration {
-	String getName();
+    String getName();
 
-	ScalingingPolicy getScalingingPolicy();
+    ScalingingPolicy getScalingingPolicy();
 }

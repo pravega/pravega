@@ -9,29 +9,29 @@ import com.emc.nautilus.streaming.SegmentId;
 
 public class PositionImpl implements Position {
 
-	private final Map<SegmentId, Long> ownedLogs;
-	private final Map<SegmentId, Long> futureOwnedLogs;
+    private final Map<SegmentId, Long> ownedLogs;
+    private final Map<SegmentId, Long> futureOwnedLogs;
 
-	PositionImpl(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
-		this.ownedLogs = ownedLogs;
-		this.futureOwnedLogs = futureOwnedLogs;
-	}
+    PositionImpl(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
+        this.ownedLogs = ownedLogs;
+        this.futureOwnedLogs = futureOwnedLogs;
+    }
 
-	Set<SegmentId> getOwnedSegments() {
-		return Collections.unmodifiableSet(ownedLogs.keySet());
-	}
+    Set<SegmentId> getOwnedSegments() {
+        return Collections.unmodifiableSet(ownedLogs.keySet());
+    }
 
-	Long getOffsetForOwnedLog(SegmentId log) {
-		return ownedLogs.get(log);
-	}
+    Long getOffsetForOwnedLog(SegmentId log) {
+        return ownedLogs.get(log);
+    }
 
-	@Override
-	public PositionImpl asImpl() {
-		return this;
-	}
+    @Override
+    public PositionImpl asImpl() {
+        return this;
+    }
 
-	public Map<SegmentId, Long> getFutureOwnedLogs() {
-		return Collections.unmodifiableMap(futureOwnedLogs);
-	}
+    public Map<SegmentId, Long> getFutureOwnedLogs() {
+        return Collections.unmodifiableMap(futureOwnedLogs);
+    }
 
 }

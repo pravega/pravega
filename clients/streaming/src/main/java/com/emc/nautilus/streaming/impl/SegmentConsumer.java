@@ -4,13 +4,13 @@ import com.emc.nautilus.logclient.EndOfSegmentException;
 import com.emc.nautilus.streaming.SegmentId;
 
 public interface SegmentConsumer<Type> {
-	SegmentId getLogId();
+    SegmentId getLogId();
 
-	Type getNextEvent(long timeout) throws EndOfSegmentException;
+    Type getNextEvent(long timeout) throws EndOfSegmentException;
 
-	long getOffset();
+    long getOffset();
 
-	void setOffset(long offset);
+    void setOffset(long offset);
 
-	void close();
+    void close();
 }

@@ -5,8 +5,8 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 public class LogIdTest {
-	@Test
-	void testSucceeds() {
-		fail();
-	}
+    @Test
+    void testSucceeds() {
+        fail();
+    }
 }

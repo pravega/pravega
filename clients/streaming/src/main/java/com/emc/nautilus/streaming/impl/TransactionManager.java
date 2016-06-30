@@ -8,12 +8,12 @@ import com.emc.nautilus.streaming.TxFailedException;
 
 public interface TransactionManager {
 
-	UUID createTransaction(Stream s, long timeout);
+    UUID createTransaction(Stream s, long timeout);
 
-	void commitTransaction(UUID txId) throws TxFailedException;
+    void commitTransaction(UUID txId) throws TxFailedException;
 
-	boolean dropTransaction(UUID txId);
+    boolean dropTransaction(UUID txId);
 
-	Transaction.Status checkTransactionStatus(UUID txId);
+    Transaction.Status checkTransactionStatus(UUID txId);
 
 }

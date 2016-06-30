@@ -5,14 +5,14 @@ import java.util.List;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 
 public interface SegmentProducer<Type> {
-	void publish(Event<Type> m) throws SegmentSealedExcepetion;
+    void publish(Event<Type> m) throws SegmentSealedExcepetion;
 
-	void flush() throws SegmentSealedExcepetion; // Block on all outstanding
-												 // writes.
+    void flush() throws SegmentSealedExcepetion; // Block on all outstanding
+                                                 // writes.
 
-	void close() throws SegmentSealedExcepetion;
+    void close() throws SegmentSealedExcepetion;
 
-	boolean isAlreadySealed();
+    boolean isAlreadySealed();
 
-	List<Event<Type>> getUnackedEvents();
+    List<Event<Type>> getUnackedEvents();
 }
