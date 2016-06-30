@@ -18,7 +18,7 @@
 
 package com.emc.logservice.storageabstraction.mocks;
 
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 
@@ -42,9 +42,7 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
 
     @Override
     public DurableDataLog createDurableDataLog(String containerId) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
 
         InMemoryDurableDataLog.EntryCollection entries;
         synchronized (this.persistedData) {

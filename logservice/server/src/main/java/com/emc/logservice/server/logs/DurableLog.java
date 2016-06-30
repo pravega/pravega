@@ -21,8 +21,7 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.LoggerHelpers;
 import com.emc.logservice.common.TimeoutTimer;
-import com.emc.logservice.contracts.StreamSegmentMergedException;
-import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.contracts.StreamSegmentException;
 import com.emc.logservice.contracts.StreamingException;
 import com.emc.logservice.server.Cache;
 import com.emc.logservice.server.DataCorruptionException;
@@ -281,7 +280,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                         metadataUpdater.preProcessOperation((StorageOperation) operation);
                         metadataUpdater.acceptOperation((StorageOperation) operation);
                     }
-                } catch (StreamSegmentSealedException | StreamSegmentMergedException | MetadataUpdateException ex) {
+                } catch (StreamSegmentException | MetadataUpdateException ex) {
                     // Metadata updates failures should not happen during recovery.
                     throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
                 }

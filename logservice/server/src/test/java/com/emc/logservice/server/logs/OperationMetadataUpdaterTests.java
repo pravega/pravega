@@ -20,6 +20,7 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
+import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.server.SegmentMetadata;
 import com.emc.logservice.server.StreamSegmentInformation;
@@ -60,7 +61,8 @@ public class OperationMetadataUpdaterTests {
     private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
 
     /**
-     * Tests the behavior of preProcessOperation and acceptOperation when encountering an invalid StreamSegmentId.
+     * Tests the behavior of preProcessOperation and acceptOperation when encountering an invalid StreamSegmentId, or
+     * when encountering a StreamSegment Id for a deleted StreamSegment.
      *
      * @throws Exception
      */
@@ -84,6 +86,17 @@ public class OperationMetadataUpdaterTests {
                     "Unexpected behavior from acceptOperation when processing an operation for a non-existent Segment: " + op,
                     () -> updater.acceptOperation(op),
                     ex -> ex instanceof MetadataUpdateException);
+        }
+
+        // If the StreamSegment was previously marked as deleted.
+        metadata.mapStreamSegmentId("foo", SEGMENT_ID);
+        metadata.getStreamSegmentMetadata(SEGMENT_ID).markDeleted();
+
+        for (StorageOperation op : testOperations) {
+            AssertExtensions.assertThrows(
+                    "Unexpected behavior from preProcessOperation when processing an operation for deleted Segment: " + op,
+                    () -> updater.preProcessOperation(op),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
 

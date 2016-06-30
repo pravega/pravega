@@ -18,6 +18,8 @@
 
 package com.emc.logservice.server;
 
+import com.emc.logservice.contracts.RuntimeStreamingException;
+
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -47,6 +49,7 @@ public class ExceptionHelpers {
     private static boolean canInspectCause(Throwable ex) {
         return ex instanceof CompletionException
                 || ex instanceof ExecutionException
-                || ex instanceof IOException;
+                || ex instanceof IOException
+                || ex instanceof RuntimeStreamingException;
     }
 }

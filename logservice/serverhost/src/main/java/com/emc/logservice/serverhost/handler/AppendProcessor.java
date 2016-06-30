@@ -177,7 +177,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleException(String segment, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("Neither offset nor exception!?");
-            log.error("Error on segment: "+segment, exception);
+            log.error("Error on segment: " + segment, exception);
             throw exception;
         }
         if (u instanceof CompletionException) {

@@ -180,7 +180,7 @@ public abstract class Operation implements LogItem {
      * @throws IllegalStateException The exception that is thrown.
      */
     protected void ensureSerializationCondition(boolean isTrue, String message) {
-        Preconditions.checkState(isTrue, "Unable to serialize Operation: {}", message);
+        Preconditions.checkState(isTrue, "Unable to serialize Operation: %s", message);
     }
 
     /**

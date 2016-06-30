@@ -70,9 +70,7 @@ public class DataFrameOutputStreamTests {
             s.write(new byte[10]);
             s.discardRecord();
             s.flush();
-            Assert.assertNotNull("No frame has been created when flush() was called.", writtenFrame.get());
-            Assert.assertTrue("Non-empty frame was created with a discarded record.", writtenFrame.get().isEmpty());
-            Assert.assertTrue("Created frame is not sealed.", writtenFrame.get().isSealed());
+            Assert.assertNull("An empty frame has been created when flush() was called with no contents.", writtenFrame.get());
 
             // startNewRecord() + endRecord();
             writtenFrame.set(null);
@@ -86,6 +84,7 @@ public class DataFrameOutputStreamTests {
         }
 
         Assert.assertNotNull("No frame has been created when flush() was called.", writtenFrame);
+        Assert.assertTrue("Created frame is not sealed.", writtenFrame.get().isSealed());
         DataFrameTestHelpers.checkReadRecords(writtenFrame.get(), records, ByteArraySegment::new);
     }
 

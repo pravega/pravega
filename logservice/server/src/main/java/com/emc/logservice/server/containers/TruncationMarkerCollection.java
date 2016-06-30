@@ -92,7 +92,7 @@ public class TruncationMarkerCollection implements RecoverableMetadata {
      * Gets the closest Truncation Marker to the given Operation Sequence Number that does not exceed it.
      *
      * @param operationSequenceNumber The Operation Sequence Number to query.
-     * @return The requested Truncation Marker, or null if no such marker exists.
+     * @return The requested Truncation Marker, or -1 if no such marker exists.
      * @throws IllegalStateException If the Metadata is in Recovery Mode.
      */
     public long getClosestTruncationMarker(long operationSequenceNumber) {
@@ -113,7 +113,11 @@ public class TruncationMarkerCollection implements RecoverableMetadata {
             }
         }
 
-        return result.getValue();
+        if (result == null) {
+            return -1;
+        } else {
+            return result.getValue();
+        }
     }
 
     //endregion
