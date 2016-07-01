@@ -85,7 +85,53 @@ public class AppendProcessorTest {
 
     @Test
     public void testSwitchingStream() {
-        fail();
+        String segment1 = "segment1";
+        String segment2 = "segment2";
+        UUID clientId1 = UUID.randomUUID();
+        UUID clientId2 = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+
+        CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
+        contextFuture.complete(new AppendContext(clientId1, 0));
+        when(store.getLastAppendContext(segment1, clientId1)).thenReturn(contextFuture);
+        CompletableFuture<Long> result = new CompletableFuture<>();
+        result.complete((long) data.length);
+        when(store.append(segment1, data, new AppendContext(clientId1, data.length), AppendProcessor.TIMEOUT))
+            .thenReturn(result);
+        
+        contextFuture = new CompletableFuture<>();
+        contextFuture.complete(new AppendContext(clientId2, 0));
+        when(store.getLastAppendContext(segment2, clientId2)).thenReturn(contextFuture);
+        result = new CompletableFuture<>();
+        result.complete((long) data.length);
+        when(store.append(segment2, data, new AppendContext(clientId2, data.length), AppendProcessor.TIMEOUT))
+            .thenReturn(result);
+
+        processor.setupAppend(new SetupAppend(clientId1, segment1));
+        processor.appendData(new AppendData(clientId1, data.length, Unpooled.wrappedBuffer(data)));
+        processor.setupAppend(new SetupAppend(clientId2, segment2));
+        processor.appendData(new AppendData(clientId2, data.length, Unpooled.wrappedBuffer(data)));
+        
+        verify(store).getLastAppendContext(eq(segment1), any());
+        verify(store).append(segment1,
+                             data,
+                             new AppendContext(clientId1, data.length),
+                             AppendProcessor.TIMEOUT);
+        verify(store).getLastAppendContext(eq(segment2), any());
+        verify(store).append(segment2,
+                             data,
+                             new AppendContext(clientId2, data.length),
+                             AppendProcessor.TIMEOUT);
+        verify(connection, atLeast(0)).resumeReading();
+        verify(connection).send(new AppendSetup(segment1, clientId1, 0));
+        verify(connection).send(new DataAppended(segment1, data.length));
+        verify(connection).send(new AppendSetup(segment2, clientId2, 0));
+        verify(connection).send(new DataAppended(segment2, data.length));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
     }
 
     @Test
