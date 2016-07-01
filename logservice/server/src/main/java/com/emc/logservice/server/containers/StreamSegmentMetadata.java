@@ -204,6 +204,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public void setLastModified(Date date){
+        // TODO: implement.
+    }
+
+    @Override
     public void recordAppendContext(AppendContext appendContext) {
         this.lastCommittedAppends.put(appendContext.getClientId(), appendContext);
     }

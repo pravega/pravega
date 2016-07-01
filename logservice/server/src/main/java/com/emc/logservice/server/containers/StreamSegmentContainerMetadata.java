@@ -21,7 +21,6 @@ package com.emc.logservice.server.containers;
 import com.emc.logservice.common.AutoReleaseLock;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
-import com.emc.logservice.server.RecoverableMetadata;
 import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
@@ -38,13 +37,14 @@ import java.util.concurrent.atomic.AtomicLong;
  * Metadata for a Stream Segment Container.
  */
 @Slf4j
-public class StreamSegmentContainerMetadata implements RecoverableMetadata, UpdateableContainerMetadata {
+public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
     //region Members
 
+    private static final byte CURRENT_SERIALIZATION_VERSION = 0;
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
     private final HashMap<String, Long> streamSegmentIds;
-    private final HashMap<Long, UpdateableSegmentMetadata> streamMetadata;
+    private final HashMap<Long, UpdateableSegmentMetadata> segmentMetadata;
     private final AtomicBoolean recoveryMode;
     private final String streamSegmentContainerId;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
@@ -63,7 +63,7 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
-        this.streamMetadata = new HashMap<>();
+        this.segmentMetadata = new HashMap<>();
         this.recoveryMode = new AtomicBoolean();
     }
 
@@ -86,13 +86,13 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
-            return this.streamMetadata.getOrDefault(streamSegmentId, null);
+            return this.segmentMetadata.getOrDefault(streamSegmentId, null);
         }
     }
 
     //endregion
 
-    //region ReadOnlyStreamSegmentContainerMetadata
+    //region ContainerMetadata Implementation
 
     @Override
     public String getContainerId() {
@@ -118,10 +118,10 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
+            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
         }
 
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
@@ -131,17 +131,22 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
-            UpdateableSegmentMetadata parentMetadata = this.streamMetadata.getOrDefault(parentStreamSegmentId, null);
+            UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
             Exceptions.checkArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
+            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
         }
 
         log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+    }
+
+    @Override
+    public Collection<Long> getAllStreamSegmentIds() {
+        return this.segmentMetadata.keySet();
     }
 
     @Override
@@ -158,13 +163,13 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
             }
 
             // Mark this segment as deleted.
-            UpdateableSegmentMetadata segmentMetadata = this.streamMetadata.getOrDefault(streamSegmentId, null);
+            UpdateableSegmentMetadata segmentMetadata = this.segmentMetadata.getOrDefault(streamSegmentId, null);
             if (segmentMetadata != null) {
                 segmentMetadata.markDeleted();
             }
 
             // Find any batches that point to this StreamSegment (as a parent).
-            for (UpdateableSegmentMetadata batchSegmentMetadata : this.streamMetadata.values()) {
+            for (UpdateableSegmentMetadata batchSegmentMetadata : this.segmentMetadata.values()) {
                 if (batchSegmentMetadata.getParentId() == streamSegmentId) {
                     batchSegmentMetadata.markDeleted();
                     result.add(batchSegmentMetadata.getName());
@@ -209,11 +214,12 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
         this.sequenceNumber.set(0);
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             this.streamSegmentIds.clear();
-            this.streamMetadata.clear();
+            this.segmentMetadata.clear();
         }
 
         log.info("{}: Reset.", this.traceObjectId);
     }
+
 
     private void ensureRecoveryMode() {
         Preconditions.checkState(isRecoveryMode(), "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");

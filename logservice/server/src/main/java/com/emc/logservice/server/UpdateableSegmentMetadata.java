@@ -20,6 +20,8 @@ package com.emc.logservice.server;
 
 import com.emc.logservice.contracts.AppendContext;
 
+import java.util.Date;
+
 /**
  * Defines an updateable StreamSegment Metadata.
  */
@@ -61,6 +63,12 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * @param appendContext The AppendContext to record.
      */
     void recordAppendContext(AppendContext appendContext);
+
+    /**
+     * Sets the Last Modified date.
+     * @param date
+     */
+    void setLastModified(Date date);
 
     /**
      * Updates this instance of the UpdateableSegmentMetadata to have the same information as the other one.

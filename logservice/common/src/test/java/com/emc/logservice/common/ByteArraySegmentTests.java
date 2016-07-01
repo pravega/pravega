@@ -22,9 +22,12 @@ import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 
 /**
  * Unit tests for ByteArraySegment class.
@@ -118,6 +121,35 @@ public class ByteArraySegmentTests {
         for (int i = 0; i < targetBuffer.length; i++) {
             int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
             Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
+        }
+    }
+
+    /**
+     * Tests the functionality of writeTo and readFrom.
+     */
+    @Test
+    public void testWriteToReadFrom() throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        int count = 10;
+        ArrayList<ByteArraySegment> sourceSegments = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ByteArraySegment s = new ByteArraySegment(createFormattedBuffer());
+            sourceSegments.add(s);
+            s.writeTo(outputStream);
+        }
+
+        InputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
+        for (int i = 0; i < count; i++) {
+            ByteArraySegment s = sourceSegments.get(i);
+            ByteArraySegment t = new ByteArraySegment(new byte[s.getLength()]);
+            t.readFrom(inputStream);
+
+            Assert.assertEquals("Source and target lengths differ.", s.getLength(), t.getLength());
+            for (int j = 0; j < s.getLength(); j++) {
+                if (t.get(j) != s.get(j)) {
+                    Assert.fail(String.format("Source at target differ at index %d.", j));
+                }
+            }
         }
     }
 

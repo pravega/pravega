@@ -22,6 +22,7 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.server.MetadataHelpers;
 import com.emc.logservice.server.SegmentMetadata;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
@@ -29,8 +30,7 @@ import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
-import com.emc.logservice.server.logs.operations.MetadataOperation;
-import com.emc.logservice.server.logs.operations.MetadataPersistedOperation;
+import com.emc.logservice.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
@@ -398,28 +398,6 @@ public class OperationMetadataUpdaterTests {
     }
 
     /**
-     * Tests the processMetadataOperation method when not in Recovery Mode.
-     */
-    @Test
-    public void testProcessMetadataOperationInNonRecoveryMode() {
-        UpdateableContainerMetadata metadata = createMetadata();
-
-        ArrayList<MetadataOperation> testOps = new ArrayList<>();
-        testOps.add(createBatchMap());
-        testOps.add(createMap());
-        testOps.add(createMetadataPersisted());
-
-        // Verify this does not work in non-recovery mode.
-        OperationMetadataUpdater updater = createUpdater(metadata);
-        for (MetadataOperation op : testOps) {
-            AssertExtensions.assertThrows(
-                    "Unexpected behavior from processMetadataOperation when not in recovery mode.",
-                    () -> updater.processMetadataOperation(op),
-                    ex -> ex instanceof IllegalStateException);
-        }
-    }
-
-    /**
      * Tests the processMetadataOperation method with StreamSegmentMap operations.
      */
     @Test
@@ -430,7 +408,7 @@ public class OperationMetadataUpdaterTests {
 
         // Brand new StreamSegment.
         StreamSegmentMapOperation mapOp = createMap();
-        updater.processMetadataOperation(mapOp);
+        updater.preProcessOperation(mapOp);
         Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getStreamSegmentLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
         Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", 0, updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
         Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isSealed(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).isSealed());
@@ -439,26 +417,26 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentId already exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a StreamSegment with the same Id already exists (in transaction).",
-                () -> updater.processMetadataOperation(createMap(mapOp.getStreamSegmentId(), "foo")),
+                () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentId(), "foo")),
                 ex -> ex instanceof MetadataUpdateException);
 
         // StreamSegmentName already exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a StreamSegment with the same Id already exists (in transaction).",
-                () -> updater.processMetadataOperation(createMap(8976223, mapOp.getStreamSegmentName())),
+                () -> updater.preProcessOperation(createMap(8976223, mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // StreamSegmentId already exists (metadata).
         updater.commit();
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a StreamSegment with the same Id already exists (in metadata).",
-                () -> updater.processMetadataOperation(createMap(mapOp.getStreamSegmentId(), "foo")),
+                () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentId(), "foo")),
                 ex -> ex instanceof MetadataUpdateException);
 
         // StreamSegmentName already exists (metadata).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a StreamSegment with the same Id already exists (in metadata).",
-                () -> updater.processMetadataOperation(createMap(8976223, mapOp.getStreamSegmentName())),
+                () -> updater.preProcessOperation(createMap(8976223, mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
     }
 
@@ -475,12 +453,12 @@ public class OperationMetadataUpdaterTests {
         // Parent does not exist.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when attempting to map a Batch StreamSegment to an inexistent parent.",
-                () -> updater.processMetadataOperation(mapOp)
+                () -> updater.preProcessOperation(mapOp)
                 , ex -> ex instanceof MetadataUpdateException);
 
         // Brand new batch.
-        updater.processMetadataOperation(createMap()); // Create parent.
-        updater.processMetadataOperation(mapOp);
+        updater.preProcessOperation(createMap()); // Create parent.
+        updater.preProcessOperation(mapOp);
         Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getBatchStreamSegmentLength(), updater.getStreamSegmentMetadata(mapOp.getBatchStreamSegmentId()).getStorageLength());
         Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", 0, updater.getStreamSegmentMetadata(mapOp.getBatchStreamSegmentId()).getDurableLogLength());
         Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isBatchSealed(), updater.getStreamSegmentMetadata(mapOp.getBatchStreamSegmentId()).isSealed());
@@ -489,60 +467,87 @@ public class OperationMetadataUpdaterTests {
         // Batch StreamSegmentId exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a BatchStreamSegment with the same Id already exists (in transaction).",
-                () -> updater.processMetadataOperation(createBatchMap(mapOp.getBatchStreamSegmentId(), "foo")),
+                () -> updater.preProcessOperation(createBatchMap(mapOp.getBatchStreamSegmentId(), "foo")),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Batch StreamSegmentName exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a BatchStreamSegment with the same Id already exists (in transaction).",
-                () -> updater.processMetadataOperation(createBatchMap(8976223, mapOp.getBatchStreamSegmentName())),
+                () -> updater.preProcessOperation(createBatchMap(8976223, mapOp.getBatchStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Batch StreamSegmentId exists (metadata).
         updater.commit();
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a BatchStreamSegment with the same Id already exists (in metadata).",
-                () -> updater.processMetadataOperation(createBatchMap(mapOp.getBatchStreamSegmentId(), "foo")),
+                () -> updater.preProcessOperation(createBatchMap(mapOp.getBatchStreamSegmentId(), "foo")),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Batch StreamSegmentName exists (metadata).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from processMetadataException when a BatchStreamSegment with the same Id already exists (in metadata).",
-                () -> updater.processMetadataOperation(createBatchMap(8976223, mapOp.getBatchStreamSegmentName())),
+                () -> updater.preProcessOperation(createBatchMap(8976223, mapOp.getBatchStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
     }
 
     /**
-     * Tests the processMetadataOperation method with MetadataPersisted operations.
+     * Tests the processMetadataOperation method with MetadataCheckpoint operations.
      */
     @Test
-    public void testProcessMetadataPersisted() throws Exception {
-        // When encountering MetadataPersisted, the OperationMetadataUpdater simply rolls back the transaction.
-        // It does not commit anything. This is because when such an operation is encountered, the Metadata itself
-        // has been checkpointed somewhere so there is no need to accumulate any new changes.
+    public void testProcessMetadataCheckpoint() throws Exception {
+        // When encountering MetadataCheckpoint in non-Recovery Mode, the OperationMetadataUpdater serializes a snapshot
+        // of the current metadata inside the MetadataPersisted.
+        // When encountering MetadataCheckpoint in Recovery Mode, the OperationMetadataUpdater deserializes the snapshot-ted
+        // metadata in it and applies it to the container metadata (inside the transaction). All existing metadata updates
+        // are cleared.
 
-        // One way to verify this is to repeatedly create the same StreamSegment and then insert a "persisted" op.
-        // This should not cause any issues because the transaction will have forgotten about it.
-        ArrayList<MetadataOperation> operations = new ArrayList<>();
-        operations.add(createMetadataPersisted());
-        operations.add(createMap(SEGMENT_ID, SEGMENT_NAME));
-        operations.add(createBatchMap());
-        operations.add(createMetadataPersisted());
-        operations.add(createMap(SEGMENT_ID, SEGMENT_NAME));
-        operations.add(createBatchMap());
-        operations.add(createMetadataPersisted());
+        final long NEW_SEGMENT_ID = 897658;
+        final String NEW_SEGMENT_NAME = "NewSegmentId";
 
+        // Create a non-empty metadata.
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+
+        // Checkpoint 1: original metadata.
+        // Checkpoint 2: Checkpoint 1 + 1 StreamSegment and 1 Batch + 1 Append
+        MetadataCheckpointOperation checkpoint1 = createMetadataPersisted();
+        MetadataCheckpointOperation checkpoint2 = createMetadataPersisted();
+
+        // Checkpoint 1 Should have original metadata.
+        processOperation(checkpoint1, updater);
+        checkpoint1.setSequenceNumber(1);
+        UpdateableContainerMetadata checkpointedMetadata = getCheckpointedMetadata(checkpoint1);
+        MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
+
+        // Map another StreamSegment, and add an append
+        metadata.mapStreamSegmentId(NEW_SEGMENT_NAME, NEW_SEGMENT_ID);
+        metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID).setDurableLogLength(0);
+        metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID).setStorageLength(1);
+
+        processOperation(createMap(NEW_SEGMENT_ID, NEW_SEGMENT_NAME), updater);
+        processOperation(new StreamSegmentAppendOperation(NEW_SEGMENT_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater);
+        processOperation(checkpoint2, updater);
+
+        // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
+        checkpoint2.setSequenceNumber(2);
+        updater.commit();
+        checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
+        MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
+    }
+
+    private void processOperation(Operation operation, OperationMetadataUpdater updater) throws Exception {
+        updater.preProcessOperation(operation);
+        updater.acceptOperation(operation);
+    }
+
+    private UpdateableContainerMetadata getCheckpointedMetadata(MetadataCheckpointOperation operation) throws Exception {
         UpdateableContainerMetadata metadata = createBlankMetadata();
         metadata.enterRecoveryMode();
         OperationMetadataUpdater updater = createUpdater(metadata);
-        for (MetadataOperation op : operations) {
-            updater.processMetadataOperation(op);
-        }
-
-        Assert.assertNull("Updater did not rollback after encountering MetadataPersisted.", updater.getStreamSegmentMetadata(SEGMENT_ID));
-        Assert.assertNull("Updater did not rollback after encountering MetadataPersisted.", updater.getStreamSegmentMetadata(SEALED_BATCH_ID));
-        Assert.assertNull("Updater modified underlying metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID));
-        Assert.assertNull("Updater modified underlying metadata.", metadata.getStreamSegmentMetadata(SEALED_BATCH_ID));
+        processOperation(operation, updater);
+        boolean success = updater.commit();
+        Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
+        return metadata;
     }
 
     /**
@@ -712,8 +717,8 @@ public class OperationMetadataUpdaterTests {
         return new BatchMapOperation(SEGMENT_ID, id, new StreamSegmentInformation(name, SEALED_BATCH_LENGTH, true, false, new Date()));
     }
 
-    private MetadataPersistedOperation createMetadataPersisted() {
-        return new MetadataPersistedOperation();
+    private MetadataCheckpointOperation createMetadataPersisted() {
+        return new MetadataCheckpointOperation();
     }
 
     private void checkSequenceNumber(Operation op, String context) {

@@ -58,7 +58,7 @@ public class OperationFactory implements LogItemFactory<Operation> {
                 map(StreamSegmentAppendOperation.OPERATION_TYPE, StreamSegmentAppendOperation::new);
                 map(StreamSegmentSealOperation.OPERATION_TYPE, StreamSegmentSealOperation::new);
                 map(MergeBatchOperation.OPERATION_TYPE, MergeBatchOperation::new);
-                map(MetadataPersistedOperation.OPERATION_TYPE, MetadataPersistedOperation::new);
+                map(MetadataCheckpointOperation.OPERATION_TYPE, MetadataCheckpointOperation::new);
                 map(StreamSegmentMapOperation.OPERATION_TYPE, StreamSegmentMapOperation::new);
                 map(BatchMapOperation.OPERATION_TYPE, BatchMapOperation::new);
             } catch (StreamingException se) {

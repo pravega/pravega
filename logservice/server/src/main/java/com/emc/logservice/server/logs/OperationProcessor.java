@@ -29,7 +29,6 @@ import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.logs.operations.CompletableOperation;
 import com.emc.logservice.server.logs.operations.Operation;
-import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -245,18 +244,12 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
 
         // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
         Operation entry = operation.getOperation();
-        if (entry instanceof StorageOperation) {
-            // We only need to update metadata for StorageOperations; MetadataOperations are internal and are processed by the requester.
-            // We do this in two steps: first is pre-processing (updating the entry with offsets, lengths, etc.) and the second is acceptance.
-            // Pre-processing does not have any effect on the metadata, but acceptance does.
-            // That's why acceptance has to happen only after a successful append to the DataFrameBuilder.
-            try {
-                this.metadataUpdater.preProcessOperation((StorageOperation) entry);
-            } catch (Exception ex) {
-                // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
-                operation.fail(ex);
-                return false;
-            }
+        try {
+            this.metadataUpdater.preProcessOperation(entry);
+        } catch (Exception ex) {
+            // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
+            operation.fail(ex);
+            return false;
         }
 
         // Entry is ready to be serialized; assign a sequence number.
@@ -277,14 +270,12 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             return false;
         }
 
-        if (entry instanceof StorageOperation) {
-            try {
-                this.metadataUpdater.acceptOperation((StorageOperation) entry);
-            } catch (MetadataUpdateException ex) {
-                // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
-                operation.fail(ex);
-                return false;
-            }
+        try {
+            this.metadataUpdater.acceptOperation(entry);
+        } catch (MetadataUpdateException ex) {
+            // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
+            operation.fail(ex);
+            return false;
         }
 
         return true;

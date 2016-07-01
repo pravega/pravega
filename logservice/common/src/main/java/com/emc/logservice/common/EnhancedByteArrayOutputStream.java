@@ -16,16 +16,19 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.server.logs.operations;
+package com.emc.logservice.common;
 
-import java.util.Random;
+import java.io.ByteArrayOutputStream;
 
 /**
- * Unit tests for MetadataPersistedOperation class.
+ * A ByteArrayOutputStream that exposes the contents as a ByteArraySegment, without requiring a memory copy.
  */
-public class MetadataPersistedOperationTests extends OperationTestsBase<MetadataPersistedOperation> {
-    @Override
-    protected MetadataPersistedOperation createOperation(Random random) {
-        return new MetadataPersistedOperation();
+public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream {
+    /**
+     * Returns a readonly ByteArraySegment wrapping the current buffer of the ByteArrayOutputStream.
+     * @return
+     */
+    public ByteArraySegment getData() {
+        return new ByteArraySegment(this.buf, 0, this.count, true);
     }
 }

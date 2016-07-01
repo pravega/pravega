@@ -44,6 +44,12 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId);
 
     /**
+     * Gets a collection containing all StreamSegmentIds currently mapped.
+     * @return
+     */
+    Collection<Long> getAllStreamSegmentIds();
+
+    /**
      * Marks the StreamSegment and all child StreamSegments as deleted.
      *
      * @param streamSegmentName The name of the StreamSegment to delete.

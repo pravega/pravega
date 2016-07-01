@@ -30,10 +30,8 @@ import com.emc.logservice.server.LogItemFactory;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.TruncationMarkerCollection;
-import com.emc.logservice.server.logs.operations.MetadataOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.OperationFactory;
-import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.google.common.base.Preconditions;
@@ -294,13 +292,9 @@ public class DurableLog extends AbstractService implements OperationLog {
                 // Process the operation.
                 try {
                     log.debug("{} Recovering {}.", this.traceObjectId, operation);
-                    if (operation instanceof MetadataOperation) {
-                        metadataUpdater.processMetadataOperation((MetadataOperation) operation);
-                    } else if (operation instanceof StorageOperation) {
-                        //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
-                        metadataUpdater.preProcessOperation((StorageOperation) operation);
-                        metadataUpdater.acceptOperation((StorageOperation) operation);
-                    }
+                    //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
+                    metadataUpdater.preProcessOperation(operation);
+                    metadataUpdater.acceptOperation(operation);
                 } catch (StreamSegmentException | MetadataUpdateException ex) {
                     // Metadata updates failures should not happen during recovery.
                     throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);

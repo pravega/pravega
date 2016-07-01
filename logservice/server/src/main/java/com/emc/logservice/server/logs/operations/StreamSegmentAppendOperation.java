@@ -143,7 +143,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         this.appendContext = new AppendContext(clientId, clientOffset);
         int dataLength = source.readInt();
         this.data = new byte[dataLength];
-        StreamHelpers.readAll(source, this.data, 0, this.data.length);
+        int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);
+        assert bytesRead == this.data.length : "StreamHelpers.readAll did not read all the bytes requested.";
     }
 
     @Override
