@@ -9,6 +9,7 @@ import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ExceptionLoggingHandler;
+import com.emc.nautilus.common.netty.ReplyProcessor;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelInitializer;
@@ -44,7 +45,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 	}
 
 	@Override
-	public ClientConnection establishConnection(String host) {
+	public ClientConnection establishConnection(String host, ReplyProcessor rp) {
 		final SslContext sslCtx;
 		if (ssl) {
 			try {
@@ -58,7 +59,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		} else {
 			sslCtx = null;
 		}
-		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler();
+		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(rp);
 		Bootstrap b = new Bootstrap();
 		b.group(group)
 			.channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
