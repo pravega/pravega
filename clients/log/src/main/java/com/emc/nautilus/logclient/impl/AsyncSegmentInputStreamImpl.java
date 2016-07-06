@@ -53,8 +53,7 @@ public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 	}
 
 	private void reconnect(Exception e) { //TODO: we need backoff
-		ClientConnection newConnection = connectionFactory.establishConnection(endpoint);
-		newConnection.setResponseProcessor(responseProcessor);
+		ClientConnection newConnection = connectionFactory.establishConnection(endpoint, responseProcessor);
 		ClientConnection oldConnection = connection.getAndSet(newConnection);
 		if (oldConnection != null) {
 			oldConnection.drop();

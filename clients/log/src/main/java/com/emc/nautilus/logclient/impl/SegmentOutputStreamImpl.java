@@ -139,28 +139,34 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 	private final class ResponseProcessor extends FailingReplyProcessor {
 
-		public void wrongHost(WrongHost wrongHost) {
+		@Override
+        public void wrongHost(WrongHost wrongHost) {
 			state.failConnection(new ConnectionFailedException());// TODO: Probably something else.
 		}
 
-		public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
+		@Override
+        public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
 			state.failConnection(new SegmentSealedExcepetion());
 		}
 
-		public void noSuchSegment(NoSuchSegment noSuchSegment) {
+		@Override
+        public void noSuchSegment(NoSuchSegment noSuchSegment) {
 			state.failConnection(new IllegalArgumentException(noSuchSegment.toString()));
 		}
 
-		public void noSuchBatch(NoSuchBatch noSuchBatch) {
+		@Override
+        public void noSuchBatch(NoSuchBatch noSuchBatch) {
 			state.failConnection(new IllegalArgumentException(noSuchBatch.toString()));
 		}
 
-		public void dataAppended(DataAppended dataAppended) {
+		@Override
+        public void dataAppended(DataAppended dataAppended) {
 			long ackLevel = dataAppended.getConnectionOffset();
 			ackUpTo(ackLevel);
 		}
 
-		public void appendSetup(AppendSetup appendSetup) {
+		@Override
+        public void appendSetup(AppendSetup appendSetup) {
 			long ackLevel = appendSetup.getConnectionOffsetAckLevel();
 			ackUpTo(ackLevel);
 			retransmitInflight();
@@ -199,8 +205,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		ClientConnection connection;
 		while (true) {
 			if (!state.hasConnetion()) {
-				connection = connectionFactory.establishConnection(endpoint);
-				connection.setResponseProcessor(responseProcessor);
+				connection = connectionFactory.establishConnection(endpoint, responseProcessor);
 				state.newConnection(connection);
 				SetupAppend cmd = new SetupAppend(connectionId, segment);
 				connection.send(cmd);

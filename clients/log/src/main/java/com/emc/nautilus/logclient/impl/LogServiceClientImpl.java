@@ -29,9 +29,8 @@ public class LogServiceClientImpl implements LogServiceClient {
 	@Override
 	@Synchronized
 	public boolean createSegment(String name) {
-		ClientConnection connection = connectionFactory.establishConnection(endpoint);
-		CompletableFuture<Boolean> result = new CompletableFuture<>();
-		connection.setResponseProcessor(new FailingReplyProcessor() {
+	    CompletableFuture<Boolean> result = new CompletableFuture<>();
+		ClientConnection connection = connectionFactory.establishConnection(endpoint, new FailingReplyProcessor() {
 			@Override
 			public void wrongHost(WrongHost wrongHost) {
 				result.completeExceptionally(new UnsupportedOperationException("TODO"));

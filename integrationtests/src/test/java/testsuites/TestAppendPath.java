@@ -7,10 +7,10 @@ import org.junit.runners.Suite.SuiteClasses;
 import com.emc.logservice.serverhost.handler.AppendProcessorTest;
 import com.emc.nautilus.common.netty.AppendEncodeDecodeTest;
 import com.emc.nautilus.integrationtests.AppendTest;
-import com.emc.nautilus.logclient.LogOutputStreamTest;
+import com.emc.nautilus.logclient.SegmentOutputStreamTest;
 
 @RunWith(Suite.class)
-@SuiteClasses({AppendEncodeDecodeTest.class, AppendProcessorTest.class, AppendTest.class, LogOutputStreamTest.class})
+@SuiteClasses({AppendEncodeDecodeTest.class, AppendProcessorTest.class, AppendTest.class, SegmentOutputStreamTest.class})
 public class TestAppendPath {
 
 }

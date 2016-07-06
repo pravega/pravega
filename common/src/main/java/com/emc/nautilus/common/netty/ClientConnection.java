@@ -28,12 +28,6 @@ public interface ClientConnection {
     void send(WireCommand cmd); // TODO: Should throw ConnectionFailedException
 
     /**
-     * @param cp Sets the command processor to receive incoming replies from the server. This method
-     *            may only be called once.
-     */
-    void setResponseProcessor(ReplyProcessor cp);
-
-    /**
      * Drop the connection. No further operations may be performed.
      */
     void drop();
