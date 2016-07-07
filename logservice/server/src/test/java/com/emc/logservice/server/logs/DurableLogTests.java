@@ -497,7 +497,7 @@ public class DurableLogTests extends OperationLogTestBase {
     public void testRecoveryFailures() throws Exception {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
-        int failReadAfter = 2;// Fail DataLog reads after X reads.
+        int failReadAfter = 2; // Fail DataLog reads after X reads.
 
         // Setup a DurableLog and start it.
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();

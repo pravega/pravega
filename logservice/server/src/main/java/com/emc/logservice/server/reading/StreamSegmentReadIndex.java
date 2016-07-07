@@ -182,7 +182,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         long durableLogLength = this.metadata.getDurableLogLength();
         long endOffset = offset + data.length;
         Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
-        append(new ByteArrayReadIndexEntry(offset, data));
+        appendEntry(new ByteArrayReadIndexEntry(offset, data));
     }
 
     /**
@@ -232,7 +232,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
 
         try {
-            append(newEntry);
+            appendEntry(newEntry);
         } catch (Exception ex) {
             // If the merger failed, roll back the markers.
             try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
@@ -290,7 +290,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         LoggerHelpers.traceLeave(log, this.traceObjectId, "completeMerge", traceId);
     }
 
-    private void append(ReadIndexEntry entry) {
+    private void appendEntry(ReadIndexEntry entry) {
         log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength());
 
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
@@ -386,12 +386,12 @@ class StreamSegmentReadIndex implements AutoCloseable {
         if (!canReadAtOffset(resultStartOffset)) {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
-
+        ReadResultEntry result = null;
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
             if (this.entries.size() == 0) {
                 // We have no entries in the Read Index.
                 // Use the metadata to figure out whether to return a Storage or Future Read.
-                return createPlaceholderRead(resultStartOffset, maxLength);
+                result = createPlaceholderRead(resultStartOffset, maxLength);
             } else {
                 // We have at least one entry.
                 // Find the first entry that has an End offset beyond equal to at least ResultStartOffset.
@@ -400,7 +400,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
                     // The ResultStartOffset is beyond the End Offset of the last entry in the index.
                     // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
                     // this data in memory.
-                    return createPlaceholderRead(resultStartOffset, maxLength);
+                    result = createPlaceholderRead(resultStartOffset, maxLength);
                 } else {
                     // We have an entry. Let's see if it's valid or not.
                     ReadIndexEntry currentEntry = treeEntry.getValue();
@@ -410,20 +410,24 @@ class StreamSegmentReadIndex implements AutoCloseable {
                         // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
                         // We must issue a Storage Read to bring the data to us (with a readLength of up to the size of the gap).
                         int readLength = (int) Math.min(maxLength, currentEntry.getStreamSegmentOffset() - resultStartOffset);
-                        return createStorageRead(resultStartOffset, readLength);
+                        result = createStorageRead(resultStartOffset, readLength);
                     } else if (currentEntry instanceof ByteArrayReadIndexEntry) {
                         // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
                         // TODO should we coalesce multiple congruent entries together?
-                        return createMemoryRead((ByteArrayReadIndexEntry) currentEntry, resultStartOffset, maxLength);
+                        result = createMemoryRead((ByteArrayReadIndexEntry) currentEntry, resultStartOffset, maxLength);
                     } else if (currentEntry instanceof RedirectReadIndexEntry) {
-                        return getRedirectedReadResultEntry(resultStartOffset, maxLength, (RedirectReadIndexEntry) currentEntry);
+                        result = getRedirectedReadResultEntry(resultStartOffset, maxLength, (RedirectReadIndexEntry) currentEntry);
                     }
                 }
             }
         }
 
-        // We should never get in here if we coded this correctly.
-        throw new AssertionError(String.format("Reached the end of getFirstReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength));
+        if (result != null) {
+            return result;
+        } else {
+            // We should never get in here if we coded this correctly.
+            throw new AssertionError(String.format("Reached the end of getFirstReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength));
+        }
     }
 
     private ReadResultEntry getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {

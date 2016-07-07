@@ -789,7 +789,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
 
         //endregion
 
-        //region StreamSegmentAppendOperation
+        //region Pre-Processing
 
         /**
          * Pre-processes a StreamSegmentAppendOperation.
@@ -818,28 +818,6 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         }
 
         /**
-         * Accepts a StreamSegmentAppendOperation in the metadata.
-         *
-         * @param operation The operation to accept.
-         * @throws MetadataUpdateException  If the operation StreamSegmentOffset is different from the current StreamSegment Length.
-         * @throws IllegalArgumentException If the operation is for a different stream.
-         */
-        public void acceptOperation(StreamSegmentAppendOperation operation) throws MetadataUpdateException {
-            ensureStreamId(operation);
-            if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
-                throw new MetadataUpdateException(String.format("StreamSegmentAppendOperation offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
-            }
-
-            this.currentDurableLogLength += operation.getData().length;
-            this.lastCommittedAppends.put(operation.getAppendContext().getClientId(), operation.getAppendContext());
-            this.isChanged = true;
-        }
-
-        //endregion
-
-        //region StreamSegmentSealOperation
-
-        /**
          * Pre-processes a StreamSegmentSealOperation.
          * After this method returns, the operation will have its StreamSegmentLength property set to the current length of the StreamSegment.
          *
@@ -865,27 +843,6 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                 operation.setStreamSegmentLength(this.currentDurableLogLength);
             }
         }
-
-        /**
-         * Accepts a StreamSegmentSealOperation in the metadata.
-         *
-         * @param operation The operation to accept.
-         * @throws MetadataUpdateException  If the operation hasn't been pre-processed.
-         * @throws IllegalArgumentException If the operation is for a different stream.
-         */
-        public void acceptOperation(StreamSegmentSealOperation operation) throws MetadataUpdateException {
-            ensureStreamId(operation);
-            if (operation.getStreamSegmentLength() < 0) {
-                throw new MetadataUpdateException("StreamSegmentSealOperation cannot be accepted if it hasn't been pre-processed.");
-            }
-
-            this.sealed = true;
-            this.isChanged = true;
-        }
-
-        //endregion
-
-        //region MergeBatchOperation
 
         /**
          * Pre-processes the given MergeBatchOperation as a Parent StreamSegment.
@@ -926,30 +883,6 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         }
 
         /**
-         * Accepts the given MergeBatchOperation as a Parent StreamSegment.
-         *
-         * @param operation           The operation to accept.
-         * @param batchStreamMetadata The metadata for the Batch Stream Segment to merge.
-         * @throws MetadataUpdateException  If the operation cannot be processed because of the current state of the metadata.
-         * @throws IllegalArgumentException If the operation is for a different stream.
-         */
-        public void acceptAsParentStreamSegment(MergeBatchOperation operation, TemporaryStreamSegmentMetadata batchStreamMetadata) throws MetadataUpdateException {
-            ensureStreamId(operation);
-
-            if (operation.getTargetStreamSegmentOffset() != this.currentDurableLogLength) {
-                throw new MetadataUpdateException(String.format("MergeBatchOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getTargetStreamSegmentOffset()));
-            }
-
-            long batchLength = operation.getBatchStreamSegmentLength();
-            if (batchLength < 0 || batchLength != batchStreamMetadata.currentDurableLogLength) {
-                throw new MetadataUpdateException("MergeBatchOperation does not seem to have been pre-processed.");
-            }
-
-            this.currentDurableLogLength += batchLength;
-            this.isChanged = true;
-        }
-
-        /**
          * Pre-processes the given operation as a Batch StreamSegment.
          *
          * @param operation The operation
@@ -971,6 +904,69 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             if (!this.isRecoveryMode) {
                 operation.setBatchStreamSegmentLength(this.currentDurableLogLength);
             }
+        }
+
+        //endregion
+
+        //region AcceptOperation
+
+        /**
+         * Accepts a StreamSegmentAppendOperation in the metadata.
+         *
+         * @param operation The operation to accept.
+         * @throws MetadataUpdateException  If the operation StreamSegmentOffset is different from the current StreamSegment Length.
+         * @throws IllegalArgumentException If the operation is for a different stream.
+         */
+        public void acceptOperation(StreamSegmentAppendOperation operation) throws MetadataUpdateException {
+            ensureStreamId(operation);
+            if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
+                throw new MetadataUpdateException(String.format("StreamSegmentAppendOperation offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
+            }
+
+            this.currentDurableLogLength += operation.getData().length;
+            this.lastCommittedAppends.put(operation.getAppendContext().getClientId(), operation.getAppendContext());
+            this.isChanged = true;
+        }
+
+        /**
+         * Accepts a StreamSegmentSealOperation in the metadata.
+         *
+         * @param operation The operation to accept.
+         * @throws MetadataUpdateException  If the operation hasn't been pre-processed.
+         * @throws IllegalArgumentException If the operation is for a different stream.
+         */
+        public void acceptOperation(StreamSegmentSealOperation operation) throws MetadataUpdateException {
+            ensureStreamId(operation);
+            if (operation.getStreamSegmentLength() < 0) {
+                throw new MetadataUpdateException("StreamSegmentSealOperation cannot be accepted if it hasn't been pre-processed.");
+            }
+
+            this.sealed = true;
+            this.isChanged = true;
+        }
+
+       /**
+         * Accepts the given MergeBatchOperation as a Parent StreamSegment.
+         *
+         * @param operation           The operation to accept.
+         * @param batchStreamMetadata The metadata for the Batch Stream Segment to merge.
+         * @throws MetadataUpdateException  If the operation cannot be processed because of the current state of the metadata.
+         * @throws IllegalArgumentException If the operation is for a different stream.
+         */
+        public void acceptAsParentStreamSegment(MergeBatchOperation operation, TemporaryStreamSegmentMetadata batchStreamMetadata) throws MetadataUpdateException {
+            ensureStreamId(operation);
+
+            if (operation.getTargetStreamSegmentOffset() != this.currentDurableLogLength) {
+                throw new MetadataUpdateException(String.format("MergeBatchOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getTargetStreamSegmentOffset()));
+            }
+
+            long batchLength = operation.getBatchStreamSegmentLength();
+            if (batchLength < 0 || batchLength != batchStreamMetadata.currentDurableLogLength) {
+                throw new MetadataUpdateException("MergeBatchOperation does not seem to have been pre-processed.");
+            }
+
+            this.currentDurableLogLength += batchLength;
+            this.isChanged = true;
         }
 
         /**

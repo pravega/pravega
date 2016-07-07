@@ -63,7 +63,8 @@ public class TruncateableList<T> {
         ListNode<T> node = new ListNode<>(item);
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             if (this.tail == null) {
-                this.head = this.tail = node;
+                this.head = node;
+                this.tail = node;
             } else {
                 this.tail.setNext(node);
                 this.tail = node;
@@ -86,7 +87,8 @@ public class TruncateableList<T> {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             if (this.tail == null) {
                 // List is currently empty.
-                this.head = this.tail = node;
+                this.head = node;
+                this.tail = node;
             } else {
                 if (!lastItemChecker.test(this.tail.getItem())) {
                     // Test failed
@@ -151,7 +153,8 @@ public class TruncateableList<T> {
             }
 
             // Clear the list.
-            this.head = this.tail = null;
+            this.head = null;
+            this.tail = null;
             this.size = 0;
         }
     }

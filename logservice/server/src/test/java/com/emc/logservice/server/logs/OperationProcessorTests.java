@@ -450,9 +450,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
             OperationHelpers.assertEquals(expectedOp, readResult.getItem());
 
             // Check truncation markers if this is the last Operation to be written.
-            if(expectedOp.getSequenceNumber() == 3282){
-                System.out.println();
-            }
             long dataFrameSeq = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
             if (readResult.getLastFullDataFrameSequence() >= 0 && readResult.getLastFullDataFrameSequence() != readResult.getLastUsedDataFrameSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame

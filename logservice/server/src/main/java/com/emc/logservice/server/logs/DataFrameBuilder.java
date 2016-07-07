@@ -72,7 +72,8 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
         this.targetLog = targetLog;
         this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), targetLog::getLastAppendSequence, this::handleDataFrameComplete);
-        this.lastSerializedSequenceNumber = this.lastStartedSequenceNumber = -1;
+        this.lastSerializedSequenceNumber = -1;
+        this.lastStartedSequenceNumber = -1;
         this.dataFrameCommitSuccessCallback = dataFrameCommitSuccessCallback;
         this.dataFrameCommitFailureCallback = dataFrameCommitFailureCallback;
     }

@@ -44,7 +44,7 @@
 	<module name="ModifiedControlVariable"/>
 	<module name="OverloadMethodsDeclarationOrder"/>
 	<module name="ReturnCount">
-		<property name="max" value="3"/>
+		<property name="max" value="4"/>
 	</module>
 	<module name="StringLiteralEquality"/>
 	<module name="CyclomaticComplexity"/>

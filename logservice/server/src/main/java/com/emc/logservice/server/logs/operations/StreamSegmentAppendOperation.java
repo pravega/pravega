@@ -34,8 +34,8 @@ import java.util.UUID;
 public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     public static final byte OPERATION_TYPE = 1;
+    private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
     private byte[] data;
     private AppendContext appendContext;

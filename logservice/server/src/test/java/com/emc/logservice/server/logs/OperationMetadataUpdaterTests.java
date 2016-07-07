@@ -502,8 +502,8 @@ public class OperationMetadataUpdaterTests {
         // metadata in it and applies it to the container metadata (inside the transaction). All existing metadata updates
         // are cleared.
 
-        final long NEW_SEGMENT_ID = 897658;
-        final String NEW_SEGMENT_NAME = "NewSegmentId";
+        long newSegmentId = 897658;
+        String newSegmentName = "NewSegmentId";
         AtomicLong seqNo = new AtomicLong();
 
         // Create a non-empty metadata.
@@ -521,12 +521,12 @@ public class OperationMetadataUpdaterTests {
         MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
-        metadata.mapStreamSegmentId(NEW_SEGMENT_NAME, NEW_SEGMENT_ID);
-        metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID).setDurableLogLength(0);
-        metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID).setStorageLength(1);
+        metadata.mapStreamSegmentId(newSegmentName, newSegmentId);
+        metadata.getStreamSegmentMetadata(newSegmentId).setDurableLogLength(0);
+        metadata.getStreamSegmentMetadata(newSegmentId).setStorageLength(1);
 
-        processOperation(createMap(NEW_SEGMENT_ID, NEW_SEGMENT_NAME), updater, seqNo::incrementAndGet);
-        processOperation(new StreamSegmentAppendOperation(NEW_SEGMENT_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
+        processOperation(createMap(newSegmentId, newSegmentName), updater, seqNo::incrementAndGet);
+        processOperation(new StreamSegmentAppendOperation(newSegmentId, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
@@ -541,8 +541,8 @@ public class OperationMetadataUpdaterTests {
      */
     @Test
     public void testProcessMetadataCheckpointIgnored() throws Exception {
-        final long NEW_SEGMENT_ID = 897658;
-        final String NEW_SEGMENT_NAME = "NewSegmentId";
+        long newSegmentId = 897658;
+        String newSegmentName = "NewSegmentId";
         AtomicLong seqNo = new AtomicLong();
 
         // Create a non-empty metadata.
@@ -555,14 +555,14 @@ public class OperationMetadataUpdaterTests {
         metadata = createBlankMetadata();
         metadata.enterRecoveryMode();
         updater = createUpdater(metadata);
-        processOperation(createMap(NEW_SEGMENT_ID, NEW_SEGMENT_NAME), updater, seqNo::incrementAndGet);
+        processOperation(createMap(newSegmentId, newSegmentName), updater, seqNo::incrementAndGet);
 
         // Now try to process the checkpoint
         processOperation(checkpointedMetadata, updater, seqNo::incrementAndGet);
         updater.commit();
 
         // Verify the checkpointed metadata hasn't been applied
-        Assert.assertNull("Newly added StreamSegment Id was not removed after applying checkpoint.", metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID));
+        Assert.assertNull("Newly added StreamSegment Id was not removed after applying checkpoint.", metadata.getStreamSegmentMetadata(newSegmentId));
         Assert.assertNotNull("Checkpoint seems to have not been applied.", metadata.getStreamSegmentMetadata(SEGMENT_ID));
     }
 
@@ -751,7 +751,7 @@ public class OperationMetadataUpdaterTests {
 
     private void processOperation(Operation operation, OperationMetadataUpdater updater, Supplier<Long> getSeqNo) throws Exception {
         updater.preProcessOperation(operation);
-        if(operation.getSequenceNumber()<0) {
+        if (operation.getSequenceNumber() < 0) {
             operation.setSequenceNumber(getSeqNo.get());
         }
 
@@ -762,7 +762,7 @@ public class OperationMetadataUpdaterTests {
         UpdateableContainerMetadata metadata = createBlankMetadata();
         metadata.enterRecoveryMode();
         OperationMetadataUpdater updater = createUpdater(metadata);
-        processOperation(operation, updater, ()->1L);
+        processOperation(operation, updater, () -> 1L);
         boolean success = updater.commit();
         Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
         return metadata;
