@@ -19,7 +19,7 @@ package com.emc.nautilus.common.netty;
 
 public interface ConnectionFactory {
 
-    ClientConnection establishConnection(String endpoint);
+    ClientConnection establishConnection(String endpoint, ReplyProcessor rp);
 
     void shutdown();
 

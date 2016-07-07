@@ -1,8 +1,10 @@
 package com.emc.nautilus.common.netty.client;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.nautilus.common.netty.ClientConnection;
+import com.emc.nautilus.common.netty.ConnectionFailedException;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.ReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommand;
@@ -16,9 +18,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
-	private AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
-	private AtomicReference<Channel> channel = new AtomicReference<>();
+	private final ReplyProcessor processor;
+	private final AtomicReference<Channel> channel = new AtomicReference<>();
 
+	ClientConnectionInboundHandler(ReplyProcessor processor) {
+	    this.processor = processor;
+	}
+	
 	@Override
 	public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
 		super.channelRegistered(ctx);
@@ -35,11 +41,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
     	Reply cmd = (Reply) msg;
     	log.debug("Processing reply: {}",cmd);
-		ReplyProcessor replyProcessor = processor.get();
-		if (replyProcessor == null) {
-			throw new IllegalStateException("No command processor set for connection");
-		}
-		cmd.process(replyProcessor);
+		cmd.process(processor);
     }
 
     @Override
@@ -51,13 +53,15 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
 	@Override
-	public void send(WireCommand cmd) {
-		getChannel().writeAndFlush(cmd);
-	}
-
-	@Override
-	public void setResponseProcessor(ReplyProcessor cp) {
-		processor.set(cp);
+	public void send(WireCommand cmd) throws ConnectionFailedException {
+		try {
+            getChannel().writeAndFlush(cmd).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Send call was interrupted", e);
+        } catch (ExecutionException e) {
+            throw new ConnectionFailedException(e.getCause());
+        }
 	}
 
 	@Override
@@ -76,10 +80,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 		return ch;
 	}
 
-	@Override
-	public boolean isConnected() {
-		Channel c = channel.get();
-		return c!=null && c.isOpen();
-	}
+//	@Override
+//	public boolean isConnected() {
+//		Channel c = channel.get();
+//		return c!=null && c.isOpen();
+//	}
 	
 }

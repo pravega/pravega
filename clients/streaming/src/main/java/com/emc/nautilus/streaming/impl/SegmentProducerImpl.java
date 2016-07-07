@@ -3,7 +3,7 @@ package com.emc.nautilus.streaming.impl;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.Vector;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.emc.nautilus.logclient.SegmentOutputStream;
@@ -15,7 +15,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     private final Serializer<Type> serializer;
 
     private final SegmentOutputStream out;
-    private final ConcurrentSkipListSet<Event<Type>> outstanding = new ConcurrentSkipListSet<>();
+    private final Vector<Event<Type>> outstanding = new Vector<>();
     private final AtomicBoolean sealed = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 

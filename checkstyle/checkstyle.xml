@@ -39,7 +39,16 @@
     <module name="OneStatementPerLine"/>
     <module name="UnnecessaryParentheses" />
     <module name="SimplifyBooleanReturn"/>
-
+	<module name="DeclarationOrder"/>
+	<module name="InnerAssignment"/>
+	<module name="ModifiedControlVariable"/>
+	<module name="OverloadMethodsDeclarationOrder"/>
+	<module name="ReturnCount">
+		<property name="max" value="3"/>
+	</module>
+	<module name="StringLiteralEquality"/>
+	<module name="CyclomaticComplexity"/>
+	
     <!-- style -->
     <module name="DefaultComesLast"/>
     <module name="EmptyStatement"/>

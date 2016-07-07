@@ -44,11 +44,13 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		private void connectionSetupComplete() {
 			connectionSetup.release();
 		}
-		
-		private boolean hasConnetion() {
-			return connection != null && connection.isConnected();
-		}
 
+		private ClientConnection getConnection() {
+	          synchronized (lock) {
+	              return connection;
+	          }
+		}
+		
 		private void newConnection(ClientConnection newConnection) {
 			synchronized (lock) {
 				connectionSetup.reset();
@@ -58,12 +60,17 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		}
 
 		private void failConnection(Exception e) {
+            log.warn("Connection failed due to", e);
+		    ClientConnection oldConnection;
 			synchronized (lock) {
 				if (exception == null) {
 					exception = e;
 				}
+				oldConnection = connection;
+				connection = null;
 			}
 			connectionSetupComplete();
+			oldConnection.drop();
 		}
 
 		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedExcepetion {
@@ -139,32 +146,42 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 	private final class ResponseProcessor extends FailingReplyProcessor {
 
-		public void wrongHost(WrongHost wrongHost) {
+		@Override
+        public void wrongHost(WrongHost wrongHost) {
 			state.failConnection(new ConnectionFailedException());// TODO: Probably something else.
 		}
 
-		public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
+		@Override
+        public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
 			state.failConnection(new SegmentSealedExcepetion());
 		}
 
-		public void noSuchSegment(NoSuchSegment noSuchSegment) {
+		@Override
+        public void noSuchSegment(NoSuchSegment noSuchSegment) {
 			state.failConnection(new IllegalArgumentException(noSuchSegment.toString()));
 		}
 
-		public void noSuchBatch(NoSuchBatch noSuchBatch) {
+		@Override
+        public void noSuchBatch(NoSuchBatch noSuchBatch) {
 			state.failConnection(new IllegalArgumentException(noSuchBatch.toString()));
 		}
 
-		public void dataAppended(DataAppended dataAppended) {
+		@Override
+        public void dataAppended(DataAppended dataAppended) {
 			long ackLevel = dataAppended.getConnectionOffset();
 			ackUpTo(ackLevel);
 		}
 
-		public void appendSetup(AppendSetup appendSetup) {
+		@Override
+        public void appendSetup(AppendSetup appendSetup) {
 			long ackLevel = appendSetup.getConnectionOffsetAckLevel();
 			ackUpTo(ackLevel);
-			retransmitInflight();
-			state.connectionSetupComplete();
+			try {
+                retransmitInflight();
+                state.connectionSetupComplete();
+            } catch (ConnectionFailedException e) {
+               state.failConnection(e);
+            }
 		}
 
 		private void ackUpTo(long ackLevel) {
@@ -175,56 +192,68 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
-		private void retransmitInflight() {
+		private void retransmitInflight() throws ConnectionFailedException {
 			for (AppendData append : state.getAllInflight()) {
 				state.connection.send(append);
 			}
 		}
 	}
 	
+	@Synchronized
+	void connect() throws ConnectionFailedException {
+        if (state.isClosed()) {
+            throw new IllegalStateException("LogOutputStream was already closed");
+        }
+        if (state.getConnection() == null) {
+            ClientConnection connection = connectionFactory.establishConnection(endpoint, responseProcessor);
+            state.newConnection(connection);
+            SetupAppend cmd = new SetupAppend(connectionId, segment);
+            connection.send(cmd);
+        }
+	}
+	
 	@Override
 	@Synchronized
 	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedExcepetion {
-		if (state.isClosed()) {
-			throw new IllegalStateException("LogOutputStream was already closed");
-		}
-		
 		ClientConnection connection = connection();
 		AppendData append = state.createNewInflightAppend(connectionId, segment, buff, callback);
-		connection.send(append);
+		try {
+            connection.send(append);
+        } catch (ConnectionFailedException e) {
+            log.warn("Connection failed due to: ", e);
+            connection(); //As the messages is inflight, this will perform the retransmition.
+        }
 	}
 
-	//TODO: This really needs to be fixed to have proper retry with backoff.
-	private ClientConnection connection() throws SegmentSealedExcepetion {
-		ClientConnection connection;
-		while (true) {
-			if (!state.hasConnetion()) {
-				connection = connectionFactory.establishConnection(endpoint);
-				connection.setResponseProcessor(responseProcessor);
-				state.newConnection(connection);
-				SetupAppend cmd = new SetupAppend(connectionId, segment);
-				connection.send(cmd);
-			}
-			try {
-				connection = state.waitForConnection();
-				break;
-			} catch (ConnectionFailedException e) {
-				state.failConnection(e);
-				log.warn("Connection failed due to",e);
-			}
-		}
-		return connection;
-	}
+    private ClientConnection connection() throws SegmentSealedExcepetion {
+        long delay = 1;
+        for (int attempt = 0; attempt < 5; attempt++) {
+            try {
+                connect();
+                return state.waitForConnection();
+            } catch (ConnectionFailedException e) {
+                state.failConnection(e);
+                log.warn("Connection failed due to: ", e);
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException e1) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                delay *= 10;
+            }
+        }
+        throw new RuntimeException("Unable to connect to" + endpoint + ". Giving up.");
+    }
 
 	@Override
 	@Synchronized
 	public void close() throws SegmentSealedExcepetion {
 		state.setClosed(true);
 		flush();
-		try {
-			state.waitForConnection().drop();
-		} catch (ConnectionFailedException e) {
-			state.failConnection(e);
+		ClientConnection connection = state.getConnection();
+		if (connection != null) {
+		    connection.drop();
 		}
 	}
 
@@ -238,7 +267,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException(e);
-		}
+		} catch (ConnectionFailedException e) {
+		    state.failConnection(e);
+        }
 	}
 
 	@Override

@@ -1,4 +1,4 @@
-package com.emc.nautilus.logclient;
+package com.emc.nautilus.logclient.impl;
 
 import static org.junit.Assert.*;
 

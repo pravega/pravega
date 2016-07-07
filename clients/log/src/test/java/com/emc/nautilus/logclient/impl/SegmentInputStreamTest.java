@@ -1,10 +1,10 @@
-package com.emc.nautilus.logclient;
+package com.emc.nautilus.logclient.impl;
 
 import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
-public class LogInputStreamTest {
+public class SegmentInputStreamTest {
 
 	@Test
 	public void testConfigChange() {

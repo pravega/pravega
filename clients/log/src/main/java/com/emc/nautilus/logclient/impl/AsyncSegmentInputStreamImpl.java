@@ -1,7 +1,5 @@
 package com.emc.nautilus.logclient.impl;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,6 +15,9 @@ import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
 	private final ConnectionFactory connectionFactory;
@@ -28,15 +29,18 @@ public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 	
 	private final class ResponseProcessor extends FailingReplyProcessor {
 
-		public void wrongHost(WrongHost wrongHost) {
+		@Override
+        public void wrongHost(WrongHost wrongHost) {
 			reconnect(new ConnectionFailedException(wrongHost.toString()));
 		}
 
-		public void noSuchSegment(NoSuchSegment noSuchSegment) {
+		@Override
+        public void noSuchSegment(NoSuchSegment noSuchSegment) {
 			reconnect(new IllegalArgumentException(noSuchSegment.toString()));
 		}
 
-		public void segmentRead(SegmentRead segmentRead) {
+		@Override
+        public void segmentRead(SegmentRead segmentRead) {
 			CompletableFuture<SegmentRead> future = outstandingRequests.remove(segmentRead.getOffset());
 			if (future != null) {
 				future.complete(segmentRead);
@@ -52,16 +56,14 @@ public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 		reconnect(null);
 	}
 
-	private void reconnect(Exception e) { //TODO: we need backoff
-		ClientConnection newConnection = connectionFactory.establishConnection(endpoint);
-		newConnection.setResponseProcessor(responseProcessor);
+	private void reconnect(Exception e) { 
+        log.warn("Connection failure. Will Reconnect.", e);
+		ClientConnection newConnection = connectionFactory.establishConnection(endpoint, responseProcessor);
 		ClientConnection oldConnection = connection.getAndSet(newConnection);
 		if (oldConnection != null) {
 			oldConnection.drop();
 		}
-		List<Entry<Long, CompletableFuture<SegmentRead>>> outstanding = new ArrayList<>(
-				outstandingRequests.entrySet()); //TODO: Is there a way not to copy this without a race?
-		for (Entry<Long, CompletableFuture<SegmentRead>> read : outstanding) {
+		for (Entry<Long, CompletableFuture<SegmentRead>> read : outstandingRequests.entrySet()) {
 			read.getValue().completeExceptionally(e);
 			outstandingRequests.remove(read.getKey(), read.getValue());
 		}
@@ -83,7 +85,12 @@ public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 		}
 		CompletableFuture<SegmentRead> future = new CompletableFuture<>();
 		outstandingRequests.put(offset, future);
-		c.send(new ReadSegment(segment, offset, length));
+		try {
+		    c.send(new ReadSegment(segment, offset, length));
+		} catch (ConnectionFailedException e) {
+		    reconnect(e); 
+		    //While this does not provide backoff, it waits for the next read call to send the request again.
+		}
 		return future;
 	}
 
