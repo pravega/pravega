@@ -72,17 +72,33 @@ public class SegmentOutputStreamTest {
         verify(connection).send(new SetupAppend(cid, "segment"));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup("segment", cid, 0));
         
-        CompletableFuture<Void> acked = new CompletableFuture<>();
-        ByteBuffer data = getBuffer("test");
-        output.write(data, acked);
-        verify(connection).send(new AppendData(cid, data.array().length, Unpooled.wrappedBuffer(data)));
+        sendEvent(cid, connection, output, "test");
         verifyNoMoreInteractions(connection);
-        assertEquals(false, acked.isDone());
     }
 
     @Test
-    public void testNewEventsGoAfterInflight() {
-        fail();
+    public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedExcepetion {
+        UUID cid = UUID.randomUUID();
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection("endpoint", connection);  
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, "segment");
+        output.connect();
+        verify(connection).send(new SetupAppend(cid, "segment"));
+        cf.getProcessor("endpoint").appendSetup(new AppendSetup("segment", cid, 0));
+        
+        String event = "test";
+        sendEvent(cid, connection, output, event);
+        verifyNoMoreInteractions(connection);
+    }
+
+    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, String event)
+            throws SegmentSealedExcepetion, ConnectionFailedException {
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        ByteBuffer data = getBuffer(event);
+        output.write(data, acked);
+        verify(connection).send(new AppendData(cid, data.array().length, Unpooled.wrappedBuffer(data)));
+        assertEquals(false, acked.isDone());
     }
 
     @Test
