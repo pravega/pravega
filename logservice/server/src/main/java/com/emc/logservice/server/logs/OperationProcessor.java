@@ -21,7 +21,6 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.common.BlockingDrainingQueue;
 import com.emc.logservice.common.LoggerHelpers;
 import com.emc.logservice.common.ObjectClosedException;
-import com.emc.logservice.contracts.RuntimeStreamingException;
 import com.emc.logservice.server.Container;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
@@ -172,8 +171,8 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations as well.
      * </ol>
      *
-     * @throws InterruptedException
-     * @throws DataCorruptionException
+     * @throws InterruptedException    If the current thread has been interrupted (externally).
+     * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually indicates corruption).
      */
 
     private void runOnce() throws DataCorruptionException, InterruptedException {
@@ -239,7 +238,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * @param dataFrameBuilder The DataFrameBuilder to append the operation to.
      * @return True if processed successfully, false otherwise.
      */
-    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) {
+    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) throws DataCorruptionException {
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
         // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
@@ -264,7 +263,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             if (cause instanceof DataCorruptionException) {
                 // Besides failing the operation, DataCorruptionExceptions are pretty serious. We should shut down the
                 // Operation Processor if we ever encounter one.
-                throw new RuntimeStreamingException("Encountered a possible corruption.", cause);
+                throw (DataCorruptionException) cause;
             }
 
             return false;
@@ -361,9 +360,9 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
-            // Commit any changes to metadata.
-            this.metadataUpdater.commit();
+            // Record the Truncation marker and then commit any changes to metadata.
             this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
+            this.metadataUpdater.commit();
 
             // TODO: consider running this on its own thread, but they must still be in the same sequence!
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.

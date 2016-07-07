@@ -49,6 +49,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
     private final String traceObjectId;
     private final LogItemFactory<T> logItemFactory;
     private long lastReadSequenceNumber;
+    private int readEntryCount;
     private boolean closed;
 
     //endregion
@@ -118,7 +119,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                     }
 
                     this.lastReadSequenceNumber = seqNo;
-                    return new ReadResult<>(logItem, segments.getDataFrameSequence(), segments.isLastFrameEntry());
+                    return new ReadResult<>(logItem, segments);
                 } catch (SerializationException ex) {
                     throw new DataCorruptionException("Deserialization failed.", ex);
                 }
@@ -162,6 +163,16 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
                     // constructing a new Operation. This happens if an entry was committed partially, but we were
                     // unable to write the rest of it.
                     result.clear();
+                } else if (!result.hasData()) {
+                    // We found an entry that is not marked as "First Record Entry", yet we are expecting a one marked as such
+                    // This happens when the DurableDataLog has been truncated, and an entry has been "cut" in two.
+                    // In this case, this entry is garbage, so it should be skipped.
+                    if (this.readEntryCount > 0) {
+                        // But this should ONLY happen at the very beginning of a read. If we encounter something like
+                        // this in the middle of a log, we very likely have some sort of corruption.
+                        throw new DataCorruptionException(String.format("Found a DataFrameEntry which is not marked as 'First Record Entry', but no active record is being read. DataFrameSequenceNumber = %d", nextEntry.getDataFrameSequence()));
+                    }
+                    continue;
                 }
 
                 // Add the current entry's contents to the result.
@@ -169,6 +180,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
 
                 if (nextEntry.isLastRecordEntry()) {
                     // We are done. We found the last entry for a record.
+                    this.readEntryCount++;
                     return result;
                 }
             }
@@ -184,20 +196,21 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
      */
     public static class ReadResult<T extends LogItem> {
         private final T logItem;
-        private final long dataFrameSequence;
+        private final long lastUsedDataFrameSequence;
+        private final long lastFullDataFrameSequence;
         private final boolean lastFrameEntry;
 
         /**
          * Creates a new instance of the ReadResult class.
          *
          * @param logItem           The LogItem to wrap.
-         * @param dataFrameSequence The Sequence Number of the Last Data Frame containing the LogItem.
-         * @param lastFrameEntry    Whether this LogItem was the last entry in its Data Frame.
+         * @param segmentCollection The SegmentCollection that the LogItem was constructed from.
          */
-        protected ReadResult(T logItem, long dataFrameSequence, boolean lastFrameEntry) {
+        protected ReadResult(T logItem, SegmentCollection segmentCollection) {
             this.logItem = logItem;
-            this.dataFrameSequence = dataFrameSequence;
-            this.lastFrameEntry = lastFrameEntry;
+            this.lastUsedDataFrameSequence = segmentCollection.getLastUsedDataFrameSequence();
+            this.lastFullDataFrameSequence = segmentCollection.getLastFullDataFrameSequence();
+            this.lastFrameEntry = segmentCollection.isLastFrameEntry();
         }
 
         /**
@@ -216,8 +229,20 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          *
          * @return
          */
-        public long getDataFrameSequence() {
-            return this.dataFrameSequence;
+        public long getLastUsedDataFrameSequence() {
+            return this.lastUsedDataFrameSequence;
+        }
+
+        /**
+         * Gets a value indicating the Sequence Number of the Last Data Frame that ends with a part of the LogItem. If
+         * the LogItem fits on exactly one DataFrame, this will return the Sequence number for that Data Frame; if it spans
+         * multiple data frames, it returns the Sequence Number of the last Data Frame that ends with a part of the LogItem
+         * (in general, this is the Data Frame immediately preceding that returned by getLastUsedDataFrameSequence()).
+         *
+         * @return
+         */
+        public long getLastFullDataFrameSequence() {
+            return this.lastFullDataFrameSequence;
         }
 
         /**
@@ -231,7 +256,7 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
 
         @Override
         public String toString() {
-            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(), getDataFrameSequence(), isLastFrameEntry());
+            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(), getLastUsedDataFrameSequence(), isLastFrameEntry());
         }
     }
 
@@ -244,7 +269,8 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
      */
     private static class SegmentCollection {
         private final LinkedList<ByteArraySegment> segments;
-        private long dataFrameSequence;
+        private long lastUsedDataFrameSequence;
+        private long lastFullDataFrameSequence;
         private boolean lastFrameEntry;
 
         /**
@@ -252,7 +278,8 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          */
         protected SegmentCollection() {
             this.segments = new LinkedList<>();
-            this.dataFrameSequence = -1;
+            this.lastUsedDataFrameSequence = -1;
+            this.lastFullDataFrameSequence = -1;
             this.lastFrameEntry = false;
         }
 
@@ -263,16 +290,22 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          * @param dataFrameSequence The Sequence Number for the Data Frame containing the segment.
          * @param lastFrameEntry    Whether this segment is the last entry in the Data Frame.
          * @throws NullPointerException     If segment is null.
-         * @throws IllegalArgumentException If dataFrameSequence is invalid.
+         * @throws IllegalArgumentException If lastUsedDataFrameSequence is invalid.
          */
         public void add(ByteArraySegment segment, long dataFrameSequence, boolean lastFrameEntry) throws DataCorruptionException {
             Preconditions.checkNotNull(segment, "segment");
 
-            if (dataFrameSequence < this.dataFrameSequence) {
-                throw new DataCorruptionException(String.format("Invalid DataFrameSequence. Expected at least '%d', found '%d'.", this.dataFrameSequence, dataFrameSequence));
+            if (dataFrameSequence < this.lastUsedDataFrameSequence) {
+                throw new DataCorruptionException(String.format("Invalid DataFrameSequence. Expected at least '%d', found '%d'.", this.lastUsedDataFrameSequence, dataFrameSequence));
             }
 
-            this.dataFrameSequence = dataFrameSequence;
+            if (lastFrameEntry) {
+                // This is the last segment in this DataFrame, so we need to set the lastFullDataFrameSequence to
+                // the right value.
+                this.lastFullDataFrameSequence = dataFrameSequence;
+            }
+
+            this.lastUsedDataFrameSequence = dataFrameSequence;
             this.lastFrameEntry = lastFrameEntry;
             this.segments.add(segment);
         }
@@ -290,7 +323,8 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          * Clears the collection.
          */
         public void clear() {
-            this.dataFrameSequence = -1;
+            this.lastUsedDataFrameSequence = -1;
+            this.lastFullDataFrameSequence = -1;
             this.lastFrameEntry = false;
             this.segments.clear();
         }
@@ -311,8 +345,19 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          *
          * @return
          */
-        public long getDataFrameSequence() {
-            return this.dataFrameSequence;
+        public long getLastUsedDataFrameSequence() {
+            return this.lastUsedDataFrameSequence;
+        }
+
+        /**
+         * Gets a value indicating the Sequence Number of the last Data Frame that ends with a segment in this collection.
+         * If the number of segments is 1, then getLastFullDataFrameSequence() == getLastUsedDataFrameSequence().
+         * The return value of this method is irrelevant if hasData() == false.
+         *
+         * @return
+         */
+        public long getLastFullDataFrameSequence() {
+            return this.lastFullDataFrameSequence;
         }
 
         /**
@@ -323,6 +368,11 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
          */
         public boolean isLastFrameEntry() {
             return this.lastFrameEntry;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Count = %d, LastUsedDataFrameSeq = %d, LastFullDataFrameSequence = %d, LastFrameEntry = %s", this.segments.size(), this.lastUsedDataFrameSequence, this.lastFullDataFrameSequence, this.lastFrameEntry);
         }
     }
 

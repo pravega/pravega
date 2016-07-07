@@ -23,7 +23,7 @@ import java.util.Collection;
 /**
  * Defines an updateable StreamSegment Metadata.
  */
-public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata {
+public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata, TruncationMarkerRepository {
     /**
      * Maps a new StreamSegment Name to its assigned Id.
      *

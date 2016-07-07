@@ -27,9 +27,13 @@ import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -40,13 +44,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
     //region Members
 
-    private static final byte CURRENT_SERIALIZATION_VERSION = 0;
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
-    private final HashMap<String, Long> streamSegmentIds;
-    private final HashMap<Long, UpdateableSegmentMetadata> segmentMetadata;
+    private final AbstractMap<String, Long> streamSegmentIds;
+    private final AbstractMap<Long, UpdateableSegmentMetadata> segmentMetadata;
     private final AtomicBoolean recoveryMode;
     private final String streamSegmentContainerId;
+    private final AbstractMap<Long, Long> truncationMarkers;
+    private final HashSet<Long> truncationPoints;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
 
     //endregion
@@ -58,12 +63,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      */
     public StreamSegmentContainerMetadata(String streamSegmentContainerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
-        //TODO: need to define a MetadataReaderWriter class which we can pass to this. Metadata always need to be persisted somewhere.
         this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
         this.segmentMetadata = new HashMap<>();
+        this.truncationMarkers = new ConcurrentHashMap<>();
+        this.truncationPoints = new HashSet<>();
         this.recoveryMode = new AtomicBoolean();
     }
 
@@ -187,7 +193,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
         // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this is ok.
         Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
-
         this.sequenceNumber.set(value);
     }
     //endregion
@@ -217,9 +222,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             this.segmentMetadata.clear();
         }
 
+        synchronized (this.truncationMarkers) {
+            this.truncationMarkers.clear();
+            this.truncationPoints.clear();
+        }
+
         log.info("{}: Reset.", this.traceObjectId);
     }
-
 
     private void ensureRecoveryMode() {
         Preconditions.checkState(isRecoveryMode(), "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
@@ -227,6 +236,84 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     private void ensureNonRecoveryMode() {
         Preconditions.checkState(!isRecoveryMode(), "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
+    }
+
+    //endregion
+
+    //region TruncationMarkerRepository Implementation
+
+    @Override
+    public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
+        synchronized (this.truncationMarkers) {
+            this.truncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+        }
+    }
+
+    @Override
+    public void removeTruncationMarkers(long upToOperationSequenceNumber) {
+        ArrayList<Long> toRemove = new ArrayList<>();
+        synchronized (this.truncationMarkers) {
+            // Remove Truncation Markers.
+            this.truncationMarkers.keySet().forEach(key ->
+            {
+                if (key <= upToOperationSequenceNumber) {
+                    toRemove.add(key);
+                }
+            });
+
+            toRemove.forEach(this.truncationMarkers::remove);
+
+            // Remove Truncation points
+            toRemove.clear();
+            this.truncationPoints.forEach(key ->
+            {
+                if (key <= upToOperationSequenceNumber) {
+                    toRemove.add(key);
+                }
+            });
+            toRemove.forEach(this.truncationPoints::remove);
+        }
+    }
+
+    @Override
+    public void setValidTruncationPoint(long sequenceNumber) {
+        Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive number.");
+        synchronized (this.truncationMarkers) {
+            this.truncationPoints.add(sequenceNumber);
+        }
+    }
+
+    @Override
+    public boolean isValidTruncationPoint(long sequenceNumber) {
+        return this.truncationPoints.contains(sequenceNumber);
+    }
+
+    @Override
+    public long getClosestTruncationMarker(long operationSequenceNumber) {
+        //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
+        Map.Entry<Long, Long> result = null;
+        synchronized (this.truncationMarkers) {
+
+            for (Map.Entry<Long, Long> tm : this.truncationMarkers.entrySet()) {
+                long seqNo = tm.getKey();
+                if (seqNo == operationSequenceNumber) {
+                    // Found the best result.
+                    return tm.getValue();
+                } else if (seqNo < operationSequenceNumber) {
+                    if (result == null || (result.getKey() < seqNo)) {
+                        // We found a better result.
+                        result = tm;
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            return -1;
+        } else {
+            return result.getValue();
+        }
     }
 
     //endregion

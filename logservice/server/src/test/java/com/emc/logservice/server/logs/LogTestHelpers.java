@@ -23,6 +23,7 @@ import com.emc.logservice.server.StreamSegmentNameUtils;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.StreamSegmentMapper;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
+import com.emc.logservice.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
@@ -151,11 +152,12 @@ public class LogTestHelpers {
      * @param streamSegmentIds
      * @param batchIds
      * @param appendsPerStreamSegment
+     * @param metadataCheckpointsEvery
      * @param mergeBatches
      * @param sealStreamSegments
      * @return
      */
-    public static List<Operation> generateOperations(Collection<Long> streamSegmentIds, AbstractMap<Long, Long> batchIds, int appendsPerStreamSegment, boolean mergeBatches, boolean sealStreamSegments) {
+    public static List<Operation> generateOperations(Collection<Long> streamSegmentIds, AbstractMap<Long, Long> batchIds, int appendsPerStreamSegment, int metadataCheckpointsEvery, boolean mergeBatches, boolean sealStreamSegments) {
         List<Operation> result = new ArrayList<>();
 
         // Add some appends.
@@ -163,6 +165,7 @@ public class LogTestHelpers {
         for (long streamSegmentId : streamSegmentIds) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
                 result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId), new AppendContext(UUID.randomUUID(), i)));
+                addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
         }
@@ -170,6 +173,7 @@ public class LogTestHelpers {
         for (long batchId : batchIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
                 result.add(new StreamSegmentAppendOperation(batchId, generateAppendData(appendId), new AppendContext(UUID.randomUUID(), i)));
+                addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
         }
@@ -179,13 +183,18 @@ public class LogTestHelpers {
             // Key = BatchId, Value = Parent Id.
             batchIds.entrySet().forEach(mapping -> {
                 result.add(new StreamSegmentSealOperation(mapping.getKey()));
+                addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 result.add(new MergeBatchOperation(mapping.getValue(), mapping.getKey()));
+                addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
         }
 
         // Seal the StreamSegments.
         if (sealStreamSegments) {
-            streamSegmentIds.forEach(streamSegmentId -> result.add(new StreamSegmentSealOperation(streamSegmentId)));
+            streamSegmentIds.forEach(streamSegmentId -> {
+                result.add(new StreamSegmentSealOperation(streamSegmentId));
+                addCheckpointIfNeeded(result, metadataCheckpointsEvery);
+            });
         }
 
         return result;
@@ -289,6 +298,12 @@ public class LogTestHelpers {
         List<CompletableFuture<Long>> futures = new ArrayList<>();
         operations.forEach(oc -> futures.add(oc.completion));
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
+    }
+
+    private static void addCheckpointIfNeeded(List<Operation> operations, int metadataCheckpointsEvery) {
+        if (metadataCheckpointsEvery > 0 && operations.size() % metadataCheckpointsEvery == 0) {
+            operations.add(new MetadataCheckpointOperation());
+        }
     }
 
     public static class OperationWithCompletion {

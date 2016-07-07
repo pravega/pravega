@@ -175,7 +175,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         }
 
         try {
-            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence()));
+            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence(), dataFrame.getPreviousFrameSequence()));
         } catch (Exception ex) {
             CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
             throw new IOException(ex);
@@ -193,6 +193,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         private final long lastFullySerializedSequenceNumber;
         private final long lastStartedSequenceNumber;
         private final long dataFrameSequence;
+        private final long previousDataFrameSequence;
 
         /**
          * Creates a new instance of the DataFrameCommitArgs class.
@@ -200,13 +201,16 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
          * @param lastFullySerializedSequenceNumber The Sequence Number of the last LogItem that was fully serialized (and committed).
          * @param lastStartedSequenceNumber         The Sequence Number of the last LogItem that was started (but not necessarily committed).
          * @param dataFrameSequence                 The Sequence Number of the Data Frame that was committed.
+         * @param previousDataFrameSequence         The Sequence Number of the last Data Frame that was committed prior to this one.
          */
-        protected DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, long dataFrameSequence) {
+        protected DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, long dataFrameSequence, long previousDataFrameSequence) {
             assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" + lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
             assert dataFrameSequence >= 0 : "negative dataFrameSequence";
+            assert dataFrameSequence > previousDataFrameSequence : "dataFrameSequence should be larger than previousDataFrameSequence";
             this.lastFullySerializedSequenceNumber = lastFullySerializedSequenceNumber;
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
             this.dataFrameSequence = dataFrameSequence;
+            this.previousDataFrameSequence = previousDataFrameSequence;
         }
 
         /**
@@ -240,9 +244,18 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             return this.dataFrameSequence;
         }
 
+        /**
+         * Gets a value indicating the Sequence Number of the last Data Frame that was committed prior to this one.
+         *
+         * @return
+         */
+        public long getPreviousDataFrameSequence() {
+            return this.previousDataFrameSequence;
+        }
+
         @Override
         public String toString() {
-            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d", getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), getDataFrameSequence());
+            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d/%d", getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), getDataFrameSequence(), getPreviousDataFrameSequence());
         }
     }
 

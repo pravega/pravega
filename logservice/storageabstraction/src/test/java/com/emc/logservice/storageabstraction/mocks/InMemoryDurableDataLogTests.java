@@ -46,7 +46,7 @@ public class InMemoryDurableDataLogTests {
      * Tests the ability to append to a DurableDataLog.
      */
     @Test
-    public void testAppend() throws Exception{
+    public void testAppend() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(

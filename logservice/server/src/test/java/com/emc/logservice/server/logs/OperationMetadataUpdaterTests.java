@@ -27,7 +27,6 @@ import com.emc.logservice.server.SegmentMetadata;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
-import com.emc.logservice.server.containers.TruncationMarkerCollection;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.MetadataCheckpointOperation;
@@ -37,12 +36,14 @@ import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.nautilus.testcommon.AssertExtensions;
+import com.google.common.base.Supplier;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Unit tests for OperationMetadataUpdater class.
@@ -119,7 +120,7 @@ public class OperationMetadataUpdaterTests {
         OperationMetadataUpdater recoveryUpdater = createUpdater(metadata);
         recoveryUpdater.preProcessOperation(appendOp);
         AssertExtensions.assertLessThan("Unexpected StreamSegmentOffset after call to preProcess in recovery mode.", 0, appendOp.getStreamSegmentOffset());
-        checkSequenceNumber(appendOp, "call to preProcess in recovery mode");
+        checkNoSequenceNumberAssigned(appendOp, "call to preProcess in recovery mode");
         Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state in recovery mode.", SEGMENT_LENGTH, recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata in recovery mode.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
 
@@ -128,7 +129,7 @@ public class OperationMetadataUpdaterTests {
         OperationMetadataUpdater updater = createUpdater(metadata); // Need to create again since we exited recovery mode.
         updater.preProcessOperation(appendOp);
         Assert.assertEquals("Unexpected StreamSegmentOffset after call to preProcess in non-recovery mode.", SEGMENT_LENGTH, appendOp.getStreamSegmentOffset());
-        checkSequenceNumber(appendOp, "call to preProcess in non-recovery mode");
+        checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
         Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.", SEGMENT_LENGTH, recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
 
@@ -189,7 +190,7 @@ public class OperationMetadataUpdaterTests {
         OperationMetadataUpdater recoveryUpdater = createUpdater(metadata);
         recoveryUpdater.preProcessOperation(sealOp);
         AssertExtensions.assertLessThan("Unexpected StreamSegmentLength after call to preProcess in recovery mode.", 0, sealOp.getStreamSegmentLength());
-        checkSequenceNumber(sealOp, "call to preProcess in recovery mode");
+        checkNoSequenceNumberAssigned(sealOp, "call to preProcess in recovery mode");
         Assert.assertFalse("preProcess(Seal) seems to have changed the Updater internal state in recovery mode.", recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         Assert.assertFalse("preProcess(Seal) seems to have changed the metadata in recovery mode.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
 
@@ -198,7 +199,7 @@ public class OperationMetadataUpdaterTests {
         OperationMetadataUpdater updater = createUpdater(metadata); // Need to create again since we exited recovery mode.
         updater.preProcessOperation(sealOp);
         Assert.assertEquals("Unexpected StreamSegmentLength after call to preProcess in non-recovery mode.", SEGMENT_LENGTH, sealOp.getStreamSegmentLength());
-        checkSequenceNumber(sealOp, "call to preProcess in non-recovery mode");
+        checkNoSequenceNumberAssigned(sealOp, "call to preProcess in non-recovery mode");
         Assert.assertFalse("preProcess(Seal) seems to have changed the Updater internal state.", recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         Assert.assertFalse("preProcess(Seal) seems to have changed the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
 
@@ -264,7 +265,7 @@ public class OperationMetadataUpdaterTests {
         recoveryMergeOp.setBatchStreamSegmentLength(metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).getDurableLogLength());
         recoveryUpdater.preProcessOperation(recoveryMergeOp);
         AssertExtensions.assertLessThan("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.", 0, recoveryMergeOp.getTargetStreamSegmentOffset());
-        checkSequenceNumber(recoveryMergeOp, "call to preProcess in recovery mode");
+        checkNoSequenceNumberAssigned(recoveryMergeOp, "call to preProcess in recovery mode");
         Assert.assertFalse("preProcess(Merge) seems to have changed the Updater internal state in recovery mode.", recoveryUpdater.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
         Assert.assertFalse("preProcess(Merge) seems to have changed the metadata in recovery mode.", metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
 
@@ -275,7 +276,7 @@ public class OperationMetadataUpdaterTests {
         updater.preProcessOperation(mergeOp);
         Assert.assertEquals("Unexpected Batch StreamSegmentLength after call to preProcess in recovery mode.", SEALED_BATCH_LENGTH, mergeOp.getBatchStreamSegmentLength());
         Assert.assertEquals("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.", SEGMENT_LENGTH, mergeOp.getTargetStreamSegmentOffset());
-        checkSequenceNumber(mergeOp, "call to preProcess in non-recovery mode");
+        checkNoSequenceNumberAssigned(mergeOp, "call to preProcess in non-recovery mode");
         Assert.assertFalse("preProcess(Merge) seems to have changed the Updater internal state in recovery mode.", recoveryUpdater.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
         Assert.assertFalse("preProcess(Merge) seems to have changed the metadata in recovery mode.", metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
 
@@ -503,6 +504,7 @@ public class OperationMetadataUpdaterTests {
 
         final long NEW_SEGMENT_ID = 897658;
         final String NEW_SEGMENT_NAME = "NewSegmentId";
+        AtomicLong seqNo = new AtomicLong();
 
         // Create a non-empty metadata.
         UpdateableContainerMetadata metadata = createMetadata();
@@ -514,8 +516,7 @@ public class OperationMetadataUpdaterTests {
         MetadataCheckpointOperation checkpoint2 = createMetadataPersisted();
 
         // Checkpoint 1 Should have original metadata.
-        processOperation(checkpoint1, updater);
-        checkpoint1.setSequenceNumber(1);
+        processOperation(checkpoint1, updater, seqNo::incrementAndGet);
         UpdateableContainerMetadata checkpointedMetadata = getCheckpointedMetadata(checkpoint1);
         MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
@@ -524,30 +525,45 @@ public class OperationMetadataUpdaterTests {
         metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID).setDurableLogLength(0);
         metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID).setStorageLength(1);
 
-        processOperation(createMap(NEW_SEGMENT_ID, NEW_SEGMENT_NAME), updater);
-        processOperation(new StreamSegmentAppendOperation(NEW_SEGMENT_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater);
-        processOperation(checkpoint2, updater);
+        processOperation(createMap(NEW_SEGMENT_ID, NEW_SEGMENT_NAME), updater, seqNo::incrementAndGet);
+        processOperation(new StreamSegmentAppendOperation(NEW_SEGMENT_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
+        processOperation(checkpoint2, updater, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
-        checkpoint2.setSequenceNumber(2);
         updater.commit();
         checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
         MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
     }
 
-    private void processOperation(Operation operation, OperationMetadataUpdater updater) throws Exception {
-        updater.preProcessOperation(operation);
-        updater.acceptOperation(operation);
-    }
+    /**
+     * Tests the processMetadataOperation method with MetadataCheckpoint operations, when such checkpoints are skipped over
+     * because they are after other operations.
+     */
+    @Test
+    public void testProcessMetadataCheckpointIgnored() throws Exception {
+        final long NEW_SEGMENT_ID = 897658;
+        final String NEW_SEGMENT_NAME = "NewSegmentId";
+        AtomicLong seqNo = new AtomicLong();
 
-    private UpdateableContainerMetadata getCheckpointedMetadata(MetadataCheckpointOperation operation) throws Exception {
-        UpdateableContainerMetadata metadata = createBlankMetadata();
-        metadata.enterRecoveryMode();
+        // Create a non-empty metadata.
+        UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
-        processOperation(operation, updater);
-        boolean success = updater.commit();
-        Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
-        return metadata;
+        MetadataCheckpointOperation checkpointedMetadata = createMetadataPersisted();
+        processOperation(checkpointedMetadata, updater, seqNo::incrementAndGet);
+
+        // Create a blank metadata, and add an operation to the updater (which would result in mapping a new StreamSegment).
+        metadata = createBlankMetadata();
+        metadata.enterRecoveryMode();
+        updater = createUpdater(metadata);
+        processOperation(createMap(NEW_SEGMENT_ID, NEW_SEGMENT_NAME), updater, seqNo::incrementAndGet);
+
+        // Now try to process the checkpoint
+        processOperation(checkpointedMetadata, updater, seqNo::incrementAndGet);
+        updater.commit();
+
+        // Verify the checkpointed metadata hasn't been applied
+        Assert.assertNull("Newly added StreamSegment Id was not removed after applying checkpoint.", metadata.getStreamSegmentMetadata(NEW_SEGMENT_ID));
+        Assert.assertNotNull("Checkpoint seems to have not been applied.", metadata.getStreamSegmentMetadata(SEGMENT_ID));
     }
 
     /**
@@ -653,13 +669,18 @@ public class OperationMetadataUpdaterTests {
         int recordCount = 100;
 
         // Record 100 entries, and make sure the TruncationMarkerCollection contains them as soon as recorded.
-        TruncationMarkerCollection tm = new TruncationMarkerCollection();
-        OperationMetadataUpdater u = new OperationMetadataUpdater(createMetadata(), tm);
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater u = new OperationMetadataUpdater(metadata);
+        long previousMarker = -1;
         for (int i = 0; i < recordCount; i++) {
             long dfSeqNo = i * i;
             u.recordTruncationMarker(i, dfSeqNo);
-            long actualMarker = tm.getClosestTruncationMarker(i);
-            Assert.assertEquals("Unexpected value for truncation marker for Operation Sequence Number " + i, dfSeqNo, actualMarker);
+            long actualMarker = metadata.getClosestTruncationMarker(i);
+            Assert.assertEquals("Unexpected value for truncation marker (pre-commit) for Operation Sequence Number " + i, previousMarker, actualMarker);
+            u.commit();
+            actualMarker = metadata.getClosestTruncationMarker(i);
+            Assert.assertEquals("Unexpected value for truncation marker (post-commit) for Operation Sequence Number " + i, dfSeqNo, actualMarker);
+            previousMarker = actualMarker;
         }
     }
 
@@ -686,7 +707,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private OperationMetadataUpdater createUpdater(UpdateableContainerMetadata metadata) {
-        return new OperationMetadataUpdater(metadata, new TruncationMarkerCollection());
+        return new OperationMetadataUpdater(metadata);
     }
 
     private StreamSegmentAppendOperation createAppend() {
@@ -721,10 +742,29 @@ public class OperationMetadataUpdaterTests {
         return new MetadataCheckpointOperation();
     }
 
-    private void checkSequenceNumber(Operation op, String context) {
+    private void checkNoSequenceNumberAssigned(Operation op, String context) {
         AssertExtensions.assertLessThan(
                 "Unexpected Sequence Number after " + context + ".",
                 0,
                 op.getSequenceNumber());
+    }
+
+    private void processOperation(Operation operation, OperationMetadataUpdater updater, Supplier<Long> getSeqNo) throws Exception {
+        updater.preProcessOperation(operation);
+        if(operation.getSequenceNumber()<0) {
+            operation.setSequenceNumber(getSeqNo.get());
+        }
+
+        updater.acceptOperation(operation);
+    }
+
+    private UpdateableContainerMetadata getCheckpointedMetadata(MetadataCheckpointOperation operation) throws Exception {
+        UpdateableContainerMetadata metadata = createBlankMetadata();
+        metadata.enterRecoveryMode();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+        processOperation(operation, updater, ()->1L);
+        boolean success = updater.commit();
+        Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
+        return metadata;
     }
 }

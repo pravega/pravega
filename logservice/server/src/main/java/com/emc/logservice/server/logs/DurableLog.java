@@ -29,7 +29,7 @@ import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.LogItemFactory;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.UpdateableContainerMetadata;
-import com.emc.logservice.server.containers.TruncationMarkerCollection;
+import com.emc.logservice.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.OperationFactory;
 import com.emc.logservice.storageabstraction.DurableDataLog;
@@ -55,11 +55,10 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final String traceObjectId;
     private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
-    private final DurableDataLog dataFrameLog;
+    private final DurableDataLog durableDataLog;
     private final MemoryLogUpdater memoryLogUpdater;
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
-    private final TruncationMarkerCollection truncationMarkers;
     private final Executor executor;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
     private boolean closed;
@@ -82,17 +81,16 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.dataFrameLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
-        assert this.dataFrameLog != null : "dataFrameLogFactory created null dataFrameLog.";
+        this.durableDataLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
+        assert this.durableDataLog != null : "dataFrameLogFactory created null durableDataLog.";
 
         this.traceObjectId = String.format("DurableLog[%s]", metadata.getContainerId());
         this.metadata = metadata;
         this.executor = executor;
         this.operationFactory = new OperationFactory();
-        this.truncationMarkers = new TruncationMarkerCollection();
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
-        this.operationProcessor = new OperationProcessor(this.metadata.getContainerId(), new OperationMetadataUpdater(this.metadata, this.truncationMarkers), this.memoryLogUpdater, this.dataFrameLog);
+        this.operationProcessor = new OperationProcessor(this.metadata.getContainerId(), new OperationMetadataUpdater(this.metadata), this.memoryLogUpdater, this.durableDataLog);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
     }
 
@@ -107,7 +105,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             ServiceShutdownListener.awaitShutdown(this, false);
 
             this.operationProcessor.close();
-            this.dataFrameLog.close();
+            this.durableDataLog.close();
             this.closed = true;
         }
     }
@@ -122,8 +120,12 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         this.executor.execute(() -> {
             try {
-                performRecovery();
+                boolean anyItemsRecovered = performRecovery();
                 this.operationProcessor.startAsync().awaitRunning();
+                if (!anyItemsRecovered) {
+                    // If the DurableLog is empty, need to queue a MetadataCheckpointOperation so we have a valid starting state (and wait for it).
+                    queueMetadataCheckpoint().join();
+                }
             } catch (Exception ex) {
                 if (this.operationProcessor.isRunning()) {
                     // Make sure we stop the operation processor if we started it.
@@ -187,7 +189,15 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public CompletableFuture<Void> truncate(long upToSequenceNumber, Duration timeout) {
         ensureRunning();
-        long dataFrameSeqNo = this.truncationMarkers.getClosestTruncationMarker(upToSequenceNumber);
+        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation Point. Must refer to a MetadataCheckpointOperation.");
+
+        // The SequenceNumber we were given points directly to a MetadataCheckpointOperation. We must not remove it!
+        // Instead, it must be the first operation that does survive, so we need to adjust our SeqNo to the one just
+        // before it.
+        long actualTruncationSequenceNumber = upToSequenceNumber - 1;
+
+        // Find the closest Truncation Marker (that does not exceed it).
+        long dataFrameSeqNo = this.metadata.getClosestTruncationMarker(actualTruncationSequenceNumber);
         if (dataFrameSeqNo < 0) {
             // Nothing to truncate.
             return CompletableFuture.completedFuture(null);
@@ -196,14 +206,14 @@ public class DurableLog extends AbstractService implements OperationLog {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameSequenceNumber = {}).", this.traceObjectId, upToSequenceNumber, dataFrameSeqNo);
 
-        return snapshotMetadata()
-                .thenCompose(v -> this.dataFrameLog.truncate(dataFrameSeqNo, timer.getRemaining())) // Truncate DataFrameLog.
+        return this.durableDataLog
+                .truncate(dataFrameSeqNo, timer.getRemaining())
                 .thenRun(() -> {
                     // Truncate InMemory Transaction Log.
-                    this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= upToSequenceNumber);
+                    this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= actualTruncationSequenceNumber);
 
                     // Remove old truncation markers.
-                    this.truncationMarkers.removeTruncationMarkers(upToSequenceNumber);
+                    this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
                 });
     }
 
@@ -220,7 +230,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     //region Recovery
 
-    private void performRecovery() throws Exception {
+    private boolean performRecovery() throws Exception {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
@@ -230,20 +240,19 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Put metadata (and entire container) into 'Recovery Mode'.
         this.metadata.enterRecoveryMode();
-        this.truncationMarkers.enterRecoveryMode();
 
         // Reset metadata.
         this.metadata.reset();
-        this.truncationMarkers.reset();
 
-        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata, this.truncationMarkers);
+        OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
         boolean success = false;
+        boolean anyItemsRecovered;
         try {
-            this.dataFrameLog.initialize(timer.getRemaining());
-            recoverFromDataFrameLog(metadataUpdater);
-            log.info("{} Recovery completed.", this.traceObjectId);
+            this.durableDataLog.initialize(timer.getRemaining());
+            anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
+            log.info("{} Recovery completed. Items Recovered = {}.", this.traceObjectId, anyItemsRecovered);
             success = true;
         } catch (Exception ex) {
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
@@ -251,74 +260,108 @@ public class DurableLog extends AbstractService implements OperationLog {
         } finally {
             // We must exit recovery mode when done, regardless of outcome.
             this.metadata.exitRecoveryMode();
-            this.truncationMarkers.exitRecoveryMode();
             this.memoryLogUpdater.exitRecoveryMode(this.metadata, success);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
+        return anyItemsRecovered;
     }
 
-    private void recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
+    /**
+     * Recovers the Operations from the DurableLog using the given OperationMetadataUpdater. Searches the DurableDataLog
+     * until the first MetadataCheckpointOperation is encountered. All Operations prior to this one are skipped over.
+     * Recovery starts with the first MetadataCheckpointOperation and runs until the end of the DurableDataLog is reached.
+     * Subsequent MetadataCheckpointOperations are ignored (as they contain redundant information - which has already
+     * been built up using the Operations up to them).
+     *
+     * @param metadataUpdater
+     * @return True if any operations were recovered, false otherwise.
+     * @throws Exception
+     */
+    private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
+        int skippedOperationCount = 0;
+        int skippedDataFramesCount = 0;
+        int recoveredItemCount = 0;
 
         // Read all entries from the DataFrameLog and append them to the InMemoryOperationLog.
         // Also update metadata along the way.
-        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.dataFrameLog, this.operationFactory, getId())) {
-            DataFrameReader.ReadResult lastReadResult = null;
+        try (DataFrameReader<Operation> reader = new DataFrameReader<>(this.durableDataLog, this.operationFactory, getId())) {
+            DataFrameReader.ReadResult<Operation> readResult;
+
+            // We can only recover starting from a MetadataCheckpointOperation; find the first one.
             while (true) {
                 // Fetch the next operation.
-                DataFrameReader.ReadResult<Operation> readResult = reader.getNext();
+                readResult = reader.getNext();
                 if (readResult == null) {
-                    // We have reached the end.
+                    // We have reached the end and have not found any MetadataCheckpointOperations.
+                    log.warn("{}: Reached the end of the DataFrameLog and could not find any MetadataCheckpointOperations after reading {} Operations and {} Data Frames.", this.traceObjectId, skippedOperationCount, skippedDataFramesCount);
                     break;
+                } else if (readResult.getItem() instanceof MetadataCheckpointOperation) {
+                    // We found a checkpoint. Start recovering from here.
+                    log.info("{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data Frames).", this.traceObjectId, readResult.getItem().getSequenceNumber(), skippedOperationCount, skippedDataFramesCount);
+                    break;
+                } else if (readResult.isLastFrameEntry()) {
+                    skippedDataFramesCount++;
                 }
 
-                Operation operation = readResult.getItem();
+                skippedOperationCount++;
+                log.debug("{}: Not recovering operation because no MetadataCheckpointOperation encountered so far ({}).", this.traceObjectId, readResult.getItem());
+            }
 
-                // Update Metadata Sequence Number.
-                this.metadata.setOperationSequenceNumber(operation.getSequenceNumber());
+            // Now continue with the recovery from here.
+            while (readResult != null) {
+                recordTruncationMarker(readResult, metadataUpdater);
+                recoverOperation(readResult.getItem(), metadataUpdater);
+                recoveredItemCount++;
 
-                // Determine Truncation Markers.
-                if (readResult.isLastFrameEntry()) {
-                    // The current Log Operation was the last one in the frame. This is a Truncation Marker.
-                    metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), readResult.getDataFrameSequence());
-                } else if (lastReadResult != null && !lastReadResult.isLastFrameEntry() && readResult.getDataFrameSequence() != lastReadResult.getDataFrameSequence()) {
-                    // DataFrameSequence changed on this operation (and this operation spans multiple frames). The Truncation Marker is on this operation, but the previous frame.
-                    metadataUpdater.recordTruncationMarker(operation.getSequenceNumber(), lastReadResult.getDataFrameSequence());
-                }
-
-                lastReadResult = readResult;
-
-                // Process the operation.
-                try {
-                    log.debug("{} Recovering {}.", this.traceObjectId, operation);
-                    //TODO: should we also check that streams still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
-                    metadataUpdater.preProcessOperation(operation);
-                    metadataUpdater.acceptOperation(operation);
-                } catch (StreamSegmentException | MetadataUpdateException ex) {
-                    // Metadata updates failures should not happen during recovery.
-                    throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
-                }
-
-                // Add to InMemory Operation Log.
-                this.memoryLogUpdater.add(operation);
+                // Fetch the next operation.
+                readResult = reader.getNext();
             }
         }
 
         // Commit whatever changes we have in the metadata updater to the Container Metadata.
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
         metadataUpdater.commit();
-        LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId);
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
+        return recoveredItemCount > 0;
+    }
+
+    private void recoverOperation(Operation operation, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
+        // Update Metadata Sequence Number.
+        this.metadata.setOperationSequenceNumber(operation.getSequenceNumber());
+
+        // Update the metadata with the information from the Operation.
+        try {
+            //TODO: should we also check that StreamSegments still exist in Storage, and that their lengths are what we think they are? Or we leave that to the LogSynchronizer?
+            log.debug("{} Recovering {}.", this.traceObjectId, operation);
+            metadataUpdater.preProcessOperation(operation);
+            metadataUpdater.acceptOperation(operation);
+        } catch (StreamSegmentException | MetadataUpdateException ex) {
+            // Metadata updates failures should not happen during recovery.
+            throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
+        }
+
+        // Add to InMemory Operation Log.
+        this.memoryLogUpdater.add(operation);
+    }
+
+    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {
+        // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
+        // or it's the last entry in a DataFrame.
+        if (readResult.getLastFullDataFrameSequence() >= 0 && readResult.getLastFullDataFrameSequence() != readResult.getLastUsedDataFrameSequence()) {
+            // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
+            // that ends with a part of it.
+            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), readResult.getLastFullDataFrameSequence());
+        } else if (readResult.isLastFrameEntry()) {
+            // The operation was the last one in the frame. This is a Truncation Marker.
+            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), readResult.getLastUsedDataFrameSequence());
+        }
     }
 
     //endregion
 
     //region Helpers
-
-    private CompletableFuture<Void> snapshotMetadata() {
-        // TODO: Implement properly. And include in Unit Tests.
-        return CompletableFuture.completedFuture(null);
-    }
 
     private void ensureRunning() {
         Exceptions.checkNotClosed(this.closed, this);
@@ -341,6 +384,13 @@ public class DurableLog extends AbstractService implements OperationLog {
             this.stopException.set(new StreamingException("QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping."));
             stopAsync();
         }
+    }
+
+    private CompletableFuture<Void> queueMetadataCheckpoint() {
+        log.info("{}: MetadataCheckpointOperation queued.", this.traceObjectId);
+        return this.operationProcessor
+                .process(new MetadataCheckpointOperation())
+                .thenAccept(seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));
     }
 
     //endregion
