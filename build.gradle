@@ -137,6 +137,11 @@ project('integrationtests') {
         compile project(':logservice:server')
         compile project(':logservice:serverhost')
         testCompile project(':testcommon')
+        testCompile files(project(':common').sourceSets.test.output)
+        testCompile files(project(':clients:log').sourceSets.test.output)
+    	testCompile files(project(':clients:streaming').sourceSets.test.output)
+    	testCompile files(project(':logservice:server').sourceSets.test.output)
+        testCompile files(project(':logservice:serverhost').sourceSets.test.output)
     }
     task startServer(type: JavaExec) {
         main = "com.emc.logservice.serverhost.ServiceStarter"
