@@ -25,6 +25,15 @@ public class InvalidPropertyValueException extends ConfigurationException {
     /**
      * Creates a new instance of the InvalidPropertyValueException class.
      *
+     * @param message The message of the exception.
+     */
+    public InvalidPropertyValueException(String message) {
+        super(message);
+    }
+
+    /**
+     * Creates a new instance of the InvalidPropertyValueException class.
+     *
      * @param fullPropertyName The full name (component + property) of the property.
      * @param actualValue      The actual value that was about to be processed.
      */

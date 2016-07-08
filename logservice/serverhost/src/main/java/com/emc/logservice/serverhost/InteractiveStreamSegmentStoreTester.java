@@ -29,6 +29,7 @@ import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
+import com.emc.logservice.server.service.ServiceBuilderConfig;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
@@ -79,18 +80,18 @@ public class InteractiveStreamSegmentStoreTester {
 
     public static void main(String[] args) {
         final boolean useDistributedLog = false;
-        final int containerCount = 1;
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
+        ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
         ServiceBuilder serviceBuilder;
         if (useDistributedLog) {
-            serviceBuilder = new DistributedLogServiceBuilder(containerCount);
+            serviceBuilder = new DistributedLogServiceBuilder(config);
         } else {
-            serviceBuilder = new InMemoryServiceBuilder(containerCount);
+            serviceBuilder = new InMemoryServiceBuilder(config);
         }
 
         try {

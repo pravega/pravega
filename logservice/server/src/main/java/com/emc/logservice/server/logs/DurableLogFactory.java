@@ -32,16 +32,26 @@ import java.util.concurrent.Executor;
 public class DurableLogFactory implements OperationLogFactory {
     private final DurableDataLogFactory dataLogFactory;
     private final Executor executor;
+    private final DurableLogConfig config;
 
-    public DurableLogFactory(DurableDataLogFactory dataLogFactory, Executor executor) {
+    /**
+     * Creates a new instance of the DurableLogFactory class.
+     *
+     * @param config         The DurableLogConfig to use.
+     * @param dataLogFactory The DurableDataLogFactory to use.
+     * @param executor       The Executor to use.
+     */
+    public DurableLogFactory(DurableLogConfig config, DurableDataLogFactory dataLogFactory, Executor executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(dataLogFactory, "dataLogFactory");
         Preconditions.checkNotNull(executor, "executor");
         this.dataLogFactory = dataLogFactory;
         this.executor = executor;
+        this.config = config;
     }
 
     @Override
     public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, Cache cache) {
-        return new DurableLog(containerMetadata, this.dataLogFactory, cache, this.executor);
+        return new DurableLog(config, containerMetadata, this.dataLogFactory, cache, this.executor);
     }
 }

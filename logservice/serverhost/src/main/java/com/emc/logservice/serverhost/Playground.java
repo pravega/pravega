@@ -26,31 +26,19 @@ import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
 import com.emc.logservice.server.Cache;
 import com.emc.logservice.server.DataCorruptionException;
-import com.emc.logservice.server.MetadataRepository;
-import com.emc.logservice.server.SegmentContainer;
-import com.emc.logservice.server.SegmentContainerFactory;
-import com.emc.logservice.server.SegmentMetadata;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
-import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
-import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.logs.MemoryLogUpdater;
 import com.emc.logservice.server.logs.MemoryOperationLog;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
 import com.emc.logservice.server.reading.ReadIndex;
-import com.emc.logservice.server.reading.ReadIndexFactory;
-import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
-import com.emc.logservice.storageabstraction.mocks.InMemoryStorageFactory;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -62,7 +50,6 @@ import java.util.concurrent.Executors;
  */
 public class Playground {
     private static final Random RANDOM = new Random();
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final String CONTAINER_ID = "123";
 
     public static void main(String[] args) throws Exception {
@@ -70,49 +57,7 @@ public class Playground {
         //context.getLoggerList().get(0).setLevel(Level.INFO);
         context.reset();
 
-        //testStreamSegmentContainer();
         //testReadIndex();
-    }
-
-    private static void testStreamSegmentContainer() throws Exception {
-        final String containerId = "123";
-        final Duration timeout = Duration.ofSeconds(30);
-
-        int streamCount = 10;
-        int batchPerStreamCount = 10;
-
-        ExecutorService es = Executors.newScheduledThreadPool(10);
-        try {
-            MetadataRepository metadataRepository = new InMemoryMetadataRepository();
-            SegmentContainerFactory containerFactory = new StreamSegmentContainerFactory(metadataRepository, new DurableLogFactory(new InMemoryDurableDataLogFactory(), es), new ReadIndexFactory(), new InMemoryStorageFactory(), es);
-            List<String> streamNames = new ArrayList<>();
-            List<CompletableFuture> batchNameFutures = new ArrayList<>();
-            try (SegmentContainer c = containerFactory.createStreamSegmentContainer(containerId)) {
-                c.startAsync().awaitRunning();
-
-                //create some streams
-                for (int i = 0; i < streamCount; i++) {
-                    String name = getStreamName(i);
-                    streamNames.add(name);
-                    c.createStreamSegment(name, timeout).get();
-                    for (int j = 0; j < batchPerStreamCount; j++) {
-                        batchNameFutures.add(c.createBatch(name, timeout));
-                    }
-                }
-
-                for (CompletableFuture<String> cf : batchNameFutures) {
-                    streamNames.add(cf.get());
-                }
-
-                // more tests to be done as part of unit testing.
-
-                printMetadata(metadataRepository.getMetadata(containerId), streamNames);
-
-                c.stopAsync().awaitTerminated();
-            }
-        } finally {
-            es.shutdown();
-        }
     }
 
     private static void testReadIndex() throws Exception {
@@ -452,43 +397,6 @@ public class Playground {
                         expectedContents,
                         actual));
             }
-        }
-    }
-
-    private static void printMetadata(UpdateableContainerMetadata metadata, Collection<String> streamNames) {
-        printMetadata(metadata, streamNames, null);
-    }
-
-    private static void printMetadata(UpdateableContainerMetadata metadata, Collection<String> streamNames, Collection<UUID> clientIds) {
-        System.out.println("Final Stream Metadata:");
-        for (String streamName : streamNames) {
-            long streamId = metadata.getStreamSegmentId(streamName);
-            SegmentMetadata streamSegmentMetadata = metadata.getStreamSegmentMetadata(streamId);
-
-            StringBuilder appendContexts = new StringBuilder();
-            boolean anyContexts = false;
-            if (clientIds != null && clientIds.size() > 0) {
-                appendContexts.append(", AppendContexts: ");
-                for (UUID clientId : clientIds) {
-                    AppendContext context = streamSegmentMetadata.getLastAppendContext(clientId);
-                    if (context != null) {
-                        appendContexts.append(String.format("%s-%s = %d, ", Long.toHexString(clientId.getMostSignificantBits()), Long.toHexString(clientId.getLeastSignificantBits()), context.getClientOffset()));
-                        anyContexts = true;
-                    }
-                }
-            }
-
-            if (!anyContexts) {
-                appendContexts.append("None.");
-            }
-
-            System.out.println(String.format("Stream = %s, Name = %s, StorageLength = %d, DurableLogLength = %d, Sealed = %s%s",
-                    Long.toHexString(streamSegmentMetadata.getId()),
-                    streamSegmentMetadata.getName(),
-                    streamSegmentMetadata.getStorageLength(),
-                    streamSegmentMetadata.getDurableLogLength(),
-                    streamSegmentMetadata.isSealed(),
-                    appendContexts.toString()));
         }
     }
 

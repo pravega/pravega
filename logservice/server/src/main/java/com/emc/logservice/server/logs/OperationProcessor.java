@@ -26,6 +26,7 @@ import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.ServiceShutdownListener;
+import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.logs.operations.CompletableOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
@@ -51,6 +52,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     private final MemoryLogUpdater logUpdater;
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
+    private final MetadataCheckpointPolicy checkpointPolicy;
 
     //endregion
 
@@ -59,23 +61,24 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     /**
      * Creates a new instance of the OperationProcessor class.
      *
-     * @param containerId     The Id of the container this QueueProcessor belongs to.
-     * @param metadataUpdater An OperationMetadataUpdater to work with.
-     * @param logUpdater      A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
-     * @param durableDataLog  The DataFrameLog to write DataFrames to.
+     * @param metadata         The ContainerMetadata for the Container to process operations for.
+     * @param logUpdater       A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
+     * @param durableDataLog   The DataFrameLog to write DataFrames to.
+     * @param checkpointPolicy The Checkpoint Policy for Metadata.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationProcessor(String containerId, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog) {
-        Preconditions.checkNotNull(containerId, "containerId");
-        Preconditions.checkNotNull(metadataUpdater, "metadataUpdater");
+    public OperationProcessor(UpdateableContainerMetadata metadata, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
+        Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(logUpdater, "logUpdater");
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
+        Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
 
-        this.traceObjectId = String.format("OperationProcessor[%s]", containerId);
-        this.containerId = containerId;
-        this.metadataUpdater = metadataUpdater;
+        this.containerId = metadata.getContainerId();
+        this.traceObjectId = String.format("OperationProcessor[%s]", this.containerId);
+        this.metadataUpdater = new OperationMetadataUpdater(metadata);
         this.logUpdater = logUpdater;
         this.durableDataLog = durableDataLog;
+        this.checkpointPolicy = checkpointPolicy;
         this.operationQueue = new BlockingDrainingQueue<>();
     }
 
@@ -186,7 +189,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
                 // In the happy case, this loop is only executed once. But we need the bigger while loop in case we
                 // encountered a non-fatal exception. There is no point in failing the whole set of operations if only
                 // one set failed.
-                state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.traceObjectId);
+                state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.checkpointPolicy, this.traceObjectId);
                 DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
                 for (; currentIndex < operations.size(); currentIndex++) {
                     CompletableOperation o = operations.get(currentIndex);
@@ -331,15 +334,18 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryLogUpdater logUpdater;
+        private final MetadataCheckpointPolicy checkpointPolicy;
 
-        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, String traceObjectId) {
+        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
             assert logUpdater != null : "logUpdater is null";
+            assert checkpointPolicy != null : "checkpointPolicy is null";
 
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
             this.logUpdater = logUpdater;
+            this.checkpointPolicy = checkpointPolicy;
         }
 
         /**
@@ -369,7 +375,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
-                    logUpdater.add(e.getOperation());
+                    this.logUpdater.add(e.getOperation());
                 } catch (DataCorruptionException ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
@@ -380,6 +386,8 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             }
 
             this.logUpdater.flush();
+
+            this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
         }
 
         /**

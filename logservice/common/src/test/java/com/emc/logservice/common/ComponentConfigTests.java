@@ -179,16 +179,16 @@ public class ComponentConfigTests {
     }
 
     private static class TestConfig extends ComponentConfig {
-        public TestConfig(Properties properties, String componentCode) throws MissingPropertyException, InvalidPropertyValueException {
+        public TestConfig(Properties properties, String componentCode) {
             super(properties, componentCode);
         }
 
         @Override
-        protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+        protected void refresh()  {
         }
     }
 
     private interface ExtractorFunction<R> {
-        R apply(ComponentConfig config, String propName) throws MissingPropertyException, InvalidPropertyValueException;
+        R apply(ComponentConfig config, String propName);
     }
 }

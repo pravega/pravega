@@ -16,34 +16,34 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.storageimplementation.distributedlog;
+package com.emc.logservice.server.service;
 
 import com.emc.logservice.common.ComponentConfig;
-import com.emc.logservice.common.ConfigurationException;
+import com.emc.logservice.common.InvalidPropertyValueException;
 import com.emc.logservice.common.MissingPropertyException;
 
 import java.util.Properties;
 
 /**
- * General configuration for DistributedLog Client.
+ * General Service Configuration.
  */
-public class DistributedLogConfig extends ComponentConfig {
+public class ServiceConfig extends ComponentConfig {
     //region Members
 
-    public static final String COMPONENT_CODE = "dlog";
-    public static final String PROPERTY_HOSTNAME = "hostname";
-    public static final String PROPERTY_PORT = "port";
-    public static final String PROPERTY_NAMESPACE = "namespace";
-    private String distributedLogHost;
-    private int distributedLogPort;
-    private String distributedLogNamespace;
+    public static final String COMPONENT_CODE = "logservice";
+    public static final String PROPERTY_CONTAINER_COUNT = "containerCount";
+    public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
+    public static final String PROPERTY_LISTENING_PORT = "listeningPort";
+    private int containerCount;
+    private int threadPoolSize;
+    private int listeningPort;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the DistributedLogConfig class.
+     * Creates a new instance of the ServiceConfig class.
      *
      * @param properties The java.util.Properties object to read Properties from.
      * @throws MissingPropertyException Whenever a required Property is missing from the given properties collection.
@@ -51,7 +51,7 @@ public class DistributedLogConfig extends ComponentConfig {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
-    public DistributedLogConfig(Properties properties) {
+    public ServiceConfig(Properties properties) {
         super(properties, COMPONENT_CODE);
     }
 
@@ -60,30 +60,30 @@ public class DistributedLogConfig extends ComponentConfig {
     //region Properties
 
     /**
-     * Gets a value indicating the host name (no port) where DistributedLog is listening.
+     * Gets a value indicating the number of containers in the system.
      *
      * @return
      */
-    public String getDistributedLogHost() {
-        return this.distributedLogHost;
+    public int getContainerCount() {
+        return this.containerCount;
     }
 
     /**
-     * Gets a value indicating the port where DistributedLog is listening.
+     * Gets a value indicating the number of threads in the common thread pool.
      *
      * @return
      */
-    public int getDistributedLogPort() {
-        return this.distributedLogPort;
+    public int getThreadPoolSize() {
+        return this.threadPoolSize;
     }
 
     /**
-     * Gets a value indicating the DistributedLog Namespace to use.
+     * Gets a value indicating the TCP Port number to listed to.
      *
      * @return
      */
-    public String getDistributedLogNamespace() {
-        return this.distributedLogNamespace;
+    public int getListeningPort() {
+        return this.listeningPort;
     }
 
     //endregion
@@ -91,10 +91,10 @@ public class DistributedLogConfig extends ComponentConfig {
     //region ComponentConfig Implementation
 
     @Override
-    protected void refresh() throws ConfigurationException {
-        this.distributedLogHost = getProperty(PROPERTY_HOSTNAME);
-        this.distributedLogPort = getInt32Property(PROPERTY_PORT);
-        this.distributedLogNamespace = getProperty(PROPERTY_NAMESPACE);
+    protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+        this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
+        this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
+        this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);
     }
 
     //endregion

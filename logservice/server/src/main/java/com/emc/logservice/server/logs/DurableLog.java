@@ -53,6 +53,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
+    private final DurableLogConfig config;
     private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
@@ -70,17 +71,20 @@ public class DurableLog extends AbstractService implements OperationLog {
     /**
      * Creates a new instance of the DurableLog class.
      *
+     * @param config              Durable Log Configuration.
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
      * @param cache               An Cache where to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, Cache cache, Executor executor) {
+    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, Cache cache, Executor executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
         Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(executor, "executor");
 
+        this.config = config;
         this.durableDataLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
         assert this.durableDataLog != null : "dataFrameLogFactory created null durableDataLog.";
 
@@ -90,7 +94,8 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = new MemoryOperationLog();
         this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
-        this.operationProcessor = new OperationProcessor(this.metadata.getContainerId(), new OperationMetadataUpdater(this.metadata), this.memoryLogUpdater, this.durableDataLog);
+        MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryLogUpdater, this.durableDataLog, checkpointPolicy);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
     }
 

@@ -21,7 +21,7 @@ package com.emc.logservice.common;
 /**
  * Exception that is thrown whenever a bad configuration is detected.
  */
-public class ConfigurationException extends Exception {
+public class ConfigurationException extends RuntimeException {
     /**
      * Creates a new instance of the ConfigurationException class.
      * @param message The message.

@@ -176,7 +176,7 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         }
 
         try {
-            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame.getFrameSequence(), dataFrame.getPreviousFrameSequence()));
+            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber, dataFrame));
         } catch (Exception ex) {
             CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex, cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
             throw new IOException(ex);
@@ -195,23 +195,24 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         private final long lastStartedSequenceNumber;
         private final long dataFrameSequence;
         private final long previousDataFrameSequence;
+        private final int dataFrameLength;
 
         /**
          * Creates a new instance of the DataFrameCommitArgs class.
          *
          * @param lastFullySerializedSequenceNumber The Sequence Number of the last LogItem that was fully serialized (and committed).
          * @param lastStartedSequenceNumber         The Sequence Number of the last LogItem that was started (but not necessarily committed).
-         * @param dataFrameSequence                 The Sequence Number of the Data Frame that was committed.
-         * @param previousDataFrameSequence         The Sequence Number of the last Data Frame that was committed prior to this one.
+         * @param dataFrame                         The DataFrame that was just committed.
          */
-        protected DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, long dataFrameSequence, long previousDataFrameSequence) {
+        protected DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, DataFrame dataFrame) {
             assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber : "lastFullySerializedSequenceNumber (" + lastFullySerializedSequenceNumber + ") is greater than lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
-            assert dataFrameSequence >= 0 : "negative dataFrameSequence";
-            assert dataFrameSequence > previousDataFrameSequence : "dataFrameSequence should be larger than previousDataFrameSequence";
             this.lastFullySerializedSequenceNumber = lastFullySerializedSequenceNumber;
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
-            this.dataFrameSequence = dataFrameSequence;
-            this.previousDataFrameSequence = previousDataFrameSequence;
+            this.dataFrameSequence = dataFrame.getFrameSequence();
+            this.previousDataFrameSequence = dataFrame.getPreviousFrameSequence();
+            assert dataFrameSequence >= 0 : "negative dataFrameSequence";
+            assert dataFrameSequence > previousDataFrameSequence : "dataFrameSequence should be larger than previousDataFrameSequence";
+            this.dataFrameLength = dataFrame.getLength();
         }
 
         /**
@@ -254,9 +255,18 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             return this.previousDataFrameSequence;
         }
 
+        /**
+         * Gets a value indicating the length of the DataFrame that was just committed.
+         *
+         * @return
+         */
+        public int getDataFrameLength() {
+            return this.dataFrameLength;
+        }
+
         @Override
         public String toString() {
-            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d/%d", getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), getDataFrameSequence(), getPreviousDataFrameSequence());
+            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d/%d, Length = %d", getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), getDataFrameSequence(), getPreviousDataFrameSequence(), getDataFrameLength());
         }
     }
 
