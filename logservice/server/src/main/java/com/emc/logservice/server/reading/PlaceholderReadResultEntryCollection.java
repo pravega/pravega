@@ -18,10 +18,11 @@
 
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.common.Exceptions;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
+import java.util.List;
 import java.util.PriorityQueue;
 
 /**
@@ -42,7 +43,7 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
      * Creates a new instance of the PlaceholderReadResultEntryCollection class.
      */
     public PlaceholderReadResultEntryCollection() {
-        this.reads = new PriorityQueue<>(this::entryComparator);
+        this.reads = new PriorityQueue<>(PlaceholderReadResultEntryCollection::entryComparator);
     }
 
     //endregion
@@ -65,9 +66,7 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
      * @param entry
      */
     public void add(PlaceholderReadResultEntry entry) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
 
         synchronized (this.reads) {
             this.reads.add(entry);
@@ -82,11 +81,9 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
      * @return
      */
     public Collection<PlaceholderReadResultEntry> pollEntriesWithOffsetLessThan(long offset) {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
 
-        LinkedList<PlaceholderReadResultEntry> result = new LinkedList<>();
+        List<PlaceholderReadResultEntry> result = new ArrayList<>();
         if (this.reads.size() > 0) {
             synchronized (this.reads) {
                 // 'reads' is sorted by Starting Offset, in ascending order. As long as it is not empty and the
@@ -104,16 +101,16 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
      * Cancels all Reads in this collection..
      */
     public void cancelAll() {
-        LinkedList<PlaceholderReadResultEntry> toCancel;
+        List<PlaceholderReadResultEntry> toCancel;
         synchronized (this.reads) {
-            toCancel = new LinkedList<>(this.reads);
+            toCancel = new ArrayList<>(this.reads);
             this.reads.clear();
         }
 
         toCancel.forEach(PlaceholderReadResultEntry::cancel);
     }
 
-    private int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2) {
+    protected static  int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2) {
         if (e1.getStreamSegmentOffset() < e2.getStreamSegmentOffset()) {
             return -1;
         } else if (e1.getStreamSegmentOffset() > e2.getStreamSegmentOffset()) {
