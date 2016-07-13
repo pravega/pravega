@@ -17,13 +17,13 @@
  */
 package com.emc.nautilus.logclient.impl;
 
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 
 abstract class AsyncSegmentInputStream implements AutoCloseable {
 	
-	public abstract Future<SegmentRead> read(long offset, int length);
+	public abstract CompletableFuture<SegmentRead> read(long offset, int length);
 
 	@Override
 	public abstract void close();

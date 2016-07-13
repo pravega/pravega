@@ -42,7 +42,9 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
 	private final boolean ssl;
@@ -56,6 +58,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		try {
 			this.group = new EpollEventLoopGroup();
 		} catch (ExceptionInInitializerError e) {
+		    log.warn("Epoll not available. Falling back on NIO.");
 			nio = true;
 			this.group = new NioEventLoopGroup();
 		}
@@ -76,7 +79,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		} else {
 			sslCtx = null;
 		}
-		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(rp);
+		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(host, rp);
 		Bootstrap b = new Bootstrap();
 		b.group(group)
 			.channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)

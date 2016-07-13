@@ -61,7 +61,7 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 
 	@Override
 	@Synchronized
-	public void read(ByteBuffer toFill) throws EndOfSegmentException {
+	public int read(ByteBuffer toFill) throws EndOfSegmentException {
 		issueRequestIfNeeded();
 		if (outstandingRequest.isDone() || buffer.dataAvailable() <= 0) {
 			try {
@@ -73,7 +73,9 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 		if (buffer.dataAvailable() <= 0 && receivedEndOfStream) {
 			throw new EndOfSegmentException();
 		}
-		offset += buffer.read(toFill);
+		int read = buffer.read(toFill);
+		offset += read;
+		return read;
 	}
 
 	private void handleRequest() throws ExecutionException {

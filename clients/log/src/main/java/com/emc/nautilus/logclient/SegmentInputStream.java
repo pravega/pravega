@@ -28,7 +28,7 @@ public abstract class SegmentInputStream implements AutoCloseable {
 	
 	public abstract int available();
 	
-	public abstract void read(ByteBuffer toFill) throws EndOfSegmentException;
+	public abstract int read(ByteBuffer toFill) throws EndOfSegmentException;
 
 	@Override
 	public abstract void close();

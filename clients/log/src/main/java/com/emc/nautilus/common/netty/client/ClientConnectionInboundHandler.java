@@ -26,6 +26,7 @@ import com.emc.nautilus.common.netty.ConnectionFailedException;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.ReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommand;
+import com.google.common.base.Preconditions;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -36,10 +37,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
+    private final String connectionName;
 	private final ReplyProcessor processor;
 	private final AtomicReference<Channel> channel = new AtomicReference<>();
 
-	ClientConnectionInboundHandler(ReplyProcessor processor) {
+	ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor) {
+        Preconditions.checkNotNull(processor);
+        this.connectionName = connectionName;
 	    this.processor = processor;
 	}
 	
@@ -58,7 +62,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
     	Reply cmd = (Reply) msg;
-    	log.debug("Processing reply: {}",cmd);
+    	log.debug(connectionName+ " processing reply: {}",cmd);
 		cmd.process(processor);
     }
 
@@ -76,7 +80,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
             getChannel().writeAndFlush(cmd).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Send call was interrupted", e);
+            throw new RuntimeException(connectionName+ " Send call was interrupted", e);
         } catch (ExecutionException e) {
             throw new ConnectionFailedException(e.getCause());
         }
@@ -92,9 +96,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 	
 	private Channel getChannel() {
 		Channel ch = channel.get();
-		if (ch == null) {
-			throw new IllegalStateException("Connection not yet established.");
-		}
+		Preconditions.checkState(ch != null, connectionName+ " Connection not yet established.");
 		return ch;
 	}
 
