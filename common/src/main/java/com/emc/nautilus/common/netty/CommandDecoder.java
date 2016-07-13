@@ -22,7 +22,6 @@ import java.util.UUID;
 
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
-import com.emc.nautilus.common.netty.WireCommands.Type;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
@@ -47,7 +46,9 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-        log.debug("Decoding a message");
+        if (log.isTraceEnabled()) {
+            log.debug("Decoding a message on connection: "+connectionOffset);
+        }
         decode(in, out);
     }
 
@@ -56,14 +57,14 @@ public class CommandDecoder extends ByteToMessageDecoder {
         @Cleanup
         ByteBufInputStream is = new ByteBufInputStream(in);
         int t = is.readInt();
-        Type type = WireCommands.getType(t);
+        WireCommandType type = WireCommands.getType(t);
         int length = is.readInt();
         if (length > in.readableBytes()) {
-            throw new IllegalStateException("Header indicated more bytes than exist.");
+            throw new InvalidMessageException("Header indicated more bytes than exist.");
         }
         int dataStart = in.readerIndex();
         if (type == null) {
-            throw new IllegalStateException("Unknown wire command: " + t);
+            throw new InvalidMessageException("Unknown wire command: " + t);
         }
         switch (type) {
         case APPEND_DATA_HEADER: {
@@ -72,7 +73,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
             checkConnectionId(id);
             checkOffset(connectionOffset, readOffset);
             if (appendHeader != null) {
-                throw new IllegalStateException("Header appended immediatly after header.");
+                throw new InvalidMessageException("Header appended immediatly after header.");
             }
             appendHeader = in.readBytes(length - (in.readerIndex() - dataStart));
             break;
@@ -83,7 +84,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
             checkConnectionId(id);
             int dataLength = is.readInt();
             if (appendHeader == null) {
-                throw new IllegalStateException("Footer not following header.");
+                throw new InvalidMessageException("Footer not following header.");
             }
             long appendLength = appendHeader.readableBytes() + dataLength;
             connectionOffset += appendLength;
@@ -116,13 +117,13 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
     private void checkOffset(long expectedOffset, long readOffset) {
         if (expectedOffset != readOffset) {
-            throw new IllegalStateException("Append came in at wrong offset: " + expectedOffset + " vs " + readOffset);
+            throw new InvalidMessageException("Append came in at wrong offset: " + expectedOffset + " vs " + readOffset);
         }
     }
 
     private void checkConnectionId(UUID id) {
         if (id == null || !id.equals(connectionId)) {
-            throw new IllegalStateException("Append came in for a segment that was not the appending segment.");
+            throw new InvalidMessageException("Append came in for a segment that was not the appending segment.");
         }
     }
 

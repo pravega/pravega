@@ -17,7 +17,7 @@
  */
 package com.emc.nautilus.common.netty;
 
-public interface ServerConnection {
+public interface ServerConnection extends AutoCloseable {
 
     /**
      * Sends the provided command. This operation may block. (Though buffering is used to try to
@@ -38,6 +38,7 @@ public interface ServerConnection {
     /**
      * Drop the connection. No further operations may be performed.
      */
-    void drop();
+    @Override
+    void close();
 
 }

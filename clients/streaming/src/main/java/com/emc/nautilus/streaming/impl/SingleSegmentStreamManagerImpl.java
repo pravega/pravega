@@ -66,8 +66,8 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public void shutdown() {
-        clientCF.shutdown();
+    public void close() {
+        clientCF.close();
     }
 
 }

@@ -87,7 +87,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 				connection = null;
 			}
 			connectionSetupComplete();
-			oldConnection.drop();
+			oldConnection.close();
 		}
 
 		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedExcepetion {
@@ -270,7 +270,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		flush();
 		ClientConnection connection = state.getConnection();
 		if (connection != null) {
-		    connection.drop();
+		    connection.close();
 		}
 	}
 

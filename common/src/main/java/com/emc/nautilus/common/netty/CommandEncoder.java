@@ -24,7 +24,6 @@ import java.util.UUID;
 
 import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
-import com.emc.nautilus.common.netty.WireCommands.Type;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
@@ -45,12 +44,12 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
         case APPEND_DATA:
             AppendData append = (AppendData) msg;
             if (connectionId == null || !connectionId.equals(append.getConnectionId())) {
-                throw new IllegalStateException("Sending appends without setting up the append.");
+                throw new InvalidMessageException("Sending appends without setting up the append.");
             }
             ByteBuf data = append.getData();
             int dataLength = data.readableBytes();
             if (append.getConnectionOffset() != connectionOffset + dataLength) {
-                throw new IllegalStateException("Connection offset in append not of expected length: "
+                throw new InvalidMessageException("Connection offset in append not of expected length: "
                         + append.getConnectionOffset() + " vs " + (connectionOffset + dataLength));
             }
             if (headerOnNextAppend) {
@@ -94,7 +93,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
     private void writeHeader(ByteBuf out) {
         int startIdx = out.writerIndex();
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
-        bout.writeInt(Type.APPEND_DATA_HEADER.getCode());
+        bout.writeInt(WireCommandType.APPEND_DATA_HEADER.getCode());
         bout.write(LENGTH_PLACEHOLDER);
         bout.writeLong(connectionOffset);
         bout.writeLong(connectionId.getMostSignificantBits());
@@ -110,7 +109,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
     private void writeFooter(ByteBuf data, int dataLength, ByteBuf out) {
         int startIdx = out.writerIndex();
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
-        bout.writeInt(Type.APPEND_DATA_FOOTER.getCode());
+        bout.writeInt(WireCommandType.APPEND_DATA_FOOTER.getCode());
         bout.write(LENGTH_PLACEHOLDER);
         bout.writeLong(connectionOffset);
         bout.writeLong(connectionId.getMostSignificantBits());

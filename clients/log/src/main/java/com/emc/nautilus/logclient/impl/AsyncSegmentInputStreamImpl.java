@@ -78,7 +78,7 @@ public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         ClientConnection newConnection = connectionFactory.establishConnection(endpoint, responseProcessor);
         ClientConnection oldConnection = connection.getAndSet(newConnection);
         if (oldConnection != null) {
-            oldConnection.drop();
+            oldConnection.close();
         }
         for (Iterator<Entry<Long, CompletableFuture<SegmentRead>>> iterator = outstandingRequests.entrySet()
             .iterator(); iterator.hasNext();) {
@@ -92,7 +92,7 @@ public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public void close() {
         ClientConnection c = connection.getAndSet(null);
         if (c != null) {
-            c.drop();
+            c.close();
         }
     }
 

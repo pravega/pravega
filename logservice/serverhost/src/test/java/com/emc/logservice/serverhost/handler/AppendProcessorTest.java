@@ -178,7 +178,7 @@ public class AppendProcessorTest {
         }
         verify(connection).send(new AppendSetup(streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).drop();
+        verify(connection).close();
         verify(store, atMost(1)).append(any(), any(), any(), any());
         verifyNoMoreInteractions(connection);
     }

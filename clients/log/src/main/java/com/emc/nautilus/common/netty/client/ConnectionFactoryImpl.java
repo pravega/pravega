@@ -92,7 +92,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 						p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
 					}
 					// p.addLast(new LoggingHandler(LogLevel.INFO));
-					p.addLast(	new ExceptionLoggingHandler(),
+					p.addLast(	new ExceptionLoggingHandler(ch.remoteAddress().toString()),
 								new CommandEncoder(),
 								new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
 								new CommandDecoder(),
@@ -111,7 +111,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 	}
 
 	@Override
-	public void shutdown() {
+	public void close() {
 		// Shut down the event loop to terminate all threads.
 		group.shutdownGracefully();
 	}

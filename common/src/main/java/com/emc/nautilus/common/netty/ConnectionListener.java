@@ -21,8 +21,6 @@ public interface ConnectionListener extends AutoCloseable {
 
     void startListening();
 
-    void shutdown();
-
     @Override
     void close();
 }

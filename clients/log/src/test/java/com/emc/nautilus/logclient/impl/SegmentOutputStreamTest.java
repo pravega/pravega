@@ -70,7 +70,7 @@ public class SegmentOutputStreamTest {
         }
 
         @Override
-        public void shutdown() {
+        public void close() {
         }
     }
 

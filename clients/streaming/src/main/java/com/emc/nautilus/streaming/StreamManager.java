@@ -17,12 +17,13 @@
  */
 package com.emc.nautilus.streaming;
 
-public interface StreamManager {
+public interface StreamManager extends AutoCloseable {
     Stream createStream(String streamName, StreamConfiguration config);
 
     void alterStream(String streamName, StreamConfiguration config);
 
     Stream getStream(String streamName);
 
-    void shutdown();
+    @Override
+    void close();
 }
