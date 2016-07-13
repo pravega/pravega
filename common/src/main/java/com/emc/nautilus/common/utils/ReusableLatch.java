@@ -21,7 +21,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * This class is similar to CountDownLatch and Semephore. Many threads can await() the the call of
+ * This class is similar to CountDownLatch and Semaphore. Many threads can await() the the call of
  * release() (blocking until it is invoked.) After this all calls to await() will not block until
  * reset is called.
  */
