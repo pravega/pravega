@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 import com.emc.nautilus.streaming.Serializer;
+import com.google.common.base.Preconditions;
 
 public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
 
@@ -37,6 +38,8 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public SegmentProducerImpl(SegmentOutputStream out, Serializer<Type> serializer) {
+        Preconditions.checkNotNull(out);
+        Preconditions.checkNotNull(serializer);
         this.serializer = serializer;
         this.out = out;
     }
@@ -62,7 +65,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
 
     @Override
     public void close() throws SegmentSealedExcepetion {
-        checkSealed();
+        Preconditions.checkState(!sealed.get(), "Already Sealed");
         if (closed.get()) {
             return;
         }
@@ -74,19 +77,9 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
         }
     }
 
-    private void checkSealed() {
-        if (sealed.get()) {
-            throw new IllegalStateException("Already sealed");
-        }
-    }
-
     private void checkSealedAndClosed() {
-        if (sealed.get()) {
-            throw new IllegalStateException("Already sealed");
-        }
-        if (closed.get()) {
-            throw new IllegalStateException("out is closed");
-        }
+        Preconditions.checkState(!sealed.get(), "Already Sealed");
+        Preconditions.checkState(!closed.get(), "Already Closed");
     }
 
     /**

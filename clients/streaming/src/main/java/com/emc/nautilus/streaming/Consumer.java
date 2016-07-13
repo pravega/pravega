@@ -17,7 +17,7 @@
  */
 package com.emc.nautilus.streaming;
 
-public interface Consumer<T> {
+public interface Consumer<T> extends AutoCloseable {
     T getNextEvent(long timeout);
 
     ConsumerConfig getConfig();
@@ -25,4 +25,7 @@ public interface Consumer<T> {
     Position getPosition();
 
     void setPosition(Position state);
+
+    @Override
+    void close();
 }

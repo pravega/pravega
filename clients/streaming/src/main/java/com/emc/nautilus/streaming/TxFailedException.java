@@ -19,4 +19,16 @@ package com.emc.nautilus.streaming;
 
 public class TxFailedException extends Exception {
 
+    public TxFailedException() {
+        super();
+    }
+    
+    public TxFailedException(Exception e) {
+        super(e);
+    }
+
+    public TxFailedException(String msg, Exception e) {
+        super(msg, e);
+    }
+    
 }

@@ -21,12 +21,12 @@ import java.util.List;
 
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 
-public interface SegmentProducer<Type> {
+public interface SegmentProducer<Type> extends AutoCloseable {
     void publish(Event<Type> m) throws SegmentSealedExcepetion;
 
     void flush() throws SegmentSealedExcepetion; // Block on all outstanding
                                                  // writes.
-
+    @Override
     void close() throws SegmentSealedExcepetion;
 
     boolean isAlreadySealed();

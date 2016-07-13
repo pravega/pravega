@@ -17,6 +17,8 @@
  */
 package com.emc.nautilus.streaming;
 
+import com.google.common.base.Preconditions;
+
 import lombok.Data;
 import lombok.NonNull;
 
@@ -31,12 +33,8 @@ public class SegmentId {
     public SegmentId(String scope, String name, int number, int previous) {
         super();
         this.scope = scope;
-        if (name == null) {
-            throw new NullPointerException();
-        }
-        if (!name.matches("^\\w+\\z")) {
-            throw new IllegalArgumentException("Name must be [a-zA-Z0-9]*");
-        }
+        Preconditions.checkNotNull(name);
+        Preconditions.checkArgument(name.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
         this.name = name;
         this.number = number;
         this.previous = previous;

@@ -20,7 +20,7 @@ package com.emc.nautilus.streaming.impl;
 import com.emc.nautilus.logclient.EndOfSegmentException;
 import com.emc.nautilus.streaming.SegmentId;
 
-public interface SegmentConsumer<Type> {
+public interface SegmentConsumer<Type> extends AutoCloseable {
     SegmentId getLogId();
 
     Type getNextEvent(long timeout) throws EndOfSegmentException;
@@ -29,5 +29,6 @@ public interface SegmentConsumer<Type> {
 
     void setOffset(long offset);
 
+    @Override
     void close();
 }

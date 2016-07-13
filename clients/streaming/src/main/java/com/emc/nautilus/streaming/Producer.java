@@ -19,7 +19,7 @@ package com.emc.nautilus.streaming;
 
 import java.util.concurrent.Future;
 
-public interface Producer<Type> {
+public interface Producer<Type> extends AutoCloseable {
     Future<Void> publish(String routingKey, Type event);
 
     Transaction<Type> startTransaction(long transactionTimeout);
@@ -28,5 +28,6 @@ public interface Producer<Type> {
 
     void flush();
 
+    @Override
     void close();
 }

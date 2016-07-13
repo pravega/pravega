@@ -20,7 +20,7 @@ package com.emc.nautilus.streaming;
 import lombok.Data;
 
 @Data
-public class ScalingingPolicy { // TODO
+public class ScalingPolicy { // TODO
     enum Type {
         FIXED,
         BY_RATE

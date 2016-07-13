@@ -56,7 +56,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
         try {
             out.flush();
         } catch (SegmentSealedExcepetion e) {
-            throw new TxFailedException();
+            throw new TxFailedException(e);
         }
     }
 

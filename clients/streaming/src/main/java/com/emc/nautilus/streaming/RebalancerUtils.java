@@ -17,13 +17,14 @@
  */
 package com.emc.nautilus.streaming;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 public interface RebalancerUtils {
-    List<Position> getIntitialPositions(StreamSegments logs, int numberOfConsumers);
+    Collection<Position> getIntitialPositions(StreamSegments logs, int numberOfConsumers);
 
-    List<Position> rebalance(List<Position> consumers, int newNumberOfConsumers);
+    Collection<Position> rebalance(Collection<Position> consumers, int newNumberOfConsumers);
 
     Map<String, Position> rebalance(Map<String, Position> consumers, List<String> newConsumers);
 }
