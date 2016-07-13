@@ -239,7 +239,8 @@ public class ReadIndex implements Cache {
         StreamSegmentReadIndex index;
         try (AutoReleaseLock readLock = lock.acquireReadLock()) {
             // Try to see if we have the index already in memory.
-            if ((index = this.readIndices.getOrDefault(streamSegmentId, null)) != null || !createIfNotPresent) {
+            index = this.readIndices.getOrDefault(streamSegmentId, null);
+            if (index != null || !createIfNotPresent) {
                 // If we do, or we are told not to create one if not present, then return whatever we have.
                 return index;
             }
@@ -247,7 +248,8 @@ public class ReadIndex implements Cache {
             try (AutoReleaseLock writeLock = lock.upgradeToWriteLock(readLock)) {
                 // We don't have it; we have acquired the exclusive write lock, and check again, just in case, if someone
                 // else got it for us.
-                if ((index = this.readIndices.getOrDefault(streamSegmentId, null)) != null) {
+                index = this.readIndices.getOrDefault(streamSegmentId, null);
+                if (index != null) {
                     return index;
                 }
 

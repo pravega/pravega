@@ -19,11 +19,11 @@
 package com.emc.logservice.serverhost;
 
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
+import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageimplementation.distributedlog.DistributedLogConfig;
 import com.emc.logservice.storageimplementation.distributedlog.DistributedLogDataLogFactory;
 
-import java.util.Properties;
 import java.util.concurrent.CompletionException;
 
 /**
@@ -31,20 +31,14 @@ import java.util.concurrent.CompletionException;
  */
 public class DistributedLogServiceBuilder extends InMemoryServiceBuilder {
 
-    public DistributedLogServiceBuilder(int containerCount) {
-        super(containerCount);
+    public DistributedLogServiceBuilder(ServiceBuilderConfig config) {
+        super(config);
     }
 
     @Override
     protected DurableDataLogFactory createDataLogFactory() {
-        DistributedLogConfig dlConfig;
         try {
-            Properties dlProperties = new Properties();
-            dlProperties.put("dlog.hostname", "localhost");
-            dlProperties.put("dlog.port", "7000");
-            dlProperties.put("dlog.namespace", "messaging/distributedlog");
-
-            dlConfig = new DistributedLogConfig(dlProperties);
+            DistributedLogConfig dlConfig = super.serviceBuilderConfig.getConfig(DistributedLogConfig::new);
             DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
             factory.initialize();
             return factory;

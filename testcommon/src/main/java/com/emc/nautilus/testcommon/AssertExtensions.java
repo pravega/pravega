@@ -22,6 +22,7 @@ import org.junit.Assert;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -164,6 +165,31 @@ public class AssertExtensions {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (T e : expected) {
             if (!actual.contains(e)) {
+                Assert.fail(String.format("%s Element %s does not exist.", message, e));
+            }
+        }
+    }
+
+    /**
+     * Asserts that the contents of the given collections are the same (in any order).
+     *
+     * @param message  The message to include in the Assert calls.
+     * @param expected A collection to check against.
+     * @param actual   The collection to check.
+     * @param <T>
+     */
+    public static <T> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual, Comparator<T> comparator) {
+        Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
+        for (T e : expected) {
+            boolean contains = false;
+            for (T a : actual) {
+                if (comparator.compare(e, a) == 0) {
+                    contains = true;
+                    break;
+                }
+            }
+
+            if (!contains) {
                 Assert.fail(String.format("%s Element %s does not exist.", message, e));
             }
         }

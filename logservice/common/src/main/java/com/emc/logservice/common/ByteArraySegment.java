@@ -21,6 +21,7 @@ package com.emc.logservice.common;
 import com.google.common.base.Preconditions;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -167,6 +168,32 @@ public class ByteArraySegment {
         Exceptions.checkArrayRange(targetOffset, length, target.length, "index", "values.length");
 
         System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
+    }
+
+    /**
+     * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
+     * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
+     *
+     * @param stream The OutputStream to write to.
+     * @throws IOException If the OutputStream threw one.
+     */
+    public void writeTo(OutputStream stream) throws IOException {
+        stream.write(this.array, this.startOffset, this.length);
+    }
+
+    /**
+     * Attempts to read the contents of the InputStream and load it into this ByteArraySegment. Up to getLength() bytes
+     * will be read from the InputStream, but no guarantees are made that the entire ByteArraySegment will be populated.
+     * <p>
+     * Only attempts to read the data, and does not expect any other header/footer information in the InputStream. This
+     * method is the exact reverse of writeTo().
+     *
+     * @param stream The InputStream to read from.
+     * @return The number of bytes read. This will be less than or equal to getLength().
+     * @throws IOException If the InputStream threw one.
+     */
+    public int readFrom(InputStream stream) throws IOException {
+        return StreamHelpers.readAll(stream, this.array, this.startOffset, this.length);
     }
 
     /**

@@ -1,20 +1,9 @@
 package com.emc.nautilus.integrationtests;
 
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
+import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.serverhost.handler.AppendProcessor;
 import com.emc.logservice.serverhost.handler.LogServiceConnectionListener;
 import com.emc.logservice.serverhost.handler.LogServiceRequestProcessor;
@@ -39,9 +28,6 @@ import com.emc.nautilus.streaming.ProducerConfig;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.impl.JavaSerializer;
 import com.emc.nautilus.streaming.impl.SingleSegmentStreamManagerImpl;
-
-import static org.junit.Assert.assertEquals;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -49,17 +35,29 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.assertEquals;
 
 public class AppendTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
     @Before
-    public void setup() throws InterruptedException, ExecutionException {
+    public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
 
-        this.serviceBuilder = new InMemoryServiceBuilder(1);
+        this.serviceBuilder = new InMemoryServiceBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
     }
 

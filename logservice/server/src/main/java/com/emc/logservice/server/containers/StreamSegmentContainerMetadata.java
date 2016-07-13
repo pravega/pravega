@@ -21,16 +21,19 @@ package com.emc.logservice.server.containers;
 import com.emc.logservice.common.AutoReleaseLock;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
-import com.emc.logservice.server.RecoverableMetadata;
 import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -38,15 +41,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * Metadata for a Stream Segment Container.
  */
 @Slf4j
-public class StreamSegmentContainerMetadata implements RecoverableMetadata, UpdateableContainerMetadata {
+public class StreamSegmentContainerMetadata implements UpdateableContainerMetadata {
     //region Members
 
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
-    private final HashMap<String, Long> streamSegmentIds;
-    private final HashMap<Long, UpdateableSegmentMetadata> streamMetadata;
+    private final AbstractMap<String, Long> streamSegmentIds;
+    private final AbstractMap<Long, UpdateableSegmentMetadata> segmentMetadata;
     private final AtomicBoolean recoveryMode;
     private final String streamSegmentContainerId;
+    private final AbstractMap<Long, Long> truncationMarkers;
+    private final HashSet<Long> truncationPoints;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
 
     //endregion
@@ -58,12 +63,13 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
      */
     public StreamSegmentContainerMetadata(String streamSegmentContainerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
-        //TODO: need to define a MetadataReaderWriter class which we can pass to this. Metadata always need to be persisted somewhere.
         this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
-        this.streamMetadata = new HashMap<>();
+        this.segmentMetadata = new HashMap<>();
+        this.truncationMarkers = new ConcurrentHashMap<>();
+        this.truncationPoints = new HashSet<>();
         this.recoveryMode = new AtomicBoolean();
     }
 
@@ -86,13 +92,13 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
-            return this.streamMetadata.getOrDefault(streamSegmentId, null);
+            return this.segmentMetadata.getOrDefault(streamSegmentId, null);
         }
     }
 
     //endregion
 
-    //region ReadOnlyStreamSegmentContainerMetadata
+    //region ContainerMetadata Implementation
 
     @Override
     public String getContainerId() {
@@ -118,10 +124,10 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
+            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
         }
 
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
@@ -131,17 +137,22 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.streamMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
-            UpdateableSegmentMetadata parentMetadata = this.streamMetadata.getOrDefault(parentStreamSegmentId, null);
+            UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
             Exceptions.checkArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.streamMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
+            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
         }
 
         log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+    }
+
+    @Override
+    public Collection<Long> getAllStreamSegmentIds() {
+        return this.segmentMetadata.keySet();
     }
 
     @Override
@@ -158,13 +169,13 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
             }
 
             // Mark this segment as deleted.
-            UpdateableSegmentMetadata segmentMetadata = this.streamMetadata.getOrDefault(streamSegmentId, null);
+            UpdateableSegmentMetadata segmentMetadata = this.segmentMetadata.getOrDefault(streamSegmentId, null);
             if (segmentMetadata != null) {
                 segmentMetadata.markDeleted();
             }
 
             // Find any batches that point to this StreamSegment (as a parent).
-            for (UpdateableSegmentMetadata batchSegmentMetadata : this.streamMetadata.values()) {
+            for (UpdateableSegmentMetadata batchSegmentMetadata : this.segmentMetadata.values()) {
                 if (batchSegmentMetadata.getParentId() == streamSegmentId) {
                     batchSegmentMetadata.markDeleted();
                     result.add(batchSegmentMetadata.getName());
@@ -182,7 +193,6 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
 
         // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this is ok.
         Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
-
         this.sequenceNumber.set(value);
     }
     //endregion
@@ -209,7 +219,12 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
         this.sequenceNumber.set(0);
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
             this.streamSegmentIds.clear();
-            this.streamMetadata.clear();
+            this.segmentMetadata.clear();
+        }
+
+        synchronized (this.truncationMarkers) {
+            this.truncationMarkers.clear();
+            this.truncationPoints.clear();
         }
 
         log.info("{}: Reset.", this.traceObjectId);
@@ -221,6 +236,84 @@ public class StreamSegmentContainerMetadata implements RecoverableMetadata, Upda
 
     private void ensureNonRecoveryMode() {
         Preconditions.checkState(!isRecoveryMode(), "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
+    }
+
+    //endregion
+
+    //region TruncationMarkerRepository Implementation
+
+    @Override
+    public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
+        synchronized (this.truncationMarkers) {
+            this.truncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+        }
+    }
+
+    @Override
+    public void removeTruncationMarkers(long upToOperationSequenceNumber) {
+        ArrayList<Long> toRemove = new ArrayList<>();
+        synchronized (this.truncationMarkers) {
+            // Remove Truncation Markers.
+            this.truncationMarkers.keySet().forEach(key ->
+            {
+                if (key <= upToOperationSequenceNumber) {
+                    toRemove.add(key);
+                }
+            });
+
+            toRemove.forEach(this.truncationMarkers::remove);
+
+            // Remove Truncation points
+            toRemove.clear();
+            this.truncationPoints.forEach(key ->
+            {
+                if (key <= upToOperationSequenceNumber) {
+                    toRemove.add(key);
+                }
+            });
+            toRemove.forEach(this.truncationPoints::remove);
+        }
+    }
+
+    @Override
+    public void setValidTruncationPoint(long sequenceNumber) {
+        Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive number.");
+        synchronized (this.truncationMarkers) {
+            this.truncationPoints.add(sequenceNumber);
+        }
+    }
+
+    @Override
+    public boolean isValidTruncationPoint(long sequenceNumber) {
+        return this.truncationPoints.contains(sequenceNumber);
+    }
+
+    @Override
+    public long getClosestTruncationMarker(long operationSequenceNumber) {
+        //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
+        Map.Entry<Long, Long> result = null;
+        synchronized (this.truncationMarkers) {
+
+            for (Map.Entry<Long, Long> tm : this.truncationMarkers.entrySet()) {
+                long seqNo = tm.getKey();
+                if (seqNo == operationSequenceNumber) {
+                    // Found the best result.
+                    return tm.getValue();
+                } else if (seqNo < operationSequenceNumber) {
+                    if (result == null || (result.getKey() < seqNo)) {
+                        // We found a better result.
+                        result = tm;
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            return -1;
+        } else {
+            return result.getValue();
+        }
     }
 
     //endregion

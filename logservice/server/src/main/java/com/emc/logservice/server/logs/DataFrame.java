@@ -448,7 +448,8 @@ public class DataFrame {
             } else {
                 // We are creating a new one.
                 this.entryLength = 0;
-                this.firstRecordEntry = this.lastRecordEntry = false;
+                this.firstRecordEntry = false;
+                this.lastRecordEntry = false;
                 this.data = headerContents;
             }
         }

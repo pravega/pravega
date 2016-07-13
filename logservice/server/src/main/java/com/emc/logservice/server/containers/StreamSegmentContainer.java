@@ -25,7 +25,6 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.contracts.StreamingException;
 import com.emc.logservice.server.Cache;
 import com.emc.logservice.server.CacheFactory;
 import com.emc.logservice.server.IllegalContainerStateException;
@@ -330,7 +329,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
             log.warn("{}: DurableLog stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping. Shutting down StreamSegmentContainer.", this.traceObjectId);
             stopAsync().awaitTerminated();
-            notifyFailed(new StreamingException("DurableLog stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping."));
+
+            // TODO: the below seems to be causing issues. Investigate if it's needed and/or correctly implemented.
+            //notifyFailed(new StreamingException("DurableLog stopped unexpectedly (no error) but StreamSegmentContainer was not currently stopping."));
         }
     }
 

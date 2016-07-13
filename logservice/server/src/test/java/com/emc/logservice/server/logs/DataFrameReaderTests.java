@@ -90,6 +90,40 @@ public class DataFrameReaderTests {
     }
 
     /**
+     * Tests the case when we begin reading from a DataFrame which begins with a partial record. That record needs to
+     * be dropped (not returned). DataFrameReader should always return full records.
+     */
+    @Test
+    public void testReadsWithPartialEntries() throws Exception {
+        // This test will only work if LARGE_RECORD_MIN_SIZE > FRAME_SIZE.
+        ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(3, LARGE_RECORD_MIN_SIZE, LARGE_RECORD_MIN_SIZE, 0);
+        try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
+            dataLog.initialize(TIMEOUT);
+
+            ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon commit. %s", ex));
+            try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
+                for (int i = 0; i < records.size(); i++) {
+                    b.append(records.get(i));
+                }
+            }
+
+            // Delete the first entry in the DataLog.
+            ArrayList<Integer> failedIndices = new ArrayList<>();
+            dataLog.truncate(commitFrames.get(0).getDataFrameSequence(), TIMEOUT).join();
+
+            // Given that each TestLogItem's length is larger than a data frame, truncating the first DataFrame will
+            // invalidate the first one.
+            failedIndices.add(0);
+
+            TestLogItemFactory logItemFactory = new TestLogItemFactory();
+            DataFrameReader<TestLogItem> reader = new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID);
+            List<TestLogItem> readItems = readAll(reader);
+            checkReadResult(records, failedIndices, readItems);
+        }
+    }
+
+    /**
      * Tests the case when the DataFrameReader reads from a log and it encounters LogItem SerializationExceptions.
      */
     @Test
@@ -231,10 +265,10 @@ public class DataFrameReaderTests {
             // Check the monotonicity of the DataFrameSequence. If we encountered a ReadResult with the flag isLastFrameEntry,
             // then we must ensure the DataFrameSequence changes (increases).
             if (expectDifferentDataFrameSequence) {
-                AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, readResult.getDataFrameSequence());
+                AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameSequence());
                 expectDifferentDataFrameSequence = false;
             } else {
-                AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, readResult.getDataFrameSequence());
+                AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameSequence());
             }
 
             if (readResult.isLastFrameEntry()) {

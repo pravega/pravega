@@ -21,15 +21,14 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.common.BlockingDrainingQueue;
 import com.emc.logservice.common.LoggerHelpers;
 import com.emc.logservice.common.ObjectClosedException;
-import com.emc.logservice.contracts.RuntimeStreamingException;
 import com.emc.logservice.server.Container;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.ServiceShutdownListener;
+import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.logs.operations.CompletableOperation;
 import com.emc.logservice.server.logs.operations.Operation;
-import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -53,6 +52,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     private final MemoryLogUpdater logUpdater;
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
+    private final MetadataCheckpointPolicy checkpointPolicy;
 
     //endregion
 
@@ -61,23 +61,24 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     /**
      * Creates a new instance of the OperationProcessor class.
      *
-     * @param containerId     The Id of the container this QueueProcessor belongs to.
-     * @param metadataUpdater An OperationMetadataUpdater to work with.
-     * @param logUpdater      A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
-     * @param durableDataLog  The DataFrameLog to write DataFrames to.
+     * @param metadata         The ContainerMetadata for the Container to process operations for.
+     * @param logUpdater       A MemoryLogUpdater that is used to update in-memory structures upon successful Operation committal.
+     * @param durableDataLog   The DataFrameLog to write DataFrames to.
+     * @param checkpointPolicy The Checkpoint Policy for Metadata.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationProcessor(String containerId, OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog) {
-        Preconditions.checkNotNull(containerId, "containerId");
-        Preconditions.checkNotNull(metadataUpdater, "metadataUpdater");
+    public OperationProcessor(UpdateableContainerMetadata metadata, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
+        Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(logUpdater, "logUpdater");
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
+        Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
 
-        this.traceObjectId = String.format("OperationProcessor[%s]", containerId);
-        this.containerId = containerId;
-        this.metadataUpdater = metadataUpdater;
+        this.containerId = metadata.getContainerId();
+        this.traceObjectId = String.format("OperationProcessor[%s]", this.containerId);
+        this.metadataUpdater = new OperationMetadataUpdater(metadata);
         this.logUpdater = logUpdater;
         this.durableDataLog = durableDataLog;
+        this.checkpointPolicy = checkpointPolicy;
         this.operationQueue = new BlockingDrainingQueue<>();
     }
 
@@ -173,8 +174,8 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations as well.
      * </ol>
      *
-     * @throws InterruptedException
-     * @throws DataCorruptionException
+     * @throws InterruptedException    If the current thread has been interrupted (externally).
+     * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually indicates corruption).
      */
 
     private void runOnce() throws DataCorruptionException, InterruptedException {
@@ -188,7 +189,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
                 // In the happy case, this loop is only executed once. But we need the bigger while loop in case we
                 // encountered a non-fatal exception. There is no point in failing the whole set of operations if only
                 // one set failed.
-                state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.traceObjectId);
+                state = new QueueProcessingState(this.metadataUpdater, this.logUpdater, this.checkpointPolicy, this.traceObjectId);
                 DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
                 for (; currentIndex < operations.size(); currentIndex++) {
                     CompletableOperation o = operations.get(currentIndex);
@@ -240,23 +241,17 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * @param dataFrameBuilder The DataFrameBuilder to append the operation to.
      * @return True if processed successfully, false otherwise.
      */
-    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) {
+    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) throws DataCorruptionException {
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
         // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
         Operation entry = operation.getOperation();
-        if (entry instanceof StorageOperation) {
-            // We only need to update metadata for StorageOperations; MetadataOperations are internal and are processed by the requester.
-            // We do this in two steps: first is pre-processing (updating the entry with offsets, lengths, etc.) and the second is acceptance.
-            // Pre-processing does not have any effect on the metadata, but acceptance does.
-            // That's why acceptance has to happen only after a successful append to the DataFrameBuilder.
-            try {
-                this.metadataUpdater.preProcessOperation((StorageOperation) entry);
-            } catch (Exception ex) {
-                // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
-                operation.fail(ex);
-                return false;
-            }
+        try {
+            this.metadataUpdater.preProcessOperation(entry);
+        } catch (Exception ex) {
+            // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
+            operation.fail(ex);
+            return false;
         }
 
         // Entry is ready to be serialized; assign a sequence number.
@@ -271,20 +266,18 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             if (cause instanceof DataCorruptionException) {
                 // Besides failing the operation, DataCorruptionExceptions are pretty serious. We should shut down the
                 // Operation Processor if we ever encounter one.
-                throw new RuntimeStreamingException("Encountered a possible corruption.", cause);
+                throw (DataCorruptionException) cause;
             }
 
             return false;
         }
 
-        if (entry instanceof StorageOperation) {
-            try {
-                this.metadataUpdater.acceptOperation((StorageOperation) entry);
-            } catch (MetadataUpdateException ex) {
-                // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
-                operation.fail(ex);
-                return false;
-            }
+        try {
+            this.metadataUpdater.acceptOperation(entry);
+        } catch (MetadataUpdateException ex) {
+            // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
+            operation.fail(ex);
+            return false;
         }
 
         return true;
@@ -341,15 +334,18 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         private final LinkedList<CompletableOperation> pendingOperations;
         private final OperationMetadataUpdater metadataUpdater;
         private final MemoryLogUpdater logUpdater;
+        private final MetadataCheckpointPolicy checkpointPolicy;
 
-        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, String traceObjectId) {
+        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
             assert logUpdater != null : "logUpdater is null";
+            assert checkpointPolicy != null : "checkpointPolicy is null";
 
             this.traceObjectId = traceObjectId;
             this.pendingOperations = new LinkedList<>();
             this.metadataUpdater = metadataUpdater;
             this.logUpdater = logUpdater;
+            this.checkpointPolicy = checkpointPolicy;
         }
 
         /**
@@ -370,16 +366,16 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
-            // Commit any changes to metadata.
-            this.metadataUpdater.commit();
+            // Record the Truncation marker and then commit any changes to metadata.
             this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
+            this.metadataUpdater.commit();
 
             // TODO: consider running this on its own thread, but they must still be in the same sequence!
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
             while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
-                    logUpdater.add(e.getOperation());
+                    this.logUpdater.add(e.getOperation());
                 } catch (DataCorruptionException ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
@@ -390,6 +386,8 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             }
 
             this.logUpdater.flush();
+
+            this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
         }
 
         /**

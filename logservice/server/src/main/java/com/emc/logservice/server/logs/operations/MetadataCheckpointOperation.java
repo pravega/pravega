@@ -18,34 +18,59 @@
 
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.common.ByteArraySegment;
 import com.emc.logservice.server.logs.SerializationException;
+import com.google.common.base.Preconditions;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
 /**
- * Log Operation that indicates that Metadata has been checkpointed (persisted) into its durable storage.
+ * Log Operation that contains a checkpoint of th Metadata at a particular point in time.
  */
-public class MetadataPersistedOperation extends MetadataOperation {
+public class MetadataCheckpointOperation extends MetadataOperation {
     //region Members
 
     public static final byte OPERATION_TYPE = 6;
     private static final byte CURRENT_VERSION = 0;
+    private ByteArraySegment contents;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the MetadataPersistedOperation class.
+     * Creates a new instance of the MetadataCheckpointOperation class.
      */
-    public MetadataPersistedOperation() {
+    public MetadataCheckpointOperation() {
         super();
     }
 
-    protected MetadataPersistedOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected MetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
+    }
+
+    //endregion
+
+    //region MetadataCheckpointOperation Implementation
+
+    /**
+     * Sets the Contents of this MetadataCheckpointOperation.
+     *
+     * @param contents
+     */
+    public void setContents(ByteArraySegment contents) {
+        Preconditions.checkNotNull(contents, "contents");
+        Preconditions.checkState(this.contents == null, "This operation has already had its contents set.");
+        this.contents = contents;
+    }
+
+    /**
+     * Gets the contents of this MetadataCheckpointOperation.
+     */
+    public ByteArraySegment getContents() {
+        return this.contents;
     }
 
     //endregion
@@ -59,12 +84,19 @@ public class MetadataPersistedOperation extends MetadataOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
+        ensureSerializationCondition(this.contents != null, "contents has not been assigned for this entry.");
         target.writeByte(CURRENT_VERSION);
+        target.writeInt(this.contents.getLength());
+        this.contents.writeTo(target);
     }
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
         byte version = readVersion(source, CURRENT_VERSION);
+        int contentsLength = source.readInt();
+        this.contents = new ByteArraySegment(new byte[contentsLength]);
+        int bytesRead = this.contents.readFrom(source);
+        assert bytesRead == contentsLength : "StreamHelpers.readAll did not read all the bytes requested.";
     }
 
     @Override

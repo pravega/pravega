@@ -34,8 +34,8 @@ import java.util.UUID;
 public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
-    private static final byte CURRENT_VERSION = 0;
     public static final byte OPERATION_TYPE = 1;
+    private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
     private byte[] data;
     private AppendContext appendContext;
@@ -143,7 +143,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         this.appendContext = new AppendContext(clientId, clientOffset);
         int dataLength = source.readInt();
         this.data = new byte[dataLength];
-        StreamHelpers.readAll(source, this.data, 0, this.data.length);
+        int bytesRead = StreamHelpers.readAll(source, this.data, 0, this.data.length);
+        assert bytesRead == this.data.length : "StreamHelpers.readAll did not read all the bytes requested.";
     }
 
     @Override

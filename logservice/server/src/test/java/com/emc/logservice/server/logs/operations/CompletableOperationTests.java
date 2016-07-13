@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Unit tests for CompletableOperation class.
  */
 public class CompletableOperationTests {
-    private static final long DEFAULT_SEQ_NO = -1;
+    private static final long DEFAULT_SEQ_NO = Operation.NO_SEQUENCE_NUMBER;
     private static final long VALID_SEQ_NO = 1;
 
     /**
@@ -37,7 +37,7 @@ public class CompletableOperationTests {
      */
     @Test
     public void testComplete() {
-        MetadataPersistedOperation op = new MetadataPersistedOperation();
+        MetadataCheckpointOperation op = new MetadataCheckpointOperation();
 
         AtomicLong callbackSeqNo = new AtomicLong(DEFAULT_SEQ_NO);
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
@@ -61,7 +61,7 @@ public class CompletableOperationTests {
      */
     @Test
     public void testFail() {
-        MetadataPersistedOperation op = new MetadataPersistedOperation();
+        MetadataCheckpointOperation op = new MetadataCheckpointOperation();
 
         AtomicBoolean successCallbackCalled = new AtomicBoolean();
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();

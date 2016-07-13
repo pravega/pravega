@@ -20,9 +20,10 @@ package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.service.ServiceBuilder;
+import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.serverhost.handler.LogServiceConnectionListener;
 import org.slf4j.LoggerFactory;
 
@@ -32,22 +33,20 @@ import java.time.Duration;
  * Starts the Log Service.
  */
 public final class ServiceStarter {
-    private static final int PORT = 12345;
-    private static final int CONTAINER_COUNT = 1;
     private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
+    private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
     private LogServiceConnectionListener listener;
     private boolean closed;
 
-    private ServiceStarter() {
-        this.serviceBuilder = new DistributedLogServiceBuilder(CONTAINER_COUNT);
-        //this.serviceBuilder = new InMemoryServiceBuilder(ContainerCount);
+    private ServiceStarter(ServiceBuilderConfig config) {
+        this.serviceConfig = config;
+        this.serviceBuilder = new DistributedLogServiceBuilder(this.serviceConfig);
+        //this.serviceBuilder = new InMemoryServiceBuilder(this.serviceConfig);
     }
 
     private void start() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
 
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
@@ -56,10 +55,10 @@ public final class ServiceStarter {
         this.serviceBuilder.getContainerManager().initialize(INITIALIZE_TIMEOUT).join();
 
         System.out.println("Creating StreamSegmentService ...");
-        StreamSegmentStore service = serviceBuilder.createStreamSegmentService();
+        StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new LogServiceConnectionListener(false, PORT, service);
-        listener.startListening();
+        this.listener = new LogServiceConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
+        this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
 
@@ -75,7 +74,7 @@ public final class ServiceStarter {
     }
 
     public static void main(String[] args) {
-        ServiceStarter serviceStarter = new ServiceStarter();
+        ServiceStarter serviceStarter = new ServiceStarter(ServiceBuilderConfig.getDefaultConfig());
         try {
             serviceStarter.start();
             Runtime.getRuntime().addShutdownHook(new Thread() {

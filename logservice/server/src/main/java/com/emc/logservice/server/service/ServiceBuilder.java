@@ -27,10 +27,12 @@ import com.emc.logservice.server.SegmentContainerManager;
 import com.emc.logservice.server.SegmentContainerRegistry;
 import com.emc.logservice.server.SegmentToContainerMapper;
 import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
+import com.emc.logservice.server.logs.DurableLogConfig;
 import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.reading.ReadIndexFactory;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageabstraction.StorageFactory;
+import com.google.common.base.Preconditions;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,8 +45,8 @@ import java.util.function.Supplier;
 public abstract class ServiceBuilder implements AutoCloseable {
     //region Members
 
-    private static final int THREAD_POOL_SIZE = 50; // TODO: this should be in a config.
     protected final SegmentToContainerMapper segmentToContainerMapper;
+    protected final ServiceBuilderConfig serviceBuilderConfig;
     private final ExecutorService executorService;
     private OperationLogFactory operationLogFactory;
     private CacheFactory cacheFactory;
@@ -59,9 +61,12 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     //region Constructor
 
-    public ServiceBuilder(int containerCount) {
-        this.segmentToContainerMapper = new SegmentToContainerMapper(containerCount);
-        this.executorService = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
+    public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
+        Preconditions.checkNotNull(serviceBuilderConfig, "config");
+        this.serviceBuilderConfig = serviceBuilderConfig;
+        ServiceConfig serviceConfig = this.serviceBuilderConfig.getServiceConfig();
+        this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
+        this.executorService = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize());
     }
 
     //endregion
@@ -150,7 +155,8 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     private OperationLogFactory createOperationLogFactory() {
         DurableDataLogFactory dataLogFactory = getSingleton(this.dataLogFactory, this::createDataLogFactory, dlf -> this.dataLogFactory = dlf);
-        return new DurableLogFactory(dataLogFactory, this.executorService);
+        DurableLogConfig durableLogConfig = this.serviceBuilderConfig.getDurableLogConfig();
+        return new DurableLogFactory(durableLogConfig, dataLogFactory, this.executorService);
     }
 
     private <T> T getSingleton(T instance, Supplier<T> creator, Consumer<T> setter) {

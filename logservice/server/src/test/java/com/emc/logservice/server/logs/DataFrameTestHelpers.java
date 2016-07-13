@@ -80,7 +80,7 @@ class DataFrameTestHelpers {
         Random random = new Random(0);
         ArrayList<T> result = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            int size = random.nextInt(maxSize - minSize) + minSize;
+            int size = (maxSize != minSize ? random.nextInt(maxSize - minSize) : 0) + minSize;
             byte[] record = new byte[size];
             random.nextBytes(record);
             result.add(recordConverter.apply(record));
@@ -139,7 +139,7 @@ class DataFrameTestHelpers {
                 // General DataFrameEntry validation.
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
                 Assert.assertEquals(
-                        "Unexpected value returned by getDataFrameSequence()." + state.getPosition(),
+                        "Unexpected value returned by getLastUsedDataFrameSequence()." + state.getPosition(),
                         dataFrame.getFrameSequence(),
                         entry.getDataFrameSequence());
 

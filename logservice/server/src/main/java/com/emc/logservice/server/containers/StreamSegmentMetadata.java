@@ -84,7 +84,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.sealed = false;
         this.deleted = false;
         this.merged = false;
-        this.storageLength = this.durableLogLength = -1;
+        this.storageLength = -1;
+        this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
     }
 
@@ -201,6 +202,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;
+    }
+
+    @Override
+    public void setLastModified(Date date) {
+        // TODO: implement.
     }
 
     @Override

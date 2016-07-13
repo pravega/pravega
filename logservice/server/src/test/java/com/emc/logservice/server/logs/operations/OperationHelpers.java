@@ -121,9 +121,8 @@ public class OperationHelpers {
      * @param actual
      */
     public static void assertEquals(String message, MetadataOperation expected, MetadataOperation actual) {
-        if (expected instanceof MetadataPersistedOperation) {
-            // nothing special here
-            return;
+        if (expected instanceof MetadataCheckpointOperation) {
+            assertEquals(message, (MetadataCheckpointOperation) expected, (MetadataCheckpointOperation) actual);
         } else if (expected instanceof StreamSegmentMapOperation) {
             assertEquals(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
         } else if (expected instanceof BatchMapOperation) {
@@ -157,5 +156,21 @@ public class OperationHelpers {
         Assert.assertEquals(message + " Unexpected BatchStreamSegmentId.", expected.getBatchStreamSegmentId(), actual.getBatchStreamSegmentId());
         Assert.assertEquals(message + " Unexpected BatchStreamSegmentName.", expected.getBatchStreamSegmentName(), actual.getBatchStreamSegmentName());
         Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(), actual.getParentStreamSegmentId());
+    }
+
+    /**
+     * Checks if the given MetadataCheckpointOperations are the same.
+     *
+     * @param message
+     * @param expected
+     * @param actual
+     */
+    public static void assertEquals(String message, MetadataCheckpointOperation expected, MetadataCheckpointOperation actual) {
+        Assert.assertEquals(message + " Lengths mismatch.", expected.getContents().getLength(), actual.getContents().getLength());
+        for (int j = 0; j < expected.getContents().getLength(); j++) {
+            if (expected.getContents().get(j) != actual.getContents().get(j)) {
+                Assert.fail(String.format("%s Contents differ at index %d.", message, j));
+            }
+        }
     }
 }

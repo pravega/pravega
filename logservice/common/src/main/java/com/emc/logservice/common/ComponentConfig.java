@@ -57,7 +57,7 @@ public abstract class ComponentConfig {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
-    public ComponentConfig(Properties properties, String componentCode) throws MissingPropertyException, InvalidPropertyValueException {
+    public ComponentConfig(Properties properties, String componentCode) throws ConfigurationException {
         Preconditions.checkNotNull(properties, "properties");
         Exceptions.checkNotNullOrEmpty(componentCode, "componentCode");
 
@@ -79,7 +79,7 @@ public abstract class ComponentConfig {
      * @throws MissingPropertyException When the given property name does not exist within the current component.
      */
     protected String getProperty(String name) throws MissingPropertyException {
-        String fullKeyName = getPropertyKey(name);
+        String fullKeyName = getKey(name);
         String value = this.properties.getProperty(fullKeyName, null);
         if (value == null) {
             throw new MissingPropertyException(fullKeyName);
@@ -96,7 +96,7 @@ public abstract class ComponentConfig {
      * @return The property value or default value, if no such is defined in the base Properties.
      */
     protected String getProperty(String name, String defaultValue) {
-        String fullKeyName = getPropertyKey(name);
+        String fullKeyName = getKey(name);
         return this.properties.getProperty(fullKeyName, defaultValue);
     }
 
@@ -114,7 +114,7 @@ public abstract class ComponentConfig {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getPropertyKey(name), value, ex);
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
         }
     }
 
@@ -135,7 +135,7 @@ public abstract class ComponentConfig {
         try {
             return Integer.parseInt(value.trim());
         } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getPropertyKey(name), value, ex);
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
         }
     }
 
@@ -153,7 +153,7 @@ public abstract class ComponentConfig {
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getPropertyKey(name), value, ex);
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
         }
     }
 
@@ -174,7 +174,7 @@ public abstract class ComponentConfig {
         try {
             return Long.parseLong(value.trim());
         } catch (NumberFormatException ex) {
-            throw new InvalidPropertyValueException(getPropertyKey(name), value, ex);
+            throw new InvalidPropertyValueException(getKey(name), value, ex);
         }
     }
 
@@ -199,7 +199,7 @@ public abstract class ComponentConfig {
         } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
             return false;
         } else {
-            throw new InvalidPropertyValueException(getPropertyKey(name), value);
+            throw new InvalidPropertyValueException(getKey(name), value);
         }
     }
 
@@ -228,11 +228,11 @@ public abstract class ComponentConfig {
         } else if (value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no") || value.equalsIgnoreCase("0")) {
             return false;
         } else {
-            throw new InvalidPropertyValueException(getPropertyKey(name), value);
+            throw new InvalidPropertyValueException(getKey(name), value);
         }
     }
 
-    private String getPropertyKey(String name) {
+    protected String getKey(String name) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         return this.keyPrefix + name;
     }
@@ -244,7 +244,7 @@ public abstract class ComponentConfig {
     /**
      * Refreshes the configuration based on the latest Property values.
      */
-    protected abstract void refresh() throws MissingPropertyException, InvalidPropertyValueException;
+    protected abstract void refresh() throws ConfigurationException;
 
     //endregion
 }
