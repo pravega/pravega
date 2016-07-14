@@ -137,7 +137,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
             handle.setContainerStoppedListener(id -> {
                 unregisterHandle(handle);
-                //TODO: need to restart container.
+                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode, we rely on not auto-restarting containers.
             });
         }
 

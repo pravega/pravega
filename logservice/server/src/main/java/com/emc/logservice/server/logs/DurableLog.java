@@ -334,7 +334,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private void recoverOperation(Operation operation, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
         // Update Metadata Sequence Number.
-        this.metadata.setOperationSequenceNumber(operation.getSequenceNumber());
+        metadataUpdater.setOperationSequenceNumber(operation.getSequenceNumber());
 
         // Update the metadata with the information from the Operation.
         try {

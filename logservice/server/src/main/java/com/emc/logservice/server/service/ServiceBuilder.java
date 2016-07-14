@@ -120,7 +120,11 @@ public abstract class ServiceBuilder implements AutoCloseable {
         return getSingleton(this.containerManager, this::createSegmentContainerManager, cr -> this.containerManager = cr);
     }
 
-    protected SegmentContainerRegistry getSegmentContainerRegistry() {
+    /**
+     * Creates or gets the instance of the SegmentContainerRegistry used throughout this ServiceBuilder.
+     * @return
+     */
+    public SegmentContainerRegistry getSegmentContainerRegistry() {
         return getSingleton(this.containerRegistry, this::createSegmentContainerRegistry, cr -> this.containerRegistry = cr);
     }
 

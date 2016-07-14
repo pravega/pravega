@@ -63,7 +63,6 @@ public class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      *                                       When this is called, all entries added via append() that were successful have
      *                                       failed to commit. The in-flight entries will be failed via the append() method.
      * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If maxDataFrameSize <= 0
      */
     public DataFrameBuilder(DurableDataLog targetLog, ConsumerWithException<DataFrameCommitArgs, Exception> dataFrameCommitSuccessCallback, Consumer<Throwable> dataFrameCommitFailureCallback) {
         Preconditions.checkNotNull(targetLog, "targetLog");

@@ -23,6 +23,11 @@ package com.emc.logservice.server;
  */
 public interface ContainerMetadata extends SegmentMetadataCollection {
     /**
+     * The initial Sequence Number. All operations will get sequence numbers starting from this value.
+     */
+    long INITIAL_OPERATION_SEQUENCE_NUMBER = 0;
+
+    /**
      * Gets a value indicating the Id of the StreamSegmentContainer this Metadata refers to.
      *
      * @return

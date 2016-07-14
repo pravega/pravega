@@ -90,9 +90,12 @@ public class ServiceBuilderConfig {
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
 
         // DistributedLog params.
-        set(p, "dlog", "hostname", "localhost");
-        set(p, "dlog", "port", "7000");
-        set(p, "dlog", "namespace", "messaging/distributedlog");
+        set(p, "dlog", "hostname", "zk1");
+        set(p, "dlog", "port", "2181");
+        set(p, "dlog", "namespace", "messaging/distributedlog/mynamespace");
+//        set(p, "dlog", "hostname", "localhost");
+//        set(p, "dlog", "port", "7000");
+//        set(p, "dlog", "namespace", "messaging/distributedlog");
         return new ServiceBuilderConfig(p);
     }
 

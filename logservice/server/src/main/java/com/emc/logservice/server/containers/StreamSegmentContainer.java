@@ -320,7 +320,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private void durableLogFailedHandler(Throwable cause) {
         // The Queue Processor failed. We need to shut down right away.
         log.warn("{}: DurableLog failed with exception {}", this.traceObjectId, cause);
-        stopAsync().awaitTerminated();
+        if (state() != State.STARTING) {
+            // We cannot stop the service while we're starting it.
+            stopAsync().awaitTerminated();
+        }
+
         notifyFailed(cause);
     }
 

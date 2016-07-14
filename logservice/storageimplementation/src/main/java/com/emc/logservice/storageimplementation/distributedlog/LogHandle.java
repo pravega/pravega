@@ -69,7 +69,7 @@ class LogHandle implements AutoCloseable {
     /**
      * Maximum append length, as specified by DistributedLog (this is hardcoded inside DLog's code).
      */
-    public static final int MAX_APPEND_LENGTH = 1024 * 1024 - 8 * 1024;
+    public static final int MAX_APPEND_LENGTH = 1024 * 1024 - 8 * 1024 - 20;
 
     private final AtomicLong lastTransactionId;
     private final String logName;

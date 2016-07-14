@@ -20,7 +20,6 @@ package com.emc.logservice.server.service;
 
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.server.ContainerHandle;
@@ -35,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -102,6 +102,11 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     }
 
     @Override
+    public Collection<String> getRegisteredContainerIds() {
+        return this.getRegisteredContainerIds();
+    }
+
+    @Override
     public SegmentContainer getContainer(String containerId) throws ContainerNotFoundException {
         ensureNotClosed();
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
@@ -149,7 +154,8 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         ensureNotClosed();
         ContainerWithHandle result = this.containers.getOrDefault(handle.getContainerId(), null);
         if (result == null) {
-            return FutureHelpers.failedFuture(new ContainerNotFoundException(handle.getContainerId()));
+            return CompletableFuture.completedFuture(null); // This could happen due to some race (or AutoClose) in the caller.
+            //return FutureHelpers.failedFuture(new ContainerNotFoundException(handle.getContainerId()));
         }
 
         // Stop the container and then unregister it.

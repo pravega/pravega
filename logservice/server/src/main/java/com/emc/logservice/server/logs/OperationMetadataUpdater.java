@@ -53,6 +53,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 /**
@@ -157,7 +158,17 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
      * @return
      */
     public long getNewOperationSequenceNumber() {
+        Preconditions.checkState(!this.metadata.isRecoveryMode(), "Cannot request new Operation Sequence Number in Recovery Mode.");
         return this.metadata.getNewOperationSequenceNumber();
+    }
+
+    /**
+     * Sets the operation sequence number in the transaction.
+     * @param value
+     */
+    public void setOperationSequenceNumber(long value){
+        Preconditions.checkState(this.metadata.isRecoveryMode(), "Can only set new Operation Sequence Number in Recovery Mode.");
+        getCurrentTransaction().setOperationSequenceNumber(value);
     }
 
     /**
@@ -224,6 +235,7 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
         private final List<Long> newTruncationPoints;
         private final HashMap<Long, Long> newTruncationMarkers;
         private final UpdateableContainerMetadata containerMetadata;
+        private final AtomicLong newSequenceNumber;
         private final String traceObjectId;
         private boolean processedCheckpoint;
 
@@ -242,9 +254,11 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             if (containerMetadata.isRecoveryMode()) {
                 this.newStreamSegments = new HashMap<>();
                 this.newStreamSegmentNames = new HashMap<>();
+                this.newSequenceNumber = new AtomicLong(ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER);
             } else {
                 this.newStreamSegments = null;
                 this.newStreamSegmentNames = null;
+                this.newSequenceNumber = null;
             }
         }
 
@@ -258,6 +272,10 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
                     // a brand new one.
                     this.containerMetadata.reset();
                 }
+
+                // Reset cleaned up the Operation Sequence number. We need to reset it to whatever we have in our transaction.
+                // If we have nothing, we'll just set it to 0, which is what the default value was in the metadata too.
+                this.containerMetadata.setOperationSequenceNumber(this.newSequenceNumber.get());
             }
 
             // Commit all temporary changes to their respective sources.
@@ -318,6 +336,15 @@ public class OperationMetadataUpdater implements SegmentMetadataCollection {
             Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
             Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
             this.newTruncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+        }
+
+        /**
+         * Sets the new Operation Sequence Number.
+         * @param value
+         */
+        public void setOperationSequenceNumber(long value){
+            Preconditions.checkState(this.newSequenceNumber != null, "Unable to set new Sequence Number");
+            this.newSequenceNumber.set(value);
         }
 
         /**

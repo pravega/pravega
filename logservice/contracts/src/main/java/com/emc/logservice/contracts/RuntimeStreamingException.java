@@ -34,6 +34,15 @@ public class RuntimeStreamingException extends RuntimeException {
     /**
      * Creates a new instance of the RuntimeStreamingException class.
      *
+     * @param cause   The cause of the exception.
+     */
+    public RuntimeStreamingException(Throwable cause) {
+        super(cause);
+    }
+
+    /**
+     * Creates a new instance of the RuntimeStreamingException class.
+     *
      * @param message The detail message.
      * @param cause   The cause of the exception.
      */

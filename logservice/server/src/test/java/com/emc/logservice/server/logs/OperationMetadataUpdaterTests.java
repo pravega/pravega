@@ -22,6 +22,7 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.MetadataHelpers;
 import com.emc.logservice.server.SegmentMetadata;
 import com.emc.logservice.server.StreamSegmentInformation;
@@ -604,6 +605,7 @@ public class OperationMetadataUpdaterTests {
         }
 
         updater.commit();
+        Assert.assertEquals("commit() seems to have modified the metadata sequence number while not in recovery mode.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, metadata.getNewOperationSequenceNumber() - 1);
 
         long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.length + SEALED_BATCH_LENGTH;
         SegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
@@ -612,6 +614,28 @@ public class OperationMetadataUpdaterTests {
         SegmentMetadata batchMetadata = metadata.getStreamSegmentMetadata(SEALED_BATCH_ID);
         Assert.assertTrue("Unexpected value for isSealed in batch metadata after commit.", batchMetadata.isSealed());
         Assert.assertTrue("Unexpected value for isMerged in metadata after commit.", batchMetadata.isMerged());
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to set the Sequence Number on the Metadata, when in Recovery Mode.
+     */
+    @Test
+    public void testCommitSequenceNumber() throws Exception {
+        final long newSeqNo = 1235;
+        UpdateableContainerMetadata metadata = createBlankMetadata();
+        metadata.enterRecoveryMode();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+        updater.setOperationSequenceNumber(newSeqNo);
+        updater.commit();
+        metadata.exitRecoveryMode();
+        Assert.assertEquals("commit() did not set the metadata sequence number while in recovery mode.", newSeqNo + 1, metadata.getNewOperationSequenceNumber());
+
+        // Now try again in non-recovery mode.
+        OperationMetadataUpdater nonRecoveryUpdater = createUpdater(metadata);
+        AssertExtensions.assertThrows(
+                "setOperationSequence number should not work in non-recovery mode.",
+                () -> nonRecoveryUpdater.setOperationSequenceNumber(newSeqNo + 10),
+                ex -> ex instanceof IllegalStateException);
     }
 
     /**
