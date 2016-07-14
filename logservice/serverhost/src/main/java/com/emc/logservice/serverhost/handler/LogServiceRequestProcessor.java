@@ -148,7 +148,7 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
             connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else {
             // TODO: don't know what to do here...
-            connection.drop();
+            connection.close();
             log.error("Unknown excpetion on " + operation + " for segment " + segment, u);
             throw new IllegalStateException("Unknown exception.", u);
         }

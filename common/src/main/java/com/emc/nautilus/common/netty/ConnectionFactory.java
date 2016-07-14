@@ -17,10 +17,11 @@
  */
 package com.emc.nautilus.common.netty;
 
-public interface ConnectionFactory {
+public interface ConnectionFactory extends AutoCloseable {
 
     ClientConnection establishConnection(String endpoint, ReplyProcessor rp);
 
-    void shutdown();
+    @Override
+    void close();
 
 }

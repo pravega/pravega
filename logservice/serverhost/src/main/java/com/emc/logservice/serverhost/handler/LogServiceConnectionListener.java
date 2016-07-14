@@ -62,6 +62,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
         this.store = streamSegmentStore;
     }
 
+    @Override
     public void startListening() {
         // Configure SSL.
         final SslContext sslCtx;
@@ -99,7 +100,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
                  }
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
-                 p.addLast(new ExceptionLoggingHandler(),
+                 p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
                          new CommandEncoder(),
                          new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
                          new CommandDecoder(),
@@ -114,7 +115,8 @@ public final class LogServiceConnectionListener implements ConnectionListener {
         serverChannel = b.bind(port).awaitUninterruptibly().channel();
     }
 
-    public void shutdown() {
+    @Override
+    public void close() {
         // Wait until the server socket is closed.
         try {
             serverChannel.close();
@@ -126,10 +128,5 @@ public final class LogServiceConnectionListener implements ConnectionListener {
         // Shut down all event loops to terminate all threads.
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
-    }
-
-    @Override
-    public void close() {
-        shutdown();
     }
 }

@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.emc.nautilus.common.netty.client;
 
 import java.security.NoSuchAlgorithmException;
@@ -25,7 +42,9 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
 	private final boolean ssl;
@@ -39,6 +58,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		try {
 			this.group = new EpollEventLoopGroup();
 		} catch (ExceptionInInitializerError e) {
+		    log.warn("Epoll not available. Falling back on NIO.");
 			nio = true;
 			this.group = new NioEventLoopGroup();
 		}
@@ -59,7 +79,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		} else {
 			sslCtx = null;
 		}
-		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(rp);
+		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(host, rp);
 		Bootstrap b = new Bootstrap();
 		b.group(group)
 			.channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
@@ -72,7 +92,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 						p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
 					}
 					// p.addLast(new LoggingHandler(LogLevel.INFO));
-					p.addLast(	new ExceptionLoggingHandler(),
+					p.addLast(	new ExceptionLoggingHandler(ch.remoteAddress().toString()),
 								new CommandEncoder(),
 								new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
 								new CommandDecoder(),
@@ -91,7 +111,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 	}
 
 	@Override
-	public void shutdown() {
+	public void close() {
 		// Shut down the event loop to terminate all threads.
 		group.shutdownGracefully();
 	}

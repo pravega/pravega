@@ -17,15 +17,15 @@
  */
 package com.emc.nautilus.streaming;
 
-import java.io.Serializable;
-
-import com.emc.nautilus.logclient.SegmentOutputConfiguration;
-
 import lombok.Data;
 
 @Data
-public class ProducerConfig implements Serializable {
+public class ScalingPolicy { // TODO
+    enum Type {
+        FIXED,
+        BY_RATE
+    }
 
-    private final SegmentOutputConfiguration segmentConfig;
-
+    private final Type type;
+    private final long value;
 }

@@ -67,7 +67,7 @@ public final class ServiceStarter {
             this.serviceBuilder.close();
             System.out.println("StreamSegmentService is now closed.");
 
-            this.listener.shutdown();
+            this.listener.close();
             System.out.println("LogServiceConnectionListener is now closed.");
             this.closed = true;
         }

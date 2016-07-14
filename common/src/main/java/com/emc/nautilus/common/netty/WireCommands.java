@@ -32,82 +32,26 @@ import lombok.Data;
 public final class WireCommands {
 
     public static final int APPEND_BLOCK_SIZE = 32 * 1024;
-    private static final Map<Integer, Type> MAPPING;
+    private static final Map<Integer, WireCommandType> MAPPING;
     static {
-        HashMap<Integer, Type> map = new HashMap<>();
-        for (Type t : Type.values()) {
+        HashMap<Integer, WireCommandType> map = new HashMap<>();
+        for (WireCommandType t : WireCommandType.values()) {
             map.put(t.getCode(), t);
         }
         MAPPING = Collections.unmodifiableMap(map);
     }
 
-    public static Type getType(int value) {
+    public static WireCommandType getType(int value) {
         return MAPPING.get(value);
     }
 
-    @FunctionalInterface
-    private interface Constructor {
+    @FunctionalInterface interface Constructor {
         WireCommand readFrom(DataInput in) throws IOException;
-    }
-
-    enum Type {
-        WRONG_HOST(0, WrongHost::readFrom),
-        SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
-        SEGMENT_ALREADY_EXISTS(-3, SegmentAlreadyExists::readFrom),
-        NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
-        NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
-
-        SETUP_APPEND(1, SetupAppend::readFrom),
-        APPEND_SETUP(2, AppendSetup::readFrom),
-
-        APPEND_DATA(-100, null), // Splits into the two below for the wire.
-        APPEND_DATA_HEADER(3, null), // Handled in the encoder/decoder directly
-        APPEND_DATA_FOOTER(4, null), // Handled in the encoder/decoder directly
-        DATA_APPENDED(5, DataAppended::readFrom),
-
-        READ_SEGMENT(8, ReadSegment::readFrom),
-        SEGMENT_READ(9, null), // Handled in the encoder/decoder directly
-
-        GET_STREAM_SEGMENT_INFO(10, GetStreamSegmentInfo::readFrom),
-        STREAM_SEGMENT_INFO(11, StreamSegmentInfo::readFrom),
-
-        CREATE_SEGMENT(12, CreateSegment::readFrom),
-        SEGMENT_CREATED(13, SegmentCreated::readFrom),
-
-        CREATE_BATCH(14, CreateBatch::readFrom),
-        BATCH_CREATED(15, BatchCreated::readFrom),
-
-        MERGE_BATCH(16, MergeBatch::readFrom),
-        BATCH_MERGED(17, BatchMerged::readFrom),
-
-        SEAL_SEGMENT(18, SealSegment::readFrom),
-        SEGMENT_SEALED(19, SegmentSealed::readFrom),
-
-        DELETE_SEGMENT(20, DeleteSegment::readFrom),
-        SEGMENT_DELETED(21, SegmentDeleted::readFrom),
-
-        KEEP_ALIVE(100, KeepAlive::readFrom);
-
-        private final int code;
-        private final Constructor factory;
-
-        Type(int code, Constructor factory) {
-            this.code = code;
-            this.factory = factory;
-        }
-
-        public int getCode() {
-            return code;
-        }
-
-        public WireCommand readFrom(DataInput in) throws IOException {
-            return factory.readFrom(in);
-        }
     }
 
     @Data
     public static final class WrongHost implements Reply {
-        final WireCommands.Type type = Type.WRONG_HOST;
+        final WireCommandType type = WireCommandType.WRONG_HOST;
         final String segment;
         final String correctHost;
 
@@ -131,7 +75,7 @@ public final class WireCommands {
 
     @Data
     public static final class SegmentIsSealed implements Reply {
-        final WireCommands.Type type = Type.SEGMENT_IS_SEALED;
+        final WireCommandType type = WireCommandType.SEGMENT_IS_SEALED;
         final String segment;
 
         @Override
@@ -152,7 +96,7 @@ public final class WireCommands {
 
     @Data
     public static final class SegmentAlreadyExists implements Reply {
-        final WireCommands.Type type = Type.SEGMENT_ALREADY_EXISTS;
+        final WireCommandType type = WireCommandType.SEGMENT_ALREADY_EXISTS;
         final String segment;
 
         @Override
@@ -178,7 +122,7 @@ public final class WireCommands {
 
     @Data
     public static final class NoSuchSegment implements Reply {
-        final WireCommands.Type type = Type.NO_SUCH_SEGMENT;
+        final WireCommandType type = WireCommandType.NO_SUCH_SEGMENT;
         final String segment;
 
         @Override
@@ -204,7 +148,7 @@ public final class WireCommands {
 
     @Data
     public static final class NoSuchBatch implements Reply {
-        final WireCommands.Type type = Type.NO_SUCH_BATCH;
+        final WireCommandType type = WireCommandType.NO_SUCH_BATCH;
         final String batch;
 
         @Override
@@ -230,7 +174,7 @@ public final class WireCommands {
 
     @Data
     public static final class SetupAppend implements Request {
-        final WireCommands.Type type = Type.SETUP_APPEND;
+        final WireCommandType type = WireCommandType.SETUP_APPEND;
         final UUID connectionId;
         final String segment;
 
@@ -255,7 +199,7 @@ public final class WireCommands {
 
     @Data
     public static final class AppendSetup implements Reply {
-        final WireCommands.Type type = Type.APPEND_SETUP;
+        final WireCommandType type = WireCommandType.APPEND_SETUP;
         final String segment;
         final UUID connectionId;
         final long connectionOffsetAckLevel;
@@ -283,7 +227,7 @@ public final class WireCommands {
 
     @Data
     public static final class AppendData implements Request, Comparable<AppendData> {
-        final WireCommands.Type type = Type.APPEND_DATA;
+        final WireCommandType type = WireCommandType.APPEND_DATA;
         final UUID connectionId;
         final long connectionOffset;
         final ByteBuf data;
@@ -306,7 +250,7 @@ public final class WireCommands {
 
     @Data
     public static final class DataAppended implements Reply {
-        final WireCommands.Type type = Type.DATA_APPENDED;
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
         final String segment;
         final long connectionOffset;
 
@@ -330,7 +274,7 @@ public final class WireCommands {
 
     @Data
     public static final class ReadSegment implements Request {
-        final WireCommands.Type type = Type.READ_SEGMENT;
+        final WireCommandType type = WireCommandType.READ_SEGMENT;
         final String segment;
         final long offset;
         final int suggestedLength;
@@ -357,7 +301,7 @@ public final class WireCommands {
 
     @Data
     public static final class SegmentRead implements Reply {
-        final WireCommands.Type type = Type.SEGMENT_READ;
+        final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
         final long offset;
         final boolean atTail;
@@ -377,7 +321,7 @@ public final class WireCommands {
 
     @Data
     public static final class GetStreamSegmentInfo implements Request {
-        final WireCommands.Type type = Type.GET_STREAM_SEGMENT_INFO;
+        final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final String segmentName;
 
         @Override
@@ -398,7 +342,7 @@ public final class WireCommands {
 
     @Data
     public static final class StreamSegmentInfo implements Reply {
-        final WireCommands.Type type = Type.STREAM_SEGMENT_INFO;
+        final WireCommandType type = WireCommandType.STREAM_SEGMENT_INFO;
         final String segmentName;
         final boolean exists;
         final boolean isSealed;
@@ -434,7 +378,7 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request {
-        final WireCommands.Type type = Type.CREATE_SEGMENT;
+        final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
 
         @Override
@@ -455,7 +399,7 @@ public final class WireCommands {
 
     @Data
     public static final class SegmentCreated implements Reply {
-        final WireCommands.Type type = Type.SEGMENT_CREATED;
+        final WireCommandType type = WireCommandType.SEGMENT_CREATED;
         final String segment;
 
         @Override
@@ -476,7 +420,7 @@ public final class WireCommands {
 
     @Data
     public static final class CreateBatch implements Request {
-        final WireCommands.Type type = Type.CREATE_BATCH;
+        final WireCommandType type = WireCommandType.CREATE_BATCH;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -496,7 +440,7 @@ public final class WireCommands {
 
     @Data
     public static final class BatchCreated implements Reply {
-        final WireCommands.Type type = Type.BATCH_CREATED;
+        final WireCommandType type = WireCommandType.BATCH_CREATED;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -516,7 +460,7 @@ public final class WireCommands {
 
     @Data
     public static final class MergeBatch implements Request {
-        final WireCommands.Type type = Type.MERGE_BATCH;
+        final WireCommandType type = WireCommandType.MERGE_BATCH;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -536,7 +480,7 @@ public final class WireCommands {
 
     @Data
     public static final class BatchMerged implements Reply {
-        final WireCommands.Type type = Type.BATCH_MERGED;
+        final WireCommandType type = WireCommandType.BATCH_MERGED;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -556,7 +500,7 @@ public final class WireCommands {
 
     @Data
     public static final class SealSegment implements Request {
-        final WireCommands.Type type = Type.SEAL_SEGMENT;
+        final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final String segment;
 
         @Override
@@ -577,7 +521,7 @@ public final class WireCommands {
 
     @Data
     public static final class SegmentSealed implements Reply {
-        final WireCommands.Type type = Type.SEGMENT_SEALED;
+        final WireCommandType type = WireCommandType.SEGMENT_SEALED;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -597,7 +541,7 @@ public final class WireCommands {
 
     @Data
     public static final class DeleteSegment implements Request {
-        final WireCommands.Type type = Type.DELETE_SEGMENT;
+        final WireCommandType type = WireCommandType.DELETE_SEGMENT;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -617,7 +561,7 @@ public final class WireCommands {
 
     @Data
     public static final class SegmentDeleted implements Reply {
-        final WireCommands.Type type = Type.SEGMENT_DELETED;
+        final WireCommandType type = WireCommandType.SEGMENT_DELETED;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -637,7 +581,7 @@ public final class WireCommands {
 
     @Data
     public static final class KeepAlive implements Request, Reply {
-        final WireCommands.Type type = Type.KEEP_ALIVE;
+        final WireCommandType type = WireCommandType.KEEP_ALIVE;
 
         @Override
         public void process(ReplyProcessor cp) {

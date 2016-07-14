@@ -140,7 +140,7 @@ public class AppendTest {
         int port = 8765;
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup("shutdown")
+        @Cleanup
         LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
         server.startListening();
 
@@ -162,10 +162,10 @@ public class AppendTest {
         int port = 8910;
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup("shutdown")
+        @Cleanup
         LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup("shutdown")
+        @Cleanup
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
         Stream stream = streamManager.createStream(streamName, null);
         @Cleanup

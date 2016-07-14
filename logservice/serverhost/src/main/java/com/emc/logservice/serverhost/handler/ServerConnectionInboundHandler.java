@@ -74,7 +74,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public void drop() {
+    public void close() {
         Channel ch = channel.get();
         if (ch != null) {
             ch.close();

@@ -194,7 +194,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new WrongHost(wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else {
             //TODO: don't know what to do here...
-            connection.drop();
+            connection.close();
             log.error("Unknown excpetion on append for segment " + segment, u);
         }
     }

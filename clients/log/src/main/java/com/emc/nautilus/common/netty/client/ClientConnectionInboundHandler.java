@@ -1,3 +1,21 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.nautilus.common.netty.client;
 
 import java.util.concurrent.ExecutionException;
@@ -8,6 +26,7 @@ import com.emc.nautilus.common.netty.ConnectionFailedException;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.ReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommand;
+import com.google.common.base.Preconditions;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -18,10 +37,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
+    private final String connectionName;
 	private final ReplyProcessor processor;
 	private final AtomicReference<Channel> channel = new AtomicReference<>();
 
-	ClientConnectionInboundHandler(ReplyProcessor processor) {
+	ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor) {
+        Preconditions.checkNotNull(processor);
+        this.connectionName = connectionName;
 	    this.processor = processor;
 	}
 	
@@ -40,7 +62,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
     	Reply cmd = (Reply) msg;
-    	log.debug("Processing reply: {}",cmd);
+    	log.debug(connectionName+ " processing reply: {}",cmd);
 		cmd.process(processor);
     }
 
@@ -58,14 +80,14 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
             getChannel().writeAndFlush(cmd).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Send call was interrupted", e);
+            throw new RuntimeException(connectionName+ " Send call was interrupted", e);
         } catch (ExecutionException e) {
             throw new ConnectionFailedException(e.getCause());
         }
 	}
 
 	@Override
-	public void drop() {
+	public void close() {
 		Channel ch = channel.get();
 		if (ch != null) {
 			ch.close();
@@ -74,9 +96,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 	
 	private Channel getChannel() {
 		Channel ch = channel.get();
-		if (ch == null) {
-			throw new IllegalStateException("Connection not yet established.");
-		}
+		Preconditions.checkState(ch != null, connectionName+ " Connection not yet established.");
 		return ch;
 	}
 

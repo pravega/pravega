@@ -21,7 +21,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 public interface WireCommand {
-    WireCommands.Type getType();
+    WireCommandType getType();
 
     void writeFields(DataOutput out) throws IOException;
 }
