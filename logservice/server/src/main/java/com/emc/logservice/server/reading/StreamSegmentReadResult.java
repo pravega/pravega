@@ -43,6 +43,7 @@ public class StreamSegmentReadResult implements ReadResult {
     private CompletableFuture<ReadResultEntryContents> lastEntryFuture;
     private CompletableFuture<Void> lastEntryFutureFollowup;
     private int consumedLength;
+    private boolean endOfSegmentReached;
     private boolean closed;
 
     //endregion
@@ -105,9 +106,18 @@ public class StreamSegmentReadResult implements ReadResult {
 
     @Override
     public void close() {
-        //TODO: should we also cancel any pending ReadResults?
-        this.closed = true;
-        log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
+        if (!this.closed) {
+            this.closed = true;
+
+            // If we have already returned a result but it hasn't been consumed yet, cancel it.
+            CompletableFuture<ReadResultEntryContents> lastReturnedFuture = this.lastEntryFuture;
+            if (lastReturnedFuture != null && !lastReturnedFuture.isDone()) {
+                lastReturnedFuture.cancel(true);
+                this.lastEntryFuture = null;
+            }
+
+            log.trace("{}.ReadResult[{}]: Closed.", this.traceObjectId, this.streamSegmentStartOffset);
+        }
     }
 
     //endregion
@@ -115,14 +125,18 @@ public class StreamSegmentReadResult implements ReadResult {
     //region Iterator Implementation
 
     /**
-     * Gets a value indicating whether we have further elements to process - which happens when we have at least one more byte to read.
-     * If the ReadResult is closed, then this method will return false.
+     * Gets a value indicating whether we have further elements to process. All of the following must be true:
+     * <ul>
+     * <li> The StreamSegmentReadResult is not closed.
+     * <li> We haven't reached the end of a sealed StreamSegment.
+     * <li> We have at least one more byte to read.
+     * </ul>
      *
      * @return
      */
     @Override
     public boolean hasNext() {
-        return this.closed || this.consumedLength < this.maxResultLength;
+        return !this.closed && !this.endOfSegmentReached && this.consumedLength < this.maxResultLength;
     }
 
     /**
@@ -161,13 +175,18 @@ public class StreamSegmentReadResult implements ReadResult {
             if (entry.isEndOfStreamSegment()) {
                 // StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment length.
                 // We cannot continue reading; close the ReadResult and return the appropriate EndOfStream Result Entry.
+                // If we don't close the ReadResult, hasNext() will erroneously return true and next() will have undefined behavior.
                 this.lastEntryFuture = null;
                 this.lastEntryFutureFollowup = null;
-                close();
+                this.endOfSegmentReached = true;
             } else {
                 // After the previous entry is done, update the consumedLength value.
                 this.lastEntryFuture = entry.getContent();
                 this.lastEntryFutureFollowup = this.lastEntryFuture.thenAccept(contents -> this.consumedLength += contents.getLength());
+
+                // Check, again, if we are closed. It is possible that this Result was closed after the last check
+                // and before we got the lastEntryFuture. If this happened, throw the exception and don't return anything.
+                Exceptions.checkNotClosed(this.closed, this);
             }
         }
 
@@ -179,7 +198,8 @@ public class StreamSegmentReadResult implements ReadResult {
 
     //region NextEntrySupplier
 
-    public interface NextEntrySupplier extends BiFunction<Long, Integer, ReadResultEntry> {
+    @FunctionalInterface
+    interface NextEntrySupplier extends BiFunction<Long, Integer, ReadResultEntry> {
     }
 
     //endregion

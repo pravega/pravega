@@ -278,19 +278,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public void setValidTruncationPoint(long sequenceNumber) {
-        Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive number.");
-        synchronized (this.truncationMarkers) {
-            this.truncationPoints.add(sequenceNumber);
-        }
-    }
-
-    @Override
-    public boolean isValidTruncationPoint(long sequenceNumber) {
-        return this.truncationPoints.contains(sequenceNumber);
-    }
-
-    @Override
     public long getClosestTruncationMarker(long operationSequenceNumber) {
         //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
         Map.Entry<Long, Long> result = null;
@@ -314,6 +301,19 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         } else {
             return result.getValue();
         }
+    }
+
+    @Override
+    public void setValidTruncationPoint(long sequenceNumber) {
+        Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive number.");
+        synchronized (this.truncationMarkers) {
+            this.truncationPoints.add(sequenceNumber);
+        }
+    }
+
+    @Override
+    public boolean isValidTruncationPoint(long sequenceNumber) {
+        return this.truncationPoints.contains(sequenceNumber);
     }
 
     //endregion

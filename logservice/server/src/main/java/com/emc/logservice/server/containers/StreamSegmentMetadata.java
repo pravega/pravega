@@ -49,6 +49,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private boolean sealed;
     private boolean deleted;
     private boolean merged;
+    private Date lastModified;
 
     //endregion
 
@@ -87,6 +88,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.storageLength = -1;
         this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
+        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
     }
 
     //endregion
@@ -115,7 +117,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public Date getLastModified() {
-        return new Date(); // TODO: implement properly; maybe change everytime durableLogLength changes...
+        return this.lastModified;
     }
 
     //endregion
@@ -206,7 +208,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void setLastModified(Date date) {
-        // TODO: implement.
+        this.lastModified = date;
+        log.trace("{}: LastModified = {}.", this.lastModified);
     }
 
     @Override
@@ -216,12 +219,14 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void copyFrom(SegmentMetadata base) {
-        Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one.");
+        Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
+        Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
         Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
 
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
         setDurableLogLength(base.getDurableLogLength());
+        setLastModified(base.getLastModified());
         for (UUID clientId : base.getKnownClientIds()) {
             recordAppendContext(base.getLastAppendContext(clientId));
         }

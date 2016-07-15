@@ -63,6 +63,7 @@ public class MetadataHelpers {
         Assert.assertEquals(idPrefix + " getName() mismatch.", expected.getName(), actual.getName());
         Assert.assertEquals(idPrefix + " isSealed() mismatch.", expected.isSealed(), actual.isSealed());
         Assert.assertEquals(idPrefix + " isMerged() mismatch.", expected.isMerged(), actual.isMerged());
-        Assert.assertEquals(idPrefix + " getLastModified() mismatch.", expected.getLastModified(), actual.getLastModified());
+
+        // getLastModified is not tested (yet). Unsure as of this moment if it is required for testing or not.
     }
 }
