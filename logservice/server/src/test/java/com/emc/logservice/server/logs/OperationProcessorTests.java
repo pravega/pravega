@@ -83,8 +83,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data.
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata);
-        AbstractMap<Long, Long> batches = LogTestHelpers.createBatches(streamSegmentIds, batchesPerStreamSegment, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
+        AbstractMap<Long, Long> batches = LogTestHelpers.createBatchesInMetadata(streamSegmentIds, batchesPerStreamSegment, metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, batches, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeBatches, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
@@ -132,7 +132,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
         nonExistentStreamSegmentId = streamSegmentIds.size();
         streamSegmentIds.add(nonExistentStreamSegmentId);
         metadata.getStreamSegmentMetadata(sealedStreamSegmentId).markSealed();
@@ -210,7 +210,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Replace some of the Append Operations with a FailedAppendOperations. Some operations fail at the beginning,
@@ -283,7 +283,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
@@ -339,7 +339,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegments(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.

@@ -412,7 +412,7 @@ public class OperationMetadataUpdaterTests {
         StreamSegmentMapOperation mapOp = createMap();
         updater.preProcessOperation(mapOp);
         Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).", mapOp.getStreamSegmentLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", 0, updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
+        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).", mapOp.getStreamSegmentLength(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
         Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).", mapOp.isSealed(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).isSealed());
         Assert.assertNull("processMetadataOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
@@ -522,18 +522,14 @@ public class OperationMetadataUpdaterTests {
         MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
-        metadata.mapStreamSegmentId(newSegmentName, newSegmentId);
-        metadata.getStreamSegmentMetadata(newSegmentId).setDurableLogLength(0);
-        metadata.getStreamSegmentMetadata(newSegmentId).setStorageLength(1);
-
-        processOperation(createMap(newSegmentId, newSegmentName), updater, seqNo::incrementAndGet);
+        processOperation(new StreamSegmentMapOperation(newSegmentId, new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date())), updater, seqNo::incrementAndGet);
         processOperation(new StreamSegmentAppendOperation(newSegmentId, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
         updater.commit();
         checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
-        MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
+        MetadataHelpers.assertMetadataEquals("Unexpected metadata after deserializing checkpoint.", metadata, checkpointedMetadata);
     }
 
     /**

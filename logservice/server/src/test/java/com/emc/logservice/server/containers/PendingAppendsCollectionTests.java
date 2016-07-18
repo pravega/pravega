@@ -22,6 +22,7 @@ import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.nautilus.testcommon.IntentionalException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -103,13 +104,13 @@ public class PendingAppendsCollectionTests {
             }
 
             // Fail all the "appends" in the third third.
-            doneThirdThird.completeExceptionally(new Exception("Intentional"));
+            doneThirdThird.completeExceptionally(new IntentionalException());
             for (Map.Entry<AppendContext, CompletableFuture<AppendContext>> e : thirdThirdContexts.entrySet()) {
                 Assert.assertTrue("Future returned from get() did not complete even though the underlying append did complete.", e.getValue().isDone());
                 AssertExtensions.assertThrows(
                         "Future returned from get() did not complete exceptionally even though the underlying append failed.",
                         e.getValue()::join,
-                        ex -> ex instanceof Exception && ex.getMessage().contains("Intentional"));
+                        ex -> ex instanceof IntentionalException);
             }
         }
     }

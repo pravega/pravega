@@ -19,6 +19,7 @@
 package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.AutoReleaseLock;
+import com.emc.logservice.common.CollectionHelpers;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.server.SegmentMetadataCollection;
@@ -175,12 +176,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             }
 
             // Find any batches that point to this StreamSegment (as a parent).
-            for (UpdateableSegmentMetadata batchSegmentMetadata : this.segmentMetadata.values()) {
-                if (batchSegmentMetadata.getParentId() == streamSegmentId) {
-                    batchSegmentMetadata.markDeleted();
-                    result.add(batchSegmentMetadata.getName());
-                }
-            }
+            CollectionHelpers.forEach(
+                    this.segmentMetadata.values(),
+                    m -> m.getParentId() == streamSegmentId,
+                    m -> {
+                        m.markDeleted();
+                        result.add(m.getName());
+                    });
         }
 
         log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);

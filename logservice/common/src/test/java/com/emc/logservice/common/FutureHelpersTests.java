@@ -19,6 +19,7 @@
 package com.emc.logservice.common;
 
 import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.nautilus.testcommon.IntentionalException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -39,7 +40,7 @@ public class FutureHelpersTests {
      */
     @Test
     public void testFailedFuture() {
-        Throwable ex = new Exception("intentional");
+        Throwable ex = new IntentionalException();
         CompletableFuture<Void> cf = FutureHelpers.failedFuture(ex);
         Assert.assertTrue("failedFuture() did not create a failed future.", cf.isCompletedExceptionally());
         AssertExtensions.assertThrows(
@@ -61,7 +62,7 @@ public class FutureHelpersTests {
 
         thrownException.set(null);
         cf = new CompletableFuture<>();
-        Exception ex = new Exception("intentional");
+        Exception ex = new IntentionalException();
         FutureHelpers.exceptionListener(cf, thrownException::set);
         cf.completeExceptionally(ex);
         Assert.assertNotNull("exceptionListener did not invoke the callback when the future was completed exceptionally.", thrownException.get());
@@ -163,7 +164,7 @@ public class FutureHelpersTests {
 
     private void failRandomFuture(List<CompletableFuture<Integer>> futures) {
         int index = new Random().nextInt(futures.size());
-        futures.get(index).completeExceptionally(new Exception("intentional"));
+        futures.get(index).completeExceptionally(new IntentionalException());
     }
 
     private void checkResults(Collection<Integer> results) {

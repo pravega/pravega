@@ -16,13 +16,17 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.contracts;
+package com.emc.nautilus.testcommon;
 
 /**
- * Represents an exception that is thrown when a StreamSegment that already exists is attempted to be created again.
+ * Intentional exception to be thrown inside unit tests.
  */
-public class StreamSegmentExistsException extends StreamSegmentException {
-    public StreamSegmentExistsException(String streamSegmentName) {
-        super(streamSegmentName, "The StreamSegment exists already.");
+public class IntentionalException extends Exception {
+    public IntentionalException() {
+        this("intentional");
+    }
+
+    public IntentionalException(String message) {
+        super(message);
     }
 }

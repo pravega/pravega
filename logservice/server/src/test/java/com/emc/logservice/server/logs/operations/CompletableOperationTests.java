@@ -19,6 +19,7 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.nautilus.testcommon.IntentionalException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -67,7 +68,7 @@ public class CompletableOperationTests {
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
         CompletableOperation co = new CompletableOperation(op, seqNo -> successCallbackCalled.set(true), ex -> failureCallbackCalled.set(true));
 
-        co.fail(new Exception("Intentional"));
+        co.fail(new IntentionalException());
         Assert.assertTrue("Failure callback was not invoked for valid fail() call.", failureCallbackCalled.get());
         Assert.assertFalse("Success callback invoked for valid fail() call.", successCallbackCalled.get());
     }

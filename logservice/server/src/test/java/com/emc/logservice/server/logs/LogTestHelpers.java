@@ -19,6 +19,7 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.StreamSegmentNameUtils;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.StreamSegmentMapper;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  * Helpers that aid in testing Log-based components, such as DurableLog or OperationQueueProcessor.
@@ -59,7 +61,7 @@ public class LogTestHelpers {
      * @param containerMetadata
      * @return
      */
-    public static HashSet<Long> createStreamSegments(int streamSegmentCount, UpdateableContainerMetadata containerMetadata) {
+    public static HashSet<Long> createStreamSegmentsInMetadata(int streamSegmentCount, UpdateableContainerMetadata containerMetadata) {
         assert streamSegmentCount <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " StreamSegments for this test.";
         HashSet<Long> result = new HashSet<>();
         for (long streamSegmentId = 0; streamSegmentId < streamSegmentCount; streamSegmentId++) {
@@ -82,8 +84,8 @@ public class LogTestHelpers {
      * @param storage
      * @return
      */
-    public static HashSet<Long> createStreamSegments(int streamSegmentCount, UpdateableContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage);
+    public static HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool.commonPool());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
@@ -104,7 +106,7 @@ public class LogTestHelpers {
      * @param containerMetadata
      * @return
      */
-    public static AbstractMap<Long, Long> createBatches(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, UpdateableContainerMetadata containerMetadata) {
+    public static AbstractMap<Long, Long> createBatchesInMetadata(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, UpdateableContainerMetadata containerMetadata) {
         assert batchesPerStreamSegment <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " batches per StreamSegment for this test.";
         HashMap<Long, Long> result = new HashMap<>();
         for (long streamSegmentId : streamSegmentIds) {
@@ -124,9 +126,9 @@ public class LogTestHelpers {
         return result;
     }
 
-    public static AbstractMap<Long, Long> createBatches(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, UpdateableContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+    public static AbstractMap<Long, Long> createBatchesWithOperations(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         HashMap<Long, Long> result = new HashMap<>();
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage);
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool.commonPool());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 

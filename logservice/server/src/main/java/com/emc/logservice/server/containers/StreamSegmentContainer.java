@@ -101,7 +101,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
         this.durableLog.addListener(new ServiceShutdownListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
-        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage);
+        this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, executor);
     }
 
     //endregion

@@ -63,6 +63,7 @@ public class InMemoryStorage implements Storage {
                 if (this.streamSegments.containsKey(streamSegmentName)) {
                     throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
                 }
+
                 StreamSegmentData data = new StreamSegmentData(streamSegmentName);
                 this.streamSegments.put(streamSegmentName, data);
                 return data;
@@ -73,13 +74,13 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         return getStreamSegmentData(streamSegmentName)
-                .thenCompose(ssd -> ssd.write(offset, data, length));
+                .thenComposeAsync(ssd -> ssd.write(offset, data, length));
     }
 
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         return getStreamSegmentData(streamSegmentName)
-                .thenCompose(ssd -> ssd.read(offset, buffer, bufferOffset, length));
+                .thenComposeAsync(ssd -> ssd.read(offset, buffer, bufferOffset, length));
     }
 
     @Override
