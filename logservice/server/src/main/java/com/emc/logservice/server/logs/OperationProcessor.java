@@ -255,7 +255,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         }
 
         // Entry is ready to be serialized; assign a sequence number.
-        entry.setSequenceNumber(this.metadataUpdater.getNewOperationSequenceNumber());
+        entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
 
         log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
         try {

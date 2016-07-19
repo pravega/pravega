@@ -101,7 +101,7 @@ public class MetadataCheckpointOperation extends MetadataOperation {
 
     @Override
     public String toString() {
-        return super.toString();
+        return String.format("%s, Length = %d", super.toString(), contents == null ? 0 : contents.getLength());
     }
 
     //endregion

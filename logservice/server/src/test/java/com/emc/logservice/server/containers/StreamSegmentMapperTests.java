@@ -22,8 +22,8 @@ import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.StreamSegmentNameUtils;
 import com.emc.logservice.server.UpdateableContainerMetadata;
@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -111,7 +112,7 @@ public class StreamSegmentMapperTests {
                 "createNewStreamSegment did not fail when Segment already exists.",
                 context.mapper.createNewStreamSegment(segmentName, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
+        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
         // 2. Create fails with random exception.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
@@ -119,7 +120,7 @@ public class StreamSegmentMapperTests {
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 context.mapper.createNewStreamSegment(segmentName, TIMEOUT)::join,
                 ex -> ex instanceof IntentionalException);
-        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).", ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
+        Assert.assertEquals("Segment was registered in the metadata even if it failed to be created (IntentionalException).", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
         // Manually create the StreamSegment and test the batch creation.
         storageSegments.add(segmentName);
@@ -195,7 +196,7 @@ public class StreamSegmentMapperTests {
         for (String name : storageSegments) {
             if (StreamSegmentNameUtils.getParentStreamSegmentName(name) == null) {
                 long id = context.mapper.getOrAssignStreamSegmentId(name, TIMEOUT).join();
-                Assert.assertNotEquals("No id was assigned for StreamSegment " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
+                Assert.assertNotEquals("No id was assigned for StreamSegment " + name, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, id);
                 SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(id);
                 Assert.assertNotNull("No metadata was created for StreamSegment " + name, sm);
                 long expectedLength = getInitialLength.apply(name);
@@ -210,7 +211,7 @@ public class StreamSegmentMapperTests {
             String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(name);
             if (parentName != null) {
                 long id = context.mapper.getOrAssignStreamSegmentId(name, TIMEOUT).join();
-                Assert.assertNotEquals("No id was assigned for Batch " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
+                Assert.assertNotEquals("No id was assigned for Batch " + name, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, id);
                 SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(id);
                 Assert.assertNotNull("No metadata was created for Batch " + name, sm);
                 long expectedLength = getInitialLength.apply(name);
@@ -219,7 +220,7 @@ public class StreamSegmentMapperTests {
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for Batch " + name, expectedSeal, sm.isSealed());
 
                 // Check parenthood.
-                Assert.assertNotEquals("No parent defined in metadata for Batch " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, sm.getParentId());
+                Assert.assertNotEquals("No parent defined in metadata for Batch " + name, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, sm.getParentId());
                 long parentId = context.metadata.getStreamSegmentId(parentName);
                 Assert.assertEquals("Unexpected parent defined in metadata for Batch " + name, parentId, sm.getParentId());
             }
@@ -285,6 +286,7 @@ public class StreamSegmentMapperTests {
         // We setup a delay in the OperationLog process. We only do this for a stand-alone StreamSegment because the process
         // is driven by the same code for batches as well.
         final String segmentName = "Segment";
+        final long segmentId = 12345;
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
@@ -293,7 +295,19 @@ public class StreamSegmentMapperTests {
         TestContext context = new TestContext();
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new Date()));
         CompletableFuture<Long> initialAddFuture = new CompletableFuture<>();
-        context.operationLog.addHandler = op -> initialAddFuture;
+        AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
+        context.operationLog.addHandler = op -> {
+            if (!(op instanceof StreamSegmentMapOperation)) {
+                return FutureHelpers.failedFuture(new IllegalArgumentException("unexpected operation"));
+            }
+            if (operationLogInvoked.getAndSet(true)) {
+                return FutureHelpers.failedFuture(new IllegalStateException("multiple calls to OperationLog.add"));
+            }
+
+            // Need to set SegmentId on operation.
+            ((StreamSegmentMapOperation) op).setStreamSegmentId(segmentId);
+            return initialAddFuture;
+        };
 
         CompletableFuture<Long> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
         CompletableFuture<Long> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
@@ -315,7 +329,7 @@ public class StreamSegmentMapperTests {
         SegmentProperties sp = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
         Assert.assertNotNull("No segment has been created in the Storage for " + segmentName, sp);
         long segmentId = context.metadata.getStreamSegmentId(segmentName);
-        Assert.assertNotEquals("Segment '" + segmentName + "' has not been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
+        Assert.assertNotEquals("Segment '" + segmentName + "' has not been registered in the metadata.", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, segmentId);
         SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
         Assert.assertNotNull("Segment '" + segmentName + "' has not been registered in the metadata.", sm);
         Assert.assertEquals("Wrong segment name in metadata .", segmentName, sm.getName());
@@ -326,7 +340,7 @@ public class StreamSegmentMapperTests {
         long parentId = context.metadata.getStreamSegmentId(segmentName);
         long batchId = context.metadata.getStreamSegmentId(batchName);
         SegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
-        Assert.assertNotEquals("Batch StreamSegment is not mapped to any parent.", ContainerMetadata.NO_STREAM_SEGMENT_ID, batchMetadata.getParentId());
+        Assert.assertNotEquals("Batch StreamSegment is not mapped to any parent.", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, batchMetadata.getParentId());
         Assert.assertEquals("Batch StreamSegment is not mapped to the correct parent.", parentId, batchMetadata.getParentId());
     }
 
@@ -335,19 +349,21 @@ public class StreamSegmentMapperTests {
         context.operationLog.addHandler = op -> {
             if (op instanceof StreamSegmentMapOperation) {
                 StreamSegmentMapOperation mapOp = (StreamSegmentMapOperation) op;
+                mapOp.setStreamSegmentId(seqNo.incrementAndGet());
                 context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
                 context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setStorageLength(0);
-                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setDurableLogLength(mapOp.getStreamSegmentLength());
+                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setDurableLogLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
                     context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).markSealed();
                 }
             } else if (op instanceof BatchMapOperation) {
                 BatchMapOperation mapOp = (BatchMapOperation) op;
-                context.metadata.mapStreamSegmentId(mapOp.getBatchStreamSegmentName(), mapOp.getBatchStreamSegmentId(), mapOp.getParentStreamSegmentId());
-                context.metadata.getStreamSegmentMetadata(mapOp.getBatchStreamSegmentId()).setStorageLength(0);
-                context.metadata.getStreamSegmentMetadata(mapOp.getBatchStreamSegmentId()).setDurableLogLength(mapOp.getBatchStreamSegmentLength());
-                if (mapOp.isBatchSealed()) {
-                    context.metadata.getStreamSegmentMetadata(mapOp.getBatchStreamSegmentId()).markSealed();
+                mapOp.setStreamSegmentId(seqNo.incrementAndGet());
+                context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
+                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setStorageLength(0);
+                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setDurableLogLength(mapOp.getLength());
+                if (mapOp.isSealed()) {
+                    context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).markSealed();
                 }
             }
 

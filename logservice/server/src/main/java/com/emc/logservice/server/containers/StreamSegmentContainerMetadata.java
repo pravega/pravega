@@ -112,11 +112,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public long getNewOperationSequenceNumber() {
-        ensureNonRecoveryMode();
-        return this.sequenceNumber.incrementAndGet();
+    public long getOperationSequenceNumber() {
+        return this.sequenceNumber.get();
     }
-
     //endregion
 
     //region UpdateableContainerMetadata
@@ -187,6 +185,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
         log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
         return result;
+    }
+
+    @Override
+    public long nextOperationSequenceNumber() {
+        ensureNonRecoveryMode();
+        return this.sequenceNumber.incrementAndGet();
     }
 
     @Override

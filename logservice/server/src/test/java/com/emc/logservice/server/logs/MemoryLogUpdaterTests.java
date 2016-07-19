@@ -202,7 +202,9 @@ public class MemoryLogUpdaterTests {
         ArrayList<Operation> operations = new ArrayList<>();
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
-                operations.add(new StreamSegmentMapOperation(i, new StreamSegmentInformation("a", i * j, false, false, new Date())));
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date()));
+                mapOp.setStreamSegmentId(i);
+                operations.add(mapOp);
                 operations.add(new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j)));
                 operations.add(new MergeBatchOperation(i, j));
             }

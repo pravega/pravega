@@ -16,34 +16,37 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.server;
+package com.emc.logservice.server.logs.operations;
 
 /**
- * Defines an immutable Stream Segment Container Metadata.
+ * Defines a mapping between a StreamSegment Name and its Id.
  */
-public interface ContainerMetadata extends SegmentMetadataCollection {
+public interface StreamSegmentMapping {
     /**
-     * The initial Sequence Number. All operations will get sequence numbers starting from this value.
-     */
-    long INITIAL_OPERATION_SEQUENCE_NUMBER = 0;
-
-    /**
-     * Gets a value indicating the Id of the StreamSegmentContainer this Metadata refers to.
+     * Gets a value indicating the Id of the StreamSegment.
      *
      * @return
      */
-    String getContainerId();
+    long getStreamSegmentId();
 
     /**
-     * Gets a value indicating whether we are currently in Recovery Mode.
+     * Gets a value indicating the Name of the StreamSegment.
      *
      * @return
      */
-    boolean isRecoveryMode();
+    String getStreamSegmentName();
 
     /**
-     * Gets a value indicating the current Operation Sequence Number.
+     * Gets a value indicating the Length of the StreamSegment at the time of the mapping.
+     *
      * @return
      */
-    long getOperationSequenceNumber();
+    long getLength();
+
+    /**
+     * Gets a value indicating whether the StreamSegment is currently sealed at the time of the mapping.
+     *
+     * @return
+     */
+    boolean isSealed();
 }

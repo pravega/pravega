@@ -19,7 +19,9 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.logs.SerializationException;
+import com.google.common.base.Preconditions;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -28,16 +30,15 @@ import java.io.IOException;
 /**
  * Log Operation that represents a mapping of StreamSegment Name to a StreamSegment Id.
  */
-public class StreamSegmentMapOperation extends MetadataOperation {
+public class StreamSegmentMapOperation extends MetadataOperation implements StreamSegmentMapping {
     //region Members
 
     public static final byte OPERATION_TYPE = 4;
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentId;
     private String streamSegmentName;
-    private long streamSegmentLength;
+    private long length;
     private boolean sealed;
-    private long lastModifiedTime;
 
     //endregion
 
@@ -46,16 +47,14 @@ public class StreamSegmentMapOperation extends MetadataOperation {
     /**
      * Creates a new instance of the StreamSegmentMapOperation class.
      *
-     * @param streamSegmentId         The Id of the StreamSegment.
      * @param streamSegmentProperties Information about the StreamSegment.
      */
-    public StreamSegmentMapOperation(long streamSegmentId, SegmentProperties streamSegmentProperties) {
+    public StreamSegmentMapOperation(SegmentProperties streamSegmentProperties) {
         super();
-        this.streamSegmentId = streamSegmentId;
+        this.streamSegmentId = SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
         this.streamSegmentName = streamSegmentProperties.getName();
-        this.streamSegmentLength = streamSegmentProperties.getLength();
+        this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
-        this.lastModifiedTime = streamSegmentProperties.getLastModified().getTime();
     }
 
     protected StreamSegmentMapOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -64,51 +63,36 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     //endregion
 
-    //region StreamSegmentMapOperation Properties
+    //region StreamSegmentMapping implementation.
 
-    /**
-     * Gets a value indicating the Name of the StreamSegment.
-     *
-     * @return
-     */
+    @Override
     public String getStreamSegmentName() {
         return this.streamSegmentName;
     }
 
-    /**
-     * Gets a value indicating the Id of the StreamSegment.
-     *
-     * @return
-     */
+    @Override
     public long getStreamSegmentId() {
         return this.streamSegmentId;
     }
 
     /**
-     * Gets a value indicating the Length of the StreamSegment.
-     *
-     * @return
+     * Sets the StreamSegmentId for this operation.
+     * @param value
      */
-    public long getStreamSegmentLength() {
-        return this.streamSegmentLength;
+    public void setStreamSegmentId(long value) {
+        Preconditions.checkState(this.streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
+        Preconditions.checkArgument(value != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
+        this.streamSegmentId = value;
     }
 
-    /**
-     * Gets a value indicating whether the StreamSegment is currently sealed.
-     *
-     * @return
-     */
+    @Override
+    public long getLength() {
+        return this.length;
+    }
+
+    @Override
     public boolean isSealed() {
         return this.sealed;
-    }
-
-    /**
-     * Gets a value indicating the Last Modified Time of the StreamSegment. TODO: figure out what data type this should be.
-     *
-     * @return
-     */
-    public long getLastModifiedTime() {
-        return this.lastModifiedTime;
     }
 
     //endregion
@@ -122,12 +106,12 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
+        ensureSerializationCondition(this.streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "StreamSegment Id has not been assigned for this entry.");
         target.writeByte(CURRENT_VERSION);
         target.writeLong(this.streamSegmentId);
         target.writeUTF(this.streamSegmentName);
-        target.writeLong(this.streamSegmentLength);
+        target.writeLong(this.length);
         target.writeBoolean(this.sealed);
-        target.writeLong(this.lastModifiedTime);
     }
 
     @Override
@@ -135,14 +119,19 @@ public class StreamSegmentMapOperation extends MetadataOperation {
         byte version = readVersion(source, CURRENT_VERSION);
         this.streamSegmentId = source.readLong();
         this.streamSegmentName = source.readUTF();
-        this.streamSegmentLength = source.readLong();
+        this.length = source.readLong();
         this.sealed = source.readBoolean();
-        this.lastModifiedTime = source.readLong();
     }
 
     @Override
     public String toString() {
-        return String.format("%s, Id = %d, Name = %s, Length = %d, Sealed = %s", super.toString(), getStreamSegmentId(), getStreamSegmentName(), getStreamSegmentLength(), isSealed());
+        return String.format(
+                "%s, Id = %s, Name = %s, Length = %d, Sealed = %s",
+                super.toString(),
+                toString(getStreamSegmentId(), SegmentMetadataCollection.NO_STREAM_SEGMENT_ID),
+                getStreamSegmentName(),
+                getLength(),
+                isSealed());
     }
 
     //endregion

@@ -18,7 +18,9 @@
 
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.StreamSegmentInformation;
+import org.junit.Assert;
 
 import java.util.Date;
 import java.util.Random;
@@ -26,10 +28,23 @@ import java.util.Random;
 /**
  * Unit tests for StreamSegmentMapOperation class.
  */
-public class StreamSegmentMapOperationTests extends com.emc.logservice.server.logs.operations.OperationTestsBase<StreamSegmentMapOperation> {
+public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSegmentMapOperation> {
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
-        long id = random.nextLong();
-        return new StreamSegmentMapOperation(id, new StreamSegmentInformation(super.getStreamSegmentName(id), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
+    }
+
+    @Override
+    protected boolean isPreSerializationConfigRequired(StreamSegmentMapOperation operation) {
+        return operation.getStreamSegmentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
+    }
+
+    @Override
+    protected void configurePreSerialization(StreamSegmentMapOperation operation, Random random) {
+        if (operation.getStreamSegmentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+            operation.setStreamSegmentId(random.nextLong());
+        } else if (isPreSerializationConfigRequired(operation)) {
+            Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
+        }
     }
 }

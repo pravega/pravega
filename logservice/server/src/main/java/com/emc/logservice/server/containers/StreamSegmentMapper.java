@@ -32,6 +32,7 @@ import com.emc.logservice.server.StreamSegmentNameUtils;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentMapping;
 import com.emc.logservice.storageabstraction.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +60,6 @@ public class StreamSegmentMapper {
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
     private final HashSet<Long> pendingIdAssignments;
     private final Object assignmentLock = new Object();
-    private final Object metadataLock = new Object();
 
     //endregion
 
@@ -303,48 +303,31 @@ public class StreamSegmentMapper {
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
         }
 
-        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getName());
-        if (isValidStreamSegmentId(streamId)) {
+        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentInfo.getName());
+        if (isValidStreamSegmentId(streamSegmentId)) {
             // Looks like someone else beat us to it.
-            completeAssignment(streamSegmentInfo.getName(), streamId);
-            return CompletableFuture.completedFuture(streamId);
+            completeAssignment(streamSegmentInfo.getName(), streamSegmentId);
+            return CompletableFuture.completedFuture(streamSegmentId);
         } else {
-            final long newStreamId = generateUniqueStreamId(streamSegmentInfo.getName());
             CompletableFuture<Long> logAddResult;
+            StreamSegmentMapping mapping;
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
                 // Batch.
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
                 assert parentMetadata != null : "parentMetadata is null";
-                logAddResult = this.durableLog.add(new BatchMapOperation(parentStreamSegmentId, newStreamId, streamSegmentInfo), timeout);
+                BatchMapOperation op = new BatchMapOperation(parentStreamSegmentId, streamSegmentInfo);
+                mapping = op;
+                logAddResult = this.durableLog.add(op, timeout);
             } else {
                 // Standalone StreamSegment.
-                logAddResult = this.durableLog.add(new StreamSegmentMapOperation(newStreamId, streamSegmentInfo), timeout);
+                StreamSegmentMapOperation op = new StreamSegmentMapOperation(streamSegmentInfo);
+                mapping = op;
+                logAddResult = this.durableLog.add(op, timeout);
             }
 
             return logAddResult
-                    .thenApply(seqNo -> completeAssignment(streamSegmentInfo.getName(), newStreamId));
+                    .thenApply(seqNo -> completeAssignment(streamSegmentInfo.getName(), mapping.getStreamSegmentId()));
         }
-    }
-
-    /**
-     * Generates a unique StreamSegment Id that does not currently exist in the Metadata or in the pending Id assingments.
-     *
-     * @param streamSegmentName
-     * @return
-     */
-    private long generateUniqueStreamId(String streamSegmentName) {
-        // Get the last 32 bits of the current time (in millis), and move those to the upper portion of our ID.
-        long streamId = System.currentTimeMillis() << 32;
-        streamId |= streamSegmentName.hashCode() & 0xffffffffL;
-        synchronized (assignmentLock) {
-            while (!isValidStreamSegmentId(streamId) || this.containerMetadata.getStreamSegmentMetadata(streamId) != null || this.pendingIdAssignments.contains(streamId)) {
-                streamId++;
-            }
-
-            this.pendingIdAssignments.add(streamId);
-        }
-
-        return streamId;
     }
 
     /**
@@ -354,6 +337,9 @@ public class StreamSegmentMapper {
      * @param streamSegmentId
      */
     private long completeAssignment(String streamSegmentName, long streamSegmentId) {
+        assert streamSegmentName != null : "no streamSegmentName given";
+        assert streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID : "no valid streamSegmentId given";
+
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
         synchronized (assignmentLock) {
@@ -377,6 +363,8 @@ public class StreamSegmentMapper {
      * @param reason
      */
     private void failAssignment(String streamSegmentName, long streamSegmentId, Throwable reason) {
+        assert streamSegmentName != null : "no streamSegmentName given";
+
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
         synchronized (assignmentLock) {

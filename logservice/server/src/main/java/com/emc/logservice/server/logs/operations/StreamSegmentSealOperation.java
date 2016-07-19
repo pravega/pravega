@@ -102,7 +102,10 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format("%s, StreamSegmentLength = %d", super.toString(), this.streamSegmentLength);
+        return String.format(
+                "%s, Length = %s",
+                super.toString(),
+                toString(this.streamSegmentLength, -1));
     }
 
     //endregion

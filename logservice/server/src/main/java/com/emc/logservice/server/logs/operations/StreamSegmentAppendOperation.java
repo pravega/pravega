@@ -126,7 +126,6 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         target.writeLong(clientId.getMostSignificantBits());
         target.writeLong(clientId.getLeastSignificantBits());
         target.writeLong(this.appendContext.getClientOffset());
-
         target.writeInt(data.length);
         target.write(data, 0, data.length);
     }
@@ -149,7 +148,11 @@ public class StreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format("%s, Offset = %d, Length = %d", super.toString(), this.streamSegmentOffset, this.data.length);
+        return String.format(
+                "%s, Offset = %s, Length = %d",
+                super.toString(),
+                toString(this.streamSegmentOffset, -1),
+                this.data.length);
     }
 
     //endregion

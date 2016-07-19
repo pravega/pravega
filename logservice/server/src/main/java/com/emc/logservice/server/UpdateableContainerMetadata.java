@@ -59,6 +59,14 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     Collection<String> deleteStreamSegment(String streamSegmentName);
 
     /**
+     * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.
+     *
+     * @return The next available Operation Sequence Number.
+     * @throws IllegalStateException If the Metadata is in Recovery Mode.
+     */
+    long nextOperationSequenceNumber();
+
+    /**
      * Sets the current Operation Sequence Number.
      *
      * @param value The new Operation Sequence Number.

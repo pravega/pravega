@@ -141,7 +141,7 @@ public class OperationHelpers {
      */
     public static void assertEquals(String message, StreamSegmentMapOperation expected, StreamSegmentMapOperation actual) {
         Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentLength(), actual.getStreamSegmentLength());
+        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
     }
 
@@ -153,8 +153,8 @@ public class OperationHelpers {
      * @param actual
      */
     public static void assertEquals(String message, BatchMapOperation expected, BatchMapOperation actual) {
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentId.", expected.getBatchStreamSegmentId(), actual.getBatchStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentName.", expected.getBatchStreamSegmentName(), actual.getBatchStreamSegmentName());
+        Assert.assertEquals(message + " Unexpected BatchStreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected BatchStreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(), actual.getParentStreamSegmentId());
     }
 

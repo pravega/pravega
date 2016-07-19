@@ -140,7 +140,12 @@ public class MergeBatchOperation extends com.emc.logservice.server.logs.operatio
 
     @Override
     public String toString() {
-        return String.format("%s, BatchStreamSegmentId = %d, BatchLength = %d, ParentStreamSegmentOffset = %d", super.toString(), getBatchStreamSegmentId(), getBatchStreamSegmentLength(), getTargetStreamSegmentOffset());
+        return String.format(
+                "%s, StreamSegmentId = %d, Length = %s, ParentOffset = %s",
+                super.toString(),
+                getBatchStreamSegmentId(),
+                toString(getBatchStreamSegmentLength(), -1),
+                toString(getTargetStreamSegmentOffset(), -1));
     }
 
     //endregion

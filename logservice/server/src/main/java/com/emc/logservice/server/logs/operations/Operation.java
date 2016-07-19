@@ -102,6 +102,16 @@ public abstract class Operation implements LogItem {
         return String.format("%s: SequenceNumber = %d", this.getClass().getSimpleName(), getSequenceNumber());
     }
 
+    protected String toString(Object value, Object notSetValue) {
+        if (value == notSetValue) {
+            return "<not set>";
+        } else if (value == null) {
+            return "<null>";
+        } else {
+            return value.toString();
+        }
+    }
+
     //endregion
 
     //region Serialization

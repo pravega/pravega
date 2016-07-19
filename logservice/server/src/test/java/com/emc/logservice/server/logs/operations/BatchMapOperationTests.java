@@ -18,7 +18,9 @@
 
 package com.emc.logservice.server.logs.operations;
 
+import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.StreamSegmentInformation;
+import org.junit.Assert;
 
 import java.util.Date;
 import java.util.Random;
@@ -29,7 +31,20 @@ import java.util.Random;
 public class BatchMapOperationTests extends OperationTestsBase<BatchMapOperation> {
     @Override
     protected BatchMapOperation createOperation(Random random) {
-        long id = random.nextLong();
-        return new BatchMapOperation(random.nextLong(), id, new StreamSegmentInformation(super.getStreamSegmentName(id), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
+        return new BatchMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
+    }
+
+    @Override
+    protected boolean isPreSerializationConfigRequired(BatchMapOperation operation) {
+        return operation.getStreamSegmentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
+    }
+
+    @Override
+    protected void configurePreSerialization(BatchMapOperation operation, Random random) {
+        if (operation.getStreamSegmentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+            operation.setStreamSegmentId(random.nextLong());
+        } else if (isPreSerializationConfigRequired(operation)) {
+            Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
+        }
     }
 }

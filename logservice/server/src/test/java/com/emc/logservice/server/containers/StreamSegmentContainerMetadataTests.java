@@ -19,6 +19,7 @@
 package com.emc.logservice.server.containers;
 
 import com.emc.logservice.server.ContainerMetadata;
+import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -43,8 +44,8 @@ public class StreamSegmentContainerMetadataTests {
     public void testSequenceNumber() {
         StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
         for (long expectedSeqNo = 1; expectedSeqNo < 100; expectedSeqNo++) {
-            long actualSeqNo = m.getNewOperationSequenceNumber();
-            Assert.assertEquals("Unexpected result from getNewOperationSequenceNumber.", expectedSeqNo, actualSeqNo);
+            long actualSeqNo = m.nextOperationSequenceNumber();
+            Assert.assertEquals("Unexpected result from nextOperationSequenceNumber.", expectedSeqNo, actualSeqNo);
         }
 
         AssertExtensions.assertThrows(
@@ -52,7 +53,7 @@ public class StreamSegmentContainerMetadataTests {
                 () -> m.setOperationSequenceNumber(Integer.MAX_VALUE),
                 ex -> ex instanceof IllegalStateException);
 
-        // In recovery mode: setOperationSequenceNumber should work, getNewOperationSequenceNumber should not.
+        // In recovery mode: setOperationSequenceNumber should work, nextOperationSequenceNumber should not.
         m.enterRecoveryMode();
         AssertExtensions.assertThrows(
                 "setOperationSequenceNumber allowed updating the sequence number to a smaller value.",
@@ -62,13 +63,13 @@ public class StreamSegmentContainerMetadataTests {
         m.setOperationSequenceNumber(Integer.MAX_VALUE);
 
         AssertExtensions.assertThrows(
-                "getNewOperationSequenceNumber worked in recovery mode.",
-                m::getNewOperationSequenceNumber,
+                "nextOperationSequenceNumber worked in recovery mode.",
+                m::nextOperationSequenceNumber,
                 ex -> ex instanceof IllegalStateException);
 
         m.exitRecoveryMode();
-        long actualSeqNo = m.getNewOperationSequenceNumber();
-        Assert.assertEquals("Unexpected value from getNewSequenceNumber after setting the value.", (long) Integer.MAX_VALUE + 1, actualSeqNo);
+        long actualSeqNo = m.getOperationSequenceNumber();
+        Assert.assertEquals("Unexpected value from getNewSequenceNumber after setting the value.", (long) Integer.MAX_VALUE, actualSeqNo);
     }
 
     /**
@@ -254,9 +255,9 @@ public class StreamSegmentContainerMetadataTests {
         m.exitRecoveryMode();
 
         // Verify everything was reset.
-        Assert.assertEquals("Sequence Number was not reset.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER + 1, m.getNewOperationSequenceNumber());
+        Assert.assertEquals("Sequence Number was not reset.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, m.getOperationSequenceNumber());
         for (long segmentId : segmentIds) {
-            Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).", ContainerMetadata.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId)));
+            Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId)));
             Assert.assertNull("SegmentMetadata was not reset (getStreamSegmentMetadata).", m.getStreamSegmentMetadata(segmentId));
         }
 
