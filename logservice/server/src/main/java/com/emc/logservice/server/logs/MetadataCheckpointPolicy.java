@@ -67,6 +67,7 @@ public class MetadataCheckpointPolicy {
      * @param commitLength The length of the commit (i.e., DataFrame).
      */
     public synchronized void recordCommit(int commitLength) {
+        Preconditions.checkArgument(commitLength >= 0, "commitLength must be a non-negative number.");
         // Update counters.
         this.commitCount++;
         this.accumulatedLength += commitLength;

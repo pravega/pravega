@@ -79,7 +79,7 @@ public class InteractiveStreamSegmentStoreTester {
     //region Main Method
 
     public static void main(String[] args) {
-        final boolean useDistributedLog = true;
+        final boolean useDistributedLog = false;
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();

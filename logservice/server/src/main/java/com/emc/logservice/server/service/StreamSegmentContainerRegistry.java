@@ -20,7 +20,6 @@ package com.emc.logservice.server.service;
 
 import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.server.ContainerHandle;
 import com.emc.logservice.server.SegmentContainer;
@@ -103,12 +102,12 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public Collection<String> getRegisteredContainerIds() {
-        return this.getRegisteredContainerIds();
+        return this.containers.keySet();
     }
 
     @Override
     public SegmentContainer getContainer(String containerId) throws ContainerNotFoundException {
-        ensureNotClosed();
+        Exceptions.checkNotClosed(this.closed, this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
         if (result == null) {
             throw new ContainerNotFoundException(containerId);
@@ -119,7 +118,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public CompletableFuture<ContainerHandle> startContainer(String containerId, Duration timeout) {
-        ensureNotClosed();
+        Exceptions.checkNotClosed(this.closed, this);
 
         // Check if container exists
         Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %s is already registered.", containerId);
@@ -151,11 +150,10 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     @Override
     public CompletableFuture<Void> stopContainer(ContainerHandle handle, Duration timeout) {
-        ensureNotClosed();
+        Exceptions.checkNotClosed(this.closed, this);
         ContainerWithHandle result = this.containers.getOrDefault(handle.getContainerId(), null);
         if (result == null) {
             return CompletableFuture.completedFuture(null); // This could happen due to some race (or AutoClose) in the caller.
-            //return FutureHelpers.failedFuture(new ContainerNotFoundException(handle.getContainerId()));
         }
 
         // Stop the container and then unregister it.
@@ -167,12 +165,6 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     //region Helpers
 
-    private void ensureNotClosed() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
-    }
-
     private void handleContainerFailure(ContainerWithHandle containerWithHandle, Throwable exception) {
         unregisterContainer(containerWithHandle);
         log.error("Critical failure for SegmentContainer {}. {}", containerWithHandle, exception);
@@ -180,8 +172,15 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
     private void unregisterContainer(ContainerWithHandle containerWithHandle) {
         assert containerWithHandle != null : "containerWithHandle is null.";
-        assert containerWithHandle.container.state() == Service.State.TERMINATED : "Container is not stopped.";
+        assert containerWithHandle.container.state() == Service.State.TERMINATED || containerWithHandle.container.state() == Service.State.FAILED : "Container is not stopped.";
+
+        // First, release all resources owned by this instance.
+        containerWithHandle.container.close();
+
+        // Unregister the container.
         this.containers.remove(containerWithHandle.handle.getContainerId());
+
+        // Notify the handle that the container is now in a Stopped state.
         containerWithHandle.handle.notifyContainerStopped();
         log.info("Unregistered SegmentContainer {}.", containerWithHandle.handle.getContainerId());
     }
@@ -238,7 +237,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
          * whether normally or via an exception.
          */
         void notifyContainerStopped() {
-            Consumer<String> handler = containerStoppedListener;
+            Consumer<String> handler = this.containerStoppedListener;
             if (handler != null) {
                 CallbackHelpers.invokeSafely(handler, this.containerId, null);
             }

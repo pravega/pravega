@@ -59,7 +59,7 @@ public class RecoveryBenchmark extends Benchmark {
                     int appendCount = (int) (totalAppendMb * ONE_MB / appendSize / segmentCount);
                     if (appendCount <= 0) {
                         // Some combinations really don't make sense, but that's what we get for doing a cross-product
-                        // of various sets of input parametes. It's OK, we can safely skip these.
+                        // of various sets of input parameters. It's OK, we can safely skip these.
                         continue;
                     }
 
