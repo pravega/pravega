@@ -43,7 +43,7 @@ public class RecoveryBenchmark extends Benchmark {
     //region TestParameters
 
     private static final int[] SEGMENT_COUNTS = new int[]{1};
-    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{256};
+    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128};
     private static final int[] APPEND_SIZES = new int[]{ONE_MB};
     //    private static final int[] SEGMENT_COUNTS = new int[]{1, 1000, 100 * 1000};
     //    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128, 512, 1024, 2048};
