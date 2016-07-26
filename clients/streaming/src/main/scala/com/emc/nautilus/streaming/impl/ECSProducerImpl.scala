@@ -2,7 +2,6 @@ package com.emc.nautilus.streaming.impl
 
 import java.net.URI
 import java.nio.ByteBuffer
-import java.util.concurrent.Future
 
 import com.emc.`object`.Protocol
 import com.emc.`object`.Protocol._
@@ -10,39 +9,65 @@ import com.emc.`object`.s3.jersey.S3JerseyClient
 import com.emc.`object`.s3.{S3Client, S3Config}
 import com.emc.nautilus.streaming._
 
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.{Duration, TimeUnit}
+import scala.concurrent.{Await, Future}
+
 /**
   * Created by kandha on 7/23/16.
   */
-class ECSProducerImpl[T]( impl: ECSSingleSegmentStreamImpl, router: EventRouter, s: Serializer[T], config: ProducerConfig) extends Producer[T] {
+class ECSProducerImpl[T]( ipList: String, accessKey:String,secretKey:String,
+                          impl: ECSSingleSegmentStreamImpl, router: EventRouter, s: Serializer[T],
+                          config: ProducerConfig) extends Producer[T] {
 
   //Variables required for ECS connections
   //Create Connection to ECS
-  val s3config:S3Config
-
-
   // client-side load balancing (direct to individual nodes)
   // single VDC
-  s3config = new S3Config(HTTP, NODE_IP1, NODE_IP2);
+  val s3config:S3Config = new S3Config(HTTP, ipList)
+
   /* multiple VDCs
   config = new S3Config(HTTP, new Vdc("Boston", VDC1_NODE1, VDC1_NODE2),
     new Vdc("Seattle", VDC2_NODE1, VDC2_NODE2));
   // to enable geo-pinning (hashes the object key and pins it to a specific VDC)
   config.setGeoPinningEnabled(true);
 */
-  s3config.withIdentity(S3_ACCESS_KEY_ID).withSecretKey(S3_SECRET_KEY);
+  s3config.withIdentity(accessKey).withSecretKey(secretKey)
 
   val s3Client: S3Client = new S3JerseyClient(s3config)
 
-  override def publish(routingKey: String, event: T): Future[Void] = {
+  override def publish(routingKey: String, event: T): java.util.concurrent.Future[Void] = {
     //Start ECS Write
-    ByteBuffer buff = s.serialize(event)
-    s3Client.appendObject(BUCKET_NAME,)
+    val buff: ByteBuffer = s.serialize(event)
+    return convert(Future[Unit] {
+      {
+        val retVal:Long = s3Client.appendObject("pravega", impl.name, buff);
+      }
+    })
+  }
 
+  def convert(x:Future[Unit]):java.util.concurrent.Future[Void]={
+    new java.util.concurrent.Future[Void] {
+      override def isCancelled: Boolean = throw new UnsupportedOperationException
 
+      override def get(): Void = {
+        Await.result(x, Duration.Inf);
+        null
+      }
+
+      override def get(timeout: Long, unit: TimeUnit): Void = {
+        Await.result(x, Duration.create(timeout, unit))
+        null
+      }
+
+      override def cancel(mayInterruptIfRunning: Boolean): Boolean = throw new UnsupportedOperationException
+
+      override def isDone: Boolean = x.isCompleted
+    }
   }
 
   override def startTransaction(transactionTimeout: Long): Transaction[T] = {
-
+    null
   }
 
   override def getConfig: ProducerConfig = config
