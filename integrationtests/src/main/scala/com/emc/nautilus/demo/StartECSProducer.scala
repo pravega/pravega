@@ -34,7 +34,7 @@ object StartECSProducer {
     val streamManager: DirectToECSStreamManagerImpl  = new DirectToECSStreamManagerImpl(endpoint, accessKey, secretKey,
        scope)
     val stream: Stream  = streamManager.createStream(streamName, null)
-    val producer: Producer [String] = stream.createProducer(new JavaSerializer[](), new ProducerConfig(null))
+    val producer: Producer [String] = stream.createProducer(new JavaSerializer[String](), new ProducerConfig(null))
     val i:Int = 0;
     for (i <- 0 until 10000) {
       producer.publish(null, testString + i + "\n");
