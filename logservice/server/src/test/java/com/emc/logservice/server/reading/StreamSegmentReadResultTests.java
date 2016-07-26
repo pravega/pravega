@@ -26,7 +26,6 @@ import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,6 +36,7 @@ public class StreamSegmentReadResultTests {
     private static final int START_OFFSET = 123456;
     private static final int MAX_RESULT_LENGTH = 1024;
     private static final int READ_ITEM_LENGTH = 1;
+    private static final String SEGMENT_NAME = "foo";
 
     /**
      * Tests the next() method which ends when the result is fully consumed (via offsets).
@@ -48,7 +48,7 @@ public class StreamSegmentReadResultTests {
 
         // We issue a read with length = MAX_RESULT_LENGTH, and return items, 1 byte at a time.
         @Cleanup
-        StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        StreamSegmentReadResult r = new StreamSegmentReadResult(SEGMENT_NAME, START_OFFSET, MAX_RESULT_LENGTH, nes, "");
         int expectedConsumedLength = 0;
         for (int i = 0; i < MAX_RESULT_LENGTH; i += READ_ITEM_LENGTH) {
             // Setup an item to be returned.
@@ -75,10 +75,8 @@ public class StreamSegmentReadResultTests {
         // Verify we have reached the end.
         Assert.assertEquals("Unexpected state of the StreamSegmentReadResult when consuming the entire result.", r.getMaxResultLength(), r.getConsumedLength());
         Assert.assertFalse("hasNext() did not return false when the entire result is consumed.", r.hasNext());
-        AssertExtensions.assertThrows(
-                "next() did not throw an appropriate exception when it was done.",
-                r::next,
-                ex -> ex instanceof NoSuchElementException);
+        ReadResultEntry resultEntry = r.next();
+        Assert.assertNull("next() did not return null when it was done.", resultEntry);
     }
 
     /**
@@ -92,7 +90,7 @@ public class StreamSegmentReadResultTests {
 
         // We issue a read with length = MAX_RESULT_LENGTH, and return only half the items, 1 byte at a time.
         @Cleanup
-        StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        StreamSegmentReadResult r = new StreamSegmentReadResult(SEGMENT_NAME, START_OFFSET, MAX_RESULT_LENGTH, nes, "");
         for (int i = 0; i < MAX_RESULT_LENGTH / 2; i++) {
             // Setup an item to be returned.
             final long expectedStartOffset = START_OFFSET + i;
@@ -112,10 +110,8 @@ public class StreamSegmentReadResultTests {
         ReadResultEntry resultEntry = r.next();
         Assert.assertEquals("Unexpected result from nextEntry() when returning the last item in a StreamSegment.", nextEntry.get(), resultEntry);
         Assert.assertFalse("hasNext() did not return false when reaching the end of a sealed StreamSegment.", r.hasNext());
-        AssertExtensions.assertThrows(
-                "next() did not throw an appropriate exception when it encountered the end of a sealed StreamSegment.",
-                r::next,
-                ex -> ex instanceof NoSuchElementException);
+        resultEntry = r.next();
+        Assert.assertNull("next() did return null when it encountered the end of a sealed StreamSegment.", resultEntry);
     }
 
     /**
@@ -127,7 +123,7 @@ public class StreamSegmentReadResultTests {
         StreamSegmentReadResult.NextEntrySupplier nes = (offset, length) -> nextEntry.get();
 
         // We issue a read with length = MAX_RESULT_LENGTH, but we only get to read one item from it.
-        StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        StreamSegmentReadResult r = new StreamSegmentReadResult(SEGMENT_NAME, START_OFFSET, MAX_RESULT_LENGTH, nes, "");
         nextEntry.set(new TestReadResultEntry(START_OFFSET, MAX_RESULT_LENGTH, new CompletableFuture<>(), false));
         ReadResultEntry resultEntry = r.next();
 
@@ -151,7 +147,7 @@ public class StreamSegmentReadResultTests {
 
         // We issue a read, get one item, do not consume it, and then read a second time.
         @Cleanup
-        StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
+        StreamSegmentReadResult r = new StreamSegmentReadResult(SEGMENT_NAME, START_OFFSET, MAX_RESULT_LENGTH, nes, "");
         nextEntry.set(new TestReadResultEntry(START_OFFSET, MAX_RESULT_LENGTH, new CompletableFuture<>(), false));
         ReadResultEntry firstEntry = r.next();
 

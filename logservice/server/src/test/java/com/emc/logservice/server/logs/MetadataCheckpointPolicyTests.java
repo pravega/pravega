@@ -18,12 +18,11 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.service.ServiceBuilderConfig;
+import com.emc.logservice.server.CloseableExecutorService;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Properties;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Unit tests for MetadataCheckpointPolicy.
  */
 public class MetadataCheckpointPolicyTests {
+    private static final int THREAD_POOL_SIZE = 2;
+
     /**
      * Tests invoking the callback upon calls to commit.
      */
@@ -39,54 +40,42 @@ public class MetadataCheckpointPolicyTests {
         final int recordCount = 10000;
         final int recordLength = 100;
 
-        ExecutorService executor = Executors.newScheduledThreadPool(2);
-        try {
-
-            //1. MinCommit Count: Triggering is delayed until min number of recordings happen.
-            DurableLogConfig config = createConfig(10, recordCount + 1, 1); // If no minCount, this would trigger every time (due to length).
-            AtomicInteger callbackCount = new AtomicInteger();
-            MetadataCheckpointPolicy p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor);
-            for (int i = 0; i < recordCount; i++) {
-                p.recordCommit(recordLength);
-            }
-
-            int expectedCallCount = recordCount / config.getCheckpointMinCommitCount();
-            Thread.sleep(20); // The callback may not have been invoked yet.
-            Assert.assertEquals("Unexpected number of calls when MinCount > CommitCount.", expectedCallCount, callbackCount.get());
-
-            //2. Triggered by count threshold.
-            config = createConfig(1, 10, Integer.MAX_VALUE);
-            callbackCount.set(0);
-            p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor);
-            for (int i = 0; i < recordCount; i++) {
-                p.recordCommit(recordLength);
-            }
-
-            expectedCallCount = recordCount / config.getCheckpointCommitCountThreshold();
-            Thread.sleep(20); // The callback may not have been invoked yet.
-            Assert.assertEquals("Unexpected number of calls when MinCount > CommitCount.", expectedCallCount, callbackCount.get());
-
-            //3. Triggered by length threshold.
-            config = createConfig(1, Integer.MAX_VALUE, recordLength * 10);
-            callbackCount.set(0);
-            p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor);
-            for (int i = 0; i < recordCount; i++) {
-                p.recordCommit(recordLength);
-            }
-
-            expectedCallCount = (int) (recordCount * recordLength / config.getCheckpointTotalCommitLengthThreshold());
-            Thread.sleep(20); // The callback may not have been invoked yet.
-            Assert.assertEquals("Unexpected number of calls when MinCount > CommitCount.", expectedCallCount, callbackCount.get());
-        } finally {
-            executor.shutdown();
+        @Cleanup
+        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        //1. MinCommit Count: Triggering is delayed until min number of recordings happen.
+        DurableLogConfig config = ConfigHelpers.createDurableLogConfig(10, recordCount + 1, 1); // If no minCount, this would trigger every time (due to length).
+        AtomicInteger callbackCount = new AtomicInteger();
+        MetadataCheckpointPolicy p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor.get());
+        for (int i = 0; i < recordCount; i++) {
+            p.recordCommit(recordLength);
         }
-    }
 
-    private DurableLogConfig createConfig(int minCount, int commitCount, int length) {
-        Properties p = new Properties();
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, Integer.toString(minCount));
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, Integer.toString(commitCount));
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, Integer.toString(length));
-        return new DurableLogConfig(p);
+        int expectedCallCount = recordCount / config.getCheckpointMinCommitCount();
+        Thread.sleep(20); // The callback may not have been invoked yet.
+        Assert.assertEquals("Unexpected number of calls when MinCount > CommitCount.", expectedCallCount, callbackCount.get());
+
+        //2. Triggered by count threshold.
+        config = ConfigHelpers.createDurableLogConfig(1, 10, Integer.MAX_VALUE);
+        callbackCount.set(0);
+        p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor.get());
+        for (int i = 0; i < recordCount; i++) {
+            p.recordCommit(recordLength);
+        }
+
+        expectedCallCount = recordCount / config.getCheckpointCommitCountThreshold();
+        Thread.sleep(20); // The callback may not have been invoked yet.
+        Assert.assertEquals("Unexpected number of calls when MinCount > CommitCount.", expectedCallCount, callbackCount.get());
+
+        //3. Triggered by length threshold.
+        config = ConfigHelpers.createDurableLogConfig(1, Integer.MAX_VALUE, recordLength * 10);
+        callbackCount.set(0);
+        p = new MetadataCheckpointPolicy(config, callbackCount::incrementAndGet, executor.get());
+        for (int i = 0; i < recordCount; i++) {
+            p.recordCommit(recordLength);
+        }
+
+        expectedCallCount = (int) (recordCount * recordLength / config.getCheckpointTotalCommitLengthThreshold());
+        Thread.sleep(20); // The callback may not have been invoked yet.
+        Assert.assertEquals("Unexpected number of calls when MinCount > CommitCount.", expectedCallCount, callbackCount.get());
     }
 }

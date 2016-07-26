@@ -96,7 +96,7 @@ public class OperationHelpers {
     public static void assertEquals(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation actual) {
         Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
         Assert.assertEquals(message + " Unexpected AppendContext.ClientId", expected.getAppendContext().getClientId(), actual.getAppendContext().getClientId());
-        Assert.assertEquals(message + " Unexpected AppendContext.ClientOffset", expected.getAppendContext().getClientOffset(), actual.getAppendContext().getClientOffset());
+        Assert.assertEquals(message + " Unexpected AppendContext.EventNumber", expected.getAppendContext().getEventNumber(), actual.getAppendContext().getEventNumber());
         Assert.assertArrayEquals(message + " Unexpected Data. ", expected.getData(), actual.getData());
     }
 

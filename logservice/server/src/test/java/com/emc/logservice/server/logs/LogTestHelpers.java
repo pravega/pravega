@@ -308,6 +308,8 @@ public class LogTestHelpers {
         }
     }
 
+    //region OperationWithCompletion
+
     public static class OperationWithCompletion {
         public final Operation operation;
         public final CompletableFuture<Long> completion;
@@ -325,4 +327,6 @@ public class LogTestHelpers {
                     this.operation);
         }
     }
+
+    //endregion
 }

@@ -18,9 +18,9 @@
 
 package com.emc.logservice.contracts;
 
-import java.util.UUID;
-
 import lombok.Data;
+
+import java.util.UUID;
 
 /**
  * Externally-specified Append Context.
@@ -28,21 +28,21 @@ import lombok.Data;
 @Data
 public class AppendContext {
     private final UUID clientId;
-    private final long clientOffset;
+    private final long eventNumber;
 
     /**
      * Creates a new instance of the AppendContext class.
      *
-     * @param clientId     The Unique Id of the client this append was received from.
-     * @param clientOffset The append offset within the client context.
+     * @param clientId    The Unique Id of the client this append was received from.
+     * @param eventNumber The client-assigned event number within the client context.
      */
-    public AppendContext(UUID clientId, long clientOffset) {
+    public AppendContext(UUID clientId, long eventNumber) {
         this.clientId = clientId;
-        this.clientOffset = clientOffset;
+        this.eventNumber = eventNumber;
     }
 
     @Override
     public String toString() {
-        return String.format("ClientId = %s, Offset = %d", getClientId().toString(), getClientOffset());
+        return String.format("ClientId = %s, Event# = %d", getClientId(), getEventNumber());
     }
 }

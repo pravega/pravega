@@ -182,10 +182,14 @@ public class StreamSegmentMapper {
      */
     public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
         // Check to see if the metadata already knows about this stream.
-        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-        if (isValidStreamSegmentId(streamId)) {
-            // We already have a value, just return it.
-            return CompletableFuture.completedFuture(streamId);
+        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
+        if (isValidStreamSegmentId(streamSegmentId)) {
+            // We already have a value, just return it (but make sure the Segment has not been deleted).
+            if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
+                return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+            } else {
+                return CompletableFuture.completedFuture(streamSegmentId);
+            }
         }
 
         // See if anyone else is currently waiting to get this StreamSegment's id.

@@ -206,7 +206,7 @@ public class StreamSegmentMapperTests {
             }
         }
 
-        // Now, map all the parents (stand-alone segments).
+        // Now, map all the batches.
         for (String name : storageSegments) {
             String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(name);
             if (parentName != null) {
@@ -224,6 +224,35 @@ public class StreamSegmentMapperTests {
                 long parentId = context.metadata.getStreamSegmentId(parentName);
                 Assert.assertEquals("Unexpected parent defined in metadata for Batch " + name, parentId, sm.getParentId());
             }
+        }
+    }
+
+    /**
+     * Tests the behavior of getOrAssignStreamSegmentId when the requested StreamSegment has been deleted.
+     */
+    @Test
+    public void testGetOrAssignStreamSegmentIdWhenDeleted() {
+        final int segmentCount = 1;
+
+        HashSet<String> storageSegments = new HashSet<>();
+        for (int i = 0; i < segmentCount; i++) {
+            storageSegments.add(getName(i));
+        }
+
+        // We setup all necessary handlers, except the one for create. We do not need to create new Segments here.
+        @Cleanup
+        TestContext context = new TestContext();
+        setupOperationLog(context);
+        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+
+        // Map all the segments, then delete them, then verify behavior.
+        for (String name : storageSegments) {
+            context.mapper.getOrAssignStreamSegmentId(name, TIMEOUT).join();
+            context.metadata.deleteStreamSegment(name);
+            AssertExtensions.assertThrows(
+                    "getOrAssignStreamSegmentId did not return appropriate exception when the segment has been deleted.",
+                    context.mapper.getOrAssignStreamSegmentId(name, TIMEOUT)::join,
+                    ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
 

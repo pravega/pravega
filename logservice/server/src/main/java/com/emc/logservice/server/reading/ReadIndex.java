@@ -256,6 +256,7 @@ public class ReadIndex implements Cache {
                 // We don't have it, and nobody else got it for us.
                 SegmentMetadata ssm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 Exceptions.checkArgument(ssm != null, "streamSegmentId", "StreamSegmentId {} does not exist in the metadata.", streamSegmentId);
+                Exceptions.checkArgument(!ssm.isDeleted(), "streamSegmentId", "StreamSegmentId {} exists in the metadata but is marked as deleted.", streamSegmentId);
 
                 index = new StreamSegmentReadIndex(ssm, this.recoveryMode, this.containerId);
                 this.readIndices.put(streamSegmentId, index);

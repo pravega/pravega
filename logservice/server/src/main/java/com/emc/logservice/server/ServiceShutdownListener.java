@@ -20,6 +20,7 @@ package com.emc.logservice.server;
 
 import com.google.common.util.concurrent.Service;
 
+import java.util.Collection;
 import java.util.function.Consumer;
 
 /**
@@ -76,6 +77,29 @@ public class ServiceShutdownListener extends Service.Listener {
             if (throwIfFailed || service.state() != Service.State.FAILED) {
                 throw ex;
             }
+        }
+    }
+
+    /**
+     * Awaits for the given Services to shut down, whether normally or exceptionally.
+     *
+     * @param services      The services to monitor.
+     * @param throwIfFailed Throw an IllegalStateException if any of the services ended up in a FAILED state.
+     */
+    public static <T extends Service> void awaitShutdown(Collection<T> services, boolean throwIfFailed) {
+        int failureCount = 0;
+        for (Service service : services) {
+            try {
+                service.awaitTerminated();
+            } catch (IllegalStateException ex) {
+                if (throwIfFailed || service.state() != Service.State.FAILED) {
+                    failureCount++;
+                }
+            }
+        }
+
+        if (failureCount > 0) {
+            throw new IllegalStateException(String.format("%d service(s) could not be shut down.", failureCount));
         }
     }
 }

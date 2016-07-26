@@ -40,6 +40,7 @@ import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -53,6 +54,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -232,6 +234,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // metadata.deleteStreamSegment will delete the given StreamSegment and all batches associated with it.
         // It returns a collection of names of StreamSegments that were deleted.
+        // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
+        // or ignore the segments altogether (such as LogSynchronizer).
         Collection<String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
@@ -271,13 +275,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
+        AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId ->
                 {
-                    Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
-                    return this.durableLog.add(operation, timer.getRemaining());
-                });
+                    operation.set(new StreamSegmentSealOperation(streamSegmentId));
+                    return this.durableLog.add(operation.get(), timer.getRemaining());
+                })
+                .thenApply(seqNo -> operation.get().getStreamSegmentLength());
     }
 
     @Override

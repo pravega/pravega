@@ -360,11 +360,14 @@ class StreamSegmentReadIndex implements AutoCloseable {
         Exceptions.checkArgument(canReadAtOffset(startOffset), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
-        return new StreamSegmentReadResult(startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
+        return new StreamSegmentReadResult(this.metadata.getName(), startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
     }
 
     private boolean canReadAtOffset(long offset) {
-        return !this.metadata.isSealed() || offset <= this.metadata.getDurableLogLength();
+        // We can only read at a particular offset if:
+        // * The segment is not sealed (we are allowed to do a future read) OR
+        // * The segment is sealed and we are not trying to read from the last offset.
+        return !this.metadata.isSealed() || offset < this.metadata.getDurableLogLength();
     }
 
     /**
@@ -386,6 +389,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         if (!canReadAtOffset(resultStartOffset)) {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
+
         ReadResultEntry result = null;
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
             if (this.entries.size() == 0) {
