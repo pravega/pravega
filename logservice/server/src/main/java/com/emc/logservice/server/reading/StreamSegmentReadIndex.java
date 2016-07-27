@@ -167,7 +167,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      */
     public void append(long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more cache entries.");
+        Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
         if (data.length == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.

@@ -32,7 +32,7 @@ public interface ReadIndex extends AutoCloseable {
      *
      * @param streamSegmentId The Id of the StreamSegment to append to.
      * @param offset          The offset in the StreamSegment where to write this append. The offset must be at the end
-     *                        of the StreamSegment as it exists in the cache.
+     *                        of the StreamSegment as it exists in the ReadIndex.
      * @param data            The data to append.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
      * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the StreamSegment.
@@ -51,7 +51,7 @@ public interface ReadIndex extends AutoCloseable {
      *
      * @param targetStreamSegmentId     The Id of the StreamSegment to merge into.
      * @param offset                    The offset in the Target StreamSegment where to merge the Source StreamSegment.
-     *                                  The offset must be at the end of the StreamSegment as it exists in the cache.
+     *                                  The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
      * @param sourceStreamSegmentId     The Id of the StreamSegment to merge.
      * @param sourceStreamSegmentLength The length of the Source StreamSegment. This number is only used for verification
      *                                  against the actual length of the StreamSegment in the ReadIndex.
@@ -102,7 +102,7 @@ public interface ReadIndex extends AutoCloseable {
     void performGarbageCollection();
 
     /**
-     * Puts the cache in Recovery Mode. Some operations may not be available in Recovery Mode.
+     * Puts the ReadIndex in Recovery Mode. Some operations may not be available in Recovery Mode.
      *
      * @param recoveryMetadataSource The Metadata Source to use.
      * @throws IllegalStateException If the ReadIndex is already in recovery mode.
@@ -114,7 +114,7 @@ public interface ReadIndex extends AutoCloseable {
      * Puts the Caceh out of Recovery Mode, enabling all operations.
      *
      * @param finalMetadataSource The Metadata Source to use.
-     * @param success             Indicates whether recovery was successful. If not, the cache may be cleared out to
+     * @param success             Indicates whether recovery was successful. If not, the ReadIndex may be cleared out to
      *                            avoid further issues.
      * @throws IllegalStateException    If the ReadIndex is already in recovery mode.
      * @throws NullPointerException     If the parameter is null.

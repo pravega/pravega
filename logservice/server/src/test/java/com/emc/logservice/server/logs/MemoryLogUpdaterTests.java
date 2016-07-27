@@ -63,8 +63,8 @@ public class MemoryLogUpdaterTests {
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex cache = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -113,8 +113,8 @@ public class MemoryLogUpdaterTests {
         // Check it's properly delegated to Read index.
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex cache = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
 
         StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata("1");
         StreamSegmentContainerMetadata metadata2 = new StreamSegmentContainerMetadata("1");
@@ -123,13 +123,13 @@ public class MemoryLogUpdaterTests {
 
         Assert.assertEquals("Unexpected number of method invocations.", 2, methodInvocations.size());
         TestReadIndex.MethodInvocation enterRecovery = methodInvocations.get(0);
-        Assert.assertEquals("cache.enterRecoveryMode was not called when expected.", TestReadIndex.ENTER_RECOVERY_MODE, enterRecovery.methodName);
-        Assert.assertEquals("cache.enterRecoveryMode was called with the wrong arguments.", metadata1, enterRecovery.args.get("recoveryMetadataSource"));
+        Assert.assertEquals("ReadIndex.enterRecoveryMode was not called when expected.", TestReadIndex.ENTER_RECOVERY_MODE, enterRecovery.methodName);
+        Assert.assertEquals("ReadIndex.enterRecoveryMode was called with the wrong arguments.", metadata1, enterRecovery.args.get("recoveryMetadataSource"));
 
         TestReadIndex.MethodInvocation exitRecovery = methodInvocations.get(1);
-        Assert.assertEquals("cache.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
-        Assert.assertEquals("cache.exitRecoveryMode was called with the wrong arguments.", metadata2, exitRecovery.args.get("finalMetadataSource"));
-        Assert.assertEquals("cache.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("success"));
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", metadata2, exitRecovery.args.get("finalMetadataSource"));
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("success"));
     }
 
     /**
@@ -145,8 +145,8 @@ public class MemoryLogUpdaterTests {
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex cache = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
@@ -179,8 +179,8 @@ public class MemoryLogUpdaterTests {
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex cache = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
         populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.

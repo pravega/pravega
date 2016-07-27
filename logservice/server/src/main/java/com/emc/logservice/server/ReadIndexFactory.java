@@ -25,7 +25,7 @@ public interface ReadIndexFactory {
     /**
      * Creates an instance of a ReadIndex class with given arguments.
      *
-     * @param containerMetadata A Container Metadata for this cache.
+     * @param containerMetadata A Container Metadata for this ReadIndex.
      * @return The result.
      * @throws NullPointerException If any of the arguments are null.
      */

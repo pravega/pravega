@@ -161,7 +161,7 @@ public class ContainerReadIndex implements ReadIndex {
     @Override
     public void clear() {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.recoveryMode, "Read Index is not in recovery mode. Cannot clear cache.");
+        Preconditions.checkState(this.recoveryMode, "Read Index is not in recovery mode. Cannot clear ReadIndex.");
         log.info("{}: Cleared.", this.traceObjectId);
 
         try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
@@ -215,7 +215,7 @@ public class ContainerReadIndex implements ReadIndex {
                 e.getValue().exitRecoveryMode(metadata);
             }
         } else {
-            // Recovery was unsuccessful. Clear the contents of the cache to avoid further issues.
+            // Recovery was unsuccessful. Clear the contents of the ReadIndex to avoid further issues.
             clear();
         }
 

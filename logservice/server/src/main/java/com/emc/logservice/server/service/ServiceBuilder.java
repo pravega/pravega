@@ -140,13 +140,13 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     protected abstract SegmentContainerManager createSegmentContainerManager();
 
-    protected ReadIndexFactory createCacheFactory() {
+    protected ReadIndexFactory createReadIndexFactory() {
         return new ContainerReadIndexFactory();
     }
 
     private SegmentContainerFactory createSegmentContainerFactory() {
         MetadataRepository metadataRepository = getSingleton(this.metadataRepository, this::createMetadataRepository, mr -> this.metadataRepository = mr);
-        ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createCacheFactory, cf -> this.readIndexFactory = cf);
+        ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory, cf -> this.readIndexFactory = cf);
         StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory, olf -> this.operationLogFactory = olf);
         return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, storageFactory, this.executorService);
