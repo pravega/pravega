@@ -18,8 +18,17 @@
 
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.server.ReadIndex;
+import com.emc.logservice.server.ReadIndexFactory;
+import com.emc.logservice.server.ContainerMetadata;
+
 /**
- * Unit tests for StreamSegmentReadIndex class.
+ * Default implementation for ReadIndexFactory.
  */
-public class StreamSegmentReadIndexTests {
+public class ContainerReadIndexFactory implements ReadIndexFactory {
+
+    @Override
+    public ReadIndex createReadIndex(ContainerMetadata containerMetadata) {
+        return new ContainerReadIndex(containerMetadata, containerMetadata.getContainerId());
+    }
 }

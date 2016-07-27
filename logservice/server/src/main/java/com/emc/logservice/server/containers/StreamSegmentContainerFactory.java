@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
 import com.emc.logservice.server.SegmentContainer;
@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
 public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     private final MetadataRepository metadataRepository;
     private final OperationLogFactory operationLogFactory;
-    private final CacheFactory cacheFactory;
+    private final ReadIndexFactory readIndexFactory;
     private final StorageFactory storageFactory;
     private final Executor executor;
 
@@ -43,27 +43,27 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      *
      * @param metadataRepository  The Metadata Repository to use for every container creation.
      * @param operationLogFactory The OperationLogFactory to use for every container creation.
-     * @param cacheFactory        The Cache Factory to use for every container creation.
+     * @param readIndexFactory    The ReadIndexFactory to use for every container creation.
      * @param storageFactory      The Storage Factory to use for every container creation.
      * @param executor            The Executor to use for running async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentContainerFactory(MetadataRepository metadataRepository, OperationLogFactory operationLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory, Executor executor) {
+    public StreamSegmentContainerFactory(MetadataRepository metadataRepository, OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, Executor executor) {
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(operationLogFactory, "operationLogFactory");
-        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
+        Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
 
         this.metadataRepository = metadataRepository;
         this.operationLogFactory = operationLogFactory;
-        this.cacheFactory = cacheFactory;
+        this.readIndexFactory = readIndexFactory;
         this.storageFactory = storageFactory;
         this.executor = executor;
     }
 
     @Override
     public SegmentContainer createStreamSegmentContainer(String containerId) {
-        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this.cacheFactory, this.storageFactory, this.executor);
+        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.storageFactory, this.executor);
     }
 }

@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
@@ -35,7 +35,7 @@ import java.util.HashSet;
 public class MemoryLogUpdater {
     //region Private
 
-    private final Cache cache;
+    private final ReadIndex readIndex;
     private final MemoryOperationLog inMemoryOperationLog;
     private HashSet<Long> recentStreamSegmentIds;
 
@@ -47,14 +47,14 @@ public class MemoryLogUpdater {
      * Creates a new instance of the MemoryLogUpdater class.
      *
      * @param inMemoryOperationLog InMemory Operation Log.
-     * @param cache                Cache.
+     * @param readIndex            ReadIndex.
      */
-    public MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, Cache cache) {
-        Preconditions.checkNotNull(cache, "cache");
+    public MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, ReadIndex readIndex) {
+        Preconditions.checkNotNull(readIndex, "readIndex");
         Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
 
         this.inMemoryOperationLog = inMemoryOperationLog;
-        this.cache = cache;
+        this.readIndex = readIndex;
         this.recentStreamSegmentIds = new HashSet<>();
     }
 
@@ -68,7 +68,7 @@ public class MemoryLogUpdater {
      * @param recoveryMetadataSource The metadata to use during recovery.
      */
     public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
-        this.cache.enterRecoveryMode(recoveryMetadataSource);
+        this.readIndex.enterRecoveryMode(recoveryMetadataSource);
     }
 
     /**
@@ -79,7 +79,7 @@ public class MemoryLogUpdater {
      *                            the contents of the memory structures may be cleared out.
      */
     public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
-        this.cache.exitRecoveryMode(finalMetadataSource, success);
+        this.readIndex.exitRecoveryMode(finalMetadataSource, success);
     }
 
     /**
@@ -106,16 +106,16 @@ public class MemoryLogUpdater {
 
     /**
      * Flushes recently appended items, if needed.
-     * For example, it may trigger Future Reads on the Cache, if the cache supports that.
+     * For example, it may trigger Future Reads on the ReadIndex, if the readIndex supports that.
      */
     public void flush() {
         HashSet<Long> elements;
-        synchronized (this.cache) {
+        synchronized (this.readIndex) {
             elements = this.recentStreamSegmentIds;
             this.recentStreamSegmentIds = new HashSet<>();
         }
 
-        this.cache.triggerFutureReads(elements);
+        this.readIndex.triggerFutureReads(elements);
     }
 
     /**
@@ -125,9 +125,9 @@ public class MemoryLogUpdater {
      *                               as metadata not being in Recovery mode.
      */
     public void clear() {
-        this.cache.clear();
+        this.readIndex.clear();
         this.inMemoryOperationLog.clear();
-        synchronized (this.cache) {
+        synchronized (this.readIndex) {
             this.recentStreamSegmentIds = new HashSet<>();
         }
     }
@@ -141,19 +141,19 @@ public class MemoryLogUpdater {
             if (operation instanceof StreamSegmentAppendOperation) {
                 // Record an beginMerge operation.
                 StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
-                this.cache.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
+                this.readIndex.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
             }
 
             if (operation instanceof MergeBatchOperation) {
                 // Record a Merge Batch operation. We call beginMerge here, and the LogSynchronizer will call completeMerge.
                 MergeBatchOperation mergeOperation = (MergeBatchOperation) operation;
-                this.cache.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getTargetStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId(), mergeOperation.getBatchStreamSegmentLength());
+                this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getTargetStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId(), mergeOperation.getBatchStreamSegmentLength());
             }
 
             // Record recent activity on stream segment, if applicable.
-            // We should record this for any kind of StorageOperation. When we issue 'triggerFutureReads' on the cache,
+            // We should record this for any kind of StorageOperation. When we issue 'triggerFutureReads' on the readIndex,
             // it should include 'sealed' StreamSegments too - any Future Reads waiting on that Offset will be cancelled.
-            synchronized (this.cache) {
+            synchronized (this.readIndex) {
                 this.recentStreamSegmentIds.add(((StorageOperation) operation).getStreamSegmentId());
             }
         }

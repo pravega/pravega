@@ -47,8 +47,6 @@ import java.util.TreeMap;
  * <li> Future appends. If a read operation requests data from an offset in the future, the read operation will block until
  * data becomes available or until it gets canceled.
  * </ol>
- * TODO: Implement bringing data from Storage into the Read Index (in an elegant manner).
- * TODO: Uses a Cache Retention Policy to determine which data can be kept in memory and which can be evicted.
  */
 @Slf4j
 class StreamSegmentReadIndex implements AutoCloseable {
@@ -187,8 +185,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.
-     * The StreamSegments are merged (Source->Target@Offset) in Metadata and a Cache Redirection is put in place.
-     * At this stage, the Source still exists as a physical object in Storage, and we need to keep its Cache around, pointing
+     * The StreamSegments are merged (Source->Target@Offset) in Metadata and a ReadIndex Redirection is put in place.
+     * At this stage, the Source still exists as a physical object in Storage, and we need to keep its ReadIndex around, pointing
      * to the old object.
      *
      * @param offset                   The offset within the StreamSegment to merge at.
@@ -248,7 +246,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
     /**
      * Executes Step 2 of the 2-Step Merge Process.
      * The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
-     * The Cache entries of the two Streams are actually joined together.
+     * The ReadIndex entries of the two Streams are actually joined together.
      *
      * @param sourceSegmentStreamId
      */

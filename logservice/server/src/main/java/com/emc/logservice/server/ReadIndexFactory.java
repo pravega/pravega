@@ -19,15 +19,15 @@
 package com.emc.logservice.server;
 
 /**
- * Defines a Factory for StreamSegmentCaches.
+ * Defines a Factory for ReadIndex objects.
  */
-public interface CacheFactory {
+public interface ReadIndexFactory {
     /**
-     * Creates an instance of a Cache class with given arguments.
+     * Creates an instance of a ReadIndex class with given arguments.
      *
      * @param containerMetadata A Container Metadata for this cache.
      * @return The result.
      * @throws NullPointerException If any of the arguments are null.
      */
-    Cache createCache(ContainerMetadata containerMetadata);
+    ReadIndex createReadIndex(ContainerMetadata containerMetadata);
 }

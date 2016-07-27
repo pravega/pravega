@@ -22,7 +22,7 @@ import com.emc.logservice.common.AutoReleaseLock;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.SegmentMetadata;
 import com.emc.logservice.server.SegmentMetadataCollection;
 import com.google.common.base.Preconditions;
@@ -47,7 +47,7 @@ import java.util.Map;
  * </ol>
  */
 @Slf4j
-public class ReadIndex implements Cache {
+public class ContainerReadIndex implements ReadIndex {
     //region Members
 
     private final String traceObjectId;
@@ -62,7 +62,7 @@ public class ReadIndex implements Cache {
 
     //region Constructor
 
-    public ReadIndex(SegmentMetadataCollection metadata, String containerId) {
+    public ContainerReadIndex(SegmentMetadataCollection metadata, String containerId) {
         Preconditions.checkNotNull(metadata, "metadata");
         this.traceObjectId = String.format("ReadIndex[%s]", containerId);
         this.containerId = containerId;
@@ -91,7 +91,7 @@ public class ReadIndex implements Cache {
 
     //endregion
 
-    //region Cache Implementation
+    //region ReadIndex Implementation
 
     @Override
     public void append(long streamSegmentId, long offset, byte[] data) {

@@ -19,7 +19,7 @@
 package com.emc.logservice.server.reading;
 
 /**
- * Unit tests for ReadIndex class.
+ * Unit tests for ContainerReadIndex class.
  */
-public class ReadIndexTests {
+public class ContainerReadIndexTests {
 }

@@ -28,7 +28,7 @@ import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
-import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.CloseableExecutorService;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
@@ -40,7 +40,7 @@ import com.emc.logservice.server.logs.DurableLogConfig;
 import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
 import com.emc.logservice.server.reading.AsyncReadResultProcessor;
-import com.emc.logservice.server.reading.ReadIndexFactory;
+import com.emc.logservice.server.reading.ContainerReadIndexFactory;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageabstraction.StorageFactory;
 import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
@@ -634,7 +634,7 @@ public class StreamSegmentContainerTests {
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
-        private final CacheFactory cacheFactory;
+        private final ReadIndexFactory readIndexFactory;
 
         public TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();
@@ -642,8 +642,8 @@ public class StreamSegmentContainerTests {
             this.storageFactory = new InMemoryStorageFactory();
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE);
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService.get());
-            this.cacheFactory = new ReadIndexFactory();
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.cacheFactory, this.storageFactory, this.executorService.get());
+            this.readIndexFactory = new ContainerReadIndexFactory();
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.storageFactory, this.executorService.get());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
         }
 

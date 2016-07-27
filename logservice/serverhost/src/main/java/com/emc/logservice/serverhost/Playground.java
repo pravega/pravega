@@ -24,7 +24,7 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
@@ -32,7 +32,7 @@ import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
 import com.emc.logservice.server.logs.MemoryLogUpdater;
 import com.emc.logservice.server.logs.MemoryOperationLog;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.logservice.server.reading.ReadIndex;
+import com.emc.logservice.server.reading.ContainerReadIndex;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
@@ -68,7 +68,7 @@ public class Playground {
         ExecutorService executor = Executors.newFixedThreadPool(streamCount * 2 + 1);
         try {
             UpdateableContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            Cache index = new ReadIndex(metadata, CONTAINER_ID);
+            ReadIndex index = new ContainerReadIndex(metadata, CONTAINER_ID);
             index.enterRecoveryMode(metadata);
             index.exitRecoveryMode(metadata, true);
 
@@ -289,7 +289,7 @@ public class Playground {
 
             //region Merging Streams
 
-            System.out.println("ReadIndex.beginMerge ...");
+            System.out.println("ContainerReadIndex.beginMerge ...");
 
             // Create a new batch stream
             long parentStreamId = 0;
@@ -331,7 +331,7 @@ public class Playground {
             // Verify we can't read from it anymore.
             try {
                 index.read(batchStreamId, 0, (int) batchLength, Duration.ZERO);
-                System.out.println("ReadIndex allowed reading from a merged stream segment.");
+                System.out.println("ContainerReadIndex allowed reading from a merged stream segment.");
                 return;
             } catch (Exception ex) {
             }
@@ -339,9 +339,9 @@ public class Playground {
             //Check read result.
             String expectedContentsAfterMerge = streamContents.get(parentStreamId).concat(streamContents.get(batchStreamId));
             checkStreamContentsFromReadIndex(parentStreamId, 0, (int) parentStreamLength, index, expectedContentsAfterMerge, verbose);
-            System.out.println("ReadIndex.beginMerge check complete.");
+            System.out.println("ContainerReadIndex.beginMerge check complete.");
 
-            System.out.println("ReadIndex.completeMerge ...");
+            System.out.println("ContainerReadIndex.completeMerge ...");
             batchMetadata.markDeleted(); // In order for completeMerge to work, the batch metadata needs to be deleted.
 
             // Append some extra data to the base stream. This way the merged batch will be somewhere in the middle.
@@ -355,7 +355,7 @@ public class Playground {
             //Check read result (again)
             checkStreamContentsFromReadIndex(parentStreamId, 0, (int) parentStreamLength, index, expectedContentsAfterMerge, verbose);
 
-            System.out.println("ReadIndex.completeMerge check complete.");
+            System.out.println("ContainerReadIndex.completeMerge check complete.");
             //endregion
         } finally {
             executor.shutdown();
@@ -364,7 +364,7 @@ public class Playground {
 
     //region Helpers
 
-    private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, Cache index, String expectedContents, boolean verbose) throws Exception {
+    private static void checkStreamContentsFromReadIndex(long streamId, long offset, int length, ReadIndex index, String expectedContents, boolean verbose) throws Exception {
         try (ReadResult readResult = index.read(streamId, offset, length, Duration.ZERO)) {
             byte[] actualData = new byte[(int) length];
             int readSoFar = 0;
