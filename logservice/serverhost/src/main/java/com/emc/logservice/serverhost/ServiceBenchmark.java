@@ -19,7 +19,6 @@
 package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.serverhost.benchmark.Benchmark;
@@ -42,8 +41,8 @@ public class ServiceBenchmark {
         context.reset();
 
         ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
-        //Supplier<ServiceBuilder> serviceBuilderProvider = ()-> new NoOpDataLogServiceBuilder(config);
-        Supplier<ServiceBuilder> serviceBuilderProvider = () -> new InMemoryServiceBuilder(config);
+        Supplier<ServiceBuilder> serviceBuilderProvider = ()-> new DistributedLogServiceBuilder(config);
+       // Supplier<ServiceBuilder> serviceBuilderProvider = () -> new InMemoryServiceBuilder(config);
 
         // WARNING: The benchmark does not work too well with DistributedLogServiceBuilder. In order to function
         //          properly, the benchmark needs to completely erase the DurableDataLog + Storage in order to ensure

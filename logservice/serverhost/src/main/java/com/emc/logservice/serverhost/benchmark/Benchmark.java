@@ -38,6 +38,7 @@ public abstract class Benchmark {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     protected final Supplier<ServiceBuilder> serviceBuilderProvider;
     protected static final int ONE_MB = 1024 * 1024;
+    protected static final int ONE_KB = 1024;
 
     //endregion
 
