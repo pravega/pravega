@@ -29,7 +29,7 @@ class DirectToECSStreamManagerImpl(ipList: String, accessKey:String,secretKey:St
                                    scope: String)  extends StreamManager {
 
   /**
-    * Create a stream that writes dicrectly to ECS
+    * Create a stream that writes directly to ECS
     * @param streamName
     * @param config
     * @return
