@@ -28,8 +28,9 @@ import java.util.function.Predicate;
 public class CollectionHelpers {
     /**
      * Creates a new Collection containing only those elements in the given collection that match the given filter.
+     *
      * @param collection The collection to use.
-     * @param filter The filter to apply.
+     * @param filter     The filter to apply.
      * @param <T>
      * @return
      */
@@ -46,13 +47,14 @@ public class CollectionHelpers {
 
     /**
      * Applies the given ConsumerWithException to each element in the given collection.
+     *
      * @param collection The collection to use.
-     * @param processor The element processor.
+     * @param processor  The element processor.
      * @param <T>
-     * @param <TEx>
-     * @throws TEx
+     * @param <TEX>
+     * @throws TEX
      */
-    public static <T, TEx extends Throwable> void forEach(Collection<T> collection, ConsumerWithException<T, TEx> processor) throws TEx {
+    public static <T, TEX extends Throwable> void forEach(Collection<T> collection, ConsumerWithException<T, TEX> processor) throws TEX {
         for (T element : collection) {
             processor.accept(element);
         }
@@ -60,16 +62,17 @@ public class CollectionHelpers {
 
     /**
      * Applies the given ConsumerWithException to each element in the given collection.
+     *
      * @param collection The collection to use.
-     * @param filter The filter to apply.
-     * @param processor The element processor.
+     * @param filter     The filter to apply.
+     * @param processor  The element processor.
      * @param <T>
-     * @param <TEx>
-     * @throws TEx
+     * @param <TEX>
+     * @throws TEX
      */
-    public static <T, TEx extends Throwable> void forEach(Collection<T> collection, Predicate<T> filter, ConsumerWithException<T, TEx> processor) throws TEx {
+    public static <T, TEX extends Throwable> void forEach(Collection<T> collection, Predicate<T> filter, ConsumerWithException<T, TEX> processor) throws TEX {
         for (T element : collection) {
-            if(filter.test(element)) {
+            if (filter.test(element)) {
                 processor.accept(element);
             }
         }

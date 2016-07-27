@@ -628,13 +628,13 @@ public class StreamSegmentContainerTests {
     //region TestContext
 
     private static class TestContext implements AutoCloseable {
+        public final SegmentContainer container;
         private final MetadataRepository metadataRepository;
         private final CloseableExecutorService executorService;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final CacheFactory cacheFactory;
-        public final SegmentContainer container;
 
         public TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();

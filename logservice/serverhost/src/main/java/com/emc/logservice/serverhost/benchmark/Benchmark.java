@@ -36,9 +36,9 @@ public abstract class Benchmark {
     //region Members
 
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
-    protected final Supplier<ServiceBuilder> serviceBuilderProvider;
     protected static final int ONE_MB = 1024 * 1024;
     protected static final int ONE_KB = 1024;
+    protected final Supplier<ServiceBuilder> serviceBuilderProvider;
 
     //endregion
 
@@ -87,12 +87,11 @@ public abstract class Benchmark {
         System.out.println(getTestName() + ": " + String.format(messageTemplate, args));
     }
 
-
     protected void printResultLine(Object... args) {
         for (int i = 0; i < args.length; i++) {
             Object arg = args[i];
             if (arg instanceof Double) {
-                System.out.print(String.format("%.1f", (double)arg));
+                System.out.print(String.format("%.1f", (double) arg));
             } else {
                 System.out.print(arg);
             }
