@@ -21,9 +21,9 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
-import com.emc.logservice.server.ReadIndex;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.DataCorruptionException;
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
@@ -93,7 +93,6 @@ public class MemoryLogUpdaterTests {
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTargetStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentLength(), invokedMethod.args.get("sourceStreamSegmentLength"));
                 }
             }
         }
@@ -109,7 +108,7 @@ public class MemoryLogUpdaterTests {
      * Tests the ability of the MemoryLogUpdater to delegate Enter/Exit recovery mode to the read index.
      */
     @Test
-    public void testRecoveryMode() {
+    public void testRecoveryMode() throws Exception {
         // Check it's properly delegated to Read index.
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
@@ -119,7 +118,7 @@ public class MemoryLogUpdaterTests {
         StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata("1");
         StreamSegmentContainerMetadata metadata2 = new StreamSegmentContainerMetadata("1");
         updater.enterRecoveryMode(metadata1);
-        updater.exitRecoveryMode(metadata2, true);
+        updater.exitRecoveryMode(true);
 
         Assert.assertEquals("Unexpected number of method invocations.", 2, methodInvocations.size());
         TestReadIndex.MethodInvocation enterRecovery = methodInvocations.get(0);
@@ -128,8 +127,7 @@ public class MemoryLogUpdaterTests {
 
         TestReadIndex.MethodInvocation exitRecovery = methodInvocations.get(1);
         Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
-        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", metadata2, exitRecovery.args.get("finalMetadataSource"));
-        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("success"));
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("successfulRecovery"));
     }
 
     /**
@@ -245,12 +243,11 @@ public class MemoryLogUpdaterTests {
         }
 
         @Override
-        public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength) {
+        public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId) {
             invoke(new MethodInvocation(BEGIN_MERGE)
                     .withArg("targetStreamSegmentId", targetStreamSegmentId)
                     .withArg("offset", offset)
-                    .withArg("sourceStreamSegmentId", sourceStreamSegmentId)
-                    .withArg("sourceStreamSegmentLength", sourceStreamSegmentLength));
+                    .withArg("sourceStreamSegmentId", sourceStreamSegmentId));
         }
 
         @Override
@@ -285,16 +282,15 @@ public class MemoryLogUpdaterTests {
         }
 
         @Override
-        public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
+        public void enterRecoveryMode(ContainerMetadata recoveryMetadataSource) {
             invoke(new MethodInvocation(ENTER_RECOVERY_MODE)
                     .withArg("recoveryMetadataSource", recoveryMetadataSource));
         }
 
         @Override
-        public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
+        public void exitRecoveryMode(boolean successfulRecovery) {
             invoke(new MethodInvocation(EXIT_RECOVERY_MODE)
-                    .withArg("finalMetadataSource", finalMetadataSource)
-                    .withArg("success", success));
+                    .withArg("successfulRecovery", successfulRecovery));
         }
 
         @Override

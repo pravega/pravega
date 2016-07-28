@@ -22,7 +22,7 @@ import com.emc.logservice.common.AutoReleaseLock;
 import com.emc.logservice.common.CollectionHelpers;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
@@ -140,7 +140,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
             UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
@@ -159,8 +159,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Collection<String> result = new ArrayList<>();
         result.add(streamSegmentName);
         try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
-            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
-            if (streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+            if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no batches associated
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);

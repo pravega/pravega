@@ -25,14 +25,14 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.server.ReadIndex;
-import com.emc.logservice.server.ReadIndexFactory;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
+import com.emc.logservice.server.ReadIndex;
+import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
@@ -292,7 +292,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getLastAppendContext", streamSegmentName, clientId);
         long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
-        if (streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+        if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
             return CompletableFuture.completedFuture(null);
         }

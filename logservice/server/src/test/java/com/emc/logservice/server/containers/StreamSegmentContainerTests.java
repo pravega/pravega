@@ -28,10 +28,10 @@ import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
-import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.CloseableExecutorService;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
+import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.StreamSegmentNameUtils;
@@ -77,7 +77,7 @@ public class StreamSegmentContainerTests {
     private static final String CONTAINER_ID = "Container";
     private static final int THREAD_POOL_SIZE = 50;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(10, 100, 10 * 1024 * 1024);
@@ -134,34 +134,7 @@ public class StreamSegmentContainerTests {
         }
 
         // 4. Reads (regular reads, not tail reads).
-        for (String segmentName : segmentNames) {
-            long segmentLength = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
-            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
-
-            long expectedCurrentOffset = 0;
-            @Cleanup
-            ReadResult readResult = context.container.read(segmentName, expectedCurrentOffset, (int) segmentLength, TIMEOUT).join();
-            Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
-
-            while (readResult.hasNext()) {
-                ReadResultEntry readEntry = readResult.next();
-                AssertExtensions.assertGreaterThan("getRequestedReadLength should be a positive integer for segment " + segmentName, 0, readEntry.getRequestedReadLength());
-                Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
-                Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
-                Assert.assertFalse("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, readEntry.isEndOfStreamSegment());
-
-                ReadResultEntryContents readEntryContents = readEntry.getContent().join();
-                AssertExtensions.assertGreaterThan("getContent() returned an empty result entry for segment " + segmentName, 0, readEntryContents.getLength());
-
-                byte[] actualData = new byte[readEntryContents.getLength()];
-                StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
-                AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
-
-                expectedCurrentOffset += readEntryContents.getLength();
-            }
-
-            Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
-        }
+        checkReadIndex(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
     }
@@ -381,40 +354,19 @@ public class StreamSegmentContainerTests {
         }
 
         // 5. Verify their contents.
-        for (String segmentName : segmentNames) {
-            long expectedLength = lengths.get(segmentName);
-            long segmentLength = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
-
-            Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, segmentLength);
-            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
-
-            long expectedCurrentOffset = 0;
-            @Cleanup
-            ReadResult readResult = context.container.read(segmentName, expectedCurrentOffset, (int) segmentLength, TIMEOUT).join();
-            Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
-
-            // A more thorough read check is done in testSegmentRegularOperations; here we just check if the data was merged correctly.
-            while (readResult.hasNext()) {
-                ReadResultEntry readEntry = readResult.next();
-                Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
-                ReadResultEntryContents readEntryContents = readEntry.getContent().join();
-                byte[] actualData = new byte[readEntryContents.getLength()];
-                StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
-                AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
-                expectedCurrentOffset += readEntryContents.getLength();
-            }
-
-            Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
-        }
+        checkReadIndex(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
     }
 
     /**
-     * Tests the ability to perform tail reads.
+     * Tests the ability to perform future (tail) reads. Scenarios tested include:
+     * * Regular appends
+     * * Segment sealing
+     * * Batch merging.
      */
     @Test
-    public void testTailReads() throws Exception {
+    public void testFutureReads() throws Exception {
         final int nonSealReadLimit = 100;
         @Cleanup
         TestContext context = new TestContext();
@@ -491,10 +443,15 @@ public class StreamSegmentContainerTests {
         FutureHelpers.allOf(operationFutures).join();
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
-        ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), true);
+        ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);
 
         if (readFailure.get() != null) {
             Assert.fail("At least one error occurred during reading: " + readFailure.get());
+        }
+
+        // Check that all the ReadResults are closed
+        for (ReadResult rr : readsBySegment.values()) {
+            Assert.assertTrue("Read result is not closed for segment " + rr.getStreamSegmentName(), rr.isClosed());
         }
 
         // Compare, byte-by-byte, the outcome of the tail reads.
@@ -507,6 +464,38 @@ public class StreamSegmentContainerTests {
             int expectedLength = isSealed ? (int) (long) lengths.get(segmentName) : nonSealReadLimit;
             Assert.assertEquals("Unexpected read length for segment " + segmentName, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentName, expectedData, 0, actualData, 0, actualData.length);
+        }
+    }
+
+    private static void checkReadIndex(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
+        for (String segmentName : segmentContents.keySet()) {
+            long expectedLength = lengths.get(segmentName);
+            long segmentLength = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
+
+            Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, segmentLength);
+            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
+
+            long expectedCurrentOffset = 0;
+            @Cleanup
+            ReadResult readResult = context.container.read(segmentName, expectedCurrentOffset, (int) segmentLength, TIMEOUT).join();
+            Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
+
+            // A more thorough read check is done in testSegmentRegularOperations; here we just check if the data was merged correctly.
+            while (readResult.hasNext()) {
+                ReadResultEntry readEntry = readResult.next();
+                AssertExtensions.assertGreaterThan("getRequestedReadLength should be a positive integer for segment " + segmentName, 0, readEntry.getRequestedReadLength());
+                Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
+                Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
+                Assert.assertFalse("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, readEntry.isEndOfStreamSegment());
+
+                ReadResultEntryContents readEntryContents = readEntry.getContent().join();
+                byte[] actualData = new byte[readEntryContents.getLength()];
+                StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+                AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
+                expectedCurrentOffset += readEntryContents.getLength();
+            }
+
+            Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
         }
     }
 

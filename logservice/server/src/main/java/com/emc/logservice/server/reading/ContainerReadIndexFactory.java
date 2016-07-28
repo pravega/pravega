@@ -29,6 +29,6 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
 
     @Override
     public ReadIndex createReadIndex(ContainerMetadata containerMetadata) {
-        return new ContainerReadIndex(containerMetadata, containerMetadata.getContainerId());
+        return new ContainerReadIndex(containerMetadata);
     }
 }

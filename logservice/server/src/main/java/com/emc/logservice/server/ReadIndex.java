@@ -53,13 +53,11 @@ public interface ReadIndex extends AutoCloseable {
      * @param offset                    The offset in the Target StreamSegment where to merge the Source StreamSegment.
      *                                  The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
      * @param sourceStreamSegmentId     The Id of the StreamSegment to merge.
-     * @param sourceStreamSegmentLength The length of the Source StreamSegment. This number is only used for verification
-     *                                  against the actual length of the StreamSegment in the ReadIndex.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
      * @throws IllegalArgumentException If the offset + SourceStreamSegment.length exceeds the metadata DurableLogLength
      *                                  of the target StreamSegment.
      */
-    void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength);
+    void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId);
 
     /**
      * Executes Step 2 of the 2-Step Merge Process. See 'beginMerge' for the description of the Merge Process.
@@ -104,25 +102,25 @@ public interface ReadIndex extends AutoCloseable {
     /**
      * Puts the ReadIndex in Recovery Mode. Some operations may not be available in Recovery Mode.
      *
-     * @param recoveryMetadataSource The Metadata Source to use.
+     * @param recoveryMetadataSource The Metadata Source to use. This Metadata must be in sync with the ReadIndex base
+     *                               ContainerMetadata. If, upon exiting recovery mode, they disagree, it could lead to
+     *                               serious errors, and will be reported as DataCorruptionExceptions (see exitRecoveryMode).
      * @throws IllegalStateException If the ReadIndex is already in recovery mode.
      * @throws NullPointerException  If the parameter is null.
      */
-    void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource);
+    void enterRecoveryMode(ContainerMetadata recoveryMetadataSource);
 
     /**
-     * Puts the Caceh out of Recovery Mode, enabling all operations.
+     * Takes the ReadIndex out of Recovery Mode, enabling all operations.
      *
-     * @param finalMetadataSource The Metadata Source to use.
-     * @param success             Indicates whether recovery was successful. If not, the ReadIndex may be cleared out to
-     *                            avoid further issues.
+     * @param successfulRecovery Indicates whether recovery was successful. If not, the ReadIndex may be cleared out to
+     *                           avoid further issues.
      * @throws IllegalStateException    If the ReadIndex is already in recovery mode.
      * @throws NullPointerException     If the parameter is null.
-     * @throws IllegalArgumentException If the new Metadata Store does not contain information about a StreamSegment in
+     * @throws DataCorruptionException If the new Metadata Store does not contain information about a StreamSegment in
      *                                  the Read Index or it has conflicting information about it.
-     *                                  TODO: should this be different, like DataCorruptionException.
      */
-    void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success);
+    void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException;
 
     @Override
     void close();

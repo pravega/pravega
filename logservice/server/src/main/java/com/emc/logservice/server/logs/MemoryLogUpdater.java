@@ -18,9 +18,9 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.ReadIndex;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.DataCorruptionException;
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StorageOperation;
@@ -67,19 +67,18 @@ public class MemoryLogUpdater {
      *
      * @param recoveryMetadataSource The metadata to use during recovery.
      */
-    public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
+    public void enterRecoveryMode(ContainerMetadata recoveryMetadataSource) {
         this.readIndex.enterRecoveryMode(recoveryMetadataSource);
     }
 
     /**
      * Puts the Log Updater out of Recovery Mode, using the given Metadata Source as final.
      *
-     * @param finalMetadataSource The Metadata to use after recovery.
-     * @param success             Indicates whether recovery was successful. If not, the operations may be reverted and
-     *                            the contents of the memory structures may be cleared out.
+     * @param successfulRecovery Indicates whether recovery was successful. If not, the operations may be reverted and
+     *                           the contents of the memory structures may be cleared out.
      */
-    public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
-        this.readIndex.exitRecoveryMode(finalMetadataSource, success);
+    public void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException {
+        this.readIndex.exitRecoveryMode(successfulRecovery);
     }
 
     /**
@@ -147,7 +146,7 @@ public class MemoryLogUpdater {
             if (operation instanceof MergeBatchOperation) {
                 // Record a Merge Batch operation. We call beginMerge here, and the LogSynchronizer will call completeMerge.
                 MergeBatchOperation mergeOperation = (MergeBatchOperation) operation;
-                this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getTargetStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId(), mergeOperation.getBatchStreamSegmentLength());
+                this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getTargetStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId());
             }
 
             // Record recent activity on stream segment, if applicable.

@@ -25,8 +25,8 @@ import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -68,7 +68,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
     //region Constructor
 
     /**
-     * Creates a new instance of the StreameSegmentReadIndex class.
+     * Creates a new instance of the StreamSegmentReadIndex class.
      *
      * @param metadata The StreamSegmentMetadata to use.
      */
@@ -202,7 +202,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
     public void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.metadata.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
+        Preconditions.checkState(this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
 
         SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;

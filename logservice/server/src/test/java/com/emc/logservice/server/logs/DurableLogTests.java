@@ -520,7 +520,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+                ReadIndex readIndex = new ContainerReadIndex(metadata);
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -544,7 +544,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Second DurableLog. We use this for recovery.
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+                ReadIndex readIndex = new ContainerReadIndex(metadata);
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -583,7 +583,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+                ReadIndex readIndex = new ContainerReadIndex(metadata);
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -604,7 +604,7 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+                ReadIndex readIndex = new ContainerReadIndex(metadata);
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
@@ -632,7 +632,7 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+                ReadIndex readIndex = new ContainerReadIndex(metadata);
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
 
             // Reset error injectors to nothing.
@@ -694,7 +694,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         // First DurableLog. We use this for generating data.
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
@@ -803,7 +803,7 @@ public class DurableLogTests extends OperationLogTestBase {
         CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
 
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         HashSet<Long> streamSegmentIds;
         List<LogTestHelpers.OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
@@ -955,7 +955,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.dataLog = new AtomicReference<>();
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), this.dataLog::set);
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.readIndex = new ContainerReadIndex(metadata, CONTAINER_ID);
+            this.readIndex = new ContainerReadIndex(metadata);
             this.storage = new InMemoryStorage();
         }
 

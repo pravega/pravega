@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.StreamSegmentInformation;
 import org.junit.Assert;
 
@@ -36,12 +36,12 @@ public class BatchMapOperationTests extends OperationTestsBase<BatchMapOperation
 
     @Override
     protected boolean isPreSerializationConfigRequired(BatchMapOperation operation) {
-        return operation.getStreamSegmentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
+        return operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID;
     }
 
     @Override
     protected void configurePreSerialization(BatchMapOperation operation, Random random) {
-        if (operation.getStreamSegmentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+        if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             operation.setStreamSegmentId(random.nextLong());
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");

@@ -252,20 +252,20 @@ public class DurableLog extends AbstractService implements OperationLog {
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
-        boolean success = false;
+        boolean successfulRecovery = false;
         boolean anyItemsRecovered;
         try {
             this.durableDataLog.initialize(timer.getRemaining());
             anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
             log.info("{} Recovery completed. Items Recovered = {}.", this.traceObjectId, anyItemsRecovered);
-            success = true;
+            successfulRecovery = true;
         } catch (Exception ex) {
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
             throw ex;
         } finally {
             // We must exit recovery mode when done, regardless of outcome.
             this.metadata.exitRecoveryMode();
-            this.memoryLogUpdater.exitRecoveryMode(this.metadata, success);
+            this.memoryLogUpdater.exitRecoveryMode(successfulRecovery);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
