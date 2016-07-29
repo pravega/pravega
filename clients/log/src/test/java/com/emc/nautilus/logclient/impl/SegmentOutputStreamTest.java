@@ -1,19 +1,16 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 package com.emc.nautilus.logclient.impl;
 
@@ -32,14 +29,16 @@ import com.emc.nautilus.common.netty.ReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
-import com.emc.nautilus.logclient.impl.SegmentOutputStreamImpl;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 import static org.mockito.Mockito.*;
 
 import io.netty.buffer.Unpooled;
+import lombok.Cleanup;
 import lombok.Synchronized;
 
 public class SegmentOutputStreamTest {
@@ -85,13 +84,13 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection("endpoint", connection);  
+        cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
         output.connect();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
-        
-        sendEvent(cid, connection, output, "test", 1);
+
+        sendEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
     }
 
@@ -100,21 +99,19 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection("endpoint", connection);  
+        cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
         output.connect();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
-        
-        String event = "test";
-        sendEvent(cid, connection, output, event, 1);
+
+        sendEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
     }
 
-    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, String event, int num)
-            throws SegmentSealedExcepetion, ConnectionFailedException {
+    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, ByteBuffer data,
+            int num) throws SegmentSealedExcepetion, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
-        ByteBuffer data = getBuffer(event);
         output.write(data, acked);
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data)));
         assertEquals(false, acked.isDone());
@@ -146,7 +143,26 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    public void testLargeWrite() {
-        fail();
+    public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedExcepetion {
+        UUID cid = UUID.randomUUID();
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection("endpoint", connection);
+        @Cleanup
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
+        output.connect();
+        verify(connection).send(new SetupAppend(cid, SEGMENT));
+        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
+
+        ByteBuffer data = ByteBuffer.allocate(SegmentOutputStream.MAX_WRITE_SIZE + 1);
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        try {            
+            output.write(data, acked);
+            fail("Did not throw");
+        } catch (IllegalArgumentException e){
+            //expected
+        }
+        assertEquals(false, acked.isDone());
+        verifyNoMoreInteractions(connection);
     }
 }

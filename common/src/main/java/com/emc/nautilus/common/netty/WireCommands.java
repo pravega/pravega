@@ -35,6 +35,7 @@ public final class WireCommands {
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int APPEND_BLOCK_SIZE = 32 * 1024;
+    public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; //8MB
     private static final Map<Integer, WireCommandType> MAPPING;
     static {
         HashMap<Integer, WireCommandType> map = new HashMap<>();

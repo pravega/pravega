@@ -18,11 +18,18 @@
 
 package com.emc.logservice.serverhost.handler;
 
+import static com.emc.nautilus.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+
+import java.security.cert.CertificateException;
+
+import javax.net.ssl.SSLException;
+
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionListener;
 import com.emc.nautilus.common.netty.ExceptionLoggingHandler;
+
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -40,9 +47,6 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
-
-import javax.net.ssl.SSLException;
-import java.security.cert.CertificateException;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.
@@ -102,7 +106,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
                          new CommandEncoder(),
-                         new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
+                         new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,

@@ -17,6 +17,8 @@
  */
 package com.emc.nautilus.common.netty.client;
 
+import static com.emc.nautilus.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+
 import java.security.NoSuchAlgorithmException;
 
 import javax.net.ssl.SSLException;
@@ -94,7 +96,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 					// p.addLast(new LoggingHandler(LogLevel.INFO));
 					p.addLast(	new ExceptionLoggingHandler(host),
 								new CommandEncoder(),
-								new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
+								new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
 								new CommandDecoder(),
 								handler);
 				}

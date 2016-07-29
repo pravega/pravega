@@ -1,5 +1,7 @@
 package com.emc.nautilus.integrationtests;
 
+import static com.emc.nautilus.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
@@ -24,6 +26,7 @@ import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.Request;
 import com.emc.nautilus.common.netty.WireCommand;
+import com.emc.nautilus.common.netty.WireCommands;
 import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
@@ -132,7 +135,7 @@ public class AppendTest {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
         EmbeddedChannel channel = new EmbeddedChannel(new CommandEncoder(),
-                new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
+                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 lsh);
         return channel;

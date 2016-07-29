@@ -233,6 +233,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	@Override
 	@Synchronized
 	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedExcepetion {
+	    if (buff.remaining() > SegmentOutputStream.MAX_WRITE_SIZE) {
+	        throw new IllegalArgumentException("Write size too large: "+buff.remaining());
+	    }
 		ClientConnection connection = connection();
 		Append append = state.createNewInflightAppend(connectionId, segment, buff, callback);
 		try {
