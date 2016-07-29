@@ -322,8 +322,17 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
         // Get all eligible Future Reads which wait for data prior to the end offset.
         ReadIndexEntry lastEntry = this.entries.lastEntry().getValue(); //TODO: this is O(log(n)), not O(1)
-        Collection<PlaceholderReadResultEntry> futureReads = this.futureReads.pollEntriesWithOffsetLessThan(lastEntry.getLastStreamSegmentOffset());
-        log.debug("{}: triggerFutureReads (Count = {}).", this.traceObjectId, futureReads.size());
+        Collection<PlaceholderReadResultEntry> futureReads;
+        boolean sealed = this.metadata.isSealed();
+        if (sealed) {
+            // Get everything, even if some Future Reads are in the future - those will eventually return EndOfSegment.
+            futureReads = this.futureReads.pollAll();
+        } else {
+            // Get only those up to the last offset of the last append.
+            futureReads = this.futureReads.pollEntriesWithOffsetLessThan(lastEntry.getLastStreamSegmentOffset());
+        }
+
+        log.debug("{}: triggerFutureReads (Count = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), sealed);
 
         for (PlaceholderReadResultEntry r : futureReads) {
             ReadResultEntry entry = getFirstReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());

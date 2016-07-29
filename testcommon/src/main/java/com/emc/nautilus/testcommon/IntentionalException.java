@@ -21,7 +21,7 @@ package com.emc.nautilus.testcommon;
 /**
  * Intentional exception to be thrown inside unit tests.
  */
-public class IntentionalException extends Exception {
+public class IntentionalException extends RuntimeException {
     public IntentionalException() {
         this("intentional");
     }

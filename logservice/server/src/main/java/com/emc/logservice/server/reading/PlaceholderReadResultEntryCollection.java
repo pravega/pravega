@@ -98,6 +98,14 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
     }
 
     /**
+     * Removes and returns all the Result Entries in the collection.
+     * @return
+     */
+    public Collection<PlaceholderReadResultEntry> pollAll(){
+        return pollEntriesWithOffsetLessThan(Long.MAX_VALUE);
+    }
+
+    /**
      * Cancels all Reads in this collection..
      */
     public void cancelAll() {
@@ -110,7 +118,7 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
         toCancel.forEach(PlaceholderReadResultEntry::cancel);
     }
 
-    protected static  int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2) {
+    protected static int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2) {
         if (e1.getStreamSegmentOffset() < e2.getStreamSegmentOffset()) {
             return -1;
         } else if (e1.getStreamSegmentOffset() > e2.getStreamSegmentOffset()) {

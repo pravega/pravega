@@ -199,7 +199,9 @@ public class ContainerReadIndexTests {
 
         // 6. Seal those segments that we need to seal.
         segmentsToSeal.forEach(segmentId -> context.metadata.getStreamSegmentMetadata(segmentId).markSealed());
-        context.readIndex.triggerFutureReads(segmentsToSeal);
+
+        // Trigger future reads on all segments we know about; some may not have had a trigger in a while (see callback above).
+        context.readIndex.triggerFutureReads(segmentIds);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
         ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);

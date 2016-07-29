@@ -102,7 +102,8 @@ public abstract class ReadResultEntry {
 
     /**
      * Gets the data.
-     *
+     * TODO: this needs to be refactored so that when getContent() is invoked, the data is actually retrieved. This class
+     * TODO: needs to take in another argument in the constructor that will be called when the content is successfully retrieved (with the contents itself, including length).
      * @return A CompletableFuture that, when completed, will contain the requested read result contents. If the operation
      * fails, the exception that triggered this will be stored here.
      */
@@ -111,7 +112,7 @@ public abstract class ReadResultEntry {
     @Override
     public String toString() {
         CompletableFuture<ReadResultEntryContents> contentFuture = getContent();
-        return String.format("%s: Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s,",
+        return String.format("%s: Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s",
                 this.getClass().getSimpleName(),
                 getStreamSegmentOffset(),
                 getRequestedReadLength(),
