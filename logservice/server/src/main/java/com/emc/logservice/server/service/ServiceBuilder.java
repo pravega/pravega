@@ -19,7 +19,7 @@
 package com.emc.logservice.server.service;
 
 import com.emc.logservice.contracts.StreamSegmentStore;
-import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
 import com.emc.logservice.server.SegmentContainerFactory;
@@ -29,7 +29,7 @@ import com.emc.logservice.server.SegmentToContainerMapper;
 import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
 import com.emc.logservice.server.logs.DurableLogConfig;
 import com.emc.logservice.server.logs.DurableLogFactory;
-import com.emc.logservice.server.reading.ReadIndexFactory;
+import com.emc.logservice.server.reading.ContainerReadIndexFactory;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
 import com.emc.logservice.storageabstraction.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -49,7 +49,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
     protected final ServiceBuilderConfig serviceBuilderConfig;
     private final ExecutorService executorService;
     private OperationLogFactory operationLogFactory;
-    private CacheFactory cacheFactory;
+    private ReadIndexFactory readIndexFactory;
     private DurableDataLogFactory dataLogFactory;
     private StorageFactory storageFactory;
     private SegmentContainerFactory containerFactory;
@@ -140,16 +140,16 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     protected abstract SegmentContainerManager createSegmentContainerManager();
 
-    protected CacheFactory createCacheFactory() {
-        return new ReadIndexFactory();
+    protected ReadIndexFactory createReadIndexFactory() {
+        return new ContainerReadIndexFactory();
     }
 
     private SegmentContainerFactory createSegmentContainerFactory() {
         MetadataRepository metadataRepository = getSingleton(this.metadataRepository, this::createMetadataRepository, mr -> this.metadataRepository = mr);
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this::createCacheFactory, cf -> this.cacheFactory = cf);
+        ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory, cf -> this.readIndexFactory = cf);
         StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory, olf -> this.operationLogFactory = olf);
-        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, cacheFactory, storageFactory, this.executorService);
+        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, storageFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

@@ -99,7 +99,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         if (!info.getClientId().equals(newConnection)) {
                             throw new IllegalStateException("Wrong connection Info returned");
                         }
+<<<<<<< HEAD
                         eventNumber = info.getEventNumber();
+=======
+                        offset = info.getEventNumber();
+>>>>>>> 07d786c90fe5df25e57dcb9367cd44de190e89fe
                     }
                     synchronized (lock) {
                         latestEventNumbers.putIfAbsent(newConnection, eventNumber);

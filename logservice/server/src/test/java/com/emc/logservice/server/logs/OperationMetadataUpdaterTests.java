@@ -25,7 +25,6 @@ import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.MetadataHelpers;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
@@ -414,12 +413,12 @@ public class OperationMetadataUpdaterTests {
         // Brand new StreamSegment.
         StreamSegmentMapOperation mapOp = createMap();
         updater.preProcessOperation(mapOp);
-        Assert.assertEquals("preProcessOperation did modified the StreamSegmentId on the operation in recovery mode.", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
+        Assert.assertEquals("preProcessOperation did modified the StreamSegmentId on the operation in recovery mode.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
 
         // Part 2: non-recovery mode.
         metadata.exitRecoveryMode();
         updater.preProcessOperation(mapOp);
-        Assert.assertNotEquals("preProcessOperation did not set the StreamSegmentId on the operation.", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
+        Assert.assertNotEquals("preProcessOperation did not set the StreamSegmentId on the operation.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
         Assert.assertNull("preProcessOperation modified the current transaction.", updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
         Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
@@ -470,12 +469,12 @@ public class OperationMetadataUpdaterTests {
         metadata.enterRecoveryMode();
         BatchMapOperation mapOp = createBatchMap(mapParent.getStreamSegmentId());
         updater.preProcessOperation(mapOp);
-        Assert.assertEquals("preProcessOperation changed the StreamSegmentId on the operation in recovery mode.", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
+        Assert.assertEquals("preProcessOperation changed the StreamSegmentId on the operation in recovery mode.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
 
         // Part 2: non-recovery mode.
         metadata.exitRecoveryMode();
         updater.preProcessOperation(mapOp);
-        Assert.assertNotEquals("preProcessOperation did not set the StreamSegmentId on the operation.", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
+        Assert.assertNotEquals("preProcessOperation did not set the StreamSegmentId on the operation.", ContainerMetadata.NO_STREAM_SEGMENT_ID, mapOp.getStreamSegmentId());
         Assert.assertNull("preProcessOperation modified the current transaction.", updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
         Assert.assertNull("preProcessOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 

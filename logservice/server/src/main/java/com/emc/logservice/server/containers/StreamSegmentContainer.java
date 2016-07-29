@@ -25,14 +25,14 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.server.Cache;
-import com.emc.logservice.server.CacheFactory;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
+import com.emc.logservice.server.ReadIndex;
+import com.emc.logservice.server.ReadIndexFactory;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.UpdateableContainerMetadata;
@@ -40,6 +40,7 @@ import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -53,6 +54,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -65,7 +67,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final String traceObjectId;
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
-    private final Cache readIndex;
+    private final ReadIndex readIndex;
     private final Storage storage;
     private final PendingAppendsCollection pendingAppendsCollection;
     private final StreamSegmentMapper segmentMapper;
@@ -82,22 +84,22 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
      * @param metadataRepository       The MetadataRepository to use.
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
-     * @param cacheFactory             The CacheFactory to use to create Read Indices.
+     * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, CacheFactory cacheFactory, StorageFactory storageFactory, Executor executor) {
+    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, Executor executor) {
         Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
-        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
+        Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
-        this.readIndex = cacheFactory.createCache(this.metadata);
+        this.readIndex = readIndexFactory.createReadIndex(this.metadata);
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
         this.durableLog.addListener(new ServiceShutdownListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
@@ -232,6 +234,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // metadata.deleteStreamSegment will delete the given StreamSegment and all batches associated with it.
         // It returns a collection of names of StreamSegments that were deleted.
+        // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
+        // or ignore the segments altogether (such as LogSynchronizer).
         Collection<String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
@@ -271,13 +275,15 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
+        AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId ->
                 {
-                    Operation operation = new com.emc.logservice.server.logs.operations.StreamSegmentSealOperation(streamSegmentId);
-                    return this.durableLog.add(operation, timer.getRemaining());
-                });
+                    operation.set(new StreamSegmentSealOperation(streamSegmentId));
+                    return this.durableLog.add(operation.get(), timer.getRemaining());
+                })
+                .thenApply(seqNo -> operation.get().getStreamSegmentLength());
     }
 
     @Override
@@ -286,7 +292,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getLastAppendContext", streamSegmentName, clientId);
         long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
-        if (streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID) {
+        if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
             return CompletableFuture.completedFuture(null);
         }

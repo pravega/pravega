@@ -18,6 +18,7 @@
 
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
 
@@ -28,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * The getContent() method will throw an IllegalStateException if invoked.
  */
 public class EndOfStreamSegmentReadResultEntry extends ReadResultEntry {
+    private final CompletableFuture<ReadResultEntryContents> result = FutureHelpers.failedFuture(new IllegalStateException("EndOfStreamSegmentReadResultEntry does not have any content."));
     /**
      * Constructor.
      *
@@ -45,6 +47,6 @@ public class EndOfStreamSegmentReadResultEntry extends ReadResultEntry {
 
     @Override
     public CompletableFuture<ReadResultEntryContents> getContent() {
-        throw new IllegalStateException("EndOfStream ReadResult Entry does not have any content.");
+        return this.result;
     }
 }

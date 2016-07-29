@@ -20,9 +20,9 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntryContents;
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ContainerMetadata;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.nautilus.testcommon.AssertExtensions;
@@ -45,7 +45,7 @@ import java.util.function.Predicate;
 public abstract class OperationLogTestBase {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    protected void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> batches, Collection<LogTestHelpers.OperationWithCompletion> operations, SegmentMetadataCollection metadata, boolean expectBatchesMerged, boolean expectSegmentsSealed) {
+    protected void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> batches, Collection<LogTestHelpers.OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectBatchesMerged, boolean expectSegmentsSealed) {
         // Verify that batches are merged
         for (long batchId : batches.keySet()) {
             SegmentMetadata batchMetadata = metadata.getStreamSegmentMetadata(batchId);
@@ -70,7 +70,7 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, Cache readIndex) throws Exception {
+    protected void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex) throws Exception {
         AbstractMap<Long, Integer> expectedLengths = LogTestHelpers.getExpectedLengths(operations);
         AbstractMap<Long, InputStream> expectedData = LogTestHelpers.getExpectedContents(operations);
         for (Map.Entry<Long, InputStream> e : expectedData.entrySet()) {

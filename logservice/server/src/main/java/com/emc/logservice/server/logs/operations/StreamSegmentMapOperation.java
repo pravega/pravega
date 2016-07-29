@@ -19,7 +19,7 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.contracts.SegmentProperties;
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 
@@ -51,7 +51,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
      */
     public StreamSegmentMapOperation(SegmentProperties streamSegmentProperties) {
         super();
-        this.streamSegmentId = SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
+        this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
         this.streamSegmentName = streamSegmentProperties.getName();
         this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
@@ -80,8 +80,8 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
      * @param value
      */
     public void setStreamSegmentId(long value) {
-        Preconditions.checkState(this.streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
-        Preconditions.checkArgument(value != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
+        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
+        Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
     }
 
@@ -106,7 +106,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "StreamSegment Id has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegment Id has not been assigned for this entry.");
         target.writeByte(CURRENT_VERSION);
         target.writeLong(this.streamSegmentId);
         target.writeUTF(this.streamSegmentName);
@@ -128,7 +128,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         return String.format(
                 "%s, Id = %s, Name = %s, Length = %d, Sealed = %s",
                 super.toString(),
-                toString(getStreamSegmentId(), SegmentMetadataCollection.NO_STREAM_SEGMENT_ID),
+                toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
                 getStreamSegmentName(),
                 getLength(),
                 isSealed());

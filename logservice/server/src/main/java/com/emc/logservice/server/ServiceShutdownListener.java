@@ -18,8 +18,13 @@
 
 package com.emc.logservice.server;
 
+import com.emc.logservice.common.TimeoutTimer;
 import com.google.common.util.concurrent.Service;
 
+import java.time.Duration;
+import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -76,6 +81,77 @@ public class ServiceShutdownListener extends Service.Listener {
             if (throwIfFailed || service.state() != Service.State.FAILED) {
                 throw ex;
             }
+        }
+    }
+
+    /**
+     * Awaits for the given Service to shut down, whether normally or exceptionally.
+     *
+     * @param service       The service to monitor.
+     * @param timeout       The maximum amount of time to wait for the shutdown.
+     * @param throwIfFailed Throw the resulting exception if the service ended up in a FAILED state.
+     * @throws TimeoutException If the service did not shut down within the specified amount of time. This exception is
+     *                          thrown regardless of the value passed in as throwIfFailed.
+     */
+    public static void awaitShutdown(Service service, Duration timeout, boolean throwIfFailed) throws TimeoutException {
+        try {
+            service.awaitTerminated(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (IllegalStateException ex) {
+            if (throwIfFailed || service.state() != Service.State.FAILED) {
+                throw ex;
+            }
+        }
+    }
+
+    /**
+     * Awaits for the given Services to shut down, whether normally or exceptionally.
+     *
+     * @param services      The services to monitor.
+     * @param throwIfFailed Throw an IllegalStateException if any of the services ended up in a FAILED state.
+     */
+    public static <T extends Service> void awaitShutdown(Collection<T> services, boolean throwIfFailed) {
+        int failureCount = 0;
+        for (Service service : services) {
+            try {
+                service.awaitTerminated();
+            } catch (IllegalStateException ex) {
+                if (throwIfFailed || service.state() != Service.State.FAILED) {
+                    failureCount++;
+                }
+            }
+        }
+
+        if (failureCount > 0) {
+            throw new IllegalStateException(String.format("%d service(s) could not be shut down.", failureCount));
+        }
+    }
+
+    /**
+     * Awaits for the given Services to shut down, whether normally or exceptionally.
+     *
+     * @param services      The services to monitor.
+     * @param throwIfFailed Throw an IllegalStateException if any of the services ended up in a FAILED state.
+     * @throws TimeoutException If the service did not shut down within the specified amount of time. This exception is
+     *                          thrown regardless of the value passed in as throwIfFailed.
+     */
+    public static <T extends Service> void awaitShutdown(Collection<T> services, Duration timeout, boolean throwIfFailed) throws TimeoutException {
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        int failureCount = 0;
+        for (Service service : services) {
+            try {
+                // We wait on each service individually, making sure we decrease the available timeout. It does not matter
+                // if we do it sequentially or in parallel - our contract is to wait for all services within a timeout;
+                // if any of the services did not respond within the given time, it is a reason for failure.
+                service.awaitTerminated(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
+            } catch (IllegalStateException ex) {
+                if (throwIfFailed || service.state() != Service.State.FAILED) {
+                    failureCount++;
+                }
+            }
+        }
+
+        if (failureCount > 0) {
+            throw new IllegalStateException(String.format("%d service(s) could not be shut down.", failureCount));
         }
     }
 }

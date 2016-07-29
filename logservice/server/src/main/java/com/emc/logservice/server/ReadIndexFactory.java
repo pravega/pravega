@@ -16,10 +16,18 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.server.reading;
+package com.emc.logservice.server;
 
 /**
- * Unit tests for StreamSegmentReadIndex class.
+ * Defines a Factory for ReadIndex objects.
  */
-public class StreamSegmentReadIndexTests {
+public interface ReadIndexFactory {
+    /**
+     * Creates an instance of a ReadIndex class with given arguments.
+     *
+     * @param containerMetadata A Container Metadata for this ReadIndex.
+     * @return The result.
+     * @throws NullPointerException If any of the arguments are null.
+     */
+    ReadIndex createReadIndex(ContainerMetadata containerMetadata);
 }

@@ -48,6 +48,13 @@ import java.util.Iterator;
  */
 public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
     /**
+     * Gets a value indicating the name of the StreamSegment this result is for.
+     *
+     * @return
+     */
+    String getStreamSegmentName();
+
+    /**
      * Gets a value indicating the Offset within the StreamSegment where this ReadResult starts at.
      *
      * @return

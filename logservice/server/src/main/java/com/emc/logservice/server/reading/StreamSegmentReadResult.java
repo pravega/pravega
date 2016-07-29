@@ -25,7 +25,6 @@ import com.emc.logservice.contracts.ReadResultEntryContents;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
@@ -37,6 +36,7 @@ public class StreamSegmentReadResult implements ReadResult {
     //region Members
 
     private final String traceObjectId;
+    private final String streamSegmentName;
     private final long streamSegmentStartOffset;
     private final int maxResultLength;
     private final NextEntrySupplier getNextItem;
@@ -53,18 +53,21 @@ public class StreamSegmentReadResult implements ReadResult {
     /**
      * Creates a new instance of the StreamSegmentReadResult class.
      *
+     * @param streamSegmentName        The name of the StreamSegment this result is for.
      * @param streamSegmentStartOffset The StreamSegment Offset where the ReadResult starts at.
      * @param maxResultLength          The maximum number of bytes to read.
      * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume.
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    protected StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String traceObjectId) {
+    protected StreamSegmentReadResult(String streamSegmentName, long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String traceObjectId) {
+        Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset must be a non-negative number.");
         Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative number.");
         Preconditions.checkNotNull(getNextItem, "getNextItem");
 
         this.traceObjectId = traceObjectId;
+        this.streamSegmentName = streamSegmentName;
         this.streamSegmentStartOffset = streamSegmentStartOffset;
         this.maxResultLength = maxResultLength;
         this.getNextItem = getNextItem;
@@ -74,6 +77,11 @@ public class StreamSegmentReadResult implements ReadResult {
     //endregion
 
     //region ReadResult Implementation
+
+    @Override
+    public String getStreamSegmentName() {
+        return this.streamSegmentName;
+    }
 
     @Override
     public long getStreamSegmentStartOffset() {
@@ -97,7 +105,7 @@ public class StreamSegmentReadResult implements ReadResult {
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", getStreamSegmentStartOffset(), getMaxResultLength(), getConsumedLength());
+        return String.format("%s, Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentName, this.streamSegmentStartOffset, this.maxResultLength, this.consumedLength);
     }
 
     //endregion
@@ -140,19 +148,23 @@ public class StreamSegmentReadResult implements ReadResult {
     }
 
     /**
-     * Gets the next ReadResultEntry that exists in the ReadResult. This will return an element only if hasNext() returns true.
+     * Gets the next ReadResultEntry that exists in the ReadResult. This will return null if hasNext() indicates false
+     * (as opposed from throwing a NoSuchElementException, like a general iterator).
+     * <p/>
+     * Notes:
+     * <ul>
+     * <li> Calls to next() will block until the ReadResultEntry.getContent() for the previous call to next() has been completed (normally or exceptionally).
+     * <li> Due to a result from next() only being considered "consumed" after its getContent() is completed, it is possible
+     * that hasNext() will report true, but a subsequent call to next() will return null - that's because next() will wait
+     * for the previous entry to complete and then do more processing.
+     * </ul>
      *
      * @return
-     * @throws IllegalStateException            If we have more elements, but the last element returned hasn't finished processing.
-     * @throws java.util.NoSuchElementException If hasNext() returns false.
+     * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished processing.
      */
     @Override
     public ReadResultEntry next() {
         Exceptions.checkNotClosed(this.closed, this);
-
-        if (!hasNext()) {
-            throw new NoSuchElementException("StreamSegmentReadResult has been read in its entirety.");
-        }
 
         // If the previous entry hasn't finished yet, we cannot proceed.
         Preconditions.checkState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new entry when the previous one hasn't completed retrieval yet.");
@@ -160,6 +172,13 @@ public class StreamSegmentReadResult implements ReadResult {
             // This is the follow-up code that we have from the previous execution. Even though the previous future may
             // have finished executing, the follow-up may not have, so wait for that as well.
             this.lastEntryFutureFollowup.join();
+        }
+
+        // Only check for hasNext now, after we have waited for the previous entry to finish - since that updates
+        // some fields that hasNext relies on.
+        if (!hasNext()) {
+            return null;
+            //throw new NoSuchElementException("StreamSegmentReadResult has been read in its entirety.");
         }
 
         // Retrieve the next item.

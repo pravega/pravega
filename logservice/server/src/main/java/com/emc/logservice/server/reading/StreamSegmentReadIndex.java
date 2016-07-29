@@ -25,8 +25,8 @@ import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -47,8 +47,6 @@ import java.util.TreeMap;
  * <li> Future appends. If a read operation requests data from an offset in the future, the read operation will block until
  * data becomes available or until it gets canceled.
  * </ol>
- * TODO: Implement bringing data from Storage into the Read Index (in an elegant manner).
- * TODO: Uses a Cache Retention Policy to determine which data can be kept in memory and which can be evicted.
  */
 @Slf4j
 class StreamSegmentReadIndex implements AutoCloseable {
@@ -70,7 +68,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
     //region Constructor
 
     /**
-     * Creates a new instance of the StreameSegmentReadIndex class.
+     * Creates a new instance of the StreamSegmentReadIndex class.
      *
      * @param metadata The StreamSegmentMetadata to use.
      */
@@ -169,7 +167,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      */
     public void append(long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more cache entries.");
+        Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
         if (data.length == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
@@ -187,8 +185,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.
-     * The StreamSegments are merged (Source->Target@Offset) in Metadata and a Cache Redirection is put in place.
-     * At this stage, the Source still exists as a physical object in Storage, and we need to keep its Cache around, pointing
+     * The StreamSegments are merged (Source->Target@Offset) in Metadata and a ReadIndex Redirection is put in place.
+     * At this stage, the Source still exists as a physical object in Storage, and we need to keep its ReadIndex around, pointing
      * to the old object.
      *
      * @param offset                   The offset within the StreamSegment to merge at.
@@ -204,7 +202,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
     public void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.metadata.getParentId() == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
+        Preconditions.checkState(this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
 
         SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
@@ -248,7 +246,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
     /**
      * Executes Step 2 of the 2-Step Merge Process.
      * The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
-     * The Cache entries of the two Streams are actually joined together.
+     * The ReadIndex entries of the two Streams are actually joined together.
      *
      * @param sourceSegmentStreamId
      */
@@ -360,11 +358,14 @@ class StreamSegmentReadIndex implements AutoCloseable {
         Exceptions.checkArgument(canReadAtOffset(startOffset), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
-        return new StreamSegmentReadResult(startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
+        return new StreamSegmentReadResult(this.metadata.getName(), startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
     }
 
     private boolean canReadAtOffset(long offset) {
-        return !this.metadata.isSealed() || offset <= this.metadata.getDurableLogLength();
+        // We can only read at a particular offset if:
+        // * The segment is not sealed (we are allowed to do a future read) OR
+        // * The segment is sealed and we are not trying to read from the last offset.
+        return !this.metadata.isSealed() || offset < this.metadata.getDurableLogLength();
     }
 
     /**
@@ -386,6 +387,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         if (!canReadAtOffset(resultStartOffset)) {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
+
         ReadResultEntry result = null;
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
             if (this.entries.size() == 0) {

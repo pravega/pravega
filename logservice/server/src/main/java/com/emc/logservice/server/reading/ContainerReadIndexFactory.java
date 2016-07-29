@@ -16,18 +16,19 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.server;
+package com.emc.logservice.server.reading;
+
+import com.emc.logservice.server.ReadIndex;
+import com.emc.logservice.server.ReadIndexFactory;
+import com.emc.logservice.server.ContainerMetadata;
 
 /**
- * Defines a Factory for StreamSegmentCaches.
+ * Default implementation for ReadIndexFactory.
  */
-public interface CacheFactory {
-    /**
-     * Creates an instance of a Cache class with given arguments.
-     *
-     * @param containerMetadata A Container Metadata for this cache.
-     * @return The result.
-     * @throws NullPointerException If any of the arguments are null.
-     */
-    Cache createCache(ContainerMetadata containerMetadata);
+public class ContainerReadIndexFactory implements ReadIndexFactory {
+
+    @Override
+    public ReadIndex createReadIndex(ContainerMetadata containerMetadata) {
+        return new ContainerReadIndex(containerMetadata);
+    }
 }

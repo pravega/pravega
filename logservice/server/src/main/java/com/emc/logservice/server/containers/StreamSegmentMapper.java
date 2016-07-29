@@ -27,7 +27,6 @@ import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.StreamSegmentNameUtils;
 import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
@@ -182,10 +181,14 @@ public class StreamSegmentMapper {
      */
     public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
         // Check to see if the metadata already knows about this stream.
-        long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
-        if (isValidStreamSegmentId(streamId)) {
-            // We already have a value, just return it.
-            return CompletableFuture.completedFuture(streamId);
+        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
+        if (isValidStreamSegmentId(streamSegmentId)) {
+            // We already have a value, just return it (but make sure the Segment has not been deleted).
+            if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
+                return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+            } else {
+                return CompletableFuture.completedFuture(streamSegmentId);
+            }
         }
 
         // See if anyone else is currently waiting to get this StreamSegment's id.
@@ -238,7 +241,7 @@ public class StreamSegmentMapper {
                 .thenCompose(batchInfo -> assignBatchStreamSegmentId(batchInfo, parentSegmentId.get(), timer.getRemaining()))
                 .exceptionally(ex ->
                 {
-                    failAssignment(batchStreamSegmentName, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, ex);
+                    failAssignment(batchStreamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID, ex);
                     throw new CompletionException(ex);
                 });
     }
@@ -254,7 +257,7 @@ public class StreamSegmentMapper {
      */
     private CompletableFuture<Long> assignBatchStreamSegmentId(SegmentProperties batchInfo, long parentStreamSegmentId, Duration timeout) {
         assert batchInfo != null : "batchInfo is null";
-        assert parentStreamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID : "parentStreamSegmentId is invalid.";
+        assert parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "parentStreamSegmentId is invalid.";
         return persistInDurableLog(batchInfo, parentStreamSegmentId, timeout);
     }
 
@@ -271,7 +274,7 @@ public class StreamSegmentMapper {
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
                 .exceptionally(ex ->
                 {
-                    failAssignment(streamSegmentName, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, ex);
+                    failAssignment(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID, ex);
                     throw new CompletionException(ex);
                 });
     }
@@ -284,14 +287,14 @@ public class StreamSegmentMapper {
      * @return
      */
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, Duration timeout) {
-        return persistInDurableLog(streamSegmentInfo, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, timeout);
+        return persistInDurableLog(streamSegmentInfo, ContainerMetadata.NO_STREAM_SEGMENT_ID, timeout);
     }
 
     /**
      * Generates a unique Id for the StreamSegment with given info and persists that in DurableLog.
      *
      * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
-     * @param parentStreamSegmentId If different from SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
+     * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
      *                              will be mapped as a batch. Otherwise, this will be registered as a standalone StreamSegment.
      * @param timeout
      * @return
@@ -299,7 +302,7 @@ public class StreamSegmentMapper {
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(streamSegmentInfo.getName(), SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, new StreamSegmentNotExistsException("StreamSegment does not exist."));
+            failAssignment(streamSegmentInfo.getName(), ContainerMetadata.NO_STREAM_SEGMENT_ID, new StreamSegmentNotExistsException("StreamSegment does not exist."));
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
         }
 
@@ -338,7 +341,7 @@ public class StreamSegmentMapper {
      */
     private long completeAssignment(String streamSegmentName, long streamSegmentId) {
         assert streamSegmentName != null : "no streamSegmentName given";
-        assert streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID : "no valid streamSegmentId given";
+        assert streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "no valid streamSegmentId given";
 
         // Get the pending request and complete it.
         CompletableFuture<Long> pendingRequest;
@@ -379,7 +382,7 @@ public class StreamSegmentMapper {
     }
 
     private boolean isValidStreamSegmentId(long id) {
-        return id != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
+        return id != ContainerMetadata.NO_STREAM_SEGMENT_ID;
     }
 
     //endregion

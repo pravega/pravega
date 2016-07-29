@@ -21,9 +21,9 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.DataCorruptionException;
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.StreamSegmentInformation;
 import com.emc.logservice.server.containers.StreamSegmentContainerMetadata;
 import com.emc.logservice.server.logs.operations.MergeBatchOperation;
@@ -62,9 +62,9 @@ public class MemoryLogUpdaterTests {
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         MemoryOperationLog opLog = new MemoryOperationLog();
-        ArrayList<TestCache.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestCache cache = new TestCache(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -80,20 +80,19 @@ public class MemoryLogUpdaterTests {
             Assert.assertEquals("Unexpected operation queued to MemoryOperationLog at sequence " + currentIndex, expected, logIterator.next());
             if (expected instanceof StorageOperation) {
                 currentReadIndex++;
-                TestCache.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
+                TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
                 if (expected instanceof StreamSegmentAppendOperation) {
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestCache.APPEND, invokedMethod.methodName);
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
                 } else if (expected instanceof MergeBatchOperation) {
                     MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestCache.BEGIN_MERGE, invokedMethod.methodName);
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTargetStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentLength(), invokedMethod.args.get("sourceStreamSegmentLength"));
                 }
             }
         }
@@ -109,27 +108,26 @@ public class MemoryLogUpdaterTests {
      * Tests the ability of the MemoryLogUpdater to delegate Enter/Exit recovery mode to the read index.
      */
     @Test
-    public void testRecoveryMode() {
+    public void testRecoveryMode() throws Exception {
         // Check it's properly delegated to Read index.
         MemoryOperationLog opLog = new MemoryOperationLog();
-        ArrayList<TestCache.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestCache cache = new TestCache(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
 
         StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata("1");
         StreamSegmentContainerMetadata metadata2 = new StreamSegmentContainerMetadata("1");
         updater.enterRecoveryMode(metadata1);
-        updater.exitRecoveryMode(metadata2, true);
+        updater.exitRecoveryMode(true);
 
         Assert.assertEquals("Unexpected number of method invocations.", 2, methodInvocations.size());
-        TestCache.MethodInvocation enterRecovery = methodInvocations.get(0);
-        Assert.assertEquals("cache.enterRecoveryMode was not called when expected.", TestCache.ENTER_RECOVERY_MODE, enterRecovery.methodName);
-        Assert.assertEquals("cache.enterRecoveryMode was called with the wrong arguments.", metadata1, enterRecovery.args.get("recoveryMetadataSource"));
+        TestReadIndex.MethodInvocation enterRecovery = methodInvocations.get(0);
+        Assert.assertEquals("ReadIndex.enterRecoveryMode was not called when expected.", TestReadIndex.ENTER_RECOVERY_MODE, enterRecovery.methodName);
+        Assert.assertEquals("ReadIndex.enterRecoveryMode was called with the wrong arguments.", metadata1, enterRecovery.args.get("recoveryMetadataSource"));
 
-        TestCache.MethodInvocation exitRecovery = methodInvocations.get(1);
-        Assert.assertEquals("cache.exitRecoveryMode was not called when expected.", TestCache.EXIT_RECOVERY_MODE, exitRecovery.methodName);
-        Assert.assertEquals("cache.exitRecoveryMode was called with the wrong arguments.", metadata2, exitRecovery.args.get("finalMetadataSource"));
-        Assert.assertEquals("cache.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("success"));
+        TestReadIndex.MethodInvocation exitRecovery = methodInvocations.get(1);
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("successfulRecovery"));
     }
 
     /**
@@ -144,16 +142,16 @@ public class MemoryLogUpdaterTests {
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         MemoryOperationLog opLog = new MemoryOperationLog();
-        ArrayList<TestCache.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestCache cache = new TestCache(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
         updater.flush();
         Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 1, methodInvocations.size());
-        TestCache.MethodInvocation mi = methodInvocations.get(0);
-        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestCache.TRIGGER_FUTURE_READS, mi.methodName);
+        TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
+        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
         Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");
         HashSet<Long> expectedSegmentIds = new HashSet<>();
         for (Operation op : operations) {
@@ -178,9 +176,9 @@ public class MemoryLogUpdaterTests {
 
         // Add to MTL + Add to ReadIndex (append; beginMerge).
         MemoryOperationLog opLog = new MemoryOperationLog();
-        ArrayList<TestCache.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestCache cache = new TestCache(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, cache);
+        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
+        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
         populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
@@ -189,11 +187,11 @@ public class MemoryLogUpdaterTests {
         Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.getSize());
 
         Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 2, methodInvocations.size());
-        TestCache.MethodInvocation mi = methodInvocations.get(0);
-        Assert.assertEquals("No call to ReadIndex.clear() after call to clear().", TestCache.CLEAR, mi.methodName);
+        TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
+        Assert.assertEquals("No call to ReadIndex.clear() after call to clear().", TestReadIndex.CLEAR, mi.methodName);
 
         mi = methodInvocations.get(1);
-        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestCache.TRIGGER_FUTURE_READS, mi.methodName);
+        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
         Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");
         Assert.assertEquals("Call to ReadIndex.triggerFutureReads() with non-empty collection after call to clear() and flush().", 0, triggerSegmentIds.size());
     }
@@ -218,7 +216,7 @@ public class MemoryLogUpdaterTests {
         return operations;
     }
 
-    private static class TestCache implements Cache {
+    private static class TestReadIndex implements ReadIndex {
         public static final String APPEND = "append";
         public static final String BEGIN_MERGE = "beginMerge";
         public static final String COMPLETE_MERGE = "completeMerge";
@@ -232,7 +230,7 @@ public class MemoryLogUpdaterTests {
         private final Consumer<MethodInvocation> methodInvokeCallback;
         private boolean closed;
 
-        public TestCache(Consumer<MethodInvocation> methodInvokeCallback) {
+        public TestReadIndex(Consumer<MethodInvocation> methodInvokeCallback) {
             this.methodInvokeCallback = methodInvokeCallback;
         }
 
@@ -245,12 +243,11 @@ public class MemoryLogUpdaterTests {
         }
 
         @Override
-        public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId, long sourceStreamSegmentLength) {
+        public void beginMerge(long targetStreamSegmentId, long offset, long sourceStreamSegmentId) {
             invoke(new MethodInvocation(BEGIN_MERGE)
                     .withArg("targetStreamSegmentId", targetStreamSegmentId)
                     .withArg("offset", offset)
-                    .withArg("sourceStreamSegmentId", sourceStreamSegmentId)
-                    .withArg("sourceStreamSegmentLength", sourceStreamSegmentLength));
+                    .withArg("sourceStreamSegmentId", sourceStreamSegmentId));
         }
 
         @Override
@@ -285,16 +282,15 @@ public class MemoryLogUpdaterTests {
         }
 
         @Override
-        public void enterRecoveryMode(SegmentMetadataCollection recoveryMetadataSource) {
+        public void enterRecoveryMode(ContainerMetadata recoveryMetadataSource) {
             invoke(new MethodInvocation(ENTER_RECOVERY_MODE)
                     .withArg("recoveryMetadataSource", recoveryMetadataSource));
         }
 
         @Override
-        public void exitRecoveryMode(SegmentMetadataCollection finalMetadataSource, boolean success) {
+        public void exitRecoveryMode(boolean successfulRecovery) {
             invoke(new MethodInvocation(EXIT_RECOVERY_MODE)
-                    .withArg("finalMetadataSource", finalMetadataSource)
-                    .withArg("success", success));
+                    .withArg("successfulRecovery", successfulRecovery));
         }
 
         @Override

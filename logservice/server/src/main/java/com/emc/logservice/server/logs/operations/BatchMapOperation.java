@@ -19,7 +19,7 @@
 package com.emc.logservice.server.logs.operations;
 
 import com.emc.logservice.contracts.SegmentProperties;
-import com.emc.logservice.server.SegmentMetadataCollection;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 
@@ -53,9 +53,9 @@ public class BatchMapOperation extends MetadataOperation implements StreamSegmen
      */
     public BatchMapOperation(long parentStreamSegmentId, SegmentProperties batchStreamInfo) {
         super();
-        Preconditions.checkArgument(parentStreamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId must be defined.");
+        Preconditions.checkArgument(parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId must be defined.");
         this.parentStreamSegmentId = parentStreamSegmentId;
-        this.streamSegmentId = SegmentMetadataCollection.NO_STREAM_SEGMENT_ID;
+        this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
         this.streamSegmentName = batchStreamInfo.getName();
         this.length = batchStreamInfo.getLength();
         this.sealed = batchStreamInfo.isSealed();
@@ -84,8 +84,8 @@ public class BatchMapOperation extends MetadataOperation implements StreamSegmen
      * @param value
      */
     public void setStreamSegmentId(long value) {
-        Preconditions.checkState(this.streamSegmentId == SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
-        Preconditions.checkArgument(value != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
+        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
+        Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
     }
 
@@ -124,7 +124,7 @@ public class BatchMapOperation extends MetadataOperation implements StreamSegmen
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "BatchStreamSegment Id has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "BatchStreamSegment Id has not been assigned for this entry.");
         target.writeByte(CURRENT_VERSION);
         target.writeLong(this.parentStreamSegmentId);
         target.writeLong(this.streamSegmentId);
@@ -148,8 +148,8 @@ public class BatchMapOperation extends MetadataOperation implements StreamSegmen
         return String.format(
                 "%s, Id = %s, ParentId = %s, Name = %s, Length = %d, Sealed = %s",
                 super.toString(),
-                toString(getStreamSegmentId(), SegmentMetadataCollection.NO_STREAM_SEGMENT_ID),
-                toString(getParentStreamSegmentId(), SegmentMetadataCollection.NO_STREAM_SEGMENT_ID),
+                toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
+                toString(getParentStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
                 getStreamSegmentName(),
                 getLength(),
                 isSealed());

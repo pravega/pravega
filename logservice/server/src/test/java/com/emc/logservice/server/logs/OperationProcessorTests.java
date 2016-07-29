@@ -21,7 +21,7 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.contracts.StreamSegmentException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.ServiceShutdownListener;
@@ -33,7 +33,7 @@ import com.emc.logservice.server.logs.operations.OperationFactory;
 import com.emc.logservice.server.logs.operations.OperationHelpers;
 import com.emc.logservice.server.logs.operations.StorageOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.logservice.server.reading.ReadIndex;
+import com.emc.logservice.server.reading.ContainerReadIndex;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
@@ -79,7 +79,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data.
@@ -128,7 +128,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
@@ -206,7 +206,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
@@ -279,7 +279,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
@@ -335,7 +335,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
         @Cleanup
-        Cache readIndex = new ReadIndex(metadata, CONTAINER_ID);
+        ReadIndex readIndex = new ContainerReadIndex(metadata);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).

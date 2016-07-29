@@ -19,7 +19,6 @@
 package com.emc.logservice.server.containers;
 
 import com.emc.logservice.server.ContainerMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -257,7 +256,7 @@ public class StreamSegmentContainerMetadataTests {
         // Verify everything was reset.
         Assert.assertEquals("Sequence Number was not reset.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, m.getOperationSequenceNumber());
         for (long segmentId : segmentIds) {
-            Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).", SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId)));
+            Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).", ContainerMetadata.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId)));
             Assert.assertNull("SegmentMetadata was not reset (getStreamSegmentMetadata).", m.getStreamSegmentMetadata(segmentId));
         }
 

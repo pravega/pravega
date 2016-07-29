@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.OperationLogFactory;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
@@ -51,7 +51,7 @@ public class DurableLogFactory implements OperationLogFactory {
     }
 
     @Override
-    public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, Cache cache) {
-        return new DurableLog(config, containerMetadata, this.dataLogFactory, cache, this.executor);
+    public OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, ReadIndex readIndex) {
+        return new DurableLog(config, containerMetadata, this.dataLogFactory, readIndex, this.executor);
     }
 }

@@ -23,6 +23,7 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.SegmentProperties;
+import com.emc.logservice.server.CloseableExecutorService;
 import com.emc.logservice.server.ContainerHandle;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.SegmentContainerFactory;
@@ -30,6 +31,7 @@ import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import com.emc.nautilus.testcommon.IntentionalException;
 import com.google.common.util.concurrent.AbstractService;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -39,7 +41,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -56,38 +57,35 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testGetContainer() throws Exception {
         final int containerCount = 1000;
-        ExecutorService executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
-        try {
-            TestContainerFactory factory = new TestContainerFactory();
-            StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        @Cleanup
+        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        TestContainerFactory factory = new TestContainerFactory();
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
-            HashSet<String> expectedContainerIds = new HashSet<>();
-            Collection<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
-            for (int i = 0; i < containerCount; i++) {
-                String containerId = getContainerId(i);
-                handleFutures.add(registry.startContainer(containerId, TIMEOUT));
-                expectedContainerIds.add(containerId);
-            }
-
-            Collection<ContainerHandle> handles = FutureHelpers.allOfWithResults(handleFutures).join();
-            HashSet<String> actualHandleIds = new HashSet<>();
-            for (ContainerHandle handle : handles) {
-                actualHandleIds.add(handle.getContainerId());
-                SegmentContainer container = registry.getContainer(handle.getContainerId());
-                Assert.assertTrue("Wrong container Java type.", container instanceof TestContainer);
-                Assert.assertEquals("Unexpected container Id.", handle.getContainerId(), container.getId());
-                container.close();
-            }
-
-            AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds, actualHandleIds);
-
-            AssertExtensions.assertThrows(
-                    "getContainer did not throw when passed an invalid container id.",
-                    () -> registry.getContainer("foo"),
-                    ex -> ex instanceof ContainerNotFoundException);
-        } finally {
-            executor.shutdown();
+        HashSet<String> expectedContainerIds = new HashSet<>();
+        Collection<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
+        for (int i = 0; i < containerCount; i++) {
+            String containerId = getContainerId(i);
+            handleFutures.add(registry.startContainer(containerId, TIMEOUT));
+            expectedContainerIds.add(containerId);
         }
+
+        Collection<ContainerHandle> handles = FutureHelpers.allOfWithResults(handleFutures).join();
+        HashSet<String> actualHandleIds = new HashSet<>();
+        for (ContainerHandle handle : handles) {
+            actualHandleIds.add(handle.getContainerId());
+            SegmentContainer container = registry.getContainer(handle.getContainerId());
+            Assert.assertTrue("Wrong container Java type.", container instanceof TestContainer);
+            Assert.assertEquals("Unexpected container Id.", handle.getContainerId(), container.getId());
+            container.close();
+        }
+
+        AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds, actualHandleIds);
+
+        AssertExtensions.assertThrows(
+                "getContainer did not throw when passed an invalid container id.",
+                () -> registry.getContainer("foo"),
+                ex -> ex instanceof ContainerNotFoundException);
     }
 
     /**
@@ -96,29 +94,26 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testStopContainer() throws Exception {
         final String containerId = "Container";
-        ExecutorService executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
-        try {
-            TestContainerFactory factory = new TestContainerFactory();
-            StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
-            ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
+        @Cleanup
+        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        TestContainerFactory factory = new TestContainerFactory();
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
+        ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
-            // Register a Listener for the Container.Stop event.
-            AtomicReference<String> stopListenerCallback = new AtomicReference<>();
-            handle.setContainerStoppedListener(stopListenerCallback::set);
+        // Register a Listener for the Container.Stop event.
+        AtomicReference<String> stopListenerCallback = new AtomicReference<>();
+        handle.setContainerStoppedListener(stopListenerCallback::set);
 
-            TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
-            Assert.assertFalse("Container is closed before being shut down.", container.isClosed());
+        TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
+        Assert.assertFalse("Container is closed before being shut down.", container.isClosed());
 
-            registry.stopContainer(handle, TIMEOUT).join();
-            Assert.assertTrue("Container is not closed after being shut down.", container.isClosed());
-            Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
-            AssertExtensions.assertThrows(
-                    "Container is still registered after being shut down.",
-                    () -> registry.getContainer(handle.getContainerId()),
-                    ex -> ex instanceof ContainerNotFoundException);
-        } finally {
-            executor.shutdown();
-        }
+        registry.stopContainer(handle, TIMEOUT).join();
+        Assert.assertTrue("Container is not closed after being shut down.", container.isClosed());
+        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
+        AssertExtensions.assertThrows(
+                "Container is still registered after being shut down.",
+                () -> registry.getContainer(handle.getContainerId()),
+                ex -> ex instanceof ContainerNotFoundException);
     }
 
     /**
@@ -127,23 +122,20 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testContainerFailureOnStartup() throws Exception {
         final String containerId = "Container";
-        ExecutorService executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
-        try {
-            TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
-            StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        @Cleanup
+        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
-            AssertExtensions.assertThrows(
-                    "Unexpected exception thrown upon failed container startup.",
-                    registry.startContainer(containerId, TIMEOUT)::join,
-                    ex -> ex instanceof IntentionalException || (ex instanceof IllegalStateException && ex.getCause() instanceof IntentionalException));
+        AssertExtensions.assertThrows(
+                "Unexpected exception thrown upon failed container startup.",
+                registry.startContainer(containerId, TIMEOUT)::join,
+                ex -> ex instanceof IntentionalException || (ex instanceof IllegalStateException && ex.getCause() instanceof IntentionalException));
 
-            AssertExtensions.assertThrows(
-                    "Container is registered even if it failed to start.",
-                    () -> registry.getContainer(containerId),
-                    ex -> ex instanceof ContainerNotFoundException);
-        } finally {
-            executor.shutdown();
-        }
+        AssertExtensions.assertThrows(
+                "Container is registered even if it failed to start.",
+                () -> registry.getContainer(containerId),
+                ex -> ex instanceof ContainerNotFoundException);
     }
 
     /**
@@ -152,36 +144,35 @@ public class StreamSegmentContainerRegistryTests {
     @Test
     public void testContainerFailureWhileRunning() throws Exception {
         final String containerId = "Container";
-        ExecutorService executor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
-        try {
-            TestContainerFactory factory = new TestContainerFactory();
-            StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor);
+        @Cleanup
+        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        TestContainerFactory factory = new TestContainerFactory();
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
-            ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
+        ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
-            // Register a Listener for the Container.Stop event.
-            AtomicReference<String> stopListenerCallback = new AtomicReference<>();
-            handle.setContainerStoppedListener(stopListenerCallback::set);
+        // Register a Listener for the Container.Stop event.
+        AtomicReference<String> stopListenerCallback = new AtomicReference<>();
+        handle.setContainerStoppedListener(stopListenerCallback::set);
 
-            TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
+        TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
 
-            // Fail the container and wait for it to properly terminate.
-            container.fail(new IntentionalException());
-            ServiceShutdownListener.awaitShutdown(container, false);
-            Thread.sleep(20);
-            Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
-            AssertExtensions.assertThrows(
-                    "Container is still registered after failure.",
-                    () -> registry.getContainer(containerId),
-                    ex -> ex instanceof ContainerNotFoundException);
-        } finally {
-            executor.shutdown();
-        }
+        // Fail the container and wait for it to properly terminate.
+        container.fail(new IntentionalException());
+        ServiceShutdownListener.awaitShutdown(container, false);
+        Thread.sleep(20);
+        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
+        AssertExtensions.assertThrows(
+                "Container is still registered after failure.",
+                () -> registry.getContainer(containerId),
+                ex -> ex instanceof ContainerNotFoundException);
     }
 
     private String getContainerId(int i) {
         return "Container_" + i;
     }
+
+    //region TestContainerFactory
 
     private static class TestContainerFactory implements SegmentContainerFactory {
         private final Exception startException;
@@ -199,6 +190,10 @@ public class StreamSegmentContainerRegistryTests {
             return new TestContainer(containerId, this.startException);
         }
     }
+
+    //endregion
+
+    //region TestContainer
 
     private static class TestContainer extends AbstractService implements SegmentContainer {
         private final String id;
@@ -301,4 +296,6 @@ public class StreamSegmentContainerRegistryTests {
 
         //endregion
     }
+
+    //endregion
 }

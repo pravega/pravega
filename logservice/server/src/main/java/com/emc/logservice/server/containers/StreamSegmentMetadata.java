@@ -20,8 +20,8 @@ package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
-import com.emc.logservice.server.SegmentMetadataCollection;
 import com.emc.logservice.server.UpdateableSegmentMetadata;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -63,7 +63,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId) {
-        this(streamSegmentName, streamSegmentId, SegmentMetadataCollection.NO_STREAM_SEGMENT_ID);
+        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID);
     }
 
     /**
@@ -76,7 +76,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
-        Preconditions.checkArgument(streamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "streamSegmentId");
+        Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
 
         this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
         this.name = streamSegmentName;
@@ -200,7 +200,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != SegmentMetadataCollection.NO_STREAM_SEGMENT_ID, "Cannot merge a non-batch StreamSegment.");
+        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-batch StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;

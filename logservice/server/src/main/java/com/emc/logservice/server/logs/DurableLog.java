@@ -23,7 +23,7 @@ import com.emc.logservice.common.LoggerHelpers;
 import com.emc.logservice.common.TimeoutTimer;
 import com.emc.logservice.contracts.StreamSegmentException;
 import com.emc.logservice.contracts.StreamingException;
-import com.emc.logservice.server.Cache;
+import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.LogItemFactory;
@@ -74,14 +74,14 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param config              Durable Log Configuration.
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
-     * @param cache               An Cache where to store newly processed appends.
+     * @param readIndex           A ReadIndex where to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, Cache cache, Executor executor) {
+    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, ReadIndex readIndex, Executor executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
-        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(readIndex, "readIndex");
         Preconditions.checkNotNull(executor, "executor");
 
         this.config = config;
@@ -93,7 +93,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.executor = executor;
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = new MemoryOperationLog();
-        this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cache);
+        this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, readIndex);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryLogUpdater, this.durableDataLog, checkpointPolicy);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
@@ -252,20 +252,20 @@ public class DurableLog extends AbstractService implements OperationLog {
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
 
-        boolean success = false;
+        boolean successfulRecovery = false;
         boolean anyItemsRecovered;
         try {
             this.durableDataLog.initialize(timer.getRemaining());
             anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
             log.info("{} Recovery completed. Items Recovered = {}.", this.traceObjectId, anyItemsRecovered);
-            success = true;
+            successfulRecovery = true;
         } catch (Exception ex) {
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
             throw ex;
         } finally {
             // We must exit recovery mode when done, regardless of outcome.
             this.metadata.exitRecoveryMode();
-            this.memoryLogUpdater.exitRecoveryMode(this.metadata, success);
+            this.memoryLogUpdater.exitRecoveryMode(successfulRecovery);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
