@@ -50,9 +50,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		private ClientConnection connection;
 		private Exception exception = null;
 		private final ReusableLatch connectionSetup = new ReusableLatch();
-		private final ConcurrentSkipListMap<AppendData,CompletableFuture<Void>> inflight = new ConcurrentSkipListMap<>();
+		private final ConcurrentSkipListMap<Append,CompletableFuture<Void>> inflight = new ConcurrentSkipListMap<>();
 		private final ReusableLatch inflightEmpty = new ReusableLatch(true);
-		private long writeOffset = 0;
+		private long eventNumber = 0;
 
 		private void waitForEmptyInflight() throws InterruptedException {
 			inflightEmpty.await();
@@ -113,22 +113,23 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
-		private AppendData createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff, CompletableFuture<Void> callback) {
-			synchronized (lock) {
-				writeOffset += buff.remaining();
-				AppendData append = new AppendData(connectionId, writeOffset, Unpooled.wrappedBuffer(buff));
-				inflightEmpty.reset();
-				inflight.put(append, callback);
-				return append;
-			}
-		}
+        private Append createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff,
+                CompletableFuture<Void> callback) {
+            synchronized (lock) {
+                eventNumber++;
+                Append append = new Append(segment, connectionId, eventNumber, Unpooled.wrappedBuffer(buff));
+                inflightEmpty.reset();
+                inflight.put(append, callback);
+                return append;
+            }
+        }
 
-		private List<CompletableFuture<Void>> removeInflightBelow(long connectionOffset) {
+		private List<CompletableFuture<Void>> removeInflightBelow(long ackLevel) {
 			synchronized (lock) {
 				ArrayList<CompletableFuture<Void>> result = new ArrayList<>();
-				for (Iterator<Entry<AppendData, CompletableFuture<Void>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
-					Entry<AppendData, CompletableFuture<Void>> append = iter.next();
-					if (append.getKey().getConnectionOffset() <= connectionOffset) {
+				for (Iterator<Entry<Append, CompletableFuture<Void>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
+					Entry<Append, CompletableFuture<Void>> append = iter.next();
+					if (append.getKey().getEventNumber() <= ackLevel) {
 						result.add(append.getValue());
 						iter.remove();
 					} else {
@@ -142,7 +143,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
-		private List<AppendData> getAllInflight() {
+		private List<Append> getAllInflight() {
 			synchronized (lock) {
 				return new ArrayList<>(inflight.keySet());
 			}
@@ -185,13 +186,13 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 		@Override
         public void dataAppended(DataAppended dataAppended) {
-			long ackLevel = dataAppended.getConnectionOffset();
+			long ackLevel = dataAppended.getEventNumber();
 			ackUpTo(ackLevel);
 		}
 
 		@Override
         public void appendSetup(AppendSetup appendSetup) {
-			long ackLevel = appendSetup.getConnectionOffsetAckLevel();
+			long ackLevel = appendSetup.getLastEventNumber();
 			ackUpTo(ackLevel);
 			try {
                 retransmitInflight();
@@ -210,7 +211,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		}
 
 		private void retransmitInflight() throws ConnectionFailedException {
-			for (AppendData append : state.getAllInflight()) {
+			for (Append append : state.getAllInflight()) {
 				state.connection.send(append);
 			}
 		}
@@ -233,7 +234,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	@Synchronized
 	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedExcepetion {
 		ClientConnection connection = connection();
-		AppendData append = state.createNewInflightAppend(connectionId, segment, buff, callback);
+		Append append = state.createNewInflightAppend(connectionId, segment, buff, callback);
 		try {
             connection.send(append);
         } catch (ConnectionFailedException e) {

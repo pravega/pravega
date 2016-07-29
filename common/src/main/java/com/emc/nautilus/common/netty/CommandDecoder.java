@@ -1,130 +1,180 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 package com.emc.nautilus.common.netty;
 
+import static com.emc.nautilus.common.netty.WireCommandType.*;
+import static com.emc.nautilus.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static io.netty.buffer.Unpooled.wrappedBuffer;
+
+import java.io.DataInput;
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
+import com.emc.nautilus.common.netty.WireCommands.Append;
+import com.emc.nautilus.common.netty.WireCommands.AppendBlock;
+import com.emc.nautilus.common.netty.WireCommands.AppendBlockEnd;
+import com.emc.nautilus.common.netty.WireCommands.Event;
+import com.emc.nautilus.common.netty.WireCommands.PartialEvent;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.Cleanup;
+import lombok.Data;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@ToString
 public class CommandDecoder extends ByteToMessageDecoder {
 
-    private UUID connectionId;
-    private long connectionOffset;
-    private ByteBuf appendHeader;
+    private final HashMap<UUID, Segment> appendingSegments = new HashMap<>();
+    private AppendBlock currentBlock;
 
-    public CommandDecoder() {
-        connectionId = null;
-        connectionOffset = 0;
+    @Data
+    private static final class Segment {
+        private final String name;
+        private long lastEventNumber;
     }
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         if (log.isTraceEnabled()) {
-            log.debug("Decoding a message on connection: "+connectionOffset);
+            log.debug("Decoding a message on connection: " + this);
         }
-        decode(in, out);
+        WireCommand command = parseCommand(in);
+        command = processCommand(command);
+        if (command != null) {
+            out.add(command);
+        }
     }
 
     @VisibleForTesting
-    public void decode(ByteBuf in, List<Object> out) throws Exception {
+    public WireCommand processCommand(WireCommand command) throws Exception {
+        if (currentBlock != null && command.getType() != APPEND_BLOCK_END) {
+            throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
+        }
+        switch (command.getType()) {
+        case PADDING:
+            return null;
+        case SETUP_APPEND:
+            SetupAppend append = (SetupAppend) command;
+            appendingSegments.put(append.getConnectionId(), new Segment(append.getSegment()));
+            return command;
+        case APPEND_BLOCK:
+            getSegment(((AppendBlock) command).getConnectionId());
+            currentBlock = (AppendBlock) command;
+            return null;
+        case APPEND_BLOCK_END:
+            AppendBlockEnd blockEnd = (AppendBlockEnd) command;
+            if (currentBlock == null) {
+                throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
+            }
+            UUID connectionId = blockEnd.getConnectionId();
+            if (!connectionId.equals(currentBlock.getConnectionId())) {
+                throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
+            }
+            Segment segment = getSegment(connectionId);
+            if (blockEnd.lastEventNumber < segment.lastEventNumber) {
+                throw new InvalidMessageException("Last event number went backwards.");
+            }
+            int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
+            if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
+                throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
+            }
+            ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
+            segment.lastEventNumber = blockEnd.lastEventNumber;
+            currentBlock = null;
+            return new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf);
+        default:
+            return command;
+        }
+    }
+
+    private ByteBuf getAppendDataBuf(AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
+        ByteBuf appendDataBuf = currentBlock.getData().slice(0, sizeOfWholeEventsInBlock);
+        int remaining = currentBlock.getData().readableBytes() - sizeOfWholeEventsInBlock;
+        if (remaining > 0) {
+            ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
+            WireCommand cmd = parseCommand(dataRemainingInBlock);
+            if (!(cmd.getType() == PARTIAL_EVENT || cmd.getType() == PADDING)) {
+                throw new InvalidMessageException("Found " + cmd.getType()
+                        + " at end of append block but was expecting a partialEvent or padding.");
+            }
+            if (cmd.getType() == PADDING && blockEnd.getData().readableBytes() != 0) {
+                throw new InvalidMessageException("Unexpected data in BlockEnd");
+            }
+            if (cmd.getType() == PARTIAL_EVENT) {
+                // Work around a bug in netty:
+                // See https://github.com/netty/netty/issues/5597
+                if (appendDataBuf.readableBytes() == 0) {
+                    appendDataBuf.release();
+                    return wrappedBuffer(((PartialEvent) cmd).getData(), blockEnd.getData());
+                } else {
+                    return wrappedBuffer(appendDataBuf, ((PartialEvent) cmd).getData(), blockEnd.getData());
+                }
+            }
+        }
+        return appendDataBuf;
+    }
+
+    @VisibleForTesting
+    public WireCommand parseCommand(ByteBuf in) throws IOException {
         @Cleanup
         ByteBufInputStream is = new ByteBufInputStream(in);
-        int t = is.readInt();
-        WireCommandType type = WireCommands.getType(t);
+        int readableBytes = in.readableBytes();
+        if (readableBytes < TYPE_PLUS_LENGTH_SIZE) {
+            throw new InvalidMessageException("Not enough bytes to read.");
+        }
+        WireCommandType type = readType(is);
+        int length = readLength(is, readableBytes);
+        WireCommand command = type.readFrom(is, length);
+        return command;
+    }
+
+    private Segment getSegment(UUID connectionId) {
+        Segment segment = appendingSegments.get(connectionId);
+        if (segment == null) {
+            throw new InvalidMessageException("ConnectionID refrenced before SetupAppend");
+        }
+        return segment;
+    }
+
+    private int readLength(DataInput is, int readableBytes) throws IOException {
         int length = is.readInt();
-        if (length > in.readableBytes()) {
+        if (length < 0) {
+            throw new InvalidMessageException("Length read from wire was negitive.");
+        }
+        if (length > readableBytes - TYPE_PLUS_LENGTH_SIZE) {
             throw new InvalidMessageException("Header indicated more bytes than exist.");
         }
-        int dataStart = in.readerIndex();
+        return length;
+    }
+
+    private WireCommandType readType(DataInput is) throws IOException {
+        int t = is.readInt();
+        WireCommandType type = WireCommands.getType(t);
         if (type == null) {
             throw new InvalidMessageException("Unknown wire command: " + t);
         }
-        switch (type) {
-        case APPEND_DATA_HEADER: {
-            long readOffset = is.readLong();
-            UUID id = new UUID(in.readLong(), in.readLong());
-            checkConnectionId(id);
-            checkOffset(connectionOffset, readOffset);
-            if (appendHeader != null) {
-                throw new InvalidMessageException("Header appended immediatly after header.");
-            }
-            appendHeader = in.readBytes(length - (in.readerIndex() - dataStart));
-            break;
-        }
-        case APPEND_DATA_FOOTER: {
-            long readOffset = is.readLong();
-            UUID id = new UUID(in.readLong(), in.readLong());
-            checkConnectionId(id);
-            int dataLength = is.readInt();
-            if (appendHeader == null) {
-                throw new InvalidMessageException("Footer not following header.");
-            }
-            long appendLength = appendHeader.readableBytes() + dataLength;
-            connectionOffset += appendLength;
-            checkOffset(connectionOffset, readOffset);
-            if (dataLength > 0) {
-                ByteBuf footerData = in.readBytes(dataLength);
-                out.add(new AppendData(connectionId,
-                        connectionOffset,
-                        Unpooled.wrappedBuffer(appendHeader, footerData)));
-            } else {
-                int offset = appendHeader.writerIndex();
-                appendHeader.writerIndex(offset + dataLength);
-                out.add(new AppendData(connectionId, connectionOffset, appendHeader));
-            }
-            appendHeader = null;
-            break;
-        }
-        case SETUP_APPEND: {
-            SetupAppend setupAppend = (SetupAppend) type.readFrom(is);
-            connectionId = setupAppend.getConnectionId();
-            connectionOffset = 0;
-            out.add(setupAppend);
-            break;
-        }
-        default:
-            out.add(type.readFrom(is));
-            break;
-        }
-    }
-
-    private void checkOffset(long expectedOffset, long readOffset) {
-        if (expectedOffset != readOffset) {
-            throw new InvalidMessageException("Append came in at wrong offset: " + expectedOffset + " vs " + readOffset);
-        }
-    }
-
-    private void checkConnectionId(UUID id) {
-        if (id == null || !id.equals(connectionId)) {
-            throw new InvalidMessageException("Append came in for a segment that was not the appending segment.");
-        }
+        return type;
     }
 
 }

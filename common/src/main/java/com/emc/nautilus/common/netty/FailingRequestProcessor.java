@@ -17,7 +17,7 @@
  */
 package com.emc.nautilus.common.netty;
 
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
+import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.CreateBatch;
 import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.DeleteSegment;
@@ -39,7 +39,7 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
-    public void appendData(AppendData appendData) {
+    public void append(Append appendData) {
         throw new IllegalStateException("Unexpected operation");
     }
 

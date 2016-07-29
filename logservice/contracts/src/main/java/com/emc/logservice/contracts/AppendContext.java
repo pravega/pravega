@@ -28,7 +28,7 @@ import lombok.Data;
 @Data
 public class AppendContext {
     private final UUID clientId;
-    private final long clientOffset;
+    private final long eventNumber;
 
     /**
      * Creates a new instance of the AppendContext class.
@@ -36,13 +36,13 @@ public class AppendContext {
      * @param clientId     The Unique Id of the client this append was received from.
      * @param clientOffset The append offset within the client context.
      */
-    public AppendContext(UUID clientId, long clientOffset) {
+    public AppendContext(UUID clientId, long eventNumber) {
         this.clientId = clientId;
-        this.clientOffset = clientOffset;
+        this.eventNumber = eventNumber;
     }
 
     @Override
     public String toString() {
-        return String.format("ClientId = %s, Offset = %d", getClientId().toString(), getClientOffset());
+        return String.format("ClientId = %s, eventNumber = %d", getClientId().toString(), getEventNumber());
     }
 }

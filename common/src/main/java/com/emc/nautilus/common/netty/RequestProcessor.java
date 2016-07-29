@@ -17,7 +17,7 @@
  */
 package com.emc.nautilus.common.netty;
 
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
+import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.CreateBatch;
 import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.DeleteSegment;
@@ -31,7 +31,7 @@ import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 public interface RequestProcessor {
     void setupAppend(SetupAppend setupAppend);
 
-    void appendData(AppendData appendData);
+    void append(Append append);
 
     void readSegment(ReadSegment readSegment);
 

@@ -29,7 +29,7 @@ import com.emc.nautilus.common.netty.ClientConnection;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ConnectionFailedException;
 import com.emc.nautilus.common.netty.ReplyProcessor;
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
+import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
@@ -43,6 +43,8 @@ import io.netty.buffer.Unpooled;
 import lombok.Synchronized;
 
 public class SegmentOutputStreamTest {
+
+    private static final String SEGMENT = "segment";
 
     private static class TestConnectionFactoryImpl implements ConnectionFactory {
         Map<String, ClientConnection> connections = new HashMap<>();
@@ -84,12 +86,12 @@ public class SegmentOutputStreamTest {
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);  
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, "segment");
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
         output.connect();
-        verify(connection).send(new SetupAppend(cid, "segment"));
-        cf.getProcessor("endpoint").appendSetup(new AppendSetup("segment", cid, 0));
+        verify(connection).send(new SetupAppend(cid, SEGMENT));
+        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
         
-        sendEvent(cid, connection, output, "test");
+        sendEvent(cid, connection, output, "test", 1);
         verifyNoMoreInteractions(connection);
     }
 
@@ -99,22 +101,22 @@ public class SegmentOutputStreamTest {
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);  
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, "segment");
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
         output.connect();
-        verify(connection).send(new SetupAppend(cid, "segment"));
-        cf.getProcessor("endpoint").appendSetup(new AppendSetup("segment", cid, 0));
+        verify(connection).send(new SetupAppend(cid, SEGMENT));
+        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
         
         String event = "test";
-        sendEvent(cid, connection, output, event);
+        sendEvent(cid, connection, output, event, 1);
         verifyNoMoreInteractions(connection);
     }
 
-    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, String event)
+    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, String event, int num)
             throws SegmentSealedExcepetion, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         ByteBuffer data = getBuffer(event);
         output.write(data, acked);
-        verify(connection).send(new AppendData(cid, data.array().length, Unpooled.wrappedBuffer(data)));
+        verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data)));
         assertEquals(false, acked.isDone());
     }
 

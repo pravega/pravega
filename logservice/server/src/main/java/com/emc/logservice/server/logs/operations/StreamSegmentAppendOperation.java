@@ -125,7 +125,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         UUID clientId = this.appendContext.getClientId();
         target.writeLong(clientId.getMostSignificantBits());
         target.writeLong(clientId.getLeastSignificantBits());
-        target.writeLong(this.appendContext.getClientOffset());
+        target.writeLong(this.appendContext.getEventNumber());
         target.writeInt(data.length);
         target.write(data, 0, data.length);
     }

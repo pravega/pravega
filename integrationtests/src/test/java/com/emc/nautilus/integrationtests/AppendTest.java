@@ -1,5 +1,15 @@
 package com.emc.nautilus.integrationtests;
 
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
@@ -13,7 +23,8 @@ import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.Request;
-import com.emc.nautilus.common.netty.WireCommands.AppendData;
+import com.emc.nautilus.common.netty.WireCommand;
+import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
@@ -28,6 +39,10 @@ import com.emc.nautilus.streaming.ProducerConfig;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.impl.JavaSerializer;
 import com.emc.nautilus.streaming.impl.SingleSegmentStreamManagerImpl;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -35,18 +50,6 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
-import static org.junit.Assert.assertEquals;
 
 public class AppendTest {
     private Level originalLevel;
@@ -102,13 +105,12 @@ public class AppendTest {
 
         DataAppended ack = (DataAppended) sendRequest(channel,
                                                       decoder,
-                                                      new AppendData(uuid, data.readableBytes(), data));
-        assertEquals(segment, ack.getSegment());
-        assertEquals(data.readableBytes(), ack.getConnectionOffset());
+                                                      new Append(segment, uuid, data.readableBytes(), data));
+        assertEquals(uuid, ack.getConnectionId());
+        assertEquals(data.readableBytes(), ack.getEventNumber());
     }
 
     private Reply sendRequest(EmbeddedChannel channel, CommandDecoder decoder, Request request) throws Exception {
-        ArrayList<Object> decoded = new ArrayList<>();
         channel.writeInbound(request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
@@ -118,9 +120,11 @@ public class AppendTest {
         if (encodedReply == null) {
             throw new IllegalStateException("No reply to request: " + request);
         }
-        decoder.decode((ByteBuf) encodedReply, decoded);
-        assertEquals(1, decoded.size());
-        return (Reply) decoded.get(0);
+        WireCommand decoded = decoder.parseCommand((ByteBuf) encodedReply);
+        assertNotNull(decoded);
+        decoded = decoder.processCommand(decoded);
+        assertNotNull(decoded);
+        return (Reply) decoded;
     }
 
     private EmbeddedChannel createChannel(StreamSegmentStore store) {

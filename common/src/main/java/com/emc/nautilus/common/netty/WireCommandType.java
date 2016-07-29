@@ -3,7 +3,7 @@ package com.emc.nautilus.common.netty;
 import java.io.DataInput;
 import java.io.IOException;
 
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
+import com.emc.nautilus.common.netty.WireCommands.*;
 import com.emc.nautilus.common.netty.WireCommands.BatchCreated;
 import com.emc.nautilus.common.netty.WireCommands.BatchMerged;
 import com.emc.nautilus.common.netty.WireCommands.Constructor;
@@ -26,42 +26,50 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
+import com.google.common.base.Preconditions;
 
 enum WireCommandType {
-    WRONG_HOST(0, WrongHost::readFrom),
-    SEGMENT_IS_SEALED(-1, SegmentIsSealed::readFrom),
-    SEGMENT_ALREADY_EXISTS(-3, SegmentAlreadyExists::readFrom),
-    NO_SUCH_SEGMENT(-4, NoSuchSegment::readFrom),
-    NO_SUCH_BATCH(-5, NoSuchBatch::readFrom),
+    PADDING(-1, Padding::readFrom),
+
+    PARTIAL_EVENT(-2, PartialEvent::readFrom),
+
+    APPEND(0, null), // Does not go over the wire, is converted to an event.
+    EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, SetupAppend::readFrom),
     APPEND_SETUP(2, AppendSetup::readFrom),
 
-    APPEND_DATA(-100, null), // Splits into the two below for the wire.
-    APPEND_DATA_HEADER(3, null), // Handled in the encoder/decoder directly
-    APPEND_DATA_FOOTER(4, null), // Handled in the encoder/decoder directly
+    APPEND_BLOCK(3, AppendBlock::readFrom),
+    APPEND_BLOCK_END(4, AppendBlockEnd::readFrom),
+
     DATA_APPENDED(5, DataAppended::readFrom),
 
-    READ_SEGMENT(8, ReadSegment::readFrom),
-    SEGMENT_READ(9, null), // Handled in the encoder/decoder directly
+    READ_SEGMENT(6, ReadSegment::readFrom),
+    SEGMENT_READ(7, null), // Is read manually.
 
-    GET_STREAM_SEGMENT_INFO(10, GetStreamSegmentInfo::readFrom),
-    STREAM_SEGMENT_INFO(11, StreamSegmentInfo::readFrom),
+    GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom),
+    STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),
 
-    CREATE_SEGMENT(12, CreateSegment::readFrom),
-    SEGMENT_CREATED(13, SegmentCreated::readFrom),
+    CREATE_SEGMENT(20, CreateSegment::readFrom),
+    SEGMENT_CREATED(21, SegmentCreated::readFrom),
 
-    CREATE_BATCH(14, CreateBatch::readFrom),
-    BATCH_CREATED(15, BatchCreated::readFrom),
+    CREATE_BATCH(22, CreateBatch::readFrom),
+    BATCH_CREATED(23, BatchCreated::readFrom),
 
-    MERGE_BATCH(16, MergeBatch::readFrom),
-    BATCH_MERGED(17, BatchMerged::readFrom),
+    MERGE_BATCH(24, MergeBatch::readFrom),
+    BATCH_MERGED(25, BatchMerged::readFrom),
 
-    SEAL_SEGMENT(18, SealSegment::readFrom),
-    SEGMENT_SEALED(19, SegmentSealed::readFrom),
+    SEAL_SEGMENT(26, SealSegment::readFrom),
+    SEGMENT_SEALED(27, SegmentSealed::readFrom),
 
-    DELETE_SEGMENT(20, DeleteSegment::readFrom),
-    SEGMENT_DELETED(21, SegmentDeleted::readFrom),
+    DELETE_SEGMENT(28, DeleteSegment::readFrom),
+    SEGMENT_DELETED(29, SegmentDeleted::readFrom),
+
+    WRONG_HOST(50, WrongHost::readFrom),
+    SEGMENT_IS_SEALED(51, SegmentIsSealed::readFrom),
+    SEGMENT_ALREADY_EXISTS(52, SegmentAlreadyExists::readFrom),
+    NO_SUCH_SEGMENT(53, NoSuchSegment::readFrom),
+    NO_SUCH_BATCH(54, NoSuchBatch::readFrom),
 
     KEEP_ALIVE(100, KeepAlive::readFrom);
 
@@ -69,6 +77,7 @@ enum WireCommandType {
     private final Constructor factory;
 
     WireCommandType(int code, Constructor factory) {
+        Preconditions.checkArgument(code <= 127 && code >= -127, "All codes should fit in a byte.");
         this.code = code;
         this.factory = factory;
     }
@@ -77,7 +86,7 @@ enum WireCommandType {
         return code;
     }
 
-    public WireCommand readFrom(DataInput in) throws IOException {
-        return factory.readFrom(in);
+    public WireCommand readFrom(DataInput in, int length) throws IOException {
+        return factory.readFrom(in, length);
     }
 }

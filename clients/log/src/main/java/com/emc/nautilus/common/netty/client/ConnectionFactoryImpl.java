@@ -116,7 +116,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		group.shutdownGracefully();
 	}
 	
-	protected void finalize() {
+	@Override
+    protected void finalize() {
 		group.shutdownGracefully();
 	}
 
