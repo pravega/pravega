@@ -43,10 +43,6 @@ public class AppendContext {
 
     @Override
     public String toString() {
-<<<<<<< HEAD
         return String.format("ClientId = %s, eventNumber = %d", getClientId().toString(), getEventNumber());
-=======
-        return String.format("ClientId = %s, Event# = %d", getClientId(), getEventNumber());
->>>>>>> 07d786c90fe5df25e57dcb9367cd44de190e89fe
     }
 }
