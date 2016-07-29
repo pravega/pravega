@@ -27,7 +27,6 @@ import java.util.UUID;
 import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.AppendBlock;
 import com.emc.nautilus.common.netty.WireCommands.AppendBlockEnd;
-import com.emc.nautilus.common.netty.WireCommands.Event;
 import com.emc.nautilus.common.netty.WireCommands.PartialEvent;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.google.common.annotations.VisibleForTesting;
@@ -41,6 +40,16 @@ import lombok.Data;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Decodes commands coming over the wire. For the most part this is just delegation to the
+ * deserializers in WireCommands.
+ * AppendBlocks are handled specially to avoid having to parse every append individually.
+ * This is done by holding onto the AppendBlock command and waiting for the following command
+ * which must be an AppendBlockEnd.
+ * The AppendBlockEnd command should have all of the information need to construct a single
+ * Append object with all of the Events in the block.
+ * @See CommandEncoder For details about handling of PartialEvents
+ */
 @Slf4j
 @ToString
 public class CommandDecoder extends ByteToMessageDecoder {

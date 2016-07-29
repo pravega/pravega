@@ -31,11 +31,24 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
 
+/**
+ * The complete list of all commands that go over the wire between clients and the server.
+ * Each command is self-contained providing both it's serialization and deserialization logic.
+ * Commands are not nested and contain only primitive types. The types are serialized in the obvious
+ * way using Java's DataOutput and DataInput. All data is written BigEndian.
+ * 
+ * Because length and type are detected externally these are not necessary for the classes to
+ * supply.
+ * 
+ * Compatible changes (IE: Adding new members) that would not cause breakage if either the client or
+ * the server were running older code can be made at any time.
+ * Incompatible changes should instead create a new WireCommand object.
+ */
 public final class WireCommands {
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int APPEND_BLOCK_SIZE = 32 * 1024;
-    public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; //8MB
+    public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
     private static final Map<Integer, WireCommandType> MAPPING;
     static {
         HashMap<Integer, WireCommandType> map = new HashMap<>();
