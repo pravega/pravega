@@ -77,11 +77,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
-        // String owner = store.whoOwnStreamSegment(newSegment);
-        // if (owner != null) {
-        // connection.send(new WrongHost(newSegment, owner));
-        // return;
-        // }
         UUID newConnection = setupAppend.getConnectionId();
         CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, newConnection, TIMEOUT);
         future.handle(new BiFunction<AppendContext, Throwable, Void>() {
@@ -122,7 +117,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             Entry<UUID, List<Append>> entry = removeFirst(waitingAppends);
             UUID writer = entry.getKey();
             List<Append> appends = entry.getValue();
-            // NOTE: Not sorting the events because they should already be in oreder
+            // NOTE: Not sorting the events because they should already be in order
             ByteBuf data = wrappedBuffer(appends.stream().map(a -> a.getData()).toArray(ByteBuf[]::new));
             Append lastAppend = appends.get(appends.size() - 1);
             append = new Append(lastAppend.getSegment(), writer, lastAppend.getEventNumber(), data);
