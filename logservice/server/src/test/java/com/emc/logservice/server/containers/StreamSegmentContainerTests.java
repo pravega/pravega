@@ -127,7 +127,7 @@ public class StreamSegmentContainerTests {
             Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
 
             for (UUID clientId : clients) {
-                AppendContext actualContext = context.container.getLastAppendContext(segmentName, clientId).join();
+                AppendContext actualContext = context.container.getLastAppendContext(segmentName, clientId, TIMEOUT).join();
                 AppendContext expectedContext = lastAppendContexts.get(getAppendContextKey(segmentName, clientId));
                 Assert.assertEquals("Unexpected return value from getLastAppendContext for segment " + segmentName, expectedContext, actualContext);
             }
@@ -233,6 +233,37 @@ public class StreamSegmentContainerTests {
     }
 
     /**
+     * Tests the behavior of various operations when the StreamSegment does not exist.
+     */
+    @Test
+    public void testInexistentSegment(){
+        final String segmentName = "foo";
+        @Cleanup
+        TestContext context = new TestContext();
+        context.container.startAsync().awaitRunning();
+
+        AssertExtensions.assertThrows(
+                "getStreamSegmentInfo did not throw expected exception when called on a non-existent StreamSegment.",
+                context.container.getStreamSegmentInfo(segmentName, TIMEOUT)::join,
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertThrows(
+                "append did not throw expected exception when called on a non-existent StreamSegment.",
+                context.container.append(segmentName, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT)::join,
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertThrows(
+                "getLastAppendContext did not throw expected exception when called on a non-existent StreamSegment.",
+                context.container.getLastAppendContext(segmentName, UUID.randomUUID(), TIMEOUT)::join,
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertThrows(
+                "read did not throw expected exception when called on a non-existent StreamSegment.",
+                context.container.read(segmentName, 0, 1, TIMEOUT)::join,
+                ex -> ex instanceof StreamSegmentNotExistsException);
+    }
+
+    /**
      * Tests the ability to delete StreamSegments.
      */
     @Test
@@ -287,6 +318,11 @@ public class StreamSegmentContainerTests {
                     AssertExtensions.assertThrows(
                             "append did not throw expected exception when called on a deleted StreamSegment.",
                             context.container.append(sn, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT)::join,
+                            ex -> ex instanceof StreamSegmentNotExistsException);
+
+                    AssertExtensions.assertThrows(
+                            "getLastAppendContext did not throw expected exception when called on a deleted StreamSegment.",
+                            context.container.getLastAppendContext(sn, UUID.randomUUID(), TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentNotExistsException);
 
                     AssertExtensions.assertThrows(

@@ -25,7 +25,6 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
-import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.IllegalContainerStateException;
 import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
@@ -287,26 +286,25 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
+    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
         ensureRunning();
 
         logRequest("getLastAppendContext", streamSegmentName, clientId);
-        long streamSegmentId = this.metadata.getStreamSegmentId(streamSegmentName);
-        if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            // We do not have any recent information about this StreamSegment. Do not bother to create an entry with it using SegmentMapper.
-            return CompletableFuture.completedFuture(null);
-        }
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId -> {
+                    CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
+                    if (result == null) {
+                        // No appends pending for this StreamSegment/ClientId combination; check metadata.
+                        SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                        if (segmentMetadata != null) {
+                            result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
+                        }
+                    }
 
-        CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId, clientId);
-        if (result == null) {
-            // No appends pending for this StreamSegment/ClientId combination; check metadata.
-            SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-            if (segmentMetadata != null) {
-                result = CompletableFuture.completedFuture(segmentMetadata.getLastAppendContext(clientId));
-            }
-        }
-
-        return result;
+                    return result;
+                });
     }
 
     //endregion

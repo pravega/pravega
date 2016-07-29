@@ -17,14 +17,6 @@
  */
 package com.emc.logservice.serverhost.handler;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import org.junit.Test;
-
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.nautilus.common.netty.FailingRequestProcessor;
@@ -33,12 +25,22 @@ import com.emc.nautilus.common.netty.WireCommands.AppendData;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import io.netty.buffer.Unpooled;
+import org.junit.Test;
+
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.fail;
-
-import static org.mockito.Mockito.*;
-
-import io.netty.buffer.Unpooled;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class AppendProcessorTest {
 
@@ -53,7 +55,7 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
-        when(store.getLastAppendContext(streamSegmentName, clientId)).thenReturn(contextFuture);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
         CompletableFuture<Long> result = new CompletableFuture<>();
         result.complete((long) data.length);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))
@@ -61,7 +63,7 @@ public class AppendProcessorTest {
 
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
         processor.appendData(new AppendData(clientId, data.length, Unpooled.wrappedBuffer(data)));
-        verify(store).getLastAppendContext(anyString(), any());
+        verify(store).getLastAppendContext(anyString(), any(), AppendProcessor.TIMEOUT);
         verify(store).append(streamSegmentName,
                              data,
                              new AppendContext(clientId, data.length),
@@ -84,7 +86,7 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 100));
-        when(store.getLastAppendContext(streamSegmentName, clientId)).thenReturn(contextFuture);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
 
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
         try {
@@ -93,7 +95,7 @@ public class AppendProcessorTest {
         } catch (RuntimeException e) {
             //expected
         }
-        verify(store).getLastAppendContext(anyString(), any());
+        verify(store).getLastAppendContext(anyString(), any(), AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(streamSegmentName, clientId, 100));
         verify(connection, atLeast(0)).resumeReading();
         verifyNoMoreInteractions(connection);
@@ -113,7 +115,7 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId1, 0));
-        when(store.getLastAppendContext(segment1, clientId1)).thenReturn(contextFuture);
+        when(store.getLastAppendContext(segment1, clientId1, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
         CompletableFuture<Long> result = new CompletableFuture<>();
         result.complete((long) data.length);
         when(store.append(segment1, data, new AppendContext(clientId1, data.length), AppendProcessor.TIMEOUT))
@@ -121,7 +123,7 @@ public class AppendProcessorTest {
         
         contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId2, 0));
-        when(store.getLastAppendContext(segment2, clientId2)).thenReturn(contextFuture);
+        when(store.getLastAppendContext(segment2, clientId2, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
         result = new CompletableFuture<>();
         result.complete((long) data.length);
         when(store.append(segment2, data, new AppendContext(clientId2, data.length), AppendProcessor.TIMEOUT))
@@ -132,12 +134,12 @@ public class AppendProcessorTest {
         processor.setupAppend(new SetupAppend(clientId2, segment2));
         processor.appendData(new AppendData(clientId2, data.length, Unpooled.wrappedBuffer(data)));
         
-        verify(store).getLastAppendContext(eq(segment1), any());
+        verify(store).getLastAppendContext(eq(segment1), any(), AppendProcessor.TIMEOUT);
         verify(store).append(segment1,
                              data,
                              new AppendContext(clientId1, data.length),
                              AppendProcessor.TIMEOUT);
-        verify(store).getLastAppendContext(eq(segment2), any());
+        verify(store).getLastAppendContext(eq(segment2), any(), AppendProcessor.TIMEOUT);
         verify(store).append(segment2,
                              data,
                              new AppendContext(clientId2, data.length),
@@ -162,7 +164,7 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
-        when(store.getLastAppendContext(streamSegmentName, clientId)).thenReturn(contextFuture);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
         CompletableFuture<Long> result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException("Fake exception for testing"));
         when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))
