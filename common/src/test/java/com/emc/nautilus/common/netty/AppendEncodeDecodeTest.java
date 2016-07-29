@@ -247,6 +247,7 @@ public class AppendEncodeDecodeTest {
             int before = results.size();
             decoder.decode(null, segmented, results);
             assertTrue(results.size() == before || results.size() == before + 1);
+            segmented.release();
             segmented = (ByteBuf) lengthDecoder.decode(null, in);
         }
     }

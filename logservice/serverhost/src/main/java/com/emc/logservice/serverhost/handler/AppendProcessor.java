@@ -156,6 +156,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                             throw new IllegalStateException(
                                     "Synchronization error in: " + AppendProcessor.this.getClass().getName());
                         }
+                        toWrite.getData().release();
                         outstandingAppend = null;
                         if (u != null) {
                             waitingAppends.remove(toWrite.getConnectionId());

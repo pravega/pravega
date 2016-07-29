@@ -114,13 +114,14 @@ public class AppendTest {
         channel.writeInbound(request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
-            Thread.sleep(100);
+            Thread.sleep(10);
             encodedReply = channel.readOutbound();
         }
         if (encodedReply == null) {
             throw new IllegalStateException("No reply to request: " + request);
         }
         WireCommand decoded = decoder.parseCommand((ByteBuf) encodedReply);
+        ((ByteBuf) encodedReply).release();
         assertNotNull(decoded);
         decoded = decoder.processCommand(decoded);
         assertNotNull(decoded);
