@@ -92,7 +92,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 						p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
 					}
 					// p.addLast(new LoggingHandler(LogLevel.INFO));
-					p.addLast(	new ExceptionLoggingHandler(ch.remoteAddress().toString()),
+					p.addLast(	new ExceptionLoggingHandler(host),
 								new CommandEncoder(),
 								new LengthFieldBasedFrameDecoder(1024 * 1024, 4, 4),
 								new CommandDecoder(),

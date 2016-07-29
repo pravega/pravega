@@ -34,11 +34,4 @@ public abstract class SegmentOutputStream implements AutoCloseable {
 	public abstract void close() throws SegmentSealedExcepetion;
 
 	public abstract void flush() throws SegmentSealedExcepetion;
-
-	/**
-	 * Closes all writing streams associated with this, flushes all outstanding
-	 * requests down the socket, and then permanently closes the stream for
-	 * appends. Returns the length of the stream after sealing.
-	 */
-	public abstract Future<Long> seal(long timeoutMillis);
 }

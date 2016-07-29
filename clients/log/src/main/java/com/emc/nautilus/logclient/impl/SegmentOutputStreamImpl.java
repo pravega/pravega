@@ -290,26 +290,4 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 	}
 
-	@Override
-	@Synchronized
-	public Future<Long> seal(long timeoutMillis) {
-		throw new UnsupportedOperationException();
-//		try {
-//			flush();
-//		} catch (LogSealedExcepetion e) {
-//			//TODO: What should we do here?
-//			log.error("Asked to seal already sealed connection, that had messages waiting to be flushed."+ segment);
-//		}
-//		ClientConnection connection;
-//		try {
-//			connection = state.waitForConnection();
-//		} catch (LogSealedExcepetion e) {
-//			return null; //TODO: find the current size...
-//		} catch (ConnectionFailedException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
-//		connection.send(new SealSegment(segment));
-	}
-
 }
