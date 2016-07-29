@@ -290,7 +290,7 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
+        public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
             return null;
         }
 

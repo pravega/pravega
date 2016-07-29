@@ -145,11 +145,11 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId) {
+    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
         int traceId = LoggerHelpers.traceEnter(log, "getLastAppendContext", streamSegmentName, clientId);
         return withCompletion(
                 () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.getLastAppendContext(streamSegmentName, clientId)),
+                        .thenCompose(container -> container.getLastAppendContext(streamSegmentName, clientId, timeout)),
                 r -> traceLeave(log, "getLastAppendContext", traceId, r));
     }
 

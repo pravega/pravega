@@ -83,7 +83,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         // return;
         // }
         UUID newConnection = setupAppend.getConnectionId();
-        CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, newConnection);
+        CompletableFuture<AppendContext> future = store.getLastAppendContext(newSegment, newConnection, TIMEOUT);
         future.handle(new BiFunction<AppendContext, Throwable, Void>() {
             @Override
             public Void apply(AppendContext info, Throwable u) {
