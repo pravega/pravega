@@ -267,8 +267,8 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	@Override
 	@Synchronized
 	public void close() throws SegmentSealedExcepetion {
-		state.setClosed(true);
 		flush();
+		state.setClosed(true);
 		ClientConnection connection = state.getConnection();
 		if (connection != null) {
 		    connection.close();
