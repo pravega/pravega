@@ -23,7 +23,7 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 @Ignore
-public class LogProducerTest {
+public class SegmentProducerTest {
     @Test
     public void testConfigChange() {
         fail();
@@ -45,7 +45,7 @@ public class LogProducerTest {
     }
 
     @Test
-    public void testTxOnClosedLog() {
+    public void testTxOnClosedSegment() {
         fail();
     }
 

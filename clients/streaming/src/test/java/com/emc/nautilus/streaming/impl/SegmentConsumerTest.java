@@ -23,7 +23,7 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 @Ignore
-public class LogConsumerTest {
+public class SegmentConsumerTest {
     @Test
     public void testConfigChange() {
         fail();

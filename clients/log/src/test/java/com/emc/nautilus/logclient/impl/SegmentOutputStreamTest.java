@@ -160,6 +160,12 @@ public class SegmentOutputStreamTest {
         verify(connection).close();
         verifyNoMoreInteractions(connection);
     }
+    
+    @Test
+    @Ignore
+    public void testConnectionFailure() {
+        fail();
+    }
 
     @Test
     @Ignore

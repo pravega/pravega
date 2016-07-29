@@ -42,12 +42,12 @@ public class ProducerTest {
     }
 
     @Test
-    public void testEndOfLog() {
+    public void testEndOfSegment() {
         fail();
     }
 
     @Test
-    public void testNoNextLog() {
+    public void testNoNextSegment() {
         fail();
     }
 
@@ -62,22 +62,22 @@ public class ProducerTest {
     }
 
     @Test
-    public void testLogSealedInFlush() {
+    public void testSegmentSealedInFlush() {
         fail();
     }
 
     @Test
-    public void testLogSealedInClose() {
+    public void testSegmentSealedInClose() {
         fail();
     }
 
     @Test
-    public void testLogSealedInLogSealed() {
+    public void testSegmentSealedInSegmentSealed() {
         fail();
     }
 
     @Test
-    public void testLogSealedInTx() {
+    public void testSegmentSealedInTx() {
         fail();
     }
 
