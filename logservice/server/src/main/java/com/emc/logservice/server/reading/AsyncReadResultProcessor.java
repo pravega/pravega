@@ -147,9 +147,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
             // Attach the appropriate handlers.
             FutureHelpers.exceptionListener(entryContentsFuture, this::fail);
             entryContentsFuture.thenRunAsync(this::handleEntryFetched, this.executor);
-        } catch (Exception ex) {
-            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running
-            // forever.
+        } catch (Exception | AssertionError ex) {
+            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
             fail(ex);
         }
     }
@@ -162,7 +161,6 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
 
         boolean shouldContinue;
         try {
-
             if (this.currentEntry.getContent().isCompletedExceptionally()) {
                 fail(new AssertionError("handleEntryFetched: About to have processed a ReadResultEntry that was not properly fetched."));
                 return;
@@ -173,7 +171,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
 
             // At this point, the entry is processed, so we should clear the pointer to it.
             this.currentEntry = null;
-        } catch (Exception ex) {
+        } catch (Exception | AssertionError ex) {
+            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
             fail(ex);
             return;
         }

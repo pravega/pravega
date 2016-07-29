@@ -86,8 +86,6 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
             for (ContainerWithHandle c : toClose) {
                 c.container.close();
             }
-
-            assert this.containers.size() == 0 : "Not all containers have been unregistered.";
         }
     }
 

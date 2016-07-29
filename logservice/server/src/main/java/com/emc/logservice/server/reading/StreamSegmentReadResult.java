@@ -56,7 +56,8 @@ public class StreamSegmentReadResult implements ReadResult {
      * @param streamSegmentName        The name of the StreamSegment this result is for.
      * @param streamSegmentStartOffset The StreamSegment Offset where the ReadResult starts at.
      * @param maxResultLength          The maximum number of bytes to read.
-     * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume.
+     * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume. The first argument
+     *                                 is startOffset (long) and the second is remainingLength (int).
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
@@ -200,6 +201,7 @@ public class StreamSegmentReadResult implements ReadResult {
                 this.endOfSegmentReached = true;
             } else {
                 // After the previous entry is done, update the consumedLength value.
+                // TODO: after refactoring, do not invoke getContent() on the future. This will trigger the data to be fetched from wherever it is.
                 this.lastEntryFuture = entry.getContent();
                 this.lastEntryFutureFollowup = this.lastEntryFuture.thenAccept(contents -> this.consumedLength += contents.getLength());
 
@@ -217,6 +219,9 @@ public class StreamSegmentReadResult implements ReadResult {
 
     //region NextEntrySupplier
 
+    /**
+     * Defines a Function that given a startOffset (long) and remainingLength (int), returns the next entry to be consumed (ReadResultEntry).
+     */
     @FunctionalInterface
     interface NextEntrySupplier extends BiFunction<Long, Integer, ReadResultEntry> {
     }
