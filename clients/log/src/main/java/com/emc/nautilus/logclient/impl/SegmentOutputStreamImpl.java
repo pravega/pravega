@@ -18,12 +18,28 @@
 package com.emc.nautilus.logclient.impl;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map.Entry;
-import java.util.concurrent.*;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
 
-import com.emc.nautilus.common.netty.*;
-import com.emc.nautilus.common.netty.WireCommands.*;
+import com.emc.nautilus.common.netty.ClientConnection;
+import com.emc.nautilus.common.netty.ConnectionFactory;
+import com.emc.nautilus.common.netty.ConnectionFailedException;
+import com.emc.nautilus.common.netty.FailingReplyProcessor;
+import com.emc.nautilus.common.netty.WireCommands.Append;
+import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
+import com.emc.nautilus.common.netty.WireCommands.DataAppended;
+import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
+import com.emc.nautilus.common.netty.WireCommands.NoSuchBatch;
+import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
+import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
+import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 import com.emc.nautilus.common.utils.ReusableLatch;
 import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
@@ -201,7 +217,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
                state.failConnection(e);
             }
 		}
-
+		
 		private void ackUpTo(long ackLevel) {
 			for (CompletableFuture<Void> toAck : state.removeInflightBelow(ackLevel)) {
 				if (toAck != null) {

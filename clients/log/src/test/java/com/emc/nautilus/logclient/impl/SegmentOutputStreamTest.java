@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
@@ -27,13 +28,14 @@ import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ConnectionFailedException;
 import com.emc.nautilus.common.netty.ReplyProcessor;
 import com.emc.nautilus.common.netty.WireCommands.Append;
+import com.emc.nautilus.common.netty.WireCommands.DataAppended;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
+import com.emc.nautilus.common.netty.WireCommands.KeepAlive;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import static org.mockito.Mockito.*;
 
@@ -118,8 +120,44 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    public void testClose() {
-        fail();
+    public void testClose() throws ConnectionFailedException, SegmentSealedExcepetion, InterruptedException {
+        UUID cid = UUID.randomUUID();
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection("endpoint", connection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
+        output.connect();
+        verify(connection).send(new SetupAppend(cid, SEGMENT));
+        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Void> acked = new CompletableFuture<>();
+        output.write(data, acked);
+        verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data)));
+        assertEquals(false, acked.isDone());
+        final AtomicReference<Exception> ex = new AtomicReference<>();
+        Thread t = new Thread(() -> {
+            try {
+                output.close(); //should block
+            } catch (Exception e) {
+                ex.set(e);
+            } 
+        });
+        t.start();
+        t.join(1000);
+        assertNull(ex.get());
+        assertEquals(true, t.isAlive());
+        assertEquals(false, acked.isDone());
+        cf.getProcessor("endpoint").dataAppended(new DataAppended(cid, 1));
+        t.join(1000);
+        assertNull(ex.get());
+        assertEquals(false, t.isAlive());
+        assertEquals(false, acked.isCompletedExceptionally());
+        assertEquals(true, acked.isDone());
+        verify(connection).send(new KeepAlive());
+        verify(connection).close();
+        verifyNoMoreInteractions(connection);
     }
 
     @Test
