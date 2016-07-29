@@ -17,23 +17,25 @@
  */
 package com.emc.nautilus.streaming;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
 
+@Ignore
 public class RebalancerUtilsTest {
     @Test
-    void testInitialPositions() {
+    public void testInitialPositions() {
         fail();
     }
 
     @Test
-    void testRebalance() {
+    public void testRebalance() {
         fail();
     }
 
     @Test
-    void testStableRebalance() {
+    public void testStableRebalance() {
         fail();
     }
 }

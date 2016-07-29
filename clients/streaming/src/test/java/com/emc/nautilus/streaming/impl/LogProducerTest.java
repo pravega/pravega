@@ -17,43 +17,45 @@
  */
 package com.emc.nautilus.streaming.impl;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
 
+@Ignore
 public class LogProducerTest {
     @Test
-    void testConfigChange() {
+    public void testConfigChange() {
         fail();
     }
 
     @Test
-    void testEOF() {
+    public void testEOF() {
         fail();
     }
 
     @Test
-    void testTimeout() {
+    public void testTimeout() {
         fail();
     }
 
     @Test
-    void testRetransmit() {
+    public void testRetransmit() {
         fail();
     }
 
     @Test
-    void testTxOnClosedLog() {
+    public void testTxOnClosedLog() {
         fail();
     }
 
     @Test
-    void testAckLevels() {
+    public void testAckLevels() {
         fail();
     }
 
     @Test
-    void testContentsOfUnackedMessages() {
+    public void testContentsOfUnackedMessages() {
         fail();
     }
 }

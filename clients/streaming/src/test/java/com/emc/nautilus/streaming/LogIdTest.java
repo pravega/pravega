@@ -17,13 +17,15 @@
  */
 package com.emc.nautilus.streaming;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
 
 public class LogIdTest {
     @Test
-    void testSucceeds() {
+    @Ignore
+    public void testSucceeds() {
         fail();
     }
 }

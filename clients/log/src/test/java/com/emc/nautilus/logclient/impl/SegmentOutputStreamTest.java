@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.emc.nautilus.common.netty.ClientConnection;
@@ -161,21 +162,25 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
+    @Ignore
     public void testFlush() {
         fail();
     }
 
     @Test
+    @Ignore
     public void testAutoClose() {
         fail();
     }
 
     @Test
+    @Ignore
     public void testFailOnAutoClose() {
         fail();
     }
 
     @Test
+    @Ignore
     public void testOutOfOrderAcks() {
         fail();
     }

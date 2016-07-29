@@ -17,28 +17,30 @@
  */
 package com.emc.nautilus.streaming.impl;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
 
+@Ignore
 public class OrdererTest {
     @Test
-    void testChangingLogs() {
+    public void testChangingLogs() {
         fail();
     }
 
     @Test
-    void testOneLogSealed() {
+    public void testOneLogSealed() {
         fail();
     }
 
     @Test
-    void testLogSealedButNotKnown() {
+    public void testLogSealedButNotKnown() {
         fail();
     }
 
     @Test
-    void testOrderConsistentAtTail() {
+    public void testOrderConsistentAtTail() {
         fail();
     }
 

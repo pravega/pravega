@@ -17,28 +17,30 @@
  */
 package com.emc.nautilus.streaming.impl;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
 
+@Ignore
 public class LogConsumerTest {
     @Test
-    void testConfigChange() {
+    public void testConfigChange() {
         fail();
     }
 
     @Test
-    void testEOF() {
+    public void testEOF() {
         fail();
     }
 
     @Test
-    void testTimeout() {
+    public void testTimeout() {
         fail();
     }
 
     @Test
-    void testSetOffset() {
+    public void testSetOffset() {
         fail();
     }
 }

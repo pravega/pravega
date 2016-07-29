@@ -19,8 +19,10 @@ package com.emc.nautilus.logclient.impl;
 
 import static org.junit.Assert.*;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
+@Ignore
 public class TransactionTest {
 
 	@Test

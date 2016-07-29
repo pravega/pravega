@@ -17,33 +17,35 @@
  */
 package com.emc.nautilus.streaming.impl;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.fail;
 
+@Ignore
 public class JavaSerializerTest {
     @Test
-    void testObject() {
+    public void testObject() {
         fail();
     }
 
     @Test
-    void testMap() {
+    public void testMap() {
         fail();
     }
 
     @Test
-    void testByteArray() {
+    public void testByteArray() {
         fail();
     }
 
     @Test
-    void testRefCycle() {
+    public void testRefCycle() {
         fail();
     }
 
     @Test
-    void testCustomSerializer() {
+    public void testCustomSerializer() {
         fail();
     }
 }
