@@ -19,17 +19,48 @@ package com.emc.nautilus.logclient;
 
 import java.nio.ByteBuffer;
 
-//Defines a Stream Reader.
+/**
+ * Defines a InputStream for a single segment.
+ * Once created the offset must be provided by calling setOffset.
+ * The next read will proceed from this offset. Subsequent reads will read from where the previous
+ * one left off. (Parallel calls to read data will be serialized)
+ * Get offset can be used to store a location to revert back to that position in the future.
+ */
 public abstract class SegmentInputStream implements AutoCloseable {
-	// Sets the offset for reading from the stream.
+	/**
+	 * @param offset Sets the offset for reading from the segment.
+	 */
 	public abstract void setOffset(long offset);
 
-	public abstract long getOffset();
+    /**
+     * @return The current offset. (Passing this to setOffst in the future will reset reads to the
+     *         current position in the segment.)
+     */
+    public abstract long getOffset();
 	
+	/**
+	 * @return The number of bytes that can be read by calling read without blocking.
+	 */
 	public abstract int available();
 	
+	/**
+	 * Reads bytes from the segment to attempt to fill the provided buffer.
+	 * Buffering is performed internally to try to prevent blocking.
+	 * Similarly the bufferProvided may not be fully filled, if doing so can prevent further blocking. 
+	 * The number of bytes that can be read without blocking can be obtained by calling avaliable().
+	 * 
+	 * This method will always read at least one byte even if blocking is required to obtain it.
+	 *  
+	 * @param toFill A buffer to fill by reading from the segment
+	 * @return the number of bytes read
+	 * @throws EndOfSegmentException If no bytes were read because the end of the segment was reached.
+	 */
 	public abstract int read(ByteBuffer toFill) throws EndOfSegmentException;
 
+	/**
+	 * Close this InputStream. No further methods may be called after close. 
+	 * This will free any resources associated with the InputStream.
+	 */
 	@Override
 	public abstract void close();
 }

@@ -23,6 +23,14 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 
 abstract class AsyncSegmentInputStream implements AutoCloseable {
 	
+	/**
+	 * Reads from the Segment at the specified offset asynchronously.
+	 * 
+	 * 
+	 * @param Offset The offset in the segment to read from
+	 * @param Length The suggested number of bytes to read. (Note the result may contain either more or less than this value.
+	 * @return A future for the result of the read call. The future will either complete with data or an exception.  
+	 */
 	public abstract CompletableFuture<SegmentRead> read(long offset, int length);
 
 	@Override
