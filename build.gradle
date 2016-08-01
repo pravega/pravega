@@ -58,20 +58,14 @@ allprojects {
 
 }
 
-def pkgs = ['common', 'clients:log', 'clients:streming', 'streaming', 'logservice-server', 'integrationtests']
+def pkgs = ['common', 'clients:streming', 'streaming', 'logservice-server', 'integrationtests']
 
 project('common') {}
 
-project('clients:log') {
-    dependencies {
-        compile project(':common')
-        testCompile project(':testcommon')
-    }
-}
 
 project('clients:streaming') {
     dependencies {
-        compile project(':clients:log')
+        compile project(':common')
         testCompile project(':testcommon')
     }
 }
@@ -138,15 +132,14 @@ project('logservice:serverhost') {
 project('integrationtests') {
     dependencies {
         compile project(':common')
-        compile project(':clients:log')
         compile project(':clients:streaming')
         compile project(':logservice:server')
         compile project(':logservice:serverhost')
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         testCompile files(project(':clients:log').sourceSets.test.output)
-    	testCompile files(project(':clients:streaming').sourceSets.test.output)
-    	testCompile files(project(':logservice:server').sourceSets.test.output)
+        testCompile files(project(':clients:streaming').sourceSets.test.output)
+        testCompile files(project(':logservice:server').sourceSets.test.output)
         testCompile files(project(':logservice:serverhost').sourceSets.test.output)
     }
     task startServer(type: JavaExec) {
