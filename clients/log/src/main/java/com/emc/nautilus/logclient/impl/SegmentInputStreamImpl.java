@@ -30,6 +30,10 @@ import com.google.common.base.Preconditions;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
+/**
+ * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
+ * @see SegmentInputStream
+ */
 @RequiredArgsConstructor
 public class SegmentInputStreamImpl extends SegmentInputStream {
 

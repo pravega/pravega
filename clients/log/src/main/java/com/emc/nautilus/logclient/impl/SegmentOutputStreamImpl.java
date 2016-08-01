@@ -49,6 +49,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Tracks inflight events, and manages reconnects automatically.
+ * @see SegmentOutputStream
+ */
 @RequiredArgsConstructor
 @Slf4j
 public class SegmentOutputStreamImpl extends SegmentOutputStream {
@@ -60,6 +64,11 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	private final State state = new State();
 	private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
+	/**
+	 * Internal object that tracks the state of the connection.
+	 * All mutations of data occur inside of this class. All operations are protected by the lock object.
+	 * No calls to external classes occur. No network calls occur via any methods in this object.
+	 */
 	private static final class State {
 		private final Object lock = new Object();
 		private boolean closed = false;
@@ -120,9 +129,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 				throw new RuntimeException(e);
 			} catch (ExecutionException e) {
 				throw new ConnectionFailedException(e.getCause());
-			} catch (IllegalArgumentException e) {
-				throw e;
-			} catch (SegmentSealedExcepetion e) {
+			} catch (IllegalArgumentException|SegmentSealedExcepetion e) {
 				throw e;
 			} catch (Exception e) {
 				throw new RuntimeException(e);
@@ -246,6 +253,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 	}
 	
+	/**
+	 * @see com.emc.nautilus.logclient.SegmentOutputStream#write(java.nio.ByteBuffer, java.util.concurrent.CompletableFuture)
+	 */
 	@Override
 	@Synchronized
 	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedExcepetion {
@@ -283,6 +293,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
         throw new RuntimeException("Unable to connect to" + endpoint + ". Giving up.");
     }
 
+	/**
+	 * @see com.emc.nautilus.logclient.SegmentOutputStream#close()
+	 */
 	@Override
 	@Synchronized
 	public void close() throws SegmentSealedExcepetion {
@@ -294,6 +307,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 		}
 	}
 
+	/**
+	 * @see com.emc.nautilus.logclient.SegmentOutputStream#flush()
+	 */
 	@Override
 	@Synchronized
 	public void flush() throws SegmentSealedExcepetion {
