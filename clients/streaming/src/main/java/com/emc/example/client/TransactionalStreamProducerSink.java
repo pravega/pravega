@@ -1,9 +1,9 @@
 package com.emc.example.client;
 
 import com.emc.example.client.dummy.RichSinkFunction;
-import com.emc.nautilus.streaming.Producer;
-import com.emc.nautilus.streaming.Transaction;
-import com.emc.nautilus.streaming.TxFailedException;
+import com.emc.nautilus.stream.Producer;
+import com.emc.nautilus.stream.Transaction;
+import com.emc.nautilus.stream.TxFailedException;
 
 public class TransactionalStreamProducerSink<IN> extends RichSinkFunction<IN> // ...
 {

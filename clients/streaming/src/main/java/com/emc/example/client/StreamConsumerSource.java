@@ -3,8 +3,8 @@ package com.emc.example.client;
 import com.emc.example.client.dummy.Checkpointed;
 import com.emc.example.client.dummy.RichParallelSourceFunction;
 import com.emc.example.client.dummy.SourceContext;
-import com.emc.nautilus.streaming.Consumer;
-import com.emc.nautilus.streaming.Position;
+import com.emc.nautilus.stream.Consumer;
+import com.emc.nautilus.stream.Position;
 
 public class StreamConsumerSource<OUT> extends RichParallelSourceFunction<OUT> implements Checkpointed<Position> {
 

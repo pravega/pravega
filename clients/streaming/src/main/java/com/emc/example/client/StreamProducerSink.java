@@ -6,11 +6,11 @@ import java.net.Socket;
 
 import com.emc.example.client.dummy.SensorData;
 import com.emc.example.client.dummy.SensorEvent;
-import com.emc.nautilus.streaming.Producer;
-import com.emc.nautilus.streaming.ProducerConfig;
-import com.emc.nautilus.streaming.Serializer;
-import com.emc.nautilus.streaming.Stream;
-import com.emc.nautilus.streaming.StreamManager;
+import com.emc.nautilus.stream.Producer;
+import com.emc.nautilus.stream.ProducerConfig;
+import com.emc.nautilus.stream.Serializer;
+import com.emc.nautilus.stream.Stream;
+import com.emc.nautilus.stream.StreamManager;
 
 public class StreamProducerSink {
 

@@ -17,11 +17,11 @@
  */
 package com.emc.nautilus.demo;
 
-import com.emc.nautilus.streaming.Producer;
-import com.emc.nautilus.streaming.ProducerConfig;
-import com.emc.nautilus.streaming.Stream;
-import com.emc.nautilus.streaming.impl.JavaSerializer;
-import com.emc.nautilus.streaming.impl.SingleSegmentStreamManagerImpl;
+import com.emc.nautilus.stream.Producer;
+import com.emc.nautilus.stream.ProducerConfig;
+import com.emc.nautilus.stream.Stream;
+import com.emc.nautilus.stream.impl.JavaSerializer;
+import com.emc.nautilus.stream.impl.SingleSegmentStreamManagerImpl;
 
 import lombok.Cleanup;
 
