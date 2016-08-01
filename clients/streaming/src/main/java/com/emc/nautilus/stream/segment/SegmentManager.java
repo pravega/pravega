@@ -20,6 +20,8 @@ package com.emc.nautilus.stream.segment;
 import java.util.UUID;
 
 import com.emc.nautilus.stream.StreamManager;
+import com.emc.nautilus.stream.Transaction;
+import com.emc.nautilus.stream.TxFailedException;
 
 /**
  * The analog of the {@link StreamManager} for segments.
@@ -34,9 +36,26 @@ public interface SegmentManager {
     boolean createSegment(String name);
 
     /**
-     * Creates a transaction for Appending to a segment.
+     * Creates a new transaction on the specified segment
      */
-    SegmentOutputStream openTransactionForAppending(String name, UUID txId);
+    void createTransaction(String segmentName, UUID txId, long timeout);
+
+    /**
+     * Commits a transaction.
+     */
+    void commitTransaction(UUID txId) throws TxFailedException;
+
+    /**
+     * Drops a transaction (and all data written to it)
+     */
+    boolean dropTransaction(UUID txId);
+
+    Transaction.Status checkTransactionStatus(UUID txId);
+    
+    /**
+     * Opens a transaction for Appending to a segment.
+     */
+    SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId);
 
     /**
      * Opens an existing segment for appending. this operation will fail if the segment does not

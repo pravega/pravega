@@ -19,13 +19,14 @@ package com.emc.nautilus.stream.impl;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import com.emc.nautilus.stream.EventRouter;
 import com.emc.nautilus.stream.Producer;
@@ -46,23 +47,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProducerImpl<Type> implements Producer<Type> {
 
-    private final TransactionManager txManager;
     private final Stream stream;
     private final Serializer<Type> serializer;
-    private final SegmentManager logClient;
+    private final SegmentManager segmentManager;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(TransactionManager txManager, Stream stream, SegmentManager logClient, EventRouter router,
-            Serializer<Type> serializer, ProducerConfig config) {
-        Preconditions.checkNotNull(txManager);
+    ProducerImpl(Stream stream, SegmentManager segmentManager, EventRouter router, Serializer<Type> serializer,
+            ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(serializer);
-        this.txManager = txManager;
-        this.logClient = logClient;
+        this.segmentManager = segmentManager;
         this.stream = stream;
         this.router = router;
         this.serializer = serializer;
@@ -74,28 +72,30 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     private List<Event<Type>> setupLogProducers() {
-        StreamSegments logs = stream.getLatestSegments();
-        List<SegmentId> newSegments = logs.getSegments()
-            .stream()
-            .filter(key -> !producers.containsKey(key))
-            .collect(Collectors.toList());
-        List<SegmentId> oldLogs = new ArrayList<>(producers.keySet());
-        oldLogs.removeAll(logs.segments);
-
-        for (SegmentId segment : newSegments) {
-            SegmentOutputStream log = logClient.openSegmentForAppending(segment.getQualifiedName(),
-                                                                        config.getSegmentConfig());
-            producers.put(segment, new SegmentProducerImpl<>(log, serializer));
+        StreamSegments segments = stream.getLatestSegments();
+        
+        for (SegmentId segment : segments.getSegments()) {
+            if (!producers.containsKey(segment)) {
+                SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
+                                                                                 config.getSegmentConfig());
+                producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+            }
         }
         List<Event<Type>> toResend = new ArrayList<>();
-        for (SegmentId l : oldLogs) {
-            SegmentProducer<Type> producer = producers.remove(l);
-            try {
-                producer.close();
-            } catch (SegmentSealedExcepetion e) {
-                log.warn("Caught exception closing old producer: ", e);
+        
+        Iterator<Entry<SegmentId, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
+        while (iter.hasNext()) {
+            Entry<SegmentId, SegmentProducer<Type>> entry = iter.next();
+            if (!segments.segments.contains(entry.getKey())) {
+                SegmentProducer<Type> producer = entry.getValue();
+                iter.remove();
+                try {
+                    producer.close();
+                } catch (SegmentSealedExcepetion e) {
+                    log.warn("Caught exception closing old producer: ", e);
+                }
+                toResend.addAll(producer.getUnackedEvents());
             }
-            toResend.addAll(producer.getUnackedEvents());
         }
         return toResend;
     }
@@ -174,31 +174,32 @@ public class ProducerImpl<Type> implements Producer<Type> {
             for (SegmentTransaction<Type> log : inner.values()) {
                 log.flush();
             }
-            txManager.commitTransaction(txId);
+            segmentManager.commitTransaction(txId);
         }
 
         @Override
         public void drop() {
-            txManager.dropTransaction(txId);
+            segmentManager.dropTransaction(txId);
         }
 
         @Override
         public Status checkStatus() {
-            return txManager.checkTransactionStatus(txId);
+            return segmentManager.checkTransactionStatus(txId);
         }
 
     }
 
     @Override
     public Transaction<Type> startTransaction(long timeout) {
-        UUID txId = txManager.createTransaction(stream, timeout);
+        UUID txId = UUID.randomUUID();
         Map<SegmentId, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<SegmentId> segmentIds;
         synchronized (producers) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
         for (SegmentId s : segmentIds) {
-            SegmentOutputStream out = logClient.openTransactionForAppending(s.getName(), txId);
+            segmentManager.createTransaction(s.getName(), txId, timeout);
+            SegmentOutputStream out = segmentManager.openTransactionForAppending(s.getName(), txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

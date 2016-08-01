@@ -19,6 +19,7 @@ package com.emc.nautilus.stream.impl;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.UUID;
 
 import com.emc.nautilus.stream.Consumer;
 import com.emc.nautilus.stream.ConsumerConfig;
@@ -32,6 +33,8 @@ import com.emc.nautilus.stream.Serializer;
 import com.emc.nautilus.stream.Stream;
 import com.emc.nautilus.stream.StreamConfiguration;
 import com.emc.nautilus.stream.StreamSegments;
+import com.emc.nautilus.stream.Transaction.Status;
+import com.emc.nautilus.stream.TxFailedException;
 import com.emc.nautilus.stream.segment.SegmentManager;
 import com.google.common.base.Preconditions;
 
@@ -88,7 +91,7 @@ public class SingleSegmentStreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<>(null, this, segmentManager, router, s, config);
+        return new ProducerImpl<>(this, segmentManager, router, s, config);
     }
 
     @Override

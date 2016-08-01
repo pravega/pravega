@@ -29,6 +29,8 @@ import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
+import com.emc.nautilus.stream.Transaction.Status;
+import com.emc.nautilus.stream.TxFailedException;
 import com.emc.nautilus.stream.segment.SegmentInputConfiguration;
 import com.emc.nautilus.stream.segment.SegmentInputStream;
 import com.emc.nautilus.stream.segment.SegmentManager;
@@ -95,8 +97,28 @@ public class SegmentManagerImpl implements SegmentManager {
 	}
 
 	@Override
-	public SegmentOutputStream openTransactionForAppending(String name, UUID txId) {
+	public SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId) {
 		throw new UnsupportedOperationException();
 	}
+
+    @Override
+    public void createTransaction(String segmentName, UUID txId, long timeout) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void commitTransaction(UUID txId) throws TxFailedException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean dropTransaction(UUID txId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Status checkTransactionStatus(UUID txId) {
+        throw new UnsupportedOperationException();
+    }
 
 }
