@@ -148,7 +148,7 @@ public class AssertExtensions {
 
             readSoFar++;
             if (b1 < 0) {
-                break;// We have reached the end of both streams.
+                break; // We have reached the end of both streams.
             }
         }
     }

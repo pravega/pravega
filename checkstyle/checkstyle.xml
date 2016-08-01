@@ -39,16 +39,18 @@
     <module name="OneStatementPerLine"/>
     <module name="UnnecessaryParentheses" />
     <module name="SimplifyBooleanReturn"/>
-	<module name="DeclarationOrder"/>
-	<!--<module name="InnerAssignment"/> This doesn't work with lambdas-->
-	<module name="ModifiedControlVariable"/>
-	<module name="OverloadMethodsDeclarationOrder"/>
-	<module name="ReturnCount">
-		<property name="max" value="4"/>
-	</module>
-	<module name="StringLiteralEquality"/>
-	<module name="CyclomaticComplexity"/>
-	
+    <module name="DeclarationOrder"/>
+    <!--<module name="InnerAssignment"/> This doesn't work with lambdas-->
+    <module name="ModifiedControlVariable"/>
+    <module name="OverloadMethodsDeclarationOrder"/>
+    <module name="ReturnCount">
+        <property name="max" value="4"/>
+    </module>
+    <module name="StringLiteralEquality"/>
+    <module name="CyclomaticComplexity">
+        <property name="switchBlockAsSingleDecisionPoint" value="true"/>
+    </module>
+    
     <!-- style -->
     <module name="DefaultComesLast"/>
     <module name="EmptyStatement"/>

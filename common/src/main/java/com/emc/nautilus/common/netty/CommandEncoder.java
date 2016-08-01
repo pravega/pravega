@@ -74,7 +74,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
     @Data
     private static final class Session {
         private final UUID id;
-        private long lastEventNumber = -1l;
+        private long lastEventNumber = -1L;
     }
 
     @Override
@@ -103,7 +103,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
             session.lastEventNumber = append.getEventNumber();
 
             ByteBuf data = append.getData();
-            int msgSize = (TYPE_PLUS_LENGTH_SIZE + data.readableBytes());
+            int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
             // Is there enough space for a subsequent message after this one?
             if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
                 bytesLeftInBlock -= writeMessage(new Event(data), out);

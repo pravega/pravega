@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -33,37 +33,36 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
     private final String connectionName;
-	private final ReplyProcessor processor;
-	private final AtomicReference<Channel> channel = new AtomicReference<>();
+    private final ReplyProcessor processor;
+    private final AtomicReference<Channel> channel = new AtomicReference<>();
 
-	ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor) {
+    ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor) {
         Preconditions.checkNotNull(processor);
         this.connectionName = connectionName;
-	    this.processor = processor;
-	}
-	
-	@Override
-	public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
-		super.channelRegistered(ctx);
-		channel.set(ctx.channel());
-	}
+        this.processor = processor;
+    }
+
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        super.channelRegistered(ctx);
+        channel.set(ctx.channel());
+    }
 
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-    	channel.set(null);
-    	super.channelUnregistered(ctx);
+        channel.set(null);
+        super.channelUnregistered(ctx);
     }
-	
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-    	Reply cmd = (Reply) msg;
-    	log.debug(connectionName+ " processing reply: {}",cmd);
-		cmd.process(processor);
+        Reply cmd = (Reply) msg;
+        log.debug(connectionName + " processing reply: {}", cmd);
+        cmd.process(processor);
     }
 
     @Override
@@ -74,36 +73,36 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         ctx.close();
     }
 
-	@Override
-	public void send(WireCommand cmd) throws ConnectionFailedException {
-		try {
+    @Override
+    public void send(WireCommand cmd) throws ConnectionFailedException {
+        try {
             getChannel().writeAndFlush(cmd).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(connectionName+ " Send call was interrupted", e);
+            throw new RuntimeException(connectionName + " Send call was interrupted", e);
         } catch (ExecutionException e) {
             throw new ConnectionFailedException(e.getCause());
         }
-	}
+    }
 
-	@Override
-	public void close() {
-		Channel ch = channel.get();
-		if (ch != null) {
-			ch.close();
-		}
-	}
-	
-	private Channel getChannel() {
-		Channel ch = channel.get();
-		Preconditions.checkState(ch != null, connectionName+ " Connection not yet established.");
-		return ch;
-	}
+    @Override
+    public void close() {
+        Channel ch = channel.get();
+        if (ch != null) {
+            ch.close();
+        }
+    }
 
-//	@Override
-//	public boolean isConnected() {
-//		Channel c = channel.get();
-//		return c!=null && c.isOpen();
-//	}
-	
+    private Channel getChannel() {
+        Channel ch = channel.get();
+        Preconditions.checkState(ch != null, connectionName + " Connection not yet established.");
+        return ch;
+    }
+
+    // @Override
+    // public boolean isConnected() {
+    // Channel c = channel.get();
+    // return c!=null && c.isOpen();
+    // }
+
 }

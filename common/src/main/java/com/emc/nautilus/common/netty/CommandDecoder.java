@@ -48,6 +48,7 @@ import lombok.extern.slf4j.Slf4j;
  * which must be an AppendBlockEnd.
  * The AppendBlockEnd command should have all of the information need to construct a single
  * Append object with all of the Events in the block.
+ * 
  * @See CommandEncoder For details about handling of PartialEvents
  */
 @Slf4j
@@ -80,17 +81,21 @@ public class CommandDecoder extends ByteToMessageDecoder {
         if (currentBlock != null && command.getType() != APPEND_BLOCK_END) {
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
         }
+        WireCommand result;
         switch (command.getType()) {
         case PADDING:
-            return null;
+            result = null;
+            break;
         case SETUP_APPEND:
             SetupAppend append = (SetupAppend) command;
             appendingSegments.put(append.getConnectionId(), new Segment(append.getSegment()));
-            return command;
+            result = command;
+            break;
         case APPEND_BLOCK:
             getSegment(((AppendBlock) command).getConnectionId());
             currentBlock = (AppendBlock) command;
-            return null;
+            result = null;
+            break;
         case APPEND_BLOCK_END:
             AppendBlockEnd blockEnd = (AppendBlockEnd) command;
             if (currentBlock == null) {
@@ -111,10 +116,13 @@ public class CommandDecoder extends ByteToMessageDecoder {
             ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
             segment.lastEventNumber = blockEnd.lastEventNumber;
             currentBlock = null;
-            return new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf);
+            result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf);
+            break;
         default:
-            return command;
+            result = command;
+            break;
         }
+        return result;
     }
 
     private ByteBuf getAppendDataBuf(AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
