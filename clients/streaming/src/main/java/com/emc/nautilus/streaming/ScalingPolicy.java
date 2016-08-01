@@ -20,12 +20,15 @@ package com.emc.nautilus.streaming;
 import lombok.Data;
 
 @Data
-public class ScalingPolicy { // TODO
+public class ScalingPolicy {
     enum Type {
-        FIXED,
-        BY_RATE
+        FIXED_NUM_SEGMENTS,
+        BY_RATE_IN_BYTES,
+        BY_RATE_IN_EVENTS,
     }
 
     private final Type type;
-    private final long value;
+    private final long targetRate;
+    private final int scaleFactor;
+    private final int minNumSegments;
 }

@@ -25,8 +25,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
-import com.emc.nautilus.logclient.LogServiceClient;
+import com.emc.nautilus.logclient.SegmentManager;
 import com.emc.nautilus.logclient.SegmentOutputStream;
 import com.emc.nautilus.logclient.SegmentSealedExcepetion;
 import com.emc.nautilus.streaming.EventRouter;
@@ -38,20 +39,28 @@ import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.StreamSegments;
 import com.emc.nautilus.streaming.Transaction;
 import com.emc.nautilus.streaming.TxFailedException;
+import com.google.common.base.Preconditions;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class ProducerImpl<Type> implements Producer<Type> {
 
     private final TransactionManager txManager;
     private final Stream stream;
     private final Serializer<Type> serializer;
-    private final LogServiceClient logClient;
+    private final SegmentManager logClient;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(TransactionManager txManager, Stream stream, LogServiceClient logClient, EventRouter router,
+    ProducerImpl(TransactionManager txManager, Stream stream, SegmentManager logClient, EventRouter router,
             Serializer<Type> serializer, ProducerConfig config) {
+        Preconditions.checkNotNull(txManager);
+        Preconditions.checkNotNull(stream);
+        Preconditions.checkNotNull(router);
+        Preconditions.checkNotNull(serializer);
         this.txManager = txManager;
         this.logClient = logClient;
         this.stream = stream;
@@ -66,8 +75,10 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
     private List<Event<Type>> setupLogProducers() {
         StreamSegments logs = stream.getLatestSegments();
-        List<SegmentId> newSegments = new ArrayList<>(logs.segments);
-        newSegments.removeAll(producers.keySet());
+        List<SegmentId> newSegments = logs.getSegments()
+            .stream()
+            .filter(key -> !producers.containsKey(key))
+            .collect(Collectors.toList());
         List<SegmentId> oldLogs = new ArrayList<>(producers.keySet());
         oldLogs.removeAll(logs.segments);
 
@@ -82,7 +93,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             try {
                 producer.close();
             } catch (SegmentSealedExcepetion e) {
-                // Suppressing expected exception
+                log.warn("Caught exception closing old producer: ", e);
             }
             toResend.addAll(producer.getUnackedEvents());
         }
@@ -91,9 +102,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
     @Override
     public Future<Void> publish(String routingKey, Type event) {
-        if (closed.get()) {
-            throw new IllegalStateException("Producer closed");
-        }
+        Preconditions.checkState(!closed.get());
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (producers) {
             if (!attemptPublish(new Event<>(routingKey, event, result))) {
@@ -103,6 +112,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
         return result;
     }
 
+    /**
+     * If a log sealed is encountered, we need to
+     * 1. Find the new segments to produce to.
+     * 2. For each outstanding message find which new segment it should go to and send it there.
+     * This can happen recursively if segments turn over very quickly.
+     */
     private void handleLogSealed() {
         List<Event<Type>> toResend = setupLogProducers();
         while (toResend.isEmpty()) {
@@ -192,9 +207,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
     @Override
     public void flush() {
-        if (closed.get()) {
-            throw new IllegalStateException("Producer closed");
-        }
+        Preconditions.checkState(!closed.get());
         boolean success = false;
         while (!success) {
             success = true;

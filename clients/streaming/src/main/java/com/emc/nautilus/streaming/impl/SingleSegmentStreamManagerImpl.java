@@ -21,14 +21,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
-import com.emc.nautilus.logclient.impl.LogServiceClientImpl;
+import com.emc.nautilus.logclient.impl.SegmentManagerImpl;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.StreamConfiguration;
 import com.emc.nautilus.streaming.StreamManager;
 
 public class SingleSegmentStreamManagerImpl implements StreamManager {
 
-    private final LogServiceClientImpl logServiceClient;
+    private final SegmentManagerImpl segmentManager;
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ConnectionFactory clientCF;
@@ -36,7 +36,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     public SingleSegmentStreamManagerImpl(String endpoint, int port, String scope) {
         this.scope = scope;
         this.clientCF = new ConnectionFactoryImpl(false, port);
-        this.logServiceClient = new LogServiceClientImpl(endpoint, clientCF);
+        this.segmentManager = new SegmentManagerImpl(endpoint, clientCF);
     }
 
     @Override
@@ -44,7 +44,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
         boolean existed = created.containsKey(streamName);
         Stream stream = createStreamHelper(streamName, config);
         if (!existed) {
-            logServiceClient.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
+            segmentManager.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
         }
         return stream;
     }
@@ -55,7 +55,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, logServiceClient);
+        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, segmentManager);
         created.put(streamName, stream);
         return stream;
     }

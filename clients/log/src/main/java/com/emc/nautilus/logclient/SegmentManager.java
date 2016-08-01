@@ -20,13 +20,10 @@ package com.emc.nautilus.logclient;
 import java.util.UUID;
 
 //Defines a client for the log. The actual implementation of this class will connect to a service & manage TCP connections.
-public interface LogServiceClient {
+public interface SegmentManager {
 	// Creates a new stream with given name. Returns false if the stream already
 	// existed
 	boolean createSegment(String name);
-
-	// Determines whether the log exists or not.
-	boolean segmentExists(String name);
 
 	SegmentOutputStream openTransactionForAppending(String name, UUID txId);
 	

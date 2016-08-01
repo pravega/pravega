@@ -25,6 +25,7 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
 import com.emc.nautilus.common.utils.CircularBuffer;
 import com.emc.nautilus.logclient.EndOfSegmentException;
 import com.emc.nautilus.logclient.SegmentInputStream;
+import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -59,9 +60,13 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 		return buffer.dataAvailable();
 	}
 
+	/**
+	 * @see com.emc.nautilus.logclient.SegmentInputStream#read(java.nio.ByteBuffer)
+	 */
 	@Override
 	@Synchronized
 	public int read(ByteBuffer toFill) throws EndOfSegmentException {
+	    Preconditions.checkNotNull(toFill);
 		issueRequestIfNeeded();
 		if (outstandingRequest.isDone() || buffer.dataAvailable() <= 0) {
 			try {
@@ -98,6 +103,9 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 		}
 	}
 
+	/**
+	 * @return If there is enough room for another request, and we aren't already waiting on one
+	 */
 	private void issueRequestIfNeeded() {
 		if (!receivedEndOfStream && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
 			outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), READ_LENGTH);

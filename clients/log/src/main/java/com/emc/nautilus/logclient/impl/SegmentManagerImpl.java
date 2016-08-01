@@ -29,7 +29,7 @@ import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
-import com.emc.nautilus.logclient.LogServiceClient;
+import com.emc.nautilus.logclient.SegmentManager;
 import com.emc.nautilus.logclient.SegmentInputConfiguration;
 import com.emc.nautilus.logclient.SegmentInputStream;
 import com.emc.nautilus.logclient.SegmentOutputConfiguration;
@@ -41,7 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-public class LogServiceClientImpl implements LogServiceClient {
+public class SegmentManagerImpl implements SegmentManager {
 
 	private final String endpoint;
 	private final ConnectionFactory connectionFactory;
@@ -76,12 +76,6 @@ public class LogServiceClientImpl implements LogServiceClient {
 		} catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }
-	}
-
-	@Override
-	public boolean segmentExists(String name) {
-		// TODO Auto-generated method stub
-		return false;
 	}
 
 	@Override

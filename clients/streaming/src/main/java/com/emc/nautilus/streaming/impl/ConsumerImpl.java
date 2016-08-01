@@ -15,13 +15,14 @@
 package com.emc.nautilus.streaming.impl;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.emc.nautilus.logclient.EndOfSegmentException;
-import com.emc.nautilus.logclient.LogServiceClient;
+import com.emc.nautilus.logclient.SegmentManager;
 import com.emc.nautilus.logclient.SegmentInputStream;
 import com.emc.nautilus.streaming.Consumer;
 import com.emc.nautilus.streaming.ConsumerConfig;
@@ -34,55 +35,52 @@ import com.emc.nautilus.streaming.Stream;
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
     private final Serializer<Type> deserializer;
-    private final LogServiceClient logServiceClient;
+    private final SegmentManager segmentManager;
 
     private final Stream stream;
     private final Orderer<Type> orderer;
     private final RateChangeListener rateChangeListener;
     private final ConsumerConfig config;
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
-    private final Map<SegmentId, Long> futureOwnedLogs;
+    private final Map<SegmentId, Long> futureOwnedLogs = new HashMap<>();
 
-    ConsumerImpl(Stream stream, LogServiceClient logClient, Serializer<Type> deserializer, PositionImpl position,
+    ConsumerImpl(Stream stream, SegmentManager segmentManager, Serializer<Type> deserializer, PositionImpl position,
             Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
         this.deserializer = deserializer;
         this.stream = stream;
-        this.logServiceClient = logClient;
+        this.segmentManager = segmentManager;
         this.orderer = orderer;
         this.rateChangeListener = rateChangeListener;
         this.config = config;
-        this.futureOwnedLogs = position.getFutureOwnedLogs();
-        for (SegmentId s : position.getOwnedSegments()) {
-            SegmentInputStream in = logClient.openLogForReading(s.getQualifiedName(), config.getSegmentConfig());
-            in.setOffset(position.getOffsetForOwnedLog(s));
-            consumers.add(new LogConsumerImpl<>(s, in, deserializer));
-        }
+        setPosition(position);
     }
+
+
 
     @Override
     public Type getNextEvent(long timeout) {
         synchronized (consumers) {
-            SegmentConsumer<Type> log = orderer.nextConsumer(consumers);
+            SegmentConsumer<Type> segment = orderer.nextConsumer(consumers);
             try {
-                return log.getNextEvent(timeout);
+                return segment.getNextEvent(timeout);
             } catch (EndOfSegmentException e) {
-                handleEndOfLog(log);
+                handleEndOfSegment(segment);
                 return null;
             }
         }
     }
 
-    private void handleEndOfLog(SegmentConsumer<Type> oldSegment) {
+    private void handleEndOfSegment(SegmentConsumer<Type> oldSegment) {
         consumers.remove(oldSegment);
         SegmentId oldLogId = oldSegment.getLogId();
         Optional<SegmentId> replacment = futureOwnedLogs.keySet().stream().filter(l -> l.succeeds(oldLogId)).findAny();
         if (replacment.isPresent()) {
             SegmentId segmentId = replacment.get();
             Long position = futureOwnedLogs.remove(segmentId);
-            SegmentInputStream in = logServiceClient.openLogForReading(segmentId.getQualifiedName(),
+            SegmentInputStream in = segmentManager.openLogForReading(segmentId.getQualifiedName(),
                                                                        config.getSegmentConfig());
             in.setOffset(position);
-            consumers.add(new LogConsumerImpl<>(segmentId, in, deserializer));
+            consumers.add(new SegmentConsumerImpl<>(segmentId, in, deserializer));
             rateChangeListener.rateChanged(stream, false);
         } else {
             rateChangeListener.rateChanged(stream, true);
@@ -105,8 +103,15 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 
     @Override
     public void setPosition(Position state) {
+        PositionImpl position = state.asImpl();
         synchronized (consumers) {
-            // TODO Auto-generated method stub
+            futureOwnedLogs.clear();
+            futureOwnedLogs.putAll(position.getFutureOwnedLogs());
+            for (SegmentId s : position.getOwnedSegments()) {
+                SegmentInputStream in = segmentManager.openLogForReading(s.getQualifiedName(), config.getSegmentConfig());
+                in.setOffset(position.getOffsetForOwnedLog(s));
+                consumers.add(new SegmentConsumerImpl<>(s, in, deserializer));
+            }
         }
     }
 

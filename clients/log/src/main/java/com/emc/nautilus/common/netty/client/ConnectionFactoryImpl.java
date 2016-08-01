@@ -29,6 +29,8 @@ import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.ExceptionLoggingHandler;
 import com.emc.nautilus.common.netty.ReplyProcessor;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelInitializer;
@@ -68,6 +70,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
 	@Override
 	public ClientConnection establishConnection(String host, ReplyProcessor rp) {
+	    Preconditions.checkArgument(!Strings.isNullOrEmpty(host));
 		final SslContext sslCtx;
 		if (ssl) {
 			try {
