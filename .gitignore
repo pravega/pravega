@@ -1,11 +1,11 @@
 .project
 build
 .classpath
-clients/streaming/bin/
+bin/
 .settings
 .gradle
 output
 .idea
 .iml
 target
-integrationtests/log/
+log/
