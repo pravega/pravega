@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -24,13 +24,13 @@ import com.emc.nautilus.logclient.SegmentInputStream;
 import com.emc.nautilus.streaming.SegmentId;
 import com.emc.nautilus.streaming.Serializer;
 
-public class LogConsumerImpl<Type> implements SegmentConsumer<Type> {
+public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
 
     private final SegmentId segmentId;
     private final SegmentInputStream in;
     private final Serializer<Type> deserializer;
 
-    LogConsumerImpl(SegmentId segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
+    SegmentConsumerImpl(SegmentId segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
         this.segmentId = segmentId;
         this.in = in;
         this.deserializer = deserializer;
@@ -39,7 +39,8 @@ public class LogConsumerImpl<Type> implements SegmentConsumer<Type> {
     @Override
     public Type getNextEvent(long timeout) throws EndOfSegmentException {
         ByteBuffer buffer;
-        synchronized (in) { // TODO: This implementation sucks.
+        synchronized (in) { // TODO: This implementation sucks. It is unnecessary allocating 2 byte
+                            // arrays. This could be made less redundant with lower level code.
             buffer = ByteBuffer.allocate(4);
             in.read(buffer);
             int length = buffer.getInt();

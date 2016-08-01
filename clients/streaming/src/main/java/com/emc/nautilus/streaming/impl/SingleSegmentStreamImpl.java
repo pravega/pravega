@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -17,9 +17,10 @@
  */
 package com.emc.nautilus.streaming.impl;
 
+import java.util.Collection;
 import java.util.Collections;
 
-import com.emc.nautilus.logclient.LogServiceClient;
+import com.emc.nautilus.logclient.SegmentManager;
 import com.emc.nautilus.streaming.Consumer;
 import com.emc.nautilus.streaming.ConsumerConfig;
 import com.emc.nautilus.streaming.EventRouter;
@@ -32,6 +33,7 @@ import com.emc.nautilus.streaming.Serializer;
 import com.emc.nautilus.streaming.Stream;
 import com.emc.nautilus.streaming.StreamConfiguration;
 import com.emc.nautilus.streaming.StreamSegments;
+import com.google.common.base.Preconditions;
 
 import lombok.Getter;
 
@@ -42,26 +44,36 @@ public class SingleSegmentStreamImpl implements Stream {
     private final String name;
     @Getter
     private final StreamConfiguration config;
-    private final SegmentId logId;
-    private final LogServiceClient logClient;
+    private final SegmentId segmentId;
+    private final SegmentManager segmentManager;
     private final EventRouter router = new EventRouter() {
         @Override
         public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
-            return logId;
+            return segmentId;
         }
     };
 
-    public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config, LogServiceClient logClient) {
+    private static final class SingleStreamOrderer<T> implements Orderer<T> {
+        @Override
+        public SegmentConsumer<T> nextConsumer(Collection<SegmentConsumer<T>> logs) {
+            Preconditions.checkState(logs.size() == 1);
+            return logs.iterator().next();
+        }
+    };
+
+    public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config,
+            SegmentManager segmentManager) {
+        Preconditions.checkNotNull(segmentManager);
         this.scope = scope;
         this.name = name;
         this.config = config;
-        this.logClient = logClient;
-        this.logId = new SegmentId(scope, name, 1, 0);
+        this.segmentManager = segmentManager;
+        this.segmentId = new SegmentId(scope, name, 1, 0);
     }
 
     @Override
     public StreamSegments getSegments(long time) {
-        return new StreamSegments(Collections.singletonList(logId), time);
+        return new StreamSegments(Collections.singletonList(segmentId), time);
     }
 
     @Override
@@ -76,15 +88,19 @@ public class SingleSegmentStreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<T>(null, this, logClient, router, s, config);
+        return new ProducerImpl<>(null, this, segmentManager, router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
-        return null;
-        // return new ConsumerImpl<>(this, logClient, s, startingPosition,
-        // orderer, l, config);
+        return new ConsumerImpl<>(this,
+                segmentManager,
+                s,
+                startingPosition.asImpl(),
+                new SingleStreamOrderer<T>(),
+                l,
+                config);
     }
 
 }

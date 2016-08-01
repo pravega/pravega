@@ -36,7 +36,7 @@ import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.client.ConnectionFactoryImpl;
 import com.emc.nautilus.logclient.SegmentOutputStream;
-import com.emc.nautilus.logclient.impl.LogServiceClientImpl;
+import com.emc.nautilus.logclient.impl.SegmentManagerImpl;
 import com.emc.nautilus.streaming.Producer;
 import com.emc.nautilus.streaming.ProducerConfig;
 import com.emc.nautilus.streaming.Stream;
@@ -153,7 +153,7 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        LogServiceClientImpl logClient = new LogServiceClientImpl(endpoint, clientCF);
+        SegmentManagerImpl logClient = new SegmentManagerImpl(endpoint, clientCF);
         logClient.createSegment(segmentName);
         @Cleanup("close")
         SegmentOutputStream out = logClient.openSegmentForAppending(segmentName, null);
