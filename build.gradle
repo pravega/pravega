@@ -21,7 +21,6 @@ allprojects {
         toolVersion = "7.1"
     }
     
-    // In this section you declare where to find the dependencies of your project
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -35,7 +34,6 @@ allprojects {
         configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
     }
 
-// In this section you declare the dependencies for your production and test code
     dependencies {
         // The production code uses the SLF4J logging API at compile time
         compile 'org.slf4j:slf4j-api:1.7.14'
@@ -53,12 +51,12 @@ allprojects {
         compile 'org.projectlombok:lombok:1.16.8'
         compile 'io.netty:netty-all:4.0.36.Final'
         // put maven reference for twitter DL
-		testCompile "org.mockito:mockito-core:2.+"
+        testCompile "org.mockito:mockito-core:2.+"
     }
 
 }
 
-def pkgs = ['common', 'clients:streming', 'streaming', 'logservice-server', 'integrationtests']
+def pkgs = ['common', 'clients:streming', 'logservice-server', 'integrationtests']
 
 project('common') {}
 
@@ -69,8 +67,6 @@ project('clients:streaming') {
         testCompile project(':testcommon')
     }
 }
-
-project('streaming') {}
 
 project('testcommon') {
     dependencies {
