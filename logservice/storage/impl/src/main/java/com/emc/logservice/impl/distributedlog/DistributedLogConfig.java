@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.storageimplementation.distributedlog;
+package com.emc.logservice.storage.impl.distributedlog;
 
 import com.emc.nautilus.common.util.ComponentConfig;
 import com.emc.nautilus.common.util.ConfigurationException;

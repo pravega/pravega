@@ -21,8 +21,8 @@ package com.emc.logservice.serverhost;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.storage.DurableDataLogFactory;
-import com.emc.logservice.storageimplementation.distributedlog.DistributedLogConfig;
-import com.emc.logservice.storageimplementation.distributedlog.DistributedLogDataLogFactory;
+import com.emc.logservice.storage.impl.distributedlog.DistributedLogConfig;
+import com.emc.logservice.storage.impl.distributedlog.DistributedLogDataLogFactory;
 
 import java.util.concurrent.CompletionException;
 

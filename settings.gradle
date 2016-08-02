@@ -12,5 +12,5 @@
 // To declare projects as part of a multi-project build use the 'include' method
 
 
-include 'common', 'clients:streaming', 'logservice:contracts', 'logservice:storage', 'logservice:storageimplementation', 'logservice:server', 'logservice:serverhost', 'integrationtests', 'testcommon'
+include 'common', 'clients:streaming', 'logservice:contracts', 'logservice:storage', 'logservice:storage:impl', 'logservice:server', 'logservice:serverhost', 'integrationtests', 'testcommon'
 

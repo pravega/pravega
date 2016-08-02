@@ -96,7 +96,7 @@ project('logservice:storage') {
     }
 }
 
-project('logservice:storageimplementation') {
+project('logservice:storage:impl') {
     dependencies {
         compile 'com.twitter:distributedlog-core:0.3.51-RC1'
         compile 'com.twitter:distributedlog-client:0.3.51-RC1'
@@ -120,7 +120,7 @@ project('logservice:serverhost') {
         compile project(':common')
         compile project(':logservice:contracts')
         compile project(':logservice:storage')
-        compile project(':logservice:storageimplementation')
+        compile project(':logservice:storage:impl')
         compile project(':logservice:server')
         testCompile project(':testcommon')
     }

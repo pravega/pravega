@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.storageimplementation.distributedlog;
+package com.emc.logservice.storage.impl.distributedlog;
 
 import com.emc.logservice.storage.DurableDataLog;
 import com.emc.logservice.storage.DurableDataLogException;

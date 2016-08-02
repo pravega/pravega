@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.storageimplementation.distributedlog;
+package com.emc.logservice.storage.impl.distributedlog;
 
 /**
  * Generates DistributedLog Log Names from StreamSegmentContainer Ids.
