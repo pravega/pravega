@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.serverhost.handler;
+package com.emc.logservice.server.host.handler;
 
 import java.util.concurrent.atomic.AtomicReference;
 

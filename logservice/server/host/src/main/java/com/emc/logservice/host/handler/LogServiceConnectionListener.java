@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.serverhost.handler;
+package com.emc.logservice.server.host.handler;
 
 import static com.emc.nautilus.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 

@@ -13,7 +13,7 @@
  * the License.
  */
 
-package com.emc.logservice.serverhost.handler;
+package com.emc.logservice.server.host.handler;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 

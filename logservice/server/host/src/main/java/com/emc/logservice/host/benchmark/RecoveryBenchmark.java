@@ -16,11 +16,16 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.serverhost.benchmark;
+package com.emc.logservice.server.host.benchmark;
 
 import com.emc.nautilus.common.concurrent.FutureHelpers;
 import com.emc.logservice.contracts.AppendContext;
+import com.emc.logservice.contracts.ContainerNotFoundException;
+import com.emc.logservice.contracts.RuntimeStreamingException;
 import com.emc.logservice.contracts.StreamSegmentStore;
+import com.emc.logservice.server.ContainerHandle;
+import com.emc.logservice.server.SegmentContainer;
+import com.emc.logservice.server.SegmentContainerRegistry;
 import com.emc.logservice.server.service.ServiceBuilder;
 import lombok.Cleanup;
 
@@ -32,26 +37,33 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 /**
- * StreamSegmentStore Benchmark when doing only Appends.
+ * StreamSegmentStore benchmark for Recovery.
  */
-public class AppendsOnlyBenchmark extends Benchmark {
-    //region Test Parameters
+public class RecoveryBenchmark extends Benchmark {
+    //region TestParameters
 
-    private static final int APPEND_COUNT = 10000;
-    private static final int MAX_APPEND_SIZE = ONE_MB;
-    private static final int[] BURST_SIZES = new int[]{1, 100, 1000, Integer.MAX_VALUE};
-    private static final int[] APPEND_SIZES = new int[]{100, 1024, 10 * 1024, 100 * 1024, MAX_APPEND_SIZE};
-    private static final int[] SEGMENT_COUNTS = new int[]{1, 5, 10, 20};
+    private static final int[] SEGMENT_COUNTS = new int[]{1};
+    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128};
+    private static final int[] APPEND_SIZES = new int[]{ONE_MB};
+    //    private static final int[] SEGMENT_COUNTS = new int[]{1, 1000, 100 * 1000};
+    //    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128, 512, 1024, 2048};
+    //    private static final int[] APPEND_SIZES = new int[]{100, 10 * 1024, 100 * 1024, ONE_MB};
     private static final List<TestInput> INPUTS;
 
     static {
-        // Config for Append-Only test
         INPUTS = new ArrayList<>();
         for (int segmentCount : SEGMENT_COUNTS) {
-            int appendCount = APPEND_COUNT / segmentCount;
-            for (int appendSize : APPEND_SIZES) {
-                for (int burstSize : BURST_SIZES) {
-                    INPUTS.add(new TestInput(segmentCount, appendCount, appendSize, burstSize));
+            for (long totalAppendMb : TOTAL_APPEND_LENGTH_MB) {
+                for (int appendSize : APPEND_SIZES) {
+                    // Calculate # of appends per segment, given total number of appends, their sizes, and # of segments.
+                    int appendCount = (int) (totalAppendMb * ONE_MB / appendSize / segmentCount);
+                    if (appendCount <= 0) {
+                        // Some combinations really don't make sense, but that's what we get for doing a cross-product
+                        // of various sets of input parameters. It's OK, we can safely skip these.
+                        continue;
+                    }
+
+                    INPUTS.add(new TestInput(segmentCount, appendCount, appendSize, totalAppendMb * ONE_MB));
                 }
             }
         }
@@ -61,7 +73,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
 
     //region Constructor
 
-    public AppendsOnlyBenchmark(Supplier<ServiceBuilder> serviceBuilderProvider) {
+    public RecoveryBenchmark(Supplier<ServiceBuilder> serviceBuilderProvider) {
         super(serviceBuilderProvider);
     }
 
@@ -76,8 +88,13 @@ public class AppendsOnlyBenchmark extends Benchmark {
         for (TestInput input : INPUTS) {
             @Cleanup
             ServiceBuilder serviceBuilder = super.serviceBuilderProvider.get();
-            TestOutput output = runSingleBenchmark(input, serviceBuilder);
-            results.add(output);
+            try {
+                TestOutput output = runSingleBenchmark(input, serviceBuilder);
+                results.add(output);
+            } catch (Exception ex) {
+                System.out.println(ex);
+                throw ex;
+            }
         }
 
         printResults(results);
@@ -85,7 +102,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
 
     @Override
     protected String getTestName() {
-        return "AppendOnly";
+        return "Recovery";
     }
 
     //endregion
@@ -93,9 +110,22 @@ public class AppendsOnlyBenchmark extends Benchmark {
     //region Actual benchmark implementation
 
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
+        final String containerId = "0";
         log("Running %s", testInput);
 
         serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+        SegmentContainerRegistry containerRegistry = serviceBuilder.getSegmentContainerRegistry();
+        if (containerRegistry.getContainerCount() != 1) {
+            throw new IllegalStateException("This benchmark only works if there is exactly one container registered.");
+        }
+
+        SegmentContainer container;
+        try {
+            container = serviceBuilder.getSegmentContainerRegistry().getContainer(containerId);
+        } catch (ContainerNotFoundException ex) {
+            throw new RuntimeStreamingException(ex);
+        }
+
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         List<String> segmentNames = createStreamSegments(store, testInput.segmentCount);
 
@@ -103,90 +133,62 @@ public class AppendsOnlyBenchmark extends Benchmark {
         // time the StreamSegmentStore uses to process the append, not to do extra copying in memory.
         final byte[] appendData = new byte[testInput.appendSize];
         final UUID clientId = UUID.randomUUID();
-        final long testStartTime = System.nanoTime();
 
-        // Store the Futures for all appends in the current burst. We will occasionally wait for all of them, based
-        // on test input.
-        List<CompletableFuture<Void>> burstResults = new ArrayList<>();
-        TestOutput result = new TestOutput(testInput, new SeriesStatistic());
-
+        // Do all the appends.
+        List<CompletableFuture<Long>> appendCompletions = new ArrayList<>();
         for (int appendIndex = 0; appendIndex < testInput.appendsPerSegment; appendIndex++) {
             // Append context is unique per Append Index (we can share it with multiple StreamSegments).
             AppendContext appendContext = new AppendContext(clientId, appendIndex);
             for (String segmentName : segmentNames) {
-                // Do the append.
-                final long startTimeNanos = System.nanoTime();
-                CompletableFuture<Void> completionFuture = store
-                        .append(segmentName, appendData, appendContext, TIMEOUT)
-                        .thenRunAsync(() -> {
-                            // Record latencies when the future is done.
-                            long elapsedNanos = System.nanoTime() - startTimeNanos;
-                            synchronized (result) {
-                                result.totalAppendLength += appendData.length;
-                                result.latencies.add(elapsedNanos / 1000000.0);
-                            }
-                        });
-                burstResults.add(completionFuture);
-
-                // Check to see if we need to wait on the recently added appends.
-                if (burstResults.size() >= testInput.burstSize) {
-                    FutureHelpers.allOf(burstResults).join();
-                    burstResults.clear();
-                }
+                CompletableFuture<Long> appendCompletion = store.append(segmentName, appendData, appendContext, TIMEOUT);
+                appendCompletions.add(appendCompletion);
             }
         }
 
-        if (burstResults.size() > 0) {
-            FutureHelpers.allOf(burstResults).join();
-            burstResults.clear();
-        }
+        // Wait for all appends to be committed.
+        FutureHelpers.allOf(appendCompletions).join();
 
+        // Stop the service and do a recovery.
+        container.stopAsync().awaitTerminated();
+        container.close();
+        TestOutput result = new TestOutput(testInput);
+        final long testStartTime = System.nanoTime();
+        ContainerHandle handle = serviceBuilder.getSegmentContainerRegistry().startContainer(containerId, TIMEOUT).join();
         result.totalDurationNanos = System.nanoTime() - testStartTime;
-        result.latencies.snapshot();
         return result;
     }
 
     private void printResults(List<TestOutput> results) {
         Collections.sort(results);
-        printResultLine("Segments", "Appends", "Append Size", "Burst Size", "TPut(MB/S)", "L.min", "L.max", "L.avg", "L.50%", "L.90%", "L.95%", "L.99%", "L.99.9%");
+        printResultLine("Segments", "Appends", "Append Size", "TotalLength (MB)", "TPut(MB/S)", "Duration (s)");
         for (TestOutput result : results) {
             int appendCount = result.input.segmentCount * result.input.appendsPerSegment;
-            double mbps = (double) result.totalAppendLength / ONE_MB / (result.totalDurationNanos / 1000.0 / 1000 / 1000);
+            double duration = result.totalDurationNanos / 1000.0 / 1000 / 1000;
+            double mbps = (double) result.input.totalAppendLength / ONE_MB / duration;
             printResultLine(
                     result.input.segmentCount,
                     appendCount,
                     result.input.appendSize,
-                    result.input.burstSize,
+                    result.input.totalAppendLength / ONE_MB,
                     mbps,
-                    result.latencies.min(),
-                    result.latencies.max(),
-                    result.latencies.avg(),
-                    result.latencies.percentile(50),
-                    result.latencies.percentile(90),
-                    result.latencies.percentile(95),
-                    result.latencies.percentile(99),
-                    result.latencies.percentile(99.9));
+                    duration);
         }
     }
-
     //endregion
 
     //region TestOutput
 
     private static class TestOutput implements Comparable<TestOutput> {
         public final TestInput input;
-        public long totalAppendLength;
         public long totalDurationNanos;
-        public final SeriesStatistic latencies;
 
-        public TestOutput(TestInput input, SeriesStatistic latencies) {
+        public TestOutput(TestInput input) {
             this.input = input;
-            this.latencies = latencies;
         }
 
         @Override
         public String toString() {
-            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.totalAppendLength / ONE_MB / (this.totalDurationNanos / 1000000000), this.latencies);
+            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.input.totalAppendLength / ONE_MB / (this.totalDurationNanos / 1000000000));
         }
 
         @Override
@@ -203,18 +205,18 @@ public class AppendsOnlyBenchmark extends Benchmark {
         public final int segmentCount;
         public final int appendsPerSegment;
         public final int appendSize;
-        public final int burstSize;
+        public final long totalAppendLength;
 
-        public TestInput(int segmentCount, int appendsPerSegment, int appendSize, int burstSize) {
+        public TestInput(int segmentCount, int appendsPerSegment, int appendSize, long totalAppendLength) {
             this.segmentCount = segmentCount;
             this.appendsPerSegment = appendsPerSegment;
             this.appendSize = appendSize;
-            this.burstSize = burstSize;
+            this.totalAppendLength = totalAppendLength;
         }
 
         @Override
         public String toString() {
-            return String.format("Segments = %d, App/Seg = %d, App.Size = %d, BurstSize = %d", this.segmentCount, this.appendsPerSegment, this.appendSize, this.burstSize);
+            return String.format("Segments = %d, App/Seg = %d, App.Size = %d, TotalAppendLength = %d", this.segmentCount, this.appendsPerSegment, this.appendSize, this.totalAppendLength);
         }
 
         @Override
@@ -227,7 +229,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
                 diff = testInput.appendSize - this.appendSize;
             }
             if (diff != 0) {
-                diff = testInput.burstSize - this.burstSize;
+                diff = Long.compare(testInput.totalAppendLength, this.totalAppendLength);
             }
 
             return diff;

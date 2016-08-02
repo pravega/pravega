@@ -1,32 +1,19 @@
 package com.emc.nautilus.integrationtests;
 
-import static com.emc.nautilus.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
-
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.logservice.contracts.StreamSegmentStore;
+import com.emc.logservice.server.host.handler.AppendProcessor;
+import com.emc.logservice.server.host.handler.LogServiceConnectionListener;
+import com.emc.logservice.server.host.handler.LogServiceRequestProcessor;
+import com.emc.logservice.server.host.handler.ServerConnectionInboundHandler;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
-import com.emc.logservice.serverhost.handler.AppendProcessor;
-import com.emc.logservice.serverhost.handler.LogServiceConnectionListener;
-import com.emc.logservice.serverhost.handler.LogServiceRequestProcessor;
-import com.emc.logservice.serverhost.handler.ServerConnectionInboundHandler;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionFactory;
 import com.emc.nautilus.common.netty.Reply;
 import com.emc.nautilus.common.netty.Request;
 import com.emc.nautilus.common.netty.WireCommand;
-import com.emc.nautilus.common.netty.WireCommands;
 import com.emc.nautilus.common.netty.WireCommands.Append;
 import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
 import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
@@ -42,10 +29,6 @@ import com.emc.nautilus.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.nautilus.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.nautilus.stream.segment.SegmentOutputStream;
 import com.emc.nautilus.stream.segment.impl.SegmentManagerImpl;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -53,6 +36,19 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import static com.emc.nautilus.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class AppendTest {
     private Level originalLevel;

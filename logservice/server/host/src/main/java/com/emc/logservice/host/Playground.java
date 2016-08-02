@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.serverhost;
+package com.emc.logservice.server.host;
 
 import ch.qos.logback.classic.LoggerContext;
 import org.slf4j.LoggerFactory;

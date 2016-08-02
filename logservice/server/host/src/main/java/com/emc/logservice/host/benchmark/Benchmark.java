@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.serverhost.benchmark;
+package com.emc.logservice.server.host.benchmark;
 
 import com.emc.nautilus.common.concurrent.FutureHelpers;
 import com.emc.logservice.contracts.StreamSegmentStore;

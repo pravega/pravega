@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.serverhost;
+package com.emc.logservice.server.host;
 
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
-import com.emc.logservice.serverhost.benchmark.Benchmark;
-import com.emc.logservice.serverhost.benchmark.RecoveryBenchmark;
+import com.emc.logservice.server.host.benchmark.Benchmark;
+import com.emc.logservice.server.host.benchmark.RecoveryBenchmark;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;

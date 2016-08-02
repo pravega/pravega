@@ -115,7 +115,7 @@ project('logservice:server') {
     }
 }
 
-project('logservice:serverhost') {
+project('logservice:server:host') {
     dependencies {
         compile project(':common')
         compile project(':logservice:contracts')
@@ -131,27 +131,27 @@ project('integrationtests') {
         compile project(':common')
         compile project(':clients:streaming')
         compile project(':logservice:server')
-        compile project(':logservice:serverhost')
+        compile project(':logservice:server:host')
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         testCompile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':logservice:server').sourceSets.test.output)
-        testCompile files(project(':logservice:serverhost').sourceSets.test.output)
+        testCompile files(project(':logservice:server:host').sourceSets.test.output)
     }
     task startServer(type: JavaExec) {
-        main = "com.emc.logservice.serverhost.ServiceStarter"
+        main = "com.emc.logservice.server.host.ServiceStarter"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startServerInteractive(type: JavaExec) {
-        main = "com.emc.logservice.serverhost.InteractiveStreamSegmentStoreTester"
+        main = "com.emc.logservice.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
 
     task startBenchmark(type: JavaExec) {
-        main = "com.emc.logservice.serverhost.ServiceBenchmark"
+        main = "com.emc.logservice.server.host.ServiceBenchmark"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
