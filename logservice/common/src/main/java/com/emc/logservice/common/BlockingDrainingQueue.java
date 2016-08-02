@@ -18,6 +18,8 @@
 
 package com.emc.logservice.common;
 
+import com.emc.nautilus.common.Exceptions;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.Condition;

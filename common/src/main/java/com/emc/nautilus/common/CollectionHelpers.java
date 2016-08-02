@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.common;
+package com.emc.nautilus.common;
 
 import java.util.ArrayList;
 import java.util.Collection;

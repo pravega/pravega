@@ -16,11 +16,33 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.common;
+package com.emc.nautilus.common;
+
+import java.time.Duration;
 
 /**
- * Defines a Consumer that takes in one argument and may throw an exception.
+ * Helps figuring out how much time is left from a particular (initial) timeout.
  */
-public interface ConsumerWithException<T, TEx extends Throwable> {
-    void accept(T var1) throws TEx;
+public class TimeoutTimer {
+    private final Duration initialTimeout;
+    private final long initialNanos;
+
+    /**
+     * Creates a new instane of the TimeoutTimer class.
+     *
+     * @param initialTimeout The initial timeout.
+     */
+    public TimeoutTimer(Duration initialTimeout) {
+        this.initialTimeout = initialTimeout;
+        this.initialNanos = System.nanoTime();
+    }
+
+    /**
+     * Calculates how much time is left of the original timeout.
+     *
+     * @return The remaining time.
+     */
+    public Duration getRemaining() {
+        return this.initialTimeout.minusNanos(System.nanoTime() - initialNanos);
+    }
 }

@@ -19,8 +19,8 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.BlockingDrainingQueue;
-import com.emc.logservice.common.LoggerHelpers;
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.nautilus.common.LoggerHelpers;
+import com.emc.nautilus.common.ObjectClosedException;
 import com.emc.logservice.server.Container;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;

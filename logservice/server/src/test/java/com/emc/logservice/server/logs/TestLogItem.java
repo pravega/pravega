@@ -19,7 +19,7 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.FixedByteArrayOutputStream;
-import com.emc.logservice.common.StreamHelpers;
+import com.emc.nautilus.common.StreamHelpers;
 import com.emc.logservice.server.LogItem;
 import com.google.common.base.Preconditions;
 

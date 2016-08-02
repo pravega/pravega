@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.server.LogItem;
 import com.emc.logservice.server.core.MagicGenerator;
 import com.emc.logservice.server.logs.SerializationException;

@@ -18,6 +18,7 @@
 
 package com.emc.logservice.common;
 
+import com.emc.nautilus.common.StreamHelpers;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;

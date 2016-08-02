@@ -19,8 +19,8 @@
 package com.emc.logservice.server.containers;
 
 import com.emc.logservice.common.AutoReleaseLock;
-import com.emc.logservice.common.CollectionHelpers;
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.CollectionHelpers;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.UpdateableContainerMetadata;

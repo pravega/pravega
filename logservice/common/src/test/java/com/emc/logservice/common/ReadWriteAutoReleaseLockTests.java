@@ -18,6 +18,7 @@
 
 package com.emc.logservice.common;
 
+import com.emc.nautilus.common.CallbackHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server;
 
-import com.emc.logservice.common.StringHelpers;
+import com.emc.nautilus.common.StringHelpers;
 
 /**
  * Utility methods for StreamSegment Names.

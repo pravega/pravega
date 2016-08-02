@@ -19,7 +19,7 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ByteArraySegment;
-import com.emc.logservice.common.ConsumerWithException;
+import com.emc.nautilus.common.ConsumerWithException;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;

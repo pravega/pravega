@@ -18,9 +18,9 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.CallbackHelpers;
-import com.emc.logservice.common.ConsumerWithException;
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.CallbackHelpers;
+import com.emc.nautilus.common.ConsumerWithException;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.LogItem;
 import com.emc.logservice.storageabstraction.DurableDataLog;

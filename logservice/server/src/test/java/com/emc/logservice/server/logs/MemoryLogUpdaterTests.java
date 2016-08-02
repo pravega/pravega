@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.server.ContainerMetadata;

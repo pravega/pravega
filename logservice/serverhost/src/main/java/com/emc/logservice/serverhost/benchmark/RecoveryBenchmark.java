@@ -18,7 +18,7 @@
 
 package com.emc.logservice.serverhost.benchmark;
 
-import com.emc.logservice.common.FutureHelpers;
+import com.emc.nautilus.common.FutureHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.contracts.RuntimeStreamingException;

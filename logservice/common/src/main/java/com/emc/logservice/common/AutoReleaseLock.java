@@ -18,6 +18,8 @@
 
 package com.emc.logservice.common;
 
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.ObjectClosedException;
 import com.google.common.base.Preconditions;
 
 import java.time.Duration;

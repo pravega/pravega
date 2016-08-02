@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server;
 
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.

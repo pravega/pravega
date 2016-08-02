@@ -19,8 +19,8 @@
 package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ByteArraySegment;
-import com.emc.logservice.common.ConsumerWithException;
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.ConsumerWithException;
+import com.emc.nautilus.common.Exceptions;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;

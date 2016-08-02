@@ -16,33 +16,28 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.common;
-
-import java.time.Duration;
+package com.emc.nautilus.common;
 
 /**
- * Helps figuring out how much time is left from a particular (initial) timeout.
+ * java.lang.String Extension methods.
  */
-public class TimeoutTimer {
-    private final Duration initialTimeout;
-    private final long initialNanos;
+public final class StringHelpers {
 
     /**
-     * Creates a new instane of the TimeoutTimer class.
+     * Generates a Long hashCode of the given string.
      *
-     * @param initialTimeout The initial timeout.
+     * @param s      The string to calculate the hashcode of.
+     * @param start  The offset in the string to start calculating the offset at.
+     * @param length The number of bytes to calculate the offset for.
+     * @return The result.
      */
-    public TimeoutTimer(Duration initialTimeout) {
-        this.initialTimeout = initialTimeout;
-        this.initialNanos = System.nanoTime();
-    }
+    public static long longHashCode(String s, int start, int length) {
+        // TODO: consider using one of http://google.github.io/guava/releases/19.0/api/docs/index.html?com/google/common/hash/Hashing.html
+        long h = 0;
+        for (int i = 0; i < length; i++) {
+            h = 131L * h + s.charAt(start + i);
+        }
 
-    /**
-     * Calculates how much time is left of the original timeout.
-     *
-     * @return The remaining time.
-     */
-    public Duration getRemaining() {
-        return this.initialTimeout.minusNanos(System.nanoTime() - initialNanos);
+        return h;
     }
 }

@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.StreamHelpers;
+import com.emc.nautilus.common.FutureHelpers;
+import com.emc.nautilus.common.StreamHelpers;
 import com.emc.logservice.contracts.StreamSegmentException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;

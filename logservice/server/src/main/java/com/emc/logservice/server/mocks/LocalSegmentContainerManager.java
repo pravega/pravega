@@ -18,10 +18,10 @@
 
 package com.emc.logservice.server.mocks;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.LoggerHelpers;
-import com.emc.logservice.common.TimeoutTimer;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.FutureHelpers;
+import com.emc.nautilus.common.LoggerHelpers;
+import com.emc.nautilus.common.TimeoutTimer;
 import com.emc.logservice.server.ContainerHandle;
 import com.emc.logservice.server.SegmentContainerManager;
 import com.emc.logservice.server.SegmentContainerRegistry;

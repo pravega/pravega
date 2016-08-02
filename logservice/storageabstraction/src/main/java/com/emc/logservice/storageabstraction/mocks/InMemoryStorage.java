@@ -18,13 +18,13 @@
 
 package com.emc.logservice.storageabstraction.mocks;
 
-import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.storageabstraction.BadOffsetException;
 import com.emc.logservice.storageabstraction.Storage;
+import com.emc.nautilus.common.Exceptions;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

@@ -18,9 +18,9 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.LoggerHelpers;
-import com.emc.logservice.common.TimeoutTimer;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.LoggerHelpers;
+import com.emc.nautilus.common.TimeoutTimer;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.SegmentProperties;

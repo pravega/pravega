@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.StreamHelpers;
+import com.emc.nautilus.common.StreamHelpers;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
 import com.emc.logservice.contracts.ReadResultEntryType;

@@ -19,7 +19,7 @@
 package com.emc.logservice.server.reading;
 
 import com.emc.logservice.common.AutoReleaseLock;
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.server.ContainerMetadata;

@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 
 import java.util.ArrayList;
 import java.util.Collection;

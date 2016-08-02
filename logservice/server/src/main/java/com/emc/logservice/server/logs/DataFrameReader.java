@@ -20,7 +20,7 @@ package com.emc.logservice.server.logs;
 
 import com.emc.logservice.common.ByteArraySegment;
 import com.emc.logservice.common.CloseableIterator;
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.LogItem;
 import com.emc.logservice.server.LogItemFactory;

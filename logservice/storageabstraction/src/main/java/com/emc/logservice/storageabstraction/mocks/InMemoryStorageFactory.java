@@ -18,9 +18,9 @@
 
 package com.emc.logservice.storageabstraction.mocks;
 
-import com.emc.logservice.common.ObjectClosedException;
 import com.emc.logservice.storageabstraction.Storage;
 import com.emc.logservice.storageabstraction.StorageFactory;
+import com.emc.nautilus.common.ObjectClosedException;
 
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.

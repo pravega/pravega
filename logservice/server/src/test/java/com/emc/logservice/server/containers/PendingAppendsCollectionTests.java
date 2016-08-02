@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.nautilus.common.ObjectClosedException;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.nautilus.testcommon.AssertExtensions;

@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.ObjectClosedException;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.google.common.base.Preconditions;

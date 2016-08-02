@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server;
 
-import com.emc.logservice.common.TimeoutTimer;
+import com.emc.nautilus.common.TimeoutTimer;
 import com.google.common.util.concurrent.Service;
 
 import java.time.Duration;

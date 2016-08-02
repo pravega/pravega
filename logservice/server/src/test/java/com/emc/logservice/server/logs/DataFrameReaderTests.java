@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ObjectClosedException;
+import com.emc.nautilus.common.ObjectClosedException;
 import com.emc.logservice.server.DataCorruptionException;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.LogItemFactory;

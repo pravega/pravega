@@ -19,11 +19,11 @@
 package com.emc.logservice.storageabstraction.mocks;
 
 import com.emc.logservice.common.CloseableIterator;
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.StreamHelpers;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;

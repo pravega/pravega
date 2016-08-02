@@ -18,9 +18,9 @@
 
 package com.emc.logservice.server.service;
 
-import com.emc.logservice.common.CallbackHelpers;
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.LoggerHelpers;
+import com.emc.nautilus.common.CallbackHelpers;
+import com.emc.nautilus.common.FutureHelpers;
+import com.emc.nautilus.common.LoggerHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.contracts.ReadResult;
@@ -38,7 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static com.emc.logservice.common.LoggerHelpers.traceLeave;
+import static com.emc.nautilus.common.LoggerHelpers.traceLeave;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.

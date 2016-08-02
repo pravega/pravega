@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.common;
+package com.emc.nautilus.common;
 
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Test;

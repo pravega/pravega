@@ -18,7 +18,7 @@
 
 package com.emc.logservice.serverhost.benchmark;
 
-import com.emc.logservice.common.FutureHelpers;
+import com.emc.nautilus.common.FutureHelpers;
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.google.common.base.Preconditions;

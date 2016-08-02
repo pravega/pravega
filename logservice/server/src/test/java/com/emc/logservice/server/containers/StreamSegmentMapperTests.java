@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.FutureHelpers;
+import com.emc.nautilus.common.FutureHelpers;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;

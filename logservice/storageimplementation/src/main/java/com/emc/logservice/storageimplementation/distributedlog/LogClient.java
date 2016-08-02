@@ -18,11 +18,11 @@
 
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.LoggerHelpers;
 import com.emc.logservice.storageabstraction.DataLogInitializationException;
 import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.LoggerHelpers;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.DistributedLogConfiguration;
 import com.twitter.distributedlog.DistributedLogConstants;

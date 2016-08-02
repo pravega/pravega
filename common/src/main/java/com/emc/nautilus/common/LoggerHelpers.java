@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.common;
+package com.emc.nautilus.common;
 
 import org.slf4j.Logger;
 

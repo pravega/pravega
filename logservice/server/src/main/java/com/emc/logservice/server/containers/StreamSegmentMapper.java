@@ -18,10 +18,10 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.LoggerHelpers;
-import com.emc.logservice.common.TimeoutTimer;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.FutureHelpers;
+import com.emc.nautilus.common.LoggerHelpers;
+import com.emc.nautilus.common.TimeoutTimer;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentExistsException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;

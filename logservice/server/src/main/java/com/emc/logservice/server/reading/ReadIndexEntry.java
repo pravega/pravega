@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 
 /**
  * An entry in the Read Index with data at a particular offset..

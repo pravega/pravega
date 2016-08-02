@@ -18,11 +18,7 @@
 
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.CloseableIterator;
-import com.emc.logservice.common.Exceptions;
-import com.emc.logservice.common.FutureHelpers;
-import com.emc.logservice.common.StreamHelpers;
 import com.emc.logservice.storageabstraction.DataLogInitializationException;
 import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
 import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
@@ -30,6 +26,10 @@ import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.emc.logservice.storageabstraction.WriteFailureException;
 import com.emc.logservice.storageabstraction.WriteTooLongException;
+import com.emc.nautilus.common.CallbackHelpers;
+import com.emc.nautilus.common.Exceptions;
+import com.emc.nautilus.common.FutureHelpers;
+import com.emc.nautilus.common.StreamHelpers;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.AsyncLogWriter;
 import com.twitter.distributedlog.DLSN;

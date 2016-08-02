@@ -20,7 +20,7 @@ package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.logservice.common.Exceptions;
+import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.contracts.StreamSegmentStore;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;

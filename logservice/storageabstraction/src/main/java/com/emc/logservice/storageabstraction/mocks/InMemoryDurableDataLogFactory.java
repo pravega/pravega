@@ -18,9 +18,9 @@
 
 package com.emc.logservice.storageabstraction.mocks;
 
-import com.emc.logservice.common.Exceptions;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.nautilus.common.Exceptions;
 
 import java.util.HashMap;
 
