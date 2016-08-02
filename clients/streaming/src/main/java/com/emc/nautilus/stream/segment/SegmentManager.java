@@ -25,7 +25,7 @@ import com.emc.nautilus.stream.TxFailedException;
 
 /**
  * The analog of the {@link StreamManager} for segments.
- * The implementation of this class will connect to a service & manage TCP connections.
+ * The implementation of this class will connect to a store & manage TCP connections.
  */
 public interface SegmentManager {
 

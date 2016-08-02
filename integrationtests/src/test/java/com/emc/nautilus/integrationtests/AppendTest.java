@@ -1,13 +1,13 @@
 package com.emc.nautilus.integrationtests;
 
-import com.emc.logservice.contracts.StreamSegmentStore;
-import com.emc.logservice.server.host.handler.AppendProcessor;
-import com.emc.logservice.server.host.handler.LogServiceConnectionListener;
-import com.emc.logservice.server.host.handler.LogServiceRequestProcessor;
-import com.emc.logservice.server.host.handler.ServerConnectionInboundHandler;
-import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
-import com.emc.logservice.server.service.ServiceBuilder;
-import com.emc.logservice.server.service.ServiceBuilderConfig;
+import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.host.handler.AppendProcessor;
+import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
+import com.emc.pravega.service.server.host.handler.LogServiceRequestProcessor;
+import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandler;
+import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.nautilus.common.netty.CommandDecoder;
 import com.emc.nautilus.common.netty.CommandEncoder;
 import com.emc.nautilus.common.netty.ConnectionFactory;
