@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ByteArraySegment;
-import com.emc.nautilus.common.StreamHelpers;
+import com.emc.nautilus.common.util.ByteArraySegment;
+import com.emc.nautilus.common.io.StreamHelpers;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;

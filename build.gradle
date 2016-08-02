@@ -79,13 +79,6 @@ project('testcommon') {
     }
 }
 
-project('logservice:common') {
-    dependencies {
-        compile project(':common')
-        testCompile project(':testcommon')
-    }
-}
-
 project('logservice:contracts') {
     dependencies {
         compile project(':common')
@@ -96,7 +89,6 @@ project('logservice:contracts') {
 project('logservice:storageabstraction') {
     dependencies {
         compile project(':common')
-        compile project(':logservice:common')
         compile project(':logservice:contracts')
         testCompile project(':testcommon')
     }
@@ -107,7 +99,6 @@ project('logservice:storageimplementation') {
         compile 'com.twitter:distributedlog-core:0.3.51-RC1'
         compile 'com.twitter:distributedlog-client:0.3.51-RC1'
         compile project(':common')
-        compile project(':logservice:common')
         compile project(':logservice:storageabstraction')
         testCompile project(':testcommon')
     }
@@ -116,7 +107,6 @@ project('logservice:storageimplementation') {
 project('logservice:server') {
     dependencies {
         compile project(':common')
-        compile project(':logservice:common')
         compile project(':logservice:contracts')
         compile project(':logservice:storageabstraction')
         testCompile project(':testcommon')
@@ -126,7 +116,6 @@ project('logservice:server') {
 project('logservice:serverhost') {
     dependencies {
         compile project(':common')
-        compile project(':logservice:common')
         compile project(':logservice:contracts')
         compile project(':logservice:storageabstraction')
         compile project(':logservice:storageimplementation')

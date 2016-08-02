@@ -22,7 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import com.emc.nautilus.common.netty.WireCommands.SegmentRead;
-import com.emc.nautilus.common.utils.CircularBuffer;
+import com.emc.nautilus.common.util.CircularBuffer;
 import com.emc.nautilus.stream.segment.EndOfSegmentException;
 import com.emc.nautilus.stream.segment.SegmentInputStream;
 import com.google.common.base.Preconditions;

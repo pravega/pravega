@@ -18,9 +18,9 @@
 
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.AutoReleaseLock;
+import com.emc.nautilus.common.concurrent.AutoReleaseLock;
 import com.emc.nautilus.common.Exceptions;
-import com.emc.logservice.common.ReadWriteAutoReleaseLock;
+import com.emc.nautilus.common.concurrent.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.DataCorruptionException;

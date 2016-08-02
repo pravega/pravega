@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ByteArraySegment;
-import com.emc.logservice.common.CloseableIterator;
+import com.emc.nautilus.common.util.ByteArraySegment;
+import com.emc.nautilus.common.util.CloseableIterator;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 

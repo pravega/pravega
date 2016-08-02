@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.nautilus.common.CallbackHelpers;
-import com.emc.nautilus.common.ConsumerWithException;
+import com.emc.nautilus.common.function.CallbackHelpers;
+import com.emc.nautilus.common.function.ConsumerWithException;
 import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.LogItem;

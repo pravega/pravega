@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.common.ByteArraySegment;
+import com.emc.nautilus.common.util.ByteArraySegment;
 import org.junit.Assert;
 
 import java.util.Random;

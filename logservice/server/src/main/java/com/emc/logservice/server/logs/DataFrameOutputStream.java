@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ByteArraySegment;
-import com.emc.nautilus.common.ConsumerWithException;
+import com.emc.nautilus.common.util.ByteArraySegment;
+import com.emc.nautilus.common.function.ConsumerWithException;
 import com.emc.nautilus.common.Exceptions;
 import com.google.common.base.Preconditions;
 

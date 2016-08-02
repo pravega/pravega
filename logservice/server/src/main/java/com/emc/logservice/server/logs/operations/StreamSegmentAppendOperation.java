@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.nautilus.common.StreamHelpers;
+import com.emc.nautilus.common.io.StreamHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.server.logs.SerializationException;
 import com.google.common.base.Preconditions;

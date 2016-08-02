@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.nautilus.common.CallbackHelpers;
+import com.emc.nautilus.common.function.CallbackHelpers;
 import com.emc.nautilus.common.Exceptions;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;

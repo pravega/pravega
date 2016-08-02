@@ -18,7 +18,7 @@
 
 package com.emc.logservice.storageabstraction;
 
-import com.emc.logservice.common.CloseableIterator;
+import com.emc.nautilus.common.util.CloseableIterator;
 
 import java.io.InputStream;
 import java.time.Duration;

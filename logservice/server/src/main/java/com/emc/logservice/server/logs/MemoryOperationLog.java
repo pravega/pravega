@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.TruncateableList;
+import com.emc.nautilus.common.util.TruncateableList;
 import com.emc.logservice.server.logs.operations.Operation;
 
 /**
