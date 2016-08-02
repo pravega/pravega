@@ -164,7 +164,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
         private final Iterator<Entry> entryIterator;
         private final long afterSequence;
 
-        public ReadResultIterator(Iterator<Entry> entryIterator, long afterSequence) {
+        ReadResultIterator(Iterator<Entry> entryIterator, long afterSequence) {
             this.entryIterator = entryIterator;
             this.afterSequence = afterSequence;
         }
@@ -239,7 +239,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
         public void add(Entry entry, String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
-            this.entries.add(entry);
+            synchronized (this.entries) {
+                this.entries.add(entry);
+            }
         }
 
         public int getMaxAppendSize() {
@@ -247,20 +249,28 @@ class InMemoryDurableDataLog implements DurableDataLog {
         }
 
         public int size() {
-            return this.entries.size();
+            synchronized (this.entries) {
+                return this.entries.size();
+            }
         }
 
         public Entry getFirst() {
-            return this.entries.getFirst();
+            synchronized (this.entries) {
+                return this.entries.getFirst();
+            }
         }
 
         public Entry getLast() {
-            return this.entries.getLast();
+            synchronized (this.entries) {
+                return this.entries.getLast();
+            }
         }
 
         public Entry removeFirst(String clientId) throws DataLogWriterNotPrimaryException {
             ensureLock(clientId);
-            return this.entries.removeFirst();
+            synchronized (this.entries) {
+                return this.entries.removeFirst();
+            }
         }
 
         public Iterator<Entry> iterator() {

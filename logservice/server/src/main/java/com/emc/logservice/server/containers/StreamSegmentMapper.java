@@ -157,8 +157,7 @@ public class StreamSegmentMapper {
         return parentPropertiesFuture
                 .thenCompose(parentInfo -> this.storage.create(batchName, timer.getRemaining()))
                 .thenCompose(batchInfo -> assignBatchStreamSegmentId(batchInfo, parentStreamSegmentId, timer.getRemaining()))
-                .thenApply(id ->
-                {
+                .thenApply(id -> {
                     LoggerHelpers.traceLeave(log, traceObjectId, "createNewBatchStreamSegment", traceId, parentStreamSegmentName, batchName, id);
                     return batchName;
                 });
@@ -239,8 +238,7 @@ public class StreamSegmentMapper {
                     return this.storage.getStreamSegmentInfo(batchStreamSegmentName, timer.getRemaining());
                 })
                 .thenCompose(batchInfo -> assignBatchStreamSegmentId(batchInfo, parentSegmentId.get(), timer.getRemaining()))
-                .exceptionally(ex ->
-                {
+                .exceptionally(ex -> {
                     failAssignment(batchStreamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID, ex);
                     throw new CompletionException(ex);
                 });
@@ -272,8 +270,7 @@ public class StreamSegmentMapper {
         this.storage
                 .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
-                .exceptionally(ex ->
-                {
+                .exceptionally(ex -> {
                     failAssignment(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID, ex);
                     throw new CompletionException(ex);
                 });

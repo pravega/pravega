@@ -24,6 +24,7 @@ import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
 import com.emc.nautilus.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
+import lombok.Cleanup;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -170,6 +171,7 @@ public class TestDurableDataLog implements DurableDataLog {
      */
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();
+        @Cleanup
         CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
         while (true) {
             DurableDataLog.ReadItem readItem = reader.getNext();

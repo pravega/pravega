@@ -163,8 +163,7 @@ public class ReadWriteAutoReleaseLockTests {
     }
 
     private Thread createThread(LockAcquirer acquireLock, String startToken, String endToken, List<String> events, Consumer<Void> successCallback, Consumer<Throwable> failureCallback) {
-        return new Thread(() ->
-        {
+        return new Thread(() -> {
             try (AutoReleaseLock ignored = acquireLock.apply(ACQUIRE_TIMEOUT)) {
                 // Add start/end tokens to the event list, and wait a bit between them.
                 synchronized (events) {

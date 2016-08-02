@@ -20,26 +20,19 @@ package com.emc.logservice.server.reading;
 
 import com.emc.logservice.contracts.ReadResultEntryType;
 
-import java.time.Duration;
-
 /**
- * Read Result Entry with no content that marks the end of the StreamSegment.
- * The getContent() method will throw an IllegalStateException if invoked.
+ * Read Result Entry for data that is not yet available in the StreamSegment (for an offset that is beyond the
+ * StreamSegment's DurableLogLength)
  */
-class EndOfStreamSegmentReadResultEntry extends ReadResultEntryBase {
+class FutureReadResultEntry extends ReadResultEntryBase {
     /**
-     * Constructor.
+     * Creates a new instance of the FutureReadResultEntry class.
      *
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
      * @param requestedReadLength The maximum number of bytes requested for read.
+     * @throws IllegalArgumentException If type is not ReadResultEntryType.Future or ReadResultEntryType.Storage.
      */
-    EndOfStreamSegmentReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
-        super(ReadResultEntryType.EndOfStreamSegment, streamSegmentOffset, requestedReadLength);
-        fail(new IllegalStateException("EndOfStreamSegmentReadResultEntry does not have any content."));
-    }
-
-    @Override
-    public void requestContent(Duration timeout) {
-        throw new IllegalStateException("EndOfStreamSegmentReadResultEntry does not have any content.");
+    FutureReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
+        super(ReadResultEntryType.Future, streamSegmentOffset, requestedReadLength);
     }
 }

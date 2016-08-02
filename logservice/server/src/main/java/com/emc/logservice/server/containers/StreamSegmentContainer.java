@@ -169,8 +169,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId ->
-                {
+                .thenCompose(streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
 
@@ -199,8 +198,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenApply(streamSegmentId ->
-                {
+                .thenApply(streamSegmentId -> {
                     SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                     return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(), sm.isDeleted(), new Date());
                 });
@@ -256,8 +254,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(batchStreamSegmentName, timer.getRemaining())
-                .thenCompose(batchStreamSegmentId ->
-                {
+                .thenCompose(batchStreamSegmentId -> {
                     SegmentMetadata batchMetadata = this.metadata.getStreamSegmentMetadata(batchStreamSegmentId);
                     if (batchMetadata == null) {
                         throw new CompletionException(new StreamSegmentNotExistsException(batchStreamSegmentName));
@@ -277,8 +274,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId ->
-                {
+                .thenCompose(streamSegmentId -> {
                     operation.set(new StreamSegmentSealOperation(streamSegmentId));
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })

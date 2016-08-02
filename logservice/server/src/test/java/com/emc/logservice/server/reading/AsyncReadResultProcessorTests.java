@@ -19,26 +19,26 @@
 package com.emc.logservice.server.reading;
 
 import com.emc.logservice.common.StreamHelpers;
+import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
+import com.emc.logservice.contracts.ReadResultEntryType;
 import com.emc.logservice.server.CloseableExecutorService;
 import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import com.emc.nautilus.testcommon.IntentionalException;
 import lombok.Cleanup;
-import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -48,7 +48,6 @@ public class AsyncReadResultProcessorTests {
     private static final int ENTRY_COUNT = 10000;
     private static final int THREAD_POOL_SIZE = 50;
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
-    private static final String SEGMENT_NAME = "Segment";
 
     /**
      * Tests the AsyncReadResultProcessor on catch-up reads (that are already available in memory).
@@ -70,27 +69,23 @@ public class AsyncReadResultProcessorTests {
             return new MemoryReadResultEntry(new ByteArrayReadIndexEntry(offset, entries.get(idx)), 0, entries.get(idx).length);
         };
 
-        // Setup an entry processor.
-        AtomicInteger readCount = new AtomicInteger();
-        AtomicReference<Throwable> readFailure = new AtomicReference<>();
-        val entryProcessor = createEntryProcessor(entries, readCount, readFailure);
-
         // Start an AsyncReadResultProcessor.
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         @Cleanup
-        StreamSegmentReadResult rr = new StreamSegmentReadResult(SEGMENT_NAME, 0, totalLength, supplier, "");
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, UUID.randomUUID(), entryProcessor, f -> readFailure.set(f.getCause()), executor.get())) {
+        StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
+        TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
+        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
             rp.startAsync().awaitRunning();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
             ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
 
-            if (readFailure.get() != null) {
-                Assert.fail("Read failure: " + readFailure.toString());
+            if (testEntryHandler.error.get() != null) {
+                Assert.fail("Read failure: " + testEntryHandler.error.toString());
             }
 
-            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), readCount.get());
+            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -116,28 +111,24 @@ public class AsyncReadResultProcessorTests {
             }
 
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
-            return new TestPlaceholderReadResultEntry(offset, length, entryContentsSupplier, executor.get());
+            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
         };
 
-        // Setup an entry processor.
-        AtomicInteger readCount = new AtomicInteger();
-        AtomicReference<Throwable> readFailure = new AtomicReference<>();
-        val entryProcessor = createEntryProcessor(entries, readCount, readFailure);
-
-        // Start an AsyncReadResultProcessor.
+         // Start an AsyncReadResultProcessor.
         @Cleanup
-        StreamSegmentReadResult rr = new StreamSegmentReadResult(SEGMENT_NAME, 0, totalLength, supplier, "");
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, UUID.randomUUID(), entryProcessor, f -> readFailure.set(f.getCause()), executor.get())) {
+        StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
+        TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
+        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
             rp.startAsync().awaitRunning();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
             ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
 
-            if (readFailure.get() != null) {
-                Assert.fail("Read failure: " + readFailure.toString());
+            if (testEntryHandler.error.get() != null) {
+                Assert.fail("Read failure: " + testEntryHandler.error.toString());
             }
 
-            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), readCount.get());
+            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -159,29 +150,22 @@ public class AsyncReadResultProcessorTests {
                 throw new IntentionalException("Intentional");
             };
 
-            return new TestPlaceholderReadResultEntry(offset, length, entryContentsSupplier, executor.get());
+            return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
         };
 
-        // Setup an entry processor.
-        AtomicInteger readCount = new AtomicInteger();
-        AtomicReference<Throwable> readFailure = new AtomicReference<>();
-        Function<AsyncReadResultProcessor.AsyncReadResultEntry, Boolean> entryProcessor = e -> {
-            readCount.incrementAndGet();
-            return true;
-        };
-
-        // Start an AsyncReadResultProcessor.
+         // Start an AsyncReadResultProcessor.
         @Cleanup
-        StreamSegmentReadResult rr = new StreamSegmentReadResult(SEGMENT_NAME, 0, totalLength, supplier, "");
-        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, UUID.randomUUID(), entryProcessor, f -> readFailure.set(f.getCause()), executor.get())) {
+        StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
+        TestEntryHandler testEntryHandler = new TestEntryHandler(new ArrayList<>());
+        try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
             rp.startAsync().awaitRunning();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
             ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
 
-            Assert.assertEquals("Unexpected number of reads processed.", 0, readCount.get());
-            Assert.assertNotNull("No read failure encountered.", readFailure.get());
-            Assert.assertTrue("Unexpected type of exception was raised.", readFailure.get() instanceof IntentionalException);
+            Assert.assertEquals("Unexpected number of reads processed.", 0, testEntryHandler.readCount.get());
+            Assert.assertNotNull("No read failure encountered.", testEntryHandler.error.get());
+            Assert.assertTrue("Unexpected type of exception was raised.", testEntryHandler.error.get() instanceof IntentionalException);
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -198,12 +182,26 @@ public class AsyncReadResultProcessorTests {
         return totalLength;
     }
 
-    private Function<AsyncReadResultProcessor.AsyncReadResultEntry, Boolean> createEntryProcessor(ArrayList<byte[]> entries, AtomicInteger readCount, AtomicReference<Throwable> readFailure) {
-        AtomicInteger readEntryCount = new AtomicInteger();
-        return e -> {
-            ReadResultEntryContents c = e.getEntry().getContent().join();
-            byte[] data = new byte[c.getLength()];
+    private static class TestEntryHandler implements AsyncReadResultEntryHandler {
+        public final AtomicReference<Throwable> error = new AtomicReference<>();
+        public final AtomicInteger readCount = new AtomicInteger();
+        private final AtomicInteger readEntryCount = new AtomicInteger();
+        private final List<byte[]> entries;
+
+        public TestEntryHandler(List<byte[]> entries) {
+            this.entries = entries;
+        }
+
+        @Override
+        public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
+            return true;
+        }
+
+        @Override
+        public boolean processEntry(ReadResultEntry e) {
             try {
+                ReadResultEntryContents c = e.getContent().join();
+                byte[] data = new byte[c.getLength()];
                 StreamHelpers.readAll(c.getData(), data, 0, data.length);
                 int idx = readEntryCount.getAndIncrement();
                 AssertExtensions.assertLessThan("Read too many entries.", entries.size(), idx);
@@ -211,19 +209,29 @@ public class AsyncReadResultProcessorTests {
                 Assert.assertArrayEquals(String.format("Unexpected read contents after reading %d entries.", idx + 1), expected, data);
                 readCount.incrementAndGet();
             } catch (Exception ex) {
-                readFailure.set(ex);
+                error.set(ex);
                 return false;
             }
 
             return true;
-        };
+        }
+
+        @Override
+        public void processError(ReadResultEntry entry, Throwable cause) {
+            this.error.set(cause);
+        }
+
+        @Override
+        public Duration getRequestContentTimeout() {
+            return TIMEOUT;
+        }
     }
 
-    private static class TestPlaceholderReadResultEntry extends PlaceholderReadResultEntry {
+    private static class TestFutureReadResultEntry extends FutureReadResultEntry {
         private final Supplier<ReadResultEntryContents> resultSupplier;
         private final Executor executor;
 
-        public TestPlaceholderReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<ReadResultEntryContents> resultSupplier, Executor executor) {
+        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<ReadResultEntryContents> resultSupplier, Executor executor) {
             super(streamSegmentOffset, requestedReadLength);
             this.resultSupplier = resultSupplier;
             this.executor = executor;
@@ -237,7 +245,7 @@ public class AsyncReadResultProcessorTests {
          * Cancels this pending read result entry.
          */
         public void cancel() {
-            super.cancel();
+            fail(new CancellationException());
         }
 
         public void fail(Throwable cause) {
@@ -245,7 +253,7 @@ public class AsyncReadResultProcessorTests {
         }
 
         @Override
-        public CompletableFuture<ReadResultEntryContents> getContent() {
+        public void requestContent(Duration timeout) {
             this.executor.execute(() -> {
                 try {
                     complete(this.resultSupplier.get());
@@ -253,7 +261,6 @@ public class AsyncReadResultProcessorTests {
                     fail(ex);
                 }
             });
-            return super.getContent();
         }
     }
 }

@@ -16,18 +16,17 @@
  * limitations under the License.
  */
 
-package com.emc.logservice.contracts;
+package com.emc.logservice.server.reading;
 
+import com.emc.logservice.contracts.ReadResultEntryType;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
- * Unit tests for ReadResultEntry class.
+ * Unit tests for ReadResultEntryBase.
  */
-public class ReadResultEntryTests {
+public class ReadResultEntryBaseTests {
     /**
      * Tests the ability of the ReadResultEntry base class to adjust offsets when instructed so
      */
@@ -51,14 +50,9 @@ public class ReadResultEntryTests {
         Assert.assertEquals("Unexpected value for getRequestedReadLength after down-adjustment (no change expected).", originalLength, e.getRequestedReadLength());
     }
 
-    private static class TestReadResultEntry extends ReadResultEntry {
+    private static class TestReadResultEntry extends ReadResultEntryBase {
         public TestReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
-            super(streamSegmentOffset, requestedReadLength);
-        }
-
-        @Override
-        public CompletableFuture<ReadResultEntryContents> getContent() {
-            return null;
+            super(ReadResultEntryType.Cache, streamSegmentOffset, requestedReadLength);
         }
     }
 }

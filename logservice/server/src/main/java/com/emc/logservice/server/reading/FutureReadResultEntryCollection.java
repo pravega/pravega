@@ -24,15 +24,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.concurrent.CancellationException;
 
 /**
  * Organizes PlaceholderReadResultEntries by their starting offset and provides efficient methods for retrieving those
  * whose offsets are below certain values.
  */
-class PlaceholderReadResultEntryCollection implements AutoCloseable {
+class FutureReadResultEntryCollection implements AutoCloseable {
     //region Members
 
-    private final PriorityQueue<PlaceholderReadResultEntry> reads;
+    private final PriorityQueue<FutureReadResultEntry> reads;
     private boolean closed;
 
     //endregion
@@ -40,10 +41,10 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
     //region Constructor
 
     /**
-     * Creates a new instance of the PlaceholderReadResultEntryCollection class.
+     * Creates a new instance of the FutureReadResultEntryCollection class.
      */
-    public PlaceholderReadResultEntryCollection() {
-        this.reads = new PriorityQueue<>(PlaceholderReadResultEntryCollection::entryComparator);
+    FutureReadResultEntryCollection() {
+        this.reads = new PriorityQueue<>(FutureReadResultEntryCollection::entryComparator);
     }
 
     //endregion
@@ -65,7 +66,7 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
      *
      * @param entry
      */
-    public void add(PlaceholderReadResultEntry entry) {
+    public void add(FutureReadResultEntry entry) {
         Exceptions.checkNotClosed(this.closed, this);
 
         synchronized (this.reads) {
@@ -77,20 +78,18 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
      * Finds the Result Entries that have a starting offset before the given offset, removes them from the collection,
      * and returns them.
      *
-     * @param offset The offset to query against.
+     * @param maxOffset The offset to query against.
      * @return
      */
-    public Collection<PlaceholderReadResultEntry> pollEntriesWithOffsetLessThan(long offset) {
+    Collection<FutureReadResultEntry> poll(long maxOffset) {
         Exceptions.checkNotClosed(this.closed, this);
 
-        List<PlaceholderReadResultEntry> result = new ArrayList<>();
-        if (this.reads.size() > 0) {
-            synchronized (this.reads) {
-                // 'reads' is sorted by Starting Offset, in ascending order. As long as it is not empty and the
-                // first entry overlaps the given offset by at least one byte, extract and return it.
-                while (this.reads.size() > 0 && this.reads.peek().getStreamSegmentOffset() <= offset) {
-                    result.add(this.reads.poll());
-                }
+        List<FutureReadResultEntry> result = new ArrayList<>();
+        synchronized (this.reads) {
+            // 'reads' is sorted by Starting Offset, in ascending order. As long as it is not empty and the
+            // first entry overlaps the given offset by at least one byte, extract and return it.
+            while (this.reads.size() > 0 && this.reads.peek().getStreamSegmentOffset() <= maxOffset) {
+                result.add(this.reads.poll());
             }
         }
 
@@ -99,26 +98,28 @@ class PlaceholderReadResultEntryCollection implements AutoCloseable {
 
     /**
      * Removes and returns all the Result Entries in the collection.
+     *
      * @return
      */
-    public Collection<PlaceholderReadResultEntry> pollAll(){
-        return pollEntriesWithOffsetLessThan(Long.MAX_VALUE);
+    Collection<FutureReadResultEntry> pollAll() {
+        return poll(Long.MAX_VALUE);
     }
 
     /**
      * Cancels all Reads in this collection..
      */
-    public void cancelAll() {
-        List<PlaceholderReadResultEntry> toCancel;
+    void cancelAll() {
+        List<FutureReadResultEntry> toCancel;
         synchronized (this.reads) {
             toCancel = new ArrayList<>(this.reads);
             this.reads.clear();
         }
 
-        toCancel.forEach(PlaceholderReadResultEntry::cancel);
+        CancellationException ce = new CancellationException();
+        toCancel.forEach(e -> e.fail(ce));
     }
 
-    protected static int entryComparator(PlaceholderReadResultEntry e1, PlaceholderReadResultEntry e2) {
+    protected static int entryComparator(FutureReadResultEntry e1, FutureReadResultEntry e2) {
         if (e1.getStreamSegmentOffset() < e2.getStreamSegmentOffset()) {
             return -1;
         } else if (e1.getStreamSegmentOffset() > e2.getStreamSegmentOffset()) {

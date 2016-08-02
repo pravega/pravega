@@ -18,19 +18,17 @@
 
 package com.emc.logservice.server.reading;
 
-import com.emc.logservice.common.CallbackHelpers;
 import com.emc.logservice.common.FutureHelpers;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
+import com.emc.logservice.contracts.ReadResultEntryType;
 import com.emc.logservice.server.ServiceShutdownListener;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * An Asynchronous processor for ReadResult objects. Attaches to a ReadResult and executes a callback using an Executor
@@ -43,16 +41,15 @@ import java.util.function.Function;
  * <li> The ReadResult reaches the end (hasNext() == false)
  * <li> The ReadResult is closed
  * <li> An error was encountered while fetching such an entry.
- * <li> The user-supplied entry handler returns false.
+ * <li> The user-supplied AsyncReadResultEntryHandler returns false from a call to shouldRequestContents.
+ * <li> The user-supplied AsyncReadResultEntryHandler returns false from a call to processEntry.
  * </ul>
  */
 public class AsyncReadResultProcessor extends AbstractIdleService implements AutoCloseable {
     //region Members
 
     private final ReadResult readResult;
-    private final UUID processorId;
-    private final Function<AsyncReadResultEntry, Boolean> readEntryHandler;
-    private final Consumer<AsyncReadResultFailure> failureHandler;
+    private final AsyncReadResultEntryHandler entryHandler;
     private final Executor executor;
     private ReadResultEntry currentEntry;
     private boolean closed;
@@ -64,20 +61,18 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
     /**
      * Creates a new instance of the AsyncReadResultProcessor class.
      *
-     * @param readResult       The ReadResult to attach to. When the ReadResult is closed, the AsyncReadResultProcessor
-     *                         is closed as well. When the AsyncReadResultProcessor is closed, the ReadResult is closed too.
-     * @param processorId      A unique identifier for this AsyncReadResultProcessor. Every callback invocation will
-     *                         contain this identifier.
-     * @param readEntryHandler A callback that will be invoked with every ReadResultEntry that is returned by the ReadResult.
-     * @param failureCallback  A callback that will be invoked when a ReadResultEntry failed to process. After this callback
-     *                         is invoked, the AsyncReadResultProcessor will auto-close itself and become unusable.
-     * @param executor         An Executor to use for asynchronous callbacks.
+     * @param readResult   The ReadResult to attach to. When the ReadResult is closed, the AsyncReadResultProcessor
+     *                     is closed as well. When the AsyncReadResultProcessor is closed, the ReadResult is closed too.
+     * @param entryHandler A handler for every ReadResultEntry that is extracted out of the ReadResult.
+     * @param executor     An Executor to use for asynchronous callbacks.
      */
-    public AsyncReadResultProcessor(ReadResult readResult, UUID processorId, Function<AsyncReadResultEntry, Boolean> readEntryHandler, Consumer<AsyncReadResultFailure> failureCallback, Executor executor) {
+    public AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultEntryHandler entryHandler, Executor executor) {
+        Preconditions.checkNotNull(readResult, "readResult");
+        Preconditions.checkNotNull(entryHandler, "entryHandler");
+        Preconditions.checkNotNull(executor, "executor");
+
         this.readResult = readResult;
-        this.processorId = processorId;
-        this.readEntryHandler = readEntryHandler;
-        this.failureHandler = failureCallback;
+        this.entryHandler = entryHandler;
         this.executor = executor;
     }
 
@@ -136,13 +131,24 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
         try {
             // We don't really rely on hasNext; we just use the fact that next() returns null if there is nothing else to read.
             this.currentEntry = this.readResult.next();
-            if (this.currentEntry == null || this.currentEntry.isEndOfStreamSegment()) {
+            if (this.currentEntry == null || this.currentEntry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 close();
                 return;
             }
 
             // Retrieve the contents.
             CompletableFuture<ReadResultEntryContents> entryContentsFuture = this.currentEntry.getContent();
+            if (!entryContentsFuture.isDone()) {
+                // We have received a ReadResultEntry that does not have data readily available.
+                if (this.entryHandler.shouldRequestContents(this.currentEntry.getType(), this.currentEntry.getStreamSegmentOffset())) {
+                    // We were instructed to request the content.
+                    this.currentEntry.requestContent(this.entryHandler.getRequestContentTimeout());
+                } else {
+                    // Not requesting content means we do not want to proceed with the result anymore.
+                    close();
+                    return;
+                }
+            }
 
             // Attach the appropriate handlers.
             FutureHelpers.exceptionListener(entryContentsFuture, this::fail);
@@ -167,9 +173,7 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
             }
 
             // Process the current entry.
-            shouldContinue = this.readEntryHandler.apply(new AsyncReadResultEntry(this.currentEntry, this.processorId));
-
-            // At this point, the entry is processed, so we should clear the pointer to it.
+            shouldContinue = this.entryHandler.processEntry(this.currentEntry);
             this.currentEntry = null;
         } catch (Exception | AssertionError ex) {
             // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
@@ -187,88 +191,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
     }
 
     private void fail(Throwable exception) {
-        CallbackHelpers.invokeSafely(this.failureHandler, new AsyncReadResultFailure(exception, this.currentEntry), null);
+        this.entryHandler.processError(this.currentEntry, exception);
         close();
-    }
-
-    //endregion
-
-    //region AsyncReadResultEntry
-
-    /**
-     * Callback argument when a ReadResultEntry is successfully retrieved.
-     */
-    public static class AsyncReadResultEntry {
-        private final ReadResultEntry entry;
-        private final UUID processorId;
-
-        private AsyncReadResultEntry(ReadResultEntry entry, UUID processorId) {
-            this.entry = entry;
-            this.processorId = processorId;
-        }
-
-        /**
-         * Gets a pointer to the ReadResultEntry that was retrieved.
-         *
-         * @return
-         */
-        public ReadResultEntry getEntry() {
-            return this.entry;
-        }
-
-        /**
-         * Gets a value representing the AsyncReadResultProcessor Id that invoked the callback.
-         *
-         * @return
-         */
-        public UUID getProcessorId() {
-            return this.processorId;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("%s: %s", this.processorId, this.getEntry());
-        }
-    }
-
-    //endregion
-
-    //region AsyncReadResultFailure
-
-    /**
-     * Callback argument when a ReadResultEntry fails to fetch.
-     */
-    public static class AsyncReadResultFailure {
-        private final Throwable cause;
-        private final ReadResultEntry currentEntry;
-
-        private AsyncReadResultFailure(Throwable cause, ReadResultEntry currentEntry) {
-            this.cause = cause;
-            this.currentEntry = currentEntry;
-        }
-
-        /**
-         * Gets a pointer to the causing Exception for the failure.
-         *
-         * @return
-         */
-        public Throwable getCause() {
-            return this.cause;
-        }
-
-        /**
-         * Gets the current ReadResultEntry that failed to fetch. May be null.
-         *
-         * @return
-         */
-        public ReadResultEntry getCurrentEntry() {
-            return this.currentEntry;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Entry = %s, Cause = %s", this.currentEntry, this.cause);
-        }
     }
 
     //endregion

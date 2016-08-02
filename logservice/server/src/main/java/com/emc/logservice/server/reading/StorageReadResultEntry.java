@@ -18,28 +18,39 @@
 
 package com.emc.logservice.server.reading;
 
+import com.emc.logservice.contracts.ReadResultEntryContents;
 import com.emc.logservice.contracts.ReadResultEntryType;
+import com.google.common.base.Preconditions;
 
 import java.time.Duration;
+import java.util.function.Consumer;
 
 /**
- * Read Result Entry with no content that marks the end of the StreamSegment.
- * The getContent() method will throw an IllegalStateException if invoked.
+ * Read Result Entry for data that is not readily available in memory, but exists in Storage
  */
-class EndOfStreamSegmentReadResultEntry extends ReadResultEntryBase {
+class StorageReadResultEntry extends ReadResultEntryBase {
+    private final ContentFetcher contentFetcher;
+
     /**
-     * Constructor.
+     * Creates a new instance of the StorageReadResultEntry class.
      *
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
      * @param requestedReadLength The maximum number of bytes requested for read.
+     * @throws IllegalArgumentException If type is not ReadResultEntryType.Future or ReadResultEntryType.Storage.
      */
-    EndOfStreamSegmentReadResultEntry(long streamSegmentOffset, int requestedReadLength) {
-        super(ReadResultEntryType.EndOfStreamSegment, streamSegmentOffset, requestedReadLength);
-        fail(new IllegalStateException("EndOfStreamSegmentReadResultEntry does not have any content."));
+    StorageReadResultEntry(long streamSegmentOffset, int requestedReadLength, ContentFetcher contentFetcher) {
+        super(ReadResultEntryType.Storage, streamSegmentOffset, requestedReadLength);
+        Preconditions.checkNotNull(contentFetcher, "contentFetcher");
+        this.contentFetcher = contentFetcher;
     }
 
     @Override
     public void requestContent(Duration timeout) {
-        throw new IllegalStateException("EndOfStreamSegmentReadResultEntry does not have any content.");
+        this.contentFetcher.accept(getStreamSegmentOffset(), getRequestedReadLength(), this::complete, this::fail);
+    }
+
+    @FunctionalInterface
+    interface ContentFetcher {
+        void accept(long streamSegmentOffset, int requestedReadLength, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback);
     }
 }

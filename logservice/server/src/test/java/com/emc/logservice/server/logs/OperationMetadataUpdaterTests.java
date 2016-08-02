@@ -429,7 +429,6 @@ public class OperationMetadataUpdaterTests {
         Assert.assertEquals("Unexpected value for isSealed after call to acceptOperation (in transaction).", mapOp.isSealed(), updater.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).isSealed());
         Assert.assertNull("acceptOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
 
-
         // StreamSegmentName already exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in transaction).",

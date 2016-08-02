@@ -262,8 +262,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         ArrayList<Long> toRemove = new ArrayList<>();
         synchronized (this.truncationMarkers) {
             // Remove Truncation Markers.
-            this.truncationMarkers.keySet().forEach(key ->
-            {
+            this.truncationMarkers.keySet().forEach(key -> {
                 if (key <= upToOperationSequenceNumber) {
                     toRemove.add(key);
                 }
@@ -273,12 +272,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
             // Remove Truncation points
             toRemove.clear();
-            this.truncationPoints.forEach(key ->
-            {
+            this.truncationPoints.forEach(key -> {
                 if (key <= upToOperationSequenceNumber) {
                     toRemove.add(key);
                 }
             });
+
             toRemove.forEach(this.truncationPoints::remove);
         }
     }

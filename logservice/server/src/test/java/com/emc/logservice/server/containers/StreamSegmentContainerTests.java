@@ -24,6 +24,7 @@ import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;
+import com.emc.logservice.contracts.ReadResultEntryType;
 import com.emc.logservice.contracts.SegmentProperties;
 import com.emc.logservice.contracts.StreamSegmentMergedException;
 import com.emc.logservice.contracts.StreamSegmentNotExistsException;
@@ -39,6 +40,7 @@ import com.emc.logservice.server.logs.ConfigHelpers;
 import com.emc.logservice.server.logs.DurableLogConfig;
 import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.mocks.InMemoryMetadataRepository;
+import com.emc.logservice.server.reading.AsyncReadResultEntryHandler;
 import com.emc.logservice.server.reading.AsyncReadResultProcessor;
 import com.emc.logservice.server.reading.ContainerReadIndexFactory;
 import com.emc.logservice.storageabstraction.DurableDataLogFactory;
@@ -61,7 +63,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -211,13 +212,13 @@ public class StreamSegmentContainerTests {
             while (readResult.hasNext()) {
                 ReadResultEntry readEntry = readResult.next();
                 if (readEntry.getStreamSegmentOffset() >= segmentLength) {
-                    Assert.assertTrue("Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment " + segmentName, readEntry.isEndOfStreamSegment());
+                    Assert.assertEquals("Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
                     AssertExtensions.assertThrows(
                             "ReadResultEntry.getContent() returned a result when reached the end of sealed segment " + segmentName,
                             () -> readEntry.getContent().join(),
                             ex -> ex instanceof IllegalStateException);
                 } else {
-                    Assert.assertFalse("Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName, readEntry.isEndOfStreamSegment());
+                    Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment before reaching end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
                     Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                     ReadResultEntryContents readEntryContents = readEntry.getContent().join();
                     expectedCurrentOffset += readEntryContents.getLength();
@@ -236,7 +237,7 @@ public class StreamSegmentContainerTests {
      * Tests the behavior of various operations when the StreamSegment does not exist.
      */
     @Test
-    public void testInexistentSegment(){
+    public void testInexistentSegment() {
         final String segmentName = "foo";
         @Cleanup
         TestContext context = new TestContext();
@@ -415,8 +416,7 @@ public class StreamSegmentContainerTests {
         HashMap<String, AsyncReadResultProcessor> processorsBySegment = new HashMap<>();
         HashSet<String> segmentsToSeal = new HashSet<>();
         HashMap<String, ByteArrayOutputStream> readContents = new HashMap<>();
-
-        AtomicReference<AsyncReadResultProcessor.AsyncReadResultFailure> readFailure = new AtomicReference<>();
+        HashMap<String, TestEntryHandler> entryHandlers = new HashMap<>();
 
         // 2. Setup tail reads.
         // First 1/2 of segments will try to read Int32.Max bytes, while the other half will try to read 100 bytes.
@@ -424,7 +424,8 @@ public class StreamSegmentContainerTests {
         // should stop upon reaching the limit).
         for (int i = 0; i < segmentNames.size(); i++) {
             String segmentName = segmentNames.get(i);
-            readContents.put(segmentName, new ByteArrayOutputStream());
+            ByteArrayOutputStream readContentsStream = new ByteArrayOutputStream();
+            readContents.put(segmentName, readContentsStream);
 
             ReadResult readResult;
             if (i < segmentNames.size() / 2) {
@@ -437,20 +438,9 @@ public class StreamSegmentContainerTests {
             }
 
             // The Read callback is only accumulating data in this test; we will then compare it against the real data.
-            Function<AsyncReadResultProcessor.AsyncReadResultEntry, Boolean> entryHandler = e -> {
-                ReadResultEntryContents c = e.getEntry().getContent().join();
-                byte[] data = new byte[c.getLength()];
-                try {
-                    StreamHelpers.readAll(c.getData(), data, 0, data.length);
-                    readContents.get(segmentName).write(data);
-                    return true;
-                } catch (Exception ex) {
-                    Assert.fail(ex.getMessage());
-                    return false;
-                }
-            };
-
-            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, UUID.randomUUID(), entryHandler, readFailure::set, context.executorService.get());
+            TestEntryHandler entryHandler = new TestEntryHandler(readContentsStream);
+            entryHandlers.put(segmentName, entryHandler);
+            AsyncReadResultProcessor readResultProcessor = new AsyncReadResultProcessor(readResult, entryHandler, context.executorService.get());
             readResultProcessor.startAsync().awaitRunning();
             readsBySegment.put(segmentName, readResult);
             processorsBySegment.put(segmentName, readResultProcessor);
@@ -481,13 +471,21 @@ public class StreamSegmentContainerTests {
         // Now wait for all the reads to complete, and verify their results against the expected output.
         ServiceShutdownListener.awaitShutdown(processorsBySegment.values(), TIMEOUT, true);
 
-        if (readFailure.get() != null) {
-            Assert.fail("At least one error occurred during reading: " + readFailure.get());
+        // Check to see if any errors got thrown (and caught) during the reading process).
+        for (Map.Entry<String, TestEntryHandler> e : entryHandlers.entrySet()) {
+            Throwable err = e.getValue().error.get();
+            if (err != null) {
+                // Check to see if the exception we got was a SegmentSealedException. If so, this is only expected if the segment was to be sealed.
+                // The next check (see below) will verify if the segments were properly read).
+                if (!(err instanceof StreamSegmentSealedException && segmentsToSeal.contains(e.getKey()))) {
+                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue().error.get());
+                }
+            }
         }
 
         // Check that all the ReadResults are closed
-        for (ReadResult rr : readsBySegment.values()) {
-            Assert.assertTrue("Read result is not closed for segment " + rr.getStreamSegmentName(), rr.isClosed());
+        for (Map.Entry<String, ReadResult> e : readsBySegment.entrySet()) {
+            Assert.assertTrue("Read result is not closed for segment " + e.getKey(), e.getValue().isClosed());
         }
 
         // Compare, byte-by-byte, the outcome of the tail reads.
@@ -522,7 +520,7 @@ public class StreamSegmentContainerTests {
                 AssertExtensions.assertGreaterThan("getRequestedReadLength should be a positive integer for segment " + segmentName, 0, readEntry.getRequestedReadLength());
                 Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
                 Assert.assertTrue("getContent() did not return a completed future for segment" + segmentName, readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
-                Assert.assertFalse("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, readEntry.isEndOfStreamSegment());
+                Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
 
                 ReadResultEntryContents readEntryContents = readEntry.getContent().join();
                 byte[] actualData = new byte[readEntryContents.getLength()];
@@ -678,6 +676,48 @@ public class StreamSegmentContainerTests {
             this.dataLogFactory.close();
             this.storageFactory.close();
             this.executorService.close();
+        }
+    }
+
+    //endregion
+
+    //region TestEntryHandler
+
+    private static class TestEntryHandler implements AsyncReadResultEntryHandler {
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        private final ByteArrayOutputStream readContents;
+
+        TestEntryHandler(ByteArrayOutputStream readContents) {
+            this.readContents = readContents;
+        }
+
+        @Override
+        public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
+            return true;
+        }
+
+        @Override
+        public boolean processEntry(ReadResultEntry e) {
+            ReadResultEntryContents c = e.getContent().join();
+            byte[] data = new byte[c.getLength()];
+            try {
+                StreamHelpers.readAll(c.getData(), data, 0, data.length);
+                readContents.write(data);
+                return true;
+            } catch (Exception ex) {
+                processError(e, ex);
+                return false;
+            }
+        }
+
+        @Override
+        public void processError(ReadResultEntry entry, Throwable cause) {
+            this.error.set(cause);
+        }
+
+        @Override
+        public Duration getRequestContentTimeout() {
+            return TIMEOUT;
         }
     }
 

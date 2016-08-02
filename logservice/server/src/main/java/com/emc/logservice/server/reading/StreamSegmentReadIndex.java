@@ -24,6 +24,7 @@ import com.emc.logservice.common.LoggerHelpers;
 import com.emc.logservice.common.ReadWriteAutoReleaseLock;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;
+import com.emc.logservice.contracts.ReadResultEntryType;
 import com.emc.logservice.contracts.StreamSegmentSealedException;
 import com.emc.logservice.server.ContainerMetadata;
 import com.emc.logservice.server.SegmentMetadata;
@@ -54,7 +55,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
     private final String traceObjectId;
     private final TreeMap<Long, ReadIndexEntry> entries; // Key = Last Offset of Entry, Value = Entry; TODO: we can implement a version of this that doesn't require Key
-    private final PlaceholderReadResultEntryCollection futureReads;
+    private final FutureReadResultEntryCollection futureReads;
     private final ReadWriteAutoReleaseLock lock;
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
     private SegmentMetadata metadata;
@@ -79,7 +80,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         this.metadata = metadata;
         this.recoveryMode = recoveryMode;
         this.entries = new TreeMap<>();
-        this.futureReads = new PlaceholderReadResultEntryCollection();
+        this.futureReads = new FutureReadResultEntryCollection();
         this.lock = new ReadWriteAutoReleaseLock(true);
         this.mergeOffsets = new HashMap<>();
         this.lastAppendedOffset = -1;
@@ -321,25 +322,25 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
 
         // Get all eligible Future Reads which wait for data prior to the end offset.
-        ReadIndexEntry lastEntry = this.entries.lastEntry().getValue(); //TODO: this is O(log(n)), not O(1)
-        Collection<PlaceholderReadResultEntry> futureReads;
+        ReadIndexEntry lastEntry = this.entries.lastEntry().getValue(); // NOTE: this is O(log(n)), not O(1)
+        Collection<FutureReadResultEntry> futureReads;
         boolean sealed = this.metadata.isSealed();
         if (sealed) {
             // Get everything, even if some Future Reads are in the future - those will eventually return EndOfSegment.
             futureReads = this.futureReads.pollAll();
         } else {
             // Get only those up to the last offset of the last append.
-            futureReads = this.futureReads.pollEntriesWithOffsetLessThan(lastEntry.getLastStreamSegmentOffset());
+            futureReads = this.futureReads.poll(lastEntry.getLastStreamSegmentOffset());
         }
 
         log.debug("{}: triggerFutureReads (Count = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), sealed);
 
-        for (PlaceholderReadResultEntry r : futureReads) {
+        for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getFirstReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
-            assert entry != null : "Serving a PlaceholderReadResultEntry with a null result";
-            assert !(entry instanceof PlaceholderReadResultEntry) : "Serving a PlaceholderReadResultEntry with another PlaceholderReadResultEntry.";
+            assert entry != null : "Serving a StorageReadResultEntry with a null result";
+            assert !(entry instanceof StorageReadResultEntry) : "Serving a StorageReadResultEntry with another StorageReadResultEntry.";
 
-            if (entry.isEndOfStreamSegment()) {
+            if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
             } else {
@@ -367,7 +368,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         Exceptions.checkArgument(canReadAtOffset(startOffset), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
-        return new StreamSegmentReadResult(this.metadata.getName(), startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
+        return new StreamSegmentReadResult(startOffset, maxLength, this::getFirstReadResultEntry, this.traceObjectId);
     }
 
     private boolean canReadAtOffset(long offset) {
@@ -384,7 +385,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param maxLength         The maximum number of bytes to return.
      * @return A ReadResultEntry representing the data to return.
      */
-    private ReadResultEntry getFirstReadResultEntry(long resultStartOffset, int maxLength) {
+    private ReadResultEntryBase getFirstReadResultEntry(long resultStartOffset, int maxLength) {
         Exceptions.checkNotClosed(this.closed, this);
 
         if (maxLength < 0) {
@@ -397,12 +398,12 @@ class StreamSegmentReadIndex implements AutoCloseable {
             return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
         }
 
-        ReadResultEntry result = null;
+        ReadResultEntryBase result = null;
         try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
             if (this.entries.size() == 0) {
                 // We have no entries in the Read Index.
                 // Use the metadata to figure out whether to return a Storage or Future Read.
-                result = createPlaceholderRead(resultStartOffset, maxLength);
+                result = createDataNotAvailableRead(resultStartOffset, maxLength);
             } else {
                 // We have at least one entry.
                 // Find the first entry that has an End offset beyond equal to at least ResultStartOffset.
@@ -411,7 +412,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
                     // The ResultStartOffset is beyond the End Offset of the last entry in the index.
                     // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
                     // this data in memory.
-                    result = createPlaceholderRead(resultStartOffset, maxLength);
+                    result = createDataNotAvailableRead(resultStartOffset, maxLength);
                 } else {
                     // We have an entry. Let's see if it's valid or not.
                     ReadIndexEntry currentEntry = treeEntry.getValue();
@@ -424,7 +425,6 @@ class StreamSegmentReadIndex implements AutoCloseable {
                         result = createStorageRead(resultStartOffset, readLength);
                     } else if (currentEntry instanceof ByteArrayReadIndexEntry) {
                         // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
-                        // TODO should we coalesce multiple congruent entries together?
                         result = createMemoryRead((ByteArrayReadIndexEntry) currentEntry, resultStartOffset, maxLength);
                     } else if (currentEntry instanceof RedirectReadIndexEntry) {
                         result = getRedirectedReadResultEntry(resultStartOffset, maxLength, (RedirectReadIndexEntry) currentEntry);
@@ -441,7 +441,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
     }
 
-    private ReadResultEntry getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
+    private ReadResultEntryBase getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
         StreamSegmentReadIndex redirectedIndex = entry.getRedirectReadIndex();
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
         assert redirectOffset >= 0 && redirectOffset < entry.getLength() :
@@ -456,7 +456,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             maxLength = (int) entry.getLength();
         }
 
-        ReadResultEntry result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
+        ReadResultEntryBase result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
         result.adjustOffset(entry.getStreamSegmentOffset());
         return result;
     }
@@ -468,7 +468,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param maxLength
      * @return
      */
-    private PlaceholderReadResultEntry createPlaceholderRead(long streamSegmentOffset, int maxLength) {
+    private ReadResultEntryBase createDataNotAvailableRead(long streamSegmentOffset, int maxLength) {
         long storageLength = this.metadata.getStorageLength();
         if (streamSegmentOffset < storageLength) {
             // Requested data exists in Storage.
@@ -492,7 +492,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param maxLength
      * @return
      */
-    private ReadResultEntry createMemoryRead(ByteArrayReadIndexEntry entry, long streamSegmentOffset, int maxLength) {
+    private ReadResultEntryBase createMemoryRead(ByteArrayReadIndexEntry entry, long streamSegmentOffset, int maxLength) {
         assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
 
         int entryOffset = (int) (streamSegmentOffset - entry.getStreamSegmentOffset());
@@ -509,9 +509,9 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param readLength
      * @return
      */
-    private PlaceholderReadResultEntry createStorageRead(long streamSegmentOffset, int readLength) {
+    private ReadResultEntryBase createStorageRead(long streamSegmentOffset, int readLength) {
         // TODO: implement Storage Reads.
-        return new PlaceholderReadResultEntry(streamSegmentOffset, readLength);
+        return new StorageReadResultEntry(streamSegmentOffset, readLength, null);
     }
 
     /**
@@ -522,8 +522,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param maxLength
      * @return
      */
-    private PlaceholderReadResultEntry createFutureRead(long streamSegmentOffset, int maxLength) {
-        PlaceholderReadResultEntry entry = new PlaceholderReadResultEntry(streamSegmentOffset, maxLength);
+    private ReadResultEntryBase createFutureRead(long streamSegmentOffset, int maxLength) {
+        FutureReadResultEntry entry = new FutureReadResultEntry(streamSegmentOffset, maxLength);
         this.futureReads.add(entry);
         return entry;
     }

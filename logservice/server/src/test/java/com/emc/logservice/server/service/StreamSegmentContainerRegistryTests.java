@@ -108,6 +108,7 @@ public class StreamSegmentContainerRegistryTests {
         Assert.assertFalse("Container is closed before being shut down.", container.isClosed());
 
         registry.stopContainer(handle, TIMEOUT).join();
+        Thread.sleep(10);
         Assert.assertTrue("Container is not closed after being shut down.", container.isClosed());
         Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
         AssertExtensions.assertThrows(
