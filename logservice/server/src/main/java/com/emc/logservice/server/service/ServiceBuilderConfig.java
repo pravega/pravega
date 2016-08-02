@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.service;
 
-import com.emc.logservice.common.ComponentConfig;
+import com.emc.nautilus.common.util.ComponentConfig;
 import com.emc.logservice.server.logs.DurableLogConfig;
 import com.google.common.base.Preconditions;
 

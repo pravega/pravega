@@ -18,7 +18,7 @@
 
 package com.emc.logservice.serverhost.benchmark;
 
-import com.emc.logservice.common.CloseableIterator;
+import com.emc.nautilus.common.util.CloseableIterator;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
 import com.emc.logservice.storageabstraction.DurableDataLog;

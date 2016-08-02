@@ -20,8 +20,8 @@ package com.emc.logservice.serverhost;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.nautilus.common.CallbackHelpers;
-import com.emc.nautilus.common.StreamHelpers;
+import com.emc.nautilus.common.function.CallbackHelpers;
+import com.emc.nautilus.common.io.StreamHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResultEntry;
 import com.emc.logservice.contracts.ReadResultEntryContents;

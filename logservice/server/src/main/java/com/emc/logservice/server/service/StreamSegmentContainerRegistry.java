@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.service;
 
-import com.emc.nautilus.common.CallbackHelpers;
+import com.emc.nautilus.common.function.CallbackHelpers;
 import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.contracts.ContainerNotFoundException;
 import com.emc.logservice.server.ContainerHandle;

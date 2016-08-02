@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.BlockingDrainingQueue;
+import com.emc.nautilus.common.util.BlockingDrainingQueue;
 import com.emc.nautilus.common.LoggerHelpers;
 import com.emc.nautilus.common.ObjectClosedException;
 import com.emc.logservice.server.Container;

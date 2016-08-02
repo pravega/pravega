@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server;
 
-import com.emc.logservice.common.CloseableIterator;
+import com.emc.nautilus.common.util.CloseableIterator;
 import com.emc.logservice.storageabstraction.DurableDataLog;
 import com.emc.logservice.storageabstraction.DurableDataLogException;
 import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;

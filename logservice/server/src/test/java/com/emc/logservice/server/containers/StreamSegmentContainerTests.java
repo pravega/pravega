@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.containers;
 
-import com.emc.nautilus.common.FutureHelpers;
-import com.emc.nautilus.common.StreamHelpers;
+import com.emc.nautilus.common.concurrent.FutureHelpers;
+import com.emc.nautilus.common.io.StreamHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ReadResult;
 import com.emc.logservice.contracts.ReadResultEntry;

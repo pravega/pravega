@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.nautilus.common.CollectionHelpers;
-import com.emc.logservice.common.EnhancedByteArrayOutputStream;
+import com.emc.nautilus.common.util.CollectionHelpers;
+import com.emc.nautilus.common.io.EnhancedByteArrayOutputStream;
 import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.StreamSegmentException;
@@ -56,7 +56,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
-import static com.emc.nautilus.common.CollectionHelpers.forEach;
+import static com.emc.nautilus.common.util.CollectionHelpers.forEach;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.

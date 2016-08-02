@@ -40,7 +40,7 @@ import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
 import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
 import com.emc.nautilus.common.netty.WireCommands.WrongHost;
-import com.emc.nautilus.common.utils.ReusableLatch;
+import com.emc.nautilus.common.util.ReusableLatch;
 import com.emc.nautilus.stream.segment.SegmentOutputStream;
 import com.emc.nautilus.stream.segment.SegmentSealedExcepetion;
 

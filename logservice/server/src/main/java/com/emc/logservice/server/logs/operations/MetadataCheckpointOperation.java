@@ -18,7 +18,7 @@
 
 package com.emc.logservice.server.logs.operations;
 
-import com.emc.logservice.common.ByteArraySegment;
+import com.emc.nautilus.common.util.ByteArraySegment;
 import com.emc.logservice.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 

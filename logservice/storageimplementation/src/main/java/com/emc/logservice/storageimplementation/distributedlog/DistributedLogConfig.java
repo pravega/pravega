@@ -18,9 +18,9 @@
 
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.common.ComponentConfig;
-import com.emc.logservice.common.ConfigurationException;
-import com.emc.logservice.common.MissingPropertyException;
+import com.emc.nautilus.common.util.ComponentConfig;
+import com.emc.nautilus.common.util.ConfigurationException;
+import com.emc.nautilus.common.util.MissingPropertyException;
 
 import java.util.Properties;
 

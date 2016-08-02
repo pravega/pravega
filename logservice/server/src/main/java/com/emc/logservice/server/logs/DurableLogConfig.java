@@ -18,9 +18,9 @@
 
 package com.emc.logservice.server.logs;
 
-import com.emc.logservice.common.ComponentConfig;
-import com.emc.logservice.common.InvalidPropertyValueException;
-import com.emc.logservice.common.MissingPropertyException;
+import com.emc.nautilus.common.util.ComponentConfig;
+import com.emc.nautilus.common.util.InvalidPropertyValueException;
+import com.emc.nautilus.common.util.MissingPropertyException;
 
 import java.util.Properties;
 

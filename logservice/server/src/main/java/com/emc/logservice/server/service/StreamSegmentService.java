@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server.service;
 
-import com.emc.nautilus.common.CallbackHelpers;
-import com.emc.nautilus.common.FutureHelpers;
+import com.emc.nautilus.common.function.CallbackHelpers;
+import com.emc.nautilus.common.concurrent.FutureHelpers;
 import com.emc.nautilus.common.LoggerHelpers;
 import com.emc.logservice.contracts.AppendContext;
 import com.emc.logservice.contracts.ContainerNotFoundException;
