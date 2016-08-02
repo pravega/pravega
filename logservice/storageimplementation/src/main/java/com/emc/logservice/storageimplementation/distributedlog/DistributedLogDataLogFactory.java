@@ -18,9 +18,9 @@
 
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storage.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLogException;
+import com.emc.logservice.storage.DurableDataLogFactory;
 
 /**
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.

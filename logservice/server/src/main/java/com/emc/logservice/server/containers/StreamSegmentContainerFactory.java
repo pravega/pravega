@@ -23,7 +23,7 @@ import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.OperationLogFactory;
 import com.emc.logservice.server.SegmentContainer;
 import com.emc.logservice.server.SegmentContainerFactory;
-import com.emc.logservice.storageabstraction.StorageFactory;
+import com.emc.logservice.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.Executor;

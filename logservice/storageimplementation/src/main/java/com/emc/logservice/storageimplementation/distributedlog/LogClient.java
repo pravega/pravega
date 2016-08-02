@@ -18,9 +18,9 @@
 
 package com.emc.logservice.storageimplementation.distributedlog;
 
-import com.emc.logservice.storageabstraction.DataLogInitializationException;
-import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.emc.logservice.storage.DataLogInitializationException;
+import com.emc.logservice.storage.DataLogNotAvailableException;
+import com.emc.logservice.storage.DurableDataLogException;
 import com.emc.nautilus.common.Exceptions;
 import com.emc.nautilus.common.LoggerHelpers;
 import com.google.common.base.Preconditions;

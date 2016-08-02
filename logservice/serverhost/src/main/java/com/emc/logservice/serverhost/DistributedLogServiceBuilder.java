@@ -20,7 +20,7 @@ package com.emc.logservice.serverhost;
 
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storage.DurableDataLogFactory;
 import com.emc.logservice.storageimplementation.distributedlog.DistributedLogConfig;
 import com.emc.logservice.storageimplementation.distributedlog.DistributedLogDataLogFactory;
 

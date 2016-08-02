@@ -21,10 +21,10 @@ package com.emc.logservice.serverhost.benchmark;
 import com.emc.nautilus.common.util.CloseableIterator;
 import com.emc.logservice.server.mocks.InMemoryServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
-import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
+import com.emc.logservice.storage.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLogException;
+import com.emc.logservice.storage.DurableDataLogFactory;
+import com.emc.logservice.storage.mocks.InMemoryDurableDataLogFactory;
 
 import java.io.InputStream;
 import java.time.Duration;

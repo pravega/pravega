@@ -32,7 +32,7 @@ import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapping;
-import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storage.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 

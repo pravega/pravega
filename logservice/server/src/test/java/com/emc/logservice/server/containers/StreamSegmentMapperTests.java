@@ -31,7 +31,7 @@ import com.emc.logservice.server.logs.OperationLog;
 import com.emc.logservice.server.logs.operations.BatchMapOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storage.Storage;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import com.emc.nautilus.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;

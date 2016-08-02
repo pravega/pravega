@@ -18,8 +18,8 @@
 
 package com.emc.logservice.server;
 
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storage.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLogFactory;
 
 import java.util.function.Consumer;
 

@@ -30,8 +30,8 @@ import com.emc.logservice.server.containers.StreamSegmentContainerFactory;
 import com.emc.logservice.server.logs.DurableLogConfig;
 import com.emc.logservice.server.logs.DurableLogFactory;
 import com.emc.logservice.server.reading.ContainerReadIndexFactory;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
-import com.emc.logservice.storageabstraction.StorageFactory;
+import com.emc.logservice.storage.DurableDataLogFactory;
+import com.emc.logservice.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.ExecutorService;

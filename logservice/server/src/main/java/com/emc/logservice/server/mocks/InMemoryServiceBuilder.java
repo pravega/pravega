@@ -22,10 +22,10 @@ import com.emc.logservice.server.MetadataRepository;
 import com.emc.logservice.server.SegmentContainerManager;
 import com.emc.logservice.server.service.ServiceBuilder;
 import com.emc.logservice.server.service.ServiceBuilderConfig;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
-import com.emc.logservice.storageabstraction.StorageFactory;
-import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
-import com.emc.logservice.storageabstraction.mocks.InMemoryStorageFactory;
+import com.emc.logservice.storage.DurableDataLogFactory;
+import com.emc.logservice.storage.StorageFactory;
+import com.emc.logservice.storage.mocks.InMemoryDurableDataLogFactory;
+import com.emc.logservice.storage.mocks.InMemoryStorageFactory;
 
 /**
  * ServiceBuilder that uses all in-memory components. Upon closing this object, all data would be lost.

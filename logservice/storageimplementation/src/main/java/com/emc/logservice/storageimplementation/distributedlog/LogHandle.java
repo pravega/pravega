@@ -19,13 +19,13 @@
 package com.emc.logservice.storageimplementation.distributedlog;
 
 import com.emc.nautilus.common.util.CloseableIterator;
-import com.emc.logservice.storageabstraction.DataLogInitializationException;
-import com.emc.logservice.storageabstraction.DataLogNotAvailableException;
-import com.emc.logservice.storageabstraction.DataLogWriterNotPrimaryException;
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
-import com.emc.logservice.storageabstraction.WriteFailureException;
-import com.emc.logservice.storageabstraction.WriteTooLongException;
+import com.emc.logservice.storage.DataLogInitializationException;
+import com.emc.logservice.storage.DataLogNotAvailableException;
+import com.emc.logservice.storage.DataLogWriterNotPrimaryException;
+import com.emc.logservice.storage.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLogException;
+import com.emc.logservice.storage.WriteFailureException;
+import com.emc.logservice.storage.WriteTooLongException;
 import com.emc.nautilus.common.function.CallbackHelpers;
 import com.emc.nautilus.common.Exceptions;
 import com.emc.nautilus.common.concurrent.FutureHelpers;

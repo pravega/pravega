@@ -23,7 +23,7 @@ import com.emc.nautilus.common.function.ConsumerWithException;
 import com.emc.nautilus.common.Exceptions;
 import com.emc.logservice.server.ExceptionHelpers;
 import com.emc.logservice.server.LogItem;
-import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 

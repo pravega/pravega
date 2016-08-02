@@ -21,7 +21,7 @@ package com.emc.logservice.server.logs;
 import com.emc.logservice.server.ReadIndex;
 import com.emc.logservice.server.OperationLogFactory;
 import com.emc.logservice.server.UpdateableContainerMetadata;
-import com.emc.logservice.storageabstraction.DurableDataLogFactory;
+import com.emc.logservice.storage.DurableDataLogFactory;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.Executor;

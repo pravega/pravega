@@ -19,9 +19,9 @@
 package com.emc.logservice.server;
 
 import com.emc.nautilus.common.util.CloseableIterator;
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
-import com.emc.logservice.storageabstraction.mocks.InMemoryDurableDataLogFactory;
+import com.emc.logservice.storage.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLogException;
+import com.emc.logservice.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.nautilus.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;

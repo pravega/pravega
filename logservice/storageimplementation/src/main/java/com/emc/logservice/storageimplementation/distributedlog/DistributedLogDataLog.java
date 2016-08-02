@@ -19,8 +19,8 @@
 package com.emc.logservice.storageimplementation.distributedlog;
 
 import com.emc.nautilus.common.util.CloseableIterator;
-import com.emc.logservice.storageabstraction.DurableDataLog;
-import com.emc.logservice.storageabstraction.DurableDataLogException;
+import com.emc.logservice.storage.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLogException;
 import com.emc.nautilus.common.Exceptions;
 import com.google.common.base.Preconditions;
 

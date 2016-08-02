@@ -28,7 +28,7 @@ import com.emc.logservice.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.logservice.server.logs.operations.Operation;
 import com.emc.logservice.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.logservice.server.logs.operations.StreamSegmentSealOperation;
-import com.emc.logservice.storageabstraction.Storage;
+import com.emc.logservice.storage.Storage;
 import com.google.common.collect.Iterators;
 import org.junit.Assert;
 

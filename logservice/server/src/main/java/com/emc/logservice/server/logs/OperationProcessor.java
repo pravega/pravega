@@ -29,7 +29,7 @@ import com.emc.logservice.server.ServiceShutdownListener;
 import com.emc.logservice.server.UpdateableContainerMetadata;
 import com.emc.logservice.server.logs.operations.CompletableOperation;
 import com.emc.logservice.server.logs.operations.Operation;
-import com.emc.logservice.storageabstraction.DurableDataLog;
+import com.emc.logservice.storage.DurableDataLog;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import lombok.extern.slf4j.Slf4j;
