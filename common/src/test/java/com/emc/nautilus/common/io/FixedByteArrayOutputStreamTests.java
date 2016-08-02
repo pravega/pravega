@@ -18,7 +18,6 @@
 
 package com.emc.nautilus.common.io;
 
-import com.emc.nautilus.common.io.FixedByteArrayOutputStream;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;

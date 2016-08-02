@@ -18,7 +18,6 @@
 
 package com.emc.nautilus.common.concurrent;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
 import com.emc.nautilus.testcommon.AssertExtensions;
 import com.emc.nautilus.testcommon.IntentionalException;
 import org.junit.Assert;
