@@ -15,38 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.logservice.serverhost.handler;
 
-import org.junit.Ignore;
-import org.junit.Test;
+package com.emc.logservice.storage.impl.distributedlog;
 
-import static org.junit.Assert.fail;
-
-@Ignore
-public class LogServiceRequestProcessorTest {
-
-    @Test
-    public void testReadSegment() {
-        fail();
-    }
-    
-    @Test
-    public void testGetSegmentInfo() {
-        fail();
-    }
-    
-    @Test
-    public void testCreateSegment() {
-        fail();
-    }
-    
-    @Test
-    public void testDeleteSegment() {
-        fail();
-    }
-    
-    @Test
-    public void testTransaction() {
-        fail();
+/**
+ * Generates DistributedLog Log Names from StreamSegmentContainer Ids.
+ */
+class ContainerToLogNameConverter {
+    /**
+     * Generates a DistributedLog Log Name from a Stream Segment Container Id.
+     * @param containerId
+     * @return
+     */
+    static String getLogName(String containerId) {
+        return String.format("container_%s", containerId);
     }
 }
