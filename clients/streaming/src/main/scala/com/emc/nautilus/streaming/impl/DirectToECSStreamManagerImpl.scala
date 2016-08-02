@@ -18,9 +18,8 @@
 
 package com.emc.nautilus.streaming.impl;
 
-import java.util.Collections
-
-import com.emc.nautilus.streaming.{Consumer, ConsumerConfig, EventRouter, Position, Producer, ProducerConfig, RateChangeListener, SegmentId, Serializer, Stream, StreamConfiguration, StreamManager, StreamSegments};
+import com.emc.nautilus.stream.Stream
+import com.emc.nautilus.stream.{StreamConfiguration, StreamManager}
 
 /**
  * Created by kandha on 7/21/16.

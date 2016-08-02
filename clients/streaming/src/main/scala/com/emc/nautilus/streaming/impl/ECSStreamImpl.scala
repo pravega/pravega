@@ -20,7 +20,7 @@ package com.emc.nautilus.streaming.impl
 
 import java.util.Collections
 
-import com.emc.nautilus.streaming.{Consumer, ConsumerConfig, EventRouter, Position, Producer, ProducerConfig,
+import com.emc.nautilus.stream.{Consumer, ConsumerConfig, EventRouter, Position, Producer, ProducerConfig,
          RateChangeListener, SegmentId, Serializer, Stream, StreamConfiguration, StreamSegments}
 
 /**

@@ -24,6 +24,7 @@ import com.emc.`object`.Protocol
 import com.emc.`object`.Protocol._
 import com.emc.`object`.s3.jersey.S3JerseyClient
 import com.emc.`object`.s3.{S3Client, S3Config}
+import com.emc.nautilus.stream._
 import com.emc.nautilus.streaming._
 
 import scala.concurrent.ExecutionContext.Implicits.global
