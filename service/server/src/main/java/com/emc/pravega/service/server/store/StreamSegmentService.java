@@ -32,13 +32,13 @@ import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.LoggerHelpers.traceLeave;
-
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static com.emc.pravega.common.LoggerHelpers.traceLeave;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.
@@ -164,7 +164,7 @@ public class StreamSegmentService implements StreamSegmentStore {
     //region Helpers
 
     private CompletableFuture<SegmentContainer> getContainer(String streamSegmentName) {
-        String containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
+        int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
         try {
             return CompletableFuture.completedFuture(this.segmentContainerRegistry.getContainer(containerId));
         } catch (ContainerNotFoundException ex) {

@@ -27,7 +27,7 @@ public class ContainerNotFoundException extends ContainerException {
      *
      * @param containerId The Id of the container.
      */
-    public ContainerNotFoundException(String containerId) {
+    public ContainerNotFoundException(int containerId) {
         this(containerId, "Container Id does not exist.");
     }
 
@@ -37,7 +37,7 @@ public class ContainerNotFoundException extends ContainerException {
      * @param containerId The Id of the container.
      * @param message     The message for the exception.
      */
-    public ContainerNotFoundException(String containerId, String message) {
+    public ContainerNotFoundException(int containerId, String message) {
         super(containerId, message);
     }
 }

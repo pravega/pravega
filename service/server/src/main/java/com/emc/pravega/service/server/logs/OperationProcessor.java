@@ -47,7 +47,6 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     //region Members
 
     private final String traceObjectId;
-    private final String containerId;
     private final OperationMetadataUpdater metadataUpdater;
     private final MemoryLogUpdater logUpdater;
     private final DurableDataLog durableDataLog;
@@ -73,8 +72,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         Preconditions.checkNotNull(checkpointPolicy, "checkpointPolicy");
 
-        this.containerId = metadata.getContainerId();
-        this.traceObjectId = String.format("OperationProcessor[%s]", this.containerId);
+        this.traceObjectId = String.format("OperationProcessor[%d]", metadata.getContainerId());
         this.metadataUpdater = new OperationMetadataUpdater(metadata);
         this.logUpdater = logUpdater;
         this.durableDataLog = durableDataLog;
@@ -133,8 +131,8 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
     //region Container Implementation
 
     @Override
-    public String getId() {
-        return this.containerId;
+    public int getId() {
+        return this.metadataUpdater.getContainerId();
     }
 
     //endregion

@@ -48,7 +48,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30); //TODO: config?
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
-    private final HashMap<String, ContainerHandle> handles;
+    private final HashMap<Integer, ContainerHandle> handles;
     private boolean closed;
 
     //endregion
@@ -107,9 +107,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         ensureNotClosed();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerNumber = 0; containerNumber < this.segmentToContainerMapper.getTotalContainerCount(); containerNumber++) {
-            String id = this.segmentToContainerMapper.getContainerId(containerNumber);
-            futures.add(this.registry.startContainer(id, timer.getRemaining()).thenAccept(this::registerHandle));
+        for (int containerId = 0; containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
+            futures.add(this.registry.startContainer(containerId, timer.getRemaining()).thenAccept(this::registerHandle));
         }
 
         return FutureHelpers.allOf(futures)

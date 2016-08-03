@@ -116,8 +116,7 @@ public class MemoryLogUpdaterTests {
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
 
-        StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata("1");
-        StreamSegmentContainerMetadata metadata2 = new StreamSegmentContainerMetadata("1");
+        StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata(1);
         updater.enterRecoveryMode(metadata1);
         updater.exitRecoveryMode(true);
 

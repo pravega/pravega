@@ -177,7 +177,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region Container Implementation
 
     @Override
-    public String getId() {
+    public int getId() {
         return this.metadata.getContainerId();
     }
 

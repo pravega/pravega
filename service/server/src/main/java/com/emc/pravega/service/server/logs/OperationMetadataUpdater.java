@@ -43,8 +43,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.emc.pravega.common.util.CollectionHelpers.forEach;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -57,6 +55,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+
+import static com.emc.pravega.common.util.CollectionHelpers.forEach;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.
@@ -82,7 +82,7 @@ public class OperationMetadataUpdater implements ContainerMetadata {
     public OperationMetadataUpdater(UpdateableContainerMetadata metadata) {
         Preconditions.checkNotNull(metadata, "metadata");
 
-        this.traceObjectId = String.format("OperationMetadataUpdater[%s]", metadata.getContainerId());
+        this.traceObjectId = String.format("OperationMetadataUpdater[%d]", metadata.getContainerId());
         this.metadata = metadata;
         this.currentTransaction = null;
     }
@@ -116,7 +116,7 @@ public class OperationMetadataUpdater implements ContainerMetadata {
     }
 
     @Override
-    public String getContainerId() {
+    public int getContainerId() {
         return this.metadata.getContainerId();
     }
 
@@ -614,9 +614,9 @@ public class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             // 2. Container id.
-            String containerId = stream.readUTF();
-            if (!this.containerMetadata.getContainerId().equals(containerId)) {
-                throw new SerializationException("Metadata.deserialize", String.format("Invalid StreamSegmentContainerId. Expected '%s', actual '%s'.", this.containerMetadata.getContainerId(), containerId));
+            int containerId = stream.readInt();
+            if (this.containerMetadata.getContainerId() != containerId) {
+                throw new SerializationException("Metadata.deserialize", String.format("Invalid StreamSegmentContainerId. Expected '%d', actual '%d'.", this.containerMetadata.getContainerId(), containerId));
             }
 
             // This is not retrieved from serialization, but rather from the operation itself.
@@ -652,7 +652,7 @@ public class OperationMetadataUpdater implements ContainerMetadata {
             stream.writeByte(CURRENT_SERIALIZATION_VERSION);
 
             // 2. Container Id.
-            stream.writeUTF(this.containerMetadata.getContainerId());
+            stream.writeInt(this.containerMetadata.getContainerId());
 
             // Intentionally skipping over the Sequence Number. There is no need for that here; it will be set on the
             // operation anyway when it gets serialized.

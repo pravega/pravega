@@ -24,6 +24,7 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
@@ -32,7 +33,6 @@ import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.testcommon.AssertExtensions;
-
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -56,7 +56,7 @@ public class ContainerReadIndexTests {
     private static final int BATCHES_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int THREAD_POOL_SIZE = 50;
-    private static final String CONTAINER_ID = "Container";
+    private static final int CONTAINER_ID = 123;
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     /**
@@ -472,11 +472,13 @@ public class ContainerReadIndexTests {
         public final UpdateableContainerMetadata metadata;
         public final ContainerReadIndex readIndex;
         private final CloseableExecutorService executorService;
+        private final Cache cache;
 
         TestContext() {
             this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+            this.cache = new InMemoryCache();
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.readIndex = new ContainerReadIndex(metadata);
+            this.readIndex = new ContainerReadIndex(metadata, cache);
         }
 
         @Override

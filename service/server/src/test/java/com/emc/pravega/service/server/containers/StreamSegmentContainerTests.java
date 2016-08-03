@@ -29,6 +29,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -43,12 +44,12 @@ import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
+import com.emc.pravega.service.server.reading.InMemoryCache;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
-
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -76,7 +77,7 @@ public class StreamSegmentContainerTests {
     private static final int BATCHES_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CLIENT_COUNT = 10;
-    private static final String CONTAINER_ID = "Container";
+    private static final int CONTAINER_ID = 1234567;
     private static final int THREAD_POOL_SIZE = 50;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
@@ -659,6 +660,7 @@ public class StreamSegmentContainerTests {
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
+        private final Cache cache;
 
         public TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();
@@ -666,7 +668,8 @@ public class StreamSegmentContainerTests {
             this.storageFactory = new InMemoryStorageFactory();
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE);
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService.get());
-            this.readIndexFactory = new ContainerReadIndexFactory();
+            this.cache = new InMemoryCache();
+            this.readIndexFactory = new ContainerReadIndexFactory(cache);
             StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.storageFactory, this.executorService.get());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
         }

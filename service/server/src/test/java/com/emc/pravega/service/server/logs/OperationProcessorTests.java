@@ -21,9 +21,9 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
@@ -34,6 +34,7 @@ import com.emc.pravega.service.server.logs.operations.OperationHelpers;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
+import com.emc.pravega.service.server.reading.InMemoryCache;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
@@ -60,7 +61,7 @@ import java.util.function.Predicate;
  * Unit tests for OperationProcessor class.
  */
 public class OperationProcessorTests extends OperationLogTestBase {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
 
@@ -79,7 +80,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data.
@@ -128,7 +129,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
@@ -206,7 +207,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
@@ -279,7 +280,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
@@ -335,7 +336,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, readIndex);
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).

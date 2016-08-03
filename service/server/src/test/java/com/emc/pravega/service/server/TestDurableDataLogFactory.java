@@ -40,7 +40,7 @@ public class TestDurableDataLogFactory implements DurableDataLogFactory {
     }
 
     @Override
-    public DurableDataLog createDurableDataLog(String containerId) {
+    public DurableDataLog createDurableDataLog(int containerId) {
         DurableDataLog log = this.wrappedFactory.createDurableDataLog(containerId);
         TestDurableDataLog result = TestDurableDataLog.create(log);
         if (this.durableLogCreated != null) {

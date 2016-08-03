@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Unit tests for OperationMetadataUpdater class.
  */
 public class OperationMetadataUpdaterTests {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final String SEGMENT_NAME = "Segment_123";
     private static final long SEGMENT_ID = 123;
     private static final String SEALED_BATCH_NAME = "Segment_123#Batch_Sealed";

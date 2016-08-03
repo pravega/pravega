@@ -40,7 +40,7 @@ abstract class ReadIndexEntry {
      * @throws IllegalArgumentException if the offset is a negative number.
      * @throws IllegalArgumentException if the length is a negative number.
      */
-    protected ReadIndexEntry(long streamSegmentOffset, long length) {
+    ReadIndexEntry(long streamSegmentOffset, long length) {
         Exceptions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset", "Offset must be a non-negative number.");
         Exceptions.checkArgument(length >= 0, "length", "Length must be a non-negative number.");
 

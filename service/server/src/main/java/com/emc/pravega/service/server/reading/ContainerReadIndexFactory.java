@@ -18,17 +18,30 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ReadIndexFactory;
-import com.emc.pravega.service.server.ContainerMetadata;
+import com.google.common.base.Preconditions;
 
 /**
  * Default implementation for ReadIndexFactory.
  */
 public class ContainerReadIndexFactory implements ReadIndexFactory {
+    private final Cache cache;
+
+    /**
+     * Creates a new instance of the ContainerReadIndexFactory class.
+     *
+     * @param cache The cache to use.
+     */
+    public ContainerReadIndexFactory(Cache cache) {
+        Preconditions.checkNotNull(cache, "cache");
+        this.cache = cache;
+    }
 
     @Override
     public ReadIndex createReadIndex(ContainerMetadata containerMetadata) {
-        return new ContainerReadIndex(containerMetadata);
+        return new ContainerReadIndex(containerMetadata, this.cache);
     }
 }

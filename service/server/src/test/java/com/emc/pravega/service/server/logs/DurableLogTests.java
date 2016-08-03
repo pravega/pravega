@@ -23,11 +23,12 @@ import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.ReadIndex;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -40,6 +41,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
+import com.emc.pravega.service.server.reading.InMemoryCache;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
@@ -80,7 +82,7 @@ import java.util.function.Supplier;
  * these tests.
  */
 public class DurableLogTests extends OperationLogTestBase {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final int THREAD_POOL_SIZE = 10;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
@@ -520,7 +522,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata);
+                ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -544,7 +546,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Second DurableLog. We use this for recovery.
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata);
+                ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -583,7 +585,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata);
+                ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -604,7 +606,7 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata);
+                ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
@@ -632,7 +634,7 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata);
+                ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
 
             // Reset error injectors to nothing.
@@ -694,7 +696,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         // First DurableLog. We use this for generating data.
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService.get())) {
             durableLog.startAsync().awaitRunning();
@@ -803,7 +805,7 @@ public class DurableLogTests extends OperationLogTestBase {
         CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
 
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
+        ReadIndex readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
         HashSet<Long> streamSegmentIds;
         List<LogTestHelpers.OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
@@ -949,13 +951,15 @@ public class DurableLogTests extends OperationLogTestBase {
         public final ReadIndex readIndex;
         public final Storage storage;
         public DurableLogConfig durableLogConfig;
+        private final Cache cache;
 
         public ContainerSetup() {
             this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
             this.dataLog = new AtomicReference<>();
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), this.dataLog::set);
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.readIndex = new ContainerReadIndex(metadata);
+            this.cache = new InMemoryCache();
+            this.readIndex = new ContainerReadIndex(metadata, new InMemoryCache());
             this.storage = new InMemoryStorage();
         }
 

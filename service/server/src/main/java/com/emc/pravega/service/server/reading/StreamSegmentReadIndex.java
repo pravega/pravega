@@ -73,10 +73,10 @@ class StreamSegmentReadIndex implements AutoCloseable {
      *
      * @param metadata The StreamSegmentMetadata to use.
      */
-    protected StreamSegmentReadIndex(SegmentMetadata metadata, boolean recoveryMode, String containerId) {
+    StreamSegmentReadIndex(SegmentMetadata metadata, boolean recoveryMode, int containerId) {
         Preconditions.checkNotNull(metadata, "metadata");
 
-        this.traceObjectId = String.format("ReadIndex[%s-%d]", containerId, metadata.getId());
+        this.traceObjectId = String.format("ReadIndex[%d-%d]", containerId, metadata.getId());
         this.metadata = metadata;
         this.recoveryMode = recoveryMode;
         this.entries = new TreeMap<>();

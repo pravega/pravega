@@ -63,7 +63,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     }
 
     @Override
-    public SegmentContainer createStreamSegmentContainer(String containerId) {
+    public SegmentContainer createStreamSegmentContainer(int containerId) {
         return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.storageFactory, this.executor);
     }
 }

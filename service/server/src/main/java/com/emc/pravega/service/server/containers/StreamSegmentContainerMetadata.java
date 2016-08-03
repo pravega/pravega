@@ -50,7 +50,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final AbstractMap<String, Long> streamSegmentIds;
     private final AbstractMap<Long, UpdateableSegmentMetadata> segmentMetadata;
     private final AtomicBoolean recoveryMode;
-    private final String streamSegmentContainerId;
+    private final int streamSegmentContainerId;
     private final AbstractMap<Long, Long> truncationMarkers;
     private final HashSet<Long> truncationPoints;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
@@ -62,9 +62,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     /**
      * Creates a new instance of the StreamSegmentContainerMetadata.
      */
-    public StreamSegmentContainerMetadata(String streamSegmentContainerId) {
-        Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
-        this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
+    public StreamSegmentContainerMetadata(int streamSegmentContainerId) {
+        this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.streamSegmentContainerId = streamSegmentContainerId;
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
@@ -102,7 +101,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region ContainerMetadata Implementation
 
     @Override
-    public String getContainerId() {
+    public int getContainerId() {
         return this.streamSegmentContainerId;
     }
 

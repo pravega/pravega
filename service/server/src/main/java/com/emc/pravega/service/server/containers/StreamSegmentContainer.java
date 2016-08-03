@@ -87,15 +87,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, Executor executor) {
-        Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
+    public StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, Executor executor) {
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
+        this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
         this.readIndex = readIndexFactory.createReadIndex(this.metadata);
@@ -153,7 +152,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Container Implementation
 
     @Override
-    public String getId() {
+    public int getId() {
         return this.metadata.getContainerId();
     }
 

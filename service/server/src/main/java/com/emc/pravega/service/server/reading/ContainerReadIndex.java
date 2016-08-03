@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.AutoReleaseLock;
 import com.emc.pravega.common.concurrent.ReadWriteAutoReleaseLock;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -54,6 +55,7 @@ public class ContainerReadIndex implements ReadIndex {
     private final String traceObjectId;
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
     private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
+    private final Cache cache;
     private ContainerMetadata metadata;
     private ContainerMetadata preRecoveryMetadata;
     private boolean closed;
@@ -66,12 +68,15 @@ public class ContainerReadIndex implements ReadIndex {
      * Creates a new instance of the ContainerReadIndex class.
      *
      * @param metadata The ContainerMetadata to attach to.
+     * @param cache    The cache to store data into.
      */
-    public ContainerReadIndex(ContainerMetadata metadata) {
+    public ContainerReadIndex(ContainerMetadata metadata, Cache cache) {
         Preconditions.checkNotNull(metadata, "metadata");
+        Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkArgument(!metadata.isRecoveryMode(), "Given ContainerMetadata is in Recovery Mode.");
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
+        this.cache = cache;
         this.metadata = metadata;
         this.preRecoveryMetadata = null;
     }
@@ -200,7 +205,7 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
         Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in recovery mode.");
-        Preconditions.checkArgument(this.metadata.getContainerId().equals(recoveryMetadataSource.getContainerId()), "Given ContainerMetadata refers to a different container than this ReadIndex.");
+        Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given ContainerMetadata refers to a different container than this ReadIndex.");
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
         assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";

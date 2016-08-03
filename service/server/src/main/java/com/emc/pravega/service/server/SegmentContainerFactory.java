@@ -28,5 +28,5 @@ public interface SegmentContainerFactory {
      * @param containerId The Id of the container to create.
      * @return
      */
-    SegmentContainer createStreamSegmentContainer(String containerId);
+    SegmentContainer createStreamSegmentContainer(int containerId);
 }
