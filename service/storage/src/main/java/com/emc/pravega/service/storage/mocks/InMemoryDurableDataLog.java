@@ -18,12 +18,12 @@
 
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.nautilus.common.util.CloseableIterator;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.io.StreamHelpers;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;

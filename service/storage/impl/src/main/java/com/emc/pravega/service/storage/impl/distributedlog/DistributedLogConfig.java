@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.nautilus.common.util.ComponentConfig;
-import com.emc.nautilus.common.util.ConfigurationException;
-import com.emc.nautilus.common.util.MissingPropertyException;
-
 import java.util.Properties;
+
+import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigurationException;
+import com.emc.pravega.common.util.MissingPropertyException;
 
 /**
  * General configuration for DistributedLog Client.

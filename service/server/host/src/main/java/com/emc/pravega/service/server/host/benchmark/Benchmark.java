@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.host.benchmark;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.google.common.base.Preconditions;

@@ -18,14 +18,15 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.nautilus.common.io.StreamHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
+
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;

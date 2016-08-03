@@ -18,10 +18,11 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.nautilus.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.ArrayList;
 import java.util.Collection;

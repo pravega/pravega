@@ -18,7 +18,11 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.nautilus.common.util.CloseableIterator;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
@@ -26,10 +30,6 @@ import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.WriteFailureException;
 import com.emc.pravega.service.storage.WriteTooLongException;
-import com.emc.nautilus.common.function.CallbackHelpers;
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.concurrent.FutureHelpers;
-import com.emc.nautilus.common.io.StreamHelpers;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.AsyncLogWriter;
 import com.twitter.distributedlog.DLSN;

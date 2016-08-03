@@ -18,8 +18,8 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
-import com.emc.nautilus.common.io.StreamHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -47,8 +47,8 @@ import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
 import org.junit.Assert;

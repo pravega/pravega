@@ -18,8 +18,8 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.ObjectClosedException;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.google.common.base.Preconditions;

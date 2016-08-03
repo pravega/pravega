@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.nautilus.common.function.CallbackHelpers;
-import com.emc.nautilus.common.concurrent.FutureHelpers;
-import com.emc.nautilus.common.LoggerHelpers;
+import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -32,13 +32,13 @@ import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.emc.pravega.common.LoggerHelpers.traceLeave;
+
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
-import static com.emc.nautilus.common.LoggerHelpers.traceLeave;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.

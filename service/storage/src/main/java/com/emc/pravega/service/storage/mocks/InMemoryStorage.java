@@ -18,13 +18,13 @@
 
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.nautilus.common.Exceptions;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

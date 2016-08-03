@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.nautilus.common.io.StreamHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -31,7 +31,8 @@ import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;

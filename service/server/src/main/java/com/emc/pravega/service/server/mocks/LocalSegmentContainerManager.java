@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server.mocks;
 
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.concurrent.FutureHelpers;
-import com.emc.nautilus.common.LoggerHelpers;
-import com.emc.nautilus.common.TimeoutTimer;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;

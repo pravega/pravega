@@ -17,14 +17,15 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
+import com.emc.pravega.common.netty.FailingRequestProcessor;
+import com.emc.pravega.common.netty.ServerConnection;
+import com.emc.pravega.common.netty.WireCommands.Append;
+import com.emc.pravega.common.netty.WireCommands.AppendSetup;
+import com.emc.pravega.common.netty.WireCommands.DataAppended;
+import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.nautilus.common.netty.FailingRequestProcessor;
-import com.emc.nautilus.common.netty.ServerConnection;
-import com.emc.nautilus.common.netty.WireCommands.Append;
-import com.emc.nautilus.common.netty.WireCommands.AppendSetup;
-import com.emc.nautilus.common.netty.WireCommands.DataAppended;
-import com.emc.nautilus.common.netty.WireCommands.SetupAppend;
+
 import io.netty.buffer.Unpooled;
 
 import org.junit.Ignore;

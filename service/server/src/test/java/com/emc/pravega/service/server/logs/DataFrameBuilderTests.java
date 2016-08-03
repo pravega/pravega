@@ -18,12 +18,13 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.util.ByteArraySegment;
-import com.emc.nautilus.common.function.ConsumerWithException;
+import com.emc.pravega.common.function.ConsumerWithException;
+import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.TestDurableDataLog;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ErrorInjector;
+
 import org.junit.Assert;
 import org.junit.Test;
 

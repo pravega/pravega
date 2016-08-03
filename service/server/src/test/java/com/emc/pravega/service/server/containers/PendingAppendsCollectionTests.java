@@ -18,11 +18,12 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.nautilus.common.ObjectClosedException;
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
+
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -23,6 +23,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.BiFunction;
 
+import com.emc.pravega.common.netty.FailingRequestProcessor;
+import com.emc.pravega.common.netty.RequestProcessor;
+import com.emc.pravega.common.netty.ServerConnection;
+import com.emc.pravega.common.netty.WireCommands.CreateSegment;
+import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.ReadSegment;
+import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
+import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
+import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
@@ -30,18 +42,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
-import com.emc.nautilus.common.netty.FailingRequestProcessor;
-import com.emc.nautilus.common.netty.RequestProcessor;
-import com.emc.nautilus.common.netty.ServerConnection;
-import com.emc.nautilus.common.netty.WireCommands.CreateSegment;
-import com.emc.nautilus.common.netty.WireCommands.GetStreamSegmentInfo;
-import com.emc.nautilus.common.netty.WireCommands.NoSuchSegment;
-import com.emc.nautilus.common.netty.WireCommands.ReadSegment;
-import com.emc.nautilus.common.netty.WireCommands.SegmentAlreadyExists;
-import com.emc.nautilus.common.netty.WireCommands.SegmentCreated;
-import com.emc.nautilus.common.netty.WireCommands.SegmentIsSealed;
-import com.emc.nautilus.common.netty.WireCommands.StreamSegmentInfo;
-import com.emc.nautilus.common.netty.WireCommands.WrongHost;
 
 import lombok.extern.slf4j.Slf4j;
 

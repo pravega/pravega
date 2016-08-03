@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -31,7 +31,8 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import org.junit.Assert;
 import org.junit.Test;
 

@@ -19,7 +19,8 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.service.contracts.ReadResultEntryType;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import org.junit.Assert;
 import org.junit.Test;
 

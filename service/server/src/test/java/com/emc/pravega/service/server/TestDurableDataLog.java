@@ -18,13 +18,15 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.nautilus.common.util.CloseableIterator;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
-import com.emc.nautilus.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
+
+import static com.emc.pravega.testcommon.ErrorInjector.throwAsyncExceptionIfNeeded;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -32,8 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-import static com.emc.nautilus.testcommon.ErrorInjector.throwAsyncExceptionIfNeeded;
 
 /**
  * Test DurableDataLog. Wraps around an existing DurableDataLog, and allows controlling behavior for each method, such

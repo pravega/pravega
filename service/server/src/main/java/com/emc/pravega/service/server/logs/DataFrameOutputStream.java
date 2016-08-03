@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.util.ByteArraySegment;
-import com.emc.nautilus.common.function.ConsumerWithException;
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.function.ConsumerWithException;
+import com.emc.pravega.common.util.ByteArraySegment;
 import com.google.common.base.Preconditions;
 
 import java.io.IOException;

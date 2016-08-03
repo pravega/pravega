@@ -157,7 +157,7 @@ project('integrationtests') {
 
 
     task startProducer(type: JavaExec) {
-        main = "com.emc.nautilus.demo.StartProducer"
+        main = "com.emc.pravega.demo.StartProducer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }

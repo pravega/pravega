@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.storage;
 
-import com.emc.nautilus.common.util.CloseableIterator;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.common.util.CloseableIterator;
 
 /**
  * Defines a Sequential Log that contains contiguous ranges of bytes.

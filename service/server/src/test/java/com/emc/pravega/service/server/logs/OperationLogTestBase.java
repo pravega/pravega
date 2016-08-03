@@ -25,7 +25,8 @@ import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import lombok.Cleanup;
 import org.junit.Assert;
 

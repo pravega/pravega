@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.nautilus.common.TimeoutTimer;
+import com.emc.pravega.common.TimeoutTimer;
 import com.google.common.util.concurrent.Service;
 
 import java.time.Duration;

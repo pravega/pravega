@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
 
 /**
  * An entry in the Read Index with data at a particular offset..

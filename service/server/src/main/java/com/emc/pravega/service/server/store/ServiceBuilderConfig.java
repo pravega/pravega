@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.nautilus.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.google.common.base.Preconditions;
 

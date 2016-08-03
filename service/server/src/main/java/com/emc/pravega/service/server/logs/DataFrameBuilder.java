@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.function.CallbackHelpers;
-import com.emc.nautilus.common.function.ConsumerWithException;
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.function.ConsumerWithException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.LogItem;
 import com.emc.pravega.service.storage.DurableDataLog;

@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.host.benchmark;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;

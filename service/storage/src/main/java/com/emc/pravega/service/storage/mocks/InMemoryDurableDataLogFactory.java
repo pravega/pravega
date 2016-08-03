@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
-import com.emc.nautilus.common.Exceptions;
 
 import java.util.HashMap;
 

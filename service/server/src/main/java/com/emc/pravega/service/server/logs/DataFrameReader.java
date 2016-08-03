@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.util.ByteArraySegment;
-import com.emc.nautilus.common.util.CloseableIterator;
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.LogItem;
 import com.emc.pravega.service.server.LogItemFactory;

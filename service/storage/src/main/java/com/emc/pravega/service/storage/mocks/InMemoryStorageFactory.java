@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
-import com.emc.nautilus.common.ObjectClosedException;
 
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.

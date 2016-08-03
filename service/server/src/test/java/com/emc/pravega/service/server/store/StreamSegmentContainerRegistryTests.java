@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.contracts.ReadResult;
@@ -28,8 +28,8 @@ import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.Cleanup;
 import org.junit.Assert;

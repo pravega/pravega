@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.nautilus.common.StringHelpers;
+import com.emc.pravega.common.StringHelpers;
 
 /**
  * Utility methods for StreamSegment Names.

@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -32,8 +32,8 @@ import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.IntentionalException;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
 import org.junit.Assert;

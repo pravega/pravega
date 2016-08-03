@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.host.benchmark;
 
-import com.emc.nautilus.common.util.CloseableIterator;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DurableDataLog;

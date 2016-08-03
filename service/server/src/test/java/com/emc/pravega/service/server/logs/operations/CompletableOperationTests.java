@@ -18,10 +18,11 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.IntentionalException;
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;

@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.

@@ -18,11 +18,12 @@
 
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.nautilus.common.util.CloseableIterator;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import org.junit.Assert;
 import org.junit.Test;
 

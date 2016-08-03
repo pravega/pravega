@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.service.storage.DataLogInitializationException;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLogException;
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.LoggerHelpers;
 import com.google.common.base.Preconditions;
 import com.twitter.distributedlog.DistributedLogConfiguration;
 import com.twitter.distributedlog.DistributedLogConstants;

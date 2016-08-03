@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.LoggerHelpers;
-import com.emc.nautilus.common.TimeoutTimer;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;

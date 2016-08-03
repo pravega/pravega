@@ -18,8 +18,8 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.nautilus.common.function.CallbackHelpers;
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 

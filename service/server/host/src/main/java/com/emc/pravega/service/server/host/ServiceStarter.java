@@ -20,7 +20,8 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.nautilus.common.Exceptions;
+
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;

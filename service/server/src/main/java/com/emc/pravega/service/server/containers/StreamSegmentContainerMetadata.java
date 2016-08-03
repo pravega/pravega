@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.nautilus.common.concurrent.AutoReleaseLock;
-import com.emc.nautilus.common.util.CollectionHelpers;
-import com.emc.nautilus.common.Exceptions;
-import com.emc.nautilus.common.concurrent.ReadWriteAutoReleaseLock;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.AutoReleaseLock;
+import com.emc.pravega.common.concurrent.ReadWriteAutoReleaseLock;
+import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;

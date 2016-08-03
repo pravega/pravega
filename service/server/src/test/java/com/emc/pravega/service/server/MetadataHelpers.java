@@ -18,8 +18,9 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.nautilus.testcommon.AssertExtensions;
 import org.junit.Assert;
+
+import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.Collection;
 

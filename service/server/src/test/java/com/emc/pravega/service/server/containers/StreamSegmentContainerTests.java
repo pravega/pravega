@@ -18,8 +18,8 @@
 
 package com.emc.pravega.service.server.containers;
 
-import com.emc.nautilus.common.concurrent.FutureHelpers;
-import com.emc.nautilus.common.io.StreamHelpers;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -47,7 +47,8 @@ import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;

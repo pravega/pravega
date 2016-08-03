@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.util.CollectionHelpers;
-import com.emc.nautilus.common.io.EnhancedByteArrayOutputStream;
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
+import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
@@ -43,6 +43,8 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.emc.pravega.common.util.CollectionHelpers.forEach;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -55,8 +57,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-
-import static com.emc.nautilus.common.util.CollectionHelpers.forEach;
 
 /**
  * Transaction-based Metadata Updater for Log Operations.

@@ -20,8 +20,9 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import com.emc.nautilus.common.function.CallbackHelpers;
-import com.emc.nautilus.common.io.StreamHelpers;
+
+import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

@@ -18,8 +18,8 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.nautilus.common.function.CallbackHelpers;
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
 import com.emc.pravega.service.server.ContainerHandle;
 import com.emc.pravega.service.server.SegmentContainer;

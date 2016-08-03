@@ -23,7 +23,8 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.nautilus.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 import org.junit.Assert;
 import org.junit.Test;
 

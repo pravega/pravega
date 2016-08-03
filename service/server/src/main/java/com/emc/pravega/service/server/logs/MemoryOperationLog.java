@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.util.TruncateableList;
+import com.emc.pravega.common.util.TruncateableList;
 import com.emc.pravega.service.server.logs.operations.Operation;
 
 /**

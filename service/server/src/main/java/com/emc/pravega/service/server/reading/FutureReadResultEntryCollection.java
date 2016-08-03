@@ -18,13 +18,13 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.nautilus.common.Exceptions;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.CancellationException;
+
+import com.emc.pravega.common.Exceptions;
 
 /**
  * Organizes PlaceholderReadResultEntries by their starting offset and provides efficient methods for retrieving those

@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import com.emc.nautilus.common.util.CloseableIterator;
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
-import com.emc.nautilus.common.Exceptions;
 import com.google.common.base.Preconditions;
 
 import java.io.InputStream;

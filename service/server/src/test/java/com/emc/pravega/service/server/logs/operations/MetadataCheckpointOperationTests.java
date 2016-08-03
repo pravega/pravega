@@ -18,8 +18,9 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.nautilus.common.util.ByteArraySegment;
 import org.junit.Assert;
+
+import com.emc.pravega.common.util.ByteArraySegment;
 
 import java.util.Random;
 

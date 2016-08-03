@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.nautilus.common.Exceptions;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.logs.SerializationException;
 
 import java.io.DataInputStream;

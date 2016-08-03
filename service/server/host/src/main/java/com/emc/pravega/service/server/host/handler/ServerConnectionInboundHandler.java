@@ -20,10 +20,10 @@ package com.emc.pravega.service.server.host.handler;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.emc.nautilus.common.netty.Request;
-import com.emc.nautilus.common.netty.RequestProcessor;
-import com.emc.nautilus.common.netty.ServerConnection;
-import com.emc.nautilus.common.netty.WireCommand;
+import com.emc.pravega.common.netty.Request;
+import com.emc.pravega.common.netty.RequestProcessor;
+import com.emc.pravega.common.netty.ServerConnection;
+import com.emc.pravega.common.netty.WireCommand;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;

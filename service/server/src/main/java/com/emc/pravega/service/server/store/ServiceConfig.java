@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.server.store;
 
-import com.emc.nautilus.common.util.ComponentConfig;
-import com.emc.nautilus.common.util.InvalidPropertyValueException;
-import com.emc.nautilus.common.util.MissingPropertyException;
-
 import java.util.Properties;
+
+import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.InvalidPropertyValueException;
+import com.emc.pravega.common.util.MissingPropertyException;
 
 /**
  * General Service Configuration.

@@ -18,15 +18,16 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.nautilus.common.ObjectClosedException;
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.LogItemFactory;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
-import com.emc.nautilus.testcommon.AssertExtensions;
-import com.emc.nautilus.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ErrorInjector;
+
 import org.junit.Assert;
 import org.junit.Test;
 

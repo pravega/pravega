@@ -19,7 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.server.LogItemFactory;
-import com.emc.nautilus.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.ErrorInjector;
 
 import java.io.InputStream;
 
