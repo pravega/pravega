@@ -161,7 +161,7 @@ public class ComponentConfigTests {
     }
 
     private static long getInt64Value(int propertyId) {
-        return (long) propertyId + (long) Integer.MAX_VALUE * 2;
+        return propertyId + (long) Integer.MAX_VALUE * 2;
     }
 
     private static boolean getBooleanValue(int propertyId) {

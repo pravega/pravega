@@ -23,6 +23,11 @@ package com.emc.pravega.service.contracts;
  * a sealed StreamSegment.
  */
 public class StreamSegmentSealedException extends StreamSegmentException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public StreamSegmentSealedException(String streamName) {
         super(streamName, "The StreamSegment is closed for appends.");
     }

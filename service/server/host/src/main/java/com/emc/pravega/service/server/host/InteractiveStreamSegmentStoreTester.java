@@ -293,6 +293,11 @@ public class InteractiveStreamSegmentStoreTester {
     //region Invalid Command Syntax
 
     private static class InvalidCommandSyntax extends RuntimeException {
+        /**
+         * 
+         */
+        private static final long serialVersionUID = 1L;
+
         public InvalidCommandSyntax(String message) {
             super(message);
         }

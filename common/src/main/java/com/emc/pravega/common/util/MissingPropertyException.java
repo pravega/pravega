@@ -23,6 +23,11 @@ package com.emc.pravega.common.util;
  */
 public class MissingPropertyException extends ConfigurationException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the MissingPropertyException class.
      * @param fullPropertyName The full name (component + property name) of the property.
      */

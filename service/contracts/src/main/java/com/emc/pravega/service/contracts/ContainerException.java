@@ -22,6 +22,10 @@ package com.emc.pravega.service.contracts;
  * An exception that is related to a particular Container.
  */
 public abstract class ContainerException extends StreamingException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
     private final String containerId;
 
     /**

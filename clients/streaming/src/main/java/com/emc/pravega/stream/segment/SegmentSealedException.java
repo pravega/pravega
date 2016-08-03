@@ -21,4 +21,9 @@ import java.io.IOException;
 
 public class SegmentSealedException extends IOException {
 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
 }
