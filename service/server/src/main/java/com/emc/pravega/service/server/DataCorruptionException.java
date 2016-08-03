@@ -25,6 +25,11 @@ import com.emc.pravega.service.contracts.StreamingException;
  * Usually, after this is thrown, our only resolution may be to suspend processing in the container or completely bring it offline.
  */
 public class DataCorruptionException extends StreamingException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public DataCorruptionException(String message) {
         super(message);
     }

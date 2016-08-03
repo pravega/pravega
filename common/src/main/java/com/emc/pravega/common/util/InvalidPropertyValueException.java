@@ -23,6 +23,11 @@ package com.emc.pravega.common.util;
  */
 public class InvalidPropertyValueException extends ConfigurationException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the InvalidPropertyValueException class.
      *
      * @param message The message of the exception.

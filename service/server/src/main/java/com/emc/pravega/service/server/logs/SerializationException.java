@@ -25,6 +25,11 @@ import com.emc.pravega.service.contracts.StreamingException;
  */
 public class SerializationException extends StreamingException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the SerializationException class.
      *
      * @param source  The name of the source of the exception.

@@ -19,6 +19,11 @@ package com.emc.pravega.stream;
 
 public class TxFailedException extends Exception {
 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public TxFailedException() {
         super();
     }

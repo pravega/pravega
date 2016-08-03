@@ -69,7 +69,7 @@ public class StreamSegmentContainerMetadataTests {
 
         m.exitRecoveryMode();
         long actualSeqNo = m.getOperationSequenceNumber();
-        Assert.assertEquals("Unexpected value from getNewSequenceNumber after setting the value.", (long) Integer.MAX_VALUE, actualSeqNo);
+        Assert.assertEquals("Unexpected value from getNewSequenceNumber after setting the value.", Integer.MAX_VALUE, actualSeqNo);
     }
 
     /**

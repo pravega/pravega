@@ -26,6 +26,10 @@ import lombok.Data;
 @Data
 public class ProducerConfig implements Serializable {
 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
     private final SegmentOutputConfiguration segmentConfig;
 
 }

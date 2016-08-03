@@ -22,6 +22,11 @@ package com.emc.pravega.testcommon;
  * Intentional exception to be thrown inside unit tests.
  */
 public class IntentionalException extends RuntimeException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public IntentionalException() {
         this("intentional");
     }

@@ -23,6 +23,11 @@ import com.emc.pravega.stream.segment.SegmentInputConfiguration;
 
 public class ConsumerConfig implements Serializable {
 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public SegmentInputConfiguration getSegmentConfig() {
         // TODO Auto-generated method stub
         return null;

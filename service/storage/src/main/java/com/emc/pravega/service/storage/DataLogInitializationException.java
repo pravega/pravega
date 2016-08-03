@@ -23,6 +23,11 @@ package com.emc.pravega.service.storage;
  */
 public class DataLogInitializationException extends DurableDataLogException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the DataLogNotAvailable class.
      * @param message
      */
