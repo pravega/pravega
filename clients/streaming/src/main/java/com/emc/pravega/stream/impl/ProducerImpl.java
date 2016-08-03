@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -27,7 +27,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -47,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProducerImpl<Type> implements Producer<Type> {
 
+    private final Object lock = new Object();
     private final Stream stream;
     private final Serializer<Type> serializer;
     private final SegmentManager segmentManager;
@@ -65,15 +65,23 @@ public class ProducerImpl<Type> implements Producer<Type> {
         this.router = router;
         this.serializer = serializer;
         this.config = config;
-        List<Event<Type>> list = setupLogProducers();
-        if (!list.isEmpty()) {
-            throw new IllegalStateException("Producer initialized with unsent messages?!");
+        synchronized (lock) {   
+            List<Event<Type>> list = setupSegmentProducers();
+            if (!list.isEmpty()) {
+                throw new IllegalStateException("Producer initialized with unsent messages?!");
+            }
         }
     }
 
-    private List<Event<Type>> setupLogProducers() {
+    /**
+     * Populate {@link #producers} by setting up a segmentProducer for each segment in the stream.
+     * 
+     * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
+     *         retransmitted.
+     */
+    private List<Event<Type>> setupSegmentProducers() {
         StreamSegments segments = stream.getLatestSegments();
-        
+
         for (SegmentId segment : segments.getSegments()) {
             if (!producers.containsKey(segment)) {
                 SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
@@ -82,7 +90,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             }
         }
         List<Event<Type>> toResend = new ArrayList<>();
-        
+
         Iterator<Entry<SegmentId, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
         while (iter.hasNext()) {
             Entry<SegmentId, SegmentProducer<Type>> entry = iter.next();
@@ -104,7 +112,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
     public Future<Void> publish(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (producers) {
+        synchronized (lock) {
             if (!attemptPublish(new Event<>(routingKey, event, result))) {
                 handleLogSealed();
             }
@@ -119,7 +127,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
      * This can happen recursively if segments turn over very quickly.
      */
     private void handleLogSealed() {
-        List<Event<Type>> toResend = setupLogProducers();
+        List<Event<Type>> toResend = setupSegmentProducers();
         while (toResend.isEmpty()) {
             List<Event<Type>> unsent = new ArrayList<>();
             for (Event<Type> event : toResend) {
@@ -128,26 +136,26 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 }
             }
             if (!unsent.isEmpty()) {
-                unsent.addAll(setupLogProducers());
+                unsent.addAll(setupSegmentProducers());
             }
             toResend = unsent;
         }
     }
 
     private boolean attemptPublish(Event<Type> event) {
-        SegmentProducer<Type> log = getLogProducer(event.getRoutingKey());
-        if (log == null || log.isAlreadySealed()) {
+        SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
+        if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
             return false;
         }
         try {
-            log.publish(event);
+            segmentProducer.publish(event);
             return true;
         } catch (SegmentSealedException e) {
             return false;
         }
     }
 
-    private SegmentProducer<Type> getLogProducer(String routingKey) {
+    private SegmentProducer<Type> getSegmentProducer(String routingKey) {
         SegmentId log = router.getSegmentForEvent(stream, routingKey);
         return producers.get(log);
     }
@@ -201,7 +209,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         UUID txId = UUID.randomUUID();
         Map<SegmentId, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<SegmentId> segmentIds;
-        synchronized (producers) {
+        synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
         for (SegmentId s : segmentIds) {
@@ -219,7 +227,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         boolean success = false;
         while (!success) {
             success = true;
-            synchronized (producers) {
+            synchronized (lock) {
                 for (SegmentProducer<Type> p : producers.values()) {
                     try {
                         p.flush();
@@ -239,7 +247,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         if (closed.getAndSet(true)) {
             return;
         }
-        synchronized (producers) {
+        synchronized (lock) {
             boolean success = false;
             while (!success) {
                 success = true;
