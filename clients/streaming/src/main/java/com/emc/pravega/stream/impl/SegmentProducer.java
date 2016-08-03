@@ -19,15 +19,15 @@ package com.emc.pravega.stream.impl;
 
 import java.util.List;
 
-import com.emc.pravega.stream.segment.SegmentSealedExcepetion;
+import com.emc.pravega.stream.segment.SegmentSealedException;
 
 public interface SegmentProducer<Type> extends AutoCloseable {
-    void publish(Event<Type> m) throws SegmentSealedExcepetion;
+    void publish(Event<Type> m) throws SegmentSealedException;
 
-    void flush() throws SegmentSealedExcepetion; // Block on all outstanding
+    void flush() throws SegmentSealedException; // Block on all outstanding
                                                  // writes.
     @Override
-    void close() throws SegmentSealedExcepetion;
+    void close() throws SegmentSealedException;
 
     boolean isAlreadySealed();
 

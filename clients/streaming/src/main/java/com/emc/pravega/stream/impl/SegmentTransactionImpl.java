@@ -23,7 +23,7 @@ import java.util.UUID;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedExcepetion;
+import com.emc.pravega.stream.segment.SegmentSealedException;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     private final Serializer<Type> serializer;
@@ -41,7 +41,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
         try {
             ByteBuffer buffer = serializer.serialize(event);
             out.write(buffer, null);
-        } catch (SegmentSealedExcepetion e) {
+        } catch (SegmentSealedException e) {
             throw new TxFailedException();
         }
     }
@@ -55,7 +55,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     public void flush() throws TxFailedException {
         try {
             out.flush();
-        } catch (SegmentSealedExcepetion e) {
+        } catch (SegmentSealedException e) {
             throw new TxFailedException(e);
         }
     }

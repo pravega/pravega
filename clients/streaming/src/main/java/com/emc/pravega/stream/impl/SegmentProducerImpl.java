@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedExcepetion;
+import com.emc.pravega.stream.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
 public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
@@ -45,7 +45,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     }
 
     @Override
-    public void publish(Event<Type> m) throws SegmentSealedExcepetion {
+    public void publish(Event<Type> m) throws SegmentSealedException {
         checkSealedAndClosed();
         ByteBuffer buffer = serializer.serialize(m.getValue());
         out.write(buffer, m.getCallback());
@@ -53,25 +53,25 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     }
 
     @Override
-    public void flush() throws SegmentSealedExcepetion {
+    public void flush() throws SegmentSealedException {
         checkSealedAndClosed();
         try {
             out.flush();
-        } catch (SegmentSealedExcepetion e) {
+        } catch (SegmentSealedException e) {
             sealed.set(true);
             throw e;
         }
     }
 
     @Override
-    public void close() throws SegmentSealedExcepetion {
+    public void close() throws SegmentSealedException {
         Preconditions.checkState(!sealed.get(), "Already Sealed");
         if (closed.get()) {
             return;
         }
         try {
             out.close();
-        } catch (SegmentSealedExcepetion e) {
+        } catch (SegmentSealedException e) {
             sealed.set(true);
             throw e;
         }

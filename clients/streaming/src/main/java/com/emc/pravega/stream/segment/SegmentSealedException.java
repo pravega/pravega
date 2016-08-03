@@ -19,6 +19,6 @@ package com.emc.pravega.stream.segment;
 
 import java.io.IOException;
 
-public class SegmentSealedExcepetion extends IOException {
+public class SegmentSealedException extends IOException {
 
 }

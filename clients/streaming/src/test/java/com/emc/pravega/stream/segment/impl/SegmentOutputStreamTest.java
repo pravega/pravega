@@ -34,7 +34,7 @@ import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedExcepetion;
+import com.emc.pravega.stream.segment.SegmentSealedException;
 import com.emc.pravega.stream.segment.impl.SegmentOutputStreamImpl;
 
 import static org.junit.Assert.*;
@@ -84,7 +84,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    public void testConnectAndSend() throws SegmentSealedExcepetion, ConnectionFailedException {
+    public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
@@ -99,7 +99,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedExcepetion {
+    public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
@@ -114,7 +114,7 @@ public class SegmentOutputStreamTest {
     }
 
     private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, ByteBuffer data,
-            int num) throws SegmentSealedExcepetion, ConnectionFailedException {
+            int num) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(data, acked);
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data)));
@@ -122,7 +122,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    public void testClose() throws ConnectionFailedException, SegmentSealedExcepetion, InterruptedException {
+    public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
@@ -193,7 +193,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedExcepetion {
+    public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
