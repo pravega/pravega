@@ -51,6 +51,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Process incomming Append requests and write them to the appropriate store.
+ */
 @Slf4j
 public class AppendProcessor extends DelegatingRequestProcessor {
 
@@ -74,6 +77,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         this.next = next;
     }
 
+    /**
+     * Setup an append so that subsequent append calls can occur.
+     * This requires validating that the segment exists.
+     * The reply: AppendSetup indicates that appends may proceed and contains the eventNumber which they should proceed
+     * from (in the event that this is a reconnect from a producer we have seen before)
+     */
     @Override
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
@@ -108,6 +117,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         });
     }
 
+    /**
+     * If there isn't already an append outstanding against the store, write a new one.
+     * Appends are opportunistically batched here. IE: If many are waiting they are combined into a single append and
+     * that is written.
+     */
     public void performNextWrite() {
         Append append;
         synchronized (lock) {
@@ -133,15 +147,15 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         return first;
     }
 
+    /**
+     * Write the provided append to the store, and upon completion ack it back to the producer.
+     */
     private void write(Append toWrite) {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
         CompletableFuture<Long> future = store
-            .append(toWrite.getSegment(),
-                    bytes,
-                    new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber()),
-                    TIMEOUT);
+            .append(toWrite.getSegment(), bytes, new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber()), TIMEOUT);
         future.handle(new BiFunction<Long, Throwable, Void>() {
             @Override
             public Void apply(Long t, Throwable u) {
@@ -199,6 +213,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    /**
+     * If there is too much data waiting throttle the producer by stopping consumption from the socket.
+     * If there is room for more data, we resume consuming from the socket.
+     */
     private void pauseOrResumeReading() {
         int bytesWaiting;
         synchronized (lock) {
@@ -216,6 +234,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
+    /**
+     * Append data to the store.
+     * Because ordering dictates that there only be one outstanding append from a given connection, this is implemented
+     * by adding the append to a queue.
+     */
     @Override
     public void append(Append append) {
         synchronized (lock) {

@@ -18,10 +18,34 @@
 package com.emc.pravega.stream;
 
 public interface StreamManager extends AutoCloseable {
+    /**
+     * Creates a new stream
+     * 
+     * Note:
+     * This method is idempotent assuming called with the same name and config.
+     * This method may block.
+     * 
+     * @param streamName The name of the stream to be created
+     * @param config The configuration the stream should use.
+     * @return The stream object representing the new stream
+     */
     Stream createStream(String streamName, StreamConfiguration config);
 
+    /**
+     * Change the configuration for an existing stream.
+     * 
+     * Note:
+     * This method is idempotent assuming called with the same name and config.
+     * This method may block.
+     * 
+     * @param streamName The name of the stream who's config is to be changed
+     * @param config The new configuration
+     */
     void alterStream(String streamName, StreamConfiguration config);
 
+    /**
+     * Returns the requested stream.
+     */
     Stream getStream(String streamName);
 
     @Override

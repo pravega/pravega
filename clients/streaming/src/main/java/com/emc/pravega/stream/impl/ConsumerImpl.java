@@ -72,7 +72,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
 
     private void handleEndOfSegment(SegmentConsumer<Type> oldSegment) {
         consumers.remove(oldSegment);
-        SegmentId oldLogId = oldSegment.getLogId();
+        SegmentId oldLogId = oldSegment.getSegmentId();
         Optional<SegmentId> replacment = futureOwnedLogs.keySet().stream().filter(l -> l.succeeds(oldLogId)).findAny();
         if (replacment.isPresent()) {
             SegmentId segmentId = replacment.get();
@@ -91,7 +91,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     public Position getPosition() {
         synchronized (consumers) {
             Map<SegmentId, Long> positions = consumers.stream()
-                .collect(Collectors.toMap(e -> e.getLogId(), e -> e.getOffset()));
+                .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             return new PositionImpl(positions, futureOwnedLogs);
         }
     }

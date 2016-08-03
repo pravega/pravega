@@ -33,6 +33,10 @@ import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
+/**
+ * A ReplyProcessor that hands off all implementation to another ReplyProcessor.
+ * This is useful for creating subclasses that only handle a subset of Commands.
+ */
 public abstract class DelegatingReplyProcessor implements ReplyProcessor {
 
     public abstract ReplyProcessor getNextReplyProcessor();

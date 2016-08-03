@@ -72,7 +72,7 @@ public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
     }
 
     @Override
-    public SegmentId getLogId() {
+    public SegmentId getSegmentId() {
         return segmentId;
     }
 }

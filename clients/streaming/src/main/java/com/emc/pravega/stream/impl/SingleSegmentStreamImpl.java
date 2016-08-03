@@ -85,11 +85,6 @@ public class SingleSegmentStreamImpl implements Stream {
     }
 
     @Override
-    public long getRate(long time) {
-        return 0;
-    }
-
-    @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
         return new ProducerImpl<>(this, segmentManager, router, s, config);
     }

@@ -49,6 +49,13 @@ import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.google.common.base.Preconditions;
 
+/**
+ * The various types of commands that can be sent over the wire.
+ * Each has two fields the first is a code that identifies it in the wire protocol. (This is the first thing written)
+ * The second is a constructor method, that is used to decode commands of that type.
+ * 
+ * (Types below that are grouped into pairs where there is a corresponding request and reply.)
+ */
 enum WireCommandType {
     PADDING(-1, Padding::readFrom),
 

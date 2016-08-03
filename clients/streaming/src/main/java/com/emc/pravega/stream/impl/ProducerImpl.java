@@ -171,8 +171,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void commit() throws TxFailedException {
-            for (SegmentTransaction<Type> log : inner.values()) {
-                log.flush();
+            for (SegmentTransaction<Type> tx : inner.values()) {
+                tx.flush();
             }
             segmentManager.commitTransaction(txId);
         }
@@ -185,6 +185,13 @@ public class ProducerImpl<Type> implements Producer<Type> {
         @Override
         public Status checkStatus() {
             return segmentManager.checkTransactionStatus(txId);
+        }
+
+        @Override
+        public void flush() throws TxFailedException {
+            for (SegmentTransaction<Type> tx : inner.values()) {
+                tx.flush();
+            }
         }
 
     }

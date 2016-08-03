@@ -19,6 +19,9 @@ package com.emc.pravega.stream;
 
 import lombok.Data;
 
+/**
+ * A policy that specifies how the number of segments in a stream should scale over time.
+ */
 @Data
 public class ScalingPolicy {
     enum Type {
