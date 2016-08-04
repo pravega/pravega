@@ -28,14 +28,14 @@ import com.google.common.base.Preconditions;
  * Default implementation for ReadIndexFactory.
  */
 public class ContainerReadIndexFactory implements ReadIndexFactory {
-    private final Cache cache;
+    private final Cache<CacheKey> cache;
 
     /**
      * Creates a new instance of the ContainerReadIndexFactory class.
      *
      * @param cache The cache to use.
      */
-    public ContainerReadIndexFactory(Cache cache) {
+    public ContainerReadIndexFactory(Cache<CacheKey> cache) {
         Preconditions.checkNotNull(cache, "cache");
         this.cache = cache;
     }

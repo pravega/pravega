@@ -18,8 +18,6 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.common.concurrent.AutoReleaseLock;
-import com.emc.pravega.common.concurrent.ReadWriteAutoReleaseLock;
 import com.google.common.base.Preconditions;
 
 import java.util.Iterator;
@@ -37,7 +35,7 @@ public class TruncateableList<T> {
     private ListNode<T> head;
     private ListNode<T> tail;
     private int size;
-    private final ReadWriteAutoReleaseLock lock;
+    private final Object lock = new Object();
 
     //endregion
 
@@ -49,7 +47,6 @@ public class TruncateableList<T> {
     public TruncateableList() {
         this.head = null;
         this.tail = null;
-        this.lock = new ReadWriteAutoReleaseLock();
     }
 
     //endregion
@@ -63,7 +60,7 @@ public class TruncateableList<T> {
      */
     public void add(T item) {
         ListNode<T> node = new ListNode<>(item);
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             if (this.tail == null) {
                 this.head = node;
                 this.tail = node;
@@ -86,7 +83,7 @@ public class TruncateableList<T> {
      */
     public boolean addIf(T item, Predicate<T> lastItemChecker) {
         ListNode<T> node = new ListNode<>(item);
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             if (this.tail == null) {
                 // List is currently empty.
                 this.head = node;
@@ -114,7 +111,7 @@ public class TruncateableList<T> {
      */
     public int truncate(Predicate<T> tester) {
         int count = 0;
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             // We truncate by finding the new head and simply pointing our head reference to it, as well as disconnecting
             // its predecessor node from it.
             // We also need to mark every truncated node as such - this will instruct ongoing reads to stop serving truncated data.
@@ -146,7 +143,7 @@ public class TruncateableList<T> {
      * Clears the list.
      */
     public void clear() {
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             // Mark every node as truncated.
             ListNode<T> current = this.head;
             while (current != null) {
@@ -187,7 +184,7 @@ public class TruncateableList<T> {
      */
     private ListNode<T> getFirst(Predicate<T> firstItemTester) {
         ListNode<T> firstNode;
-        try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
+        synchronized (this.lock) {
             firstNode = this.head;
             while (firstNode != null && !firstItemTester.test(firstNode.item)) {
                 firstNode = firstNode.getNext();

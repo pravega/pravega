@@ -29,7 +29,6 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -40,11 +39,12 @@ import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.logs.ConfigHelpers;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
+import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.server.mocks.InMemoryMetadataRepository;
 import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
-import com.emc.pravega.service.server.reading.InMemoryCache;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
@@ -208,7 +208,6 @@ public class StreamSegmentContainerTests {
             long expectedCurrentOffset = segmentLength - totalReadLength;
             @Cleanup
             ReadResult readResult = context.container.read(segmentName, expectedCurrentOffset, Integer.MAX_VALUE, TIMEOUT).join();
-            Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
 
             int readLength = 0;
             while (readResult.hasNext()) {

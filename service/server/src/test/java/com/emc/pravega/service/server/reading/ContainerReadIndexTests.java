@@ -24,6 +24,7 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.SegmentMetadata;

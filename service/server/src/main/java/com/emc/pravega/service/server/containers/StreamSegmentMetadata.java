@@ -43,6 +43,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final String name;
     private final long streamSegmentId;
     private final long parentStreamSegmentId;
+    private final int containerId;
     private final AbstractMap<UUID, AppendContext> lastCommittedAppends;
     private long storageLength;
     private long durableLogLength;
@@ -60,10 +61,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      *
      * @param streamSegmentName The name of the StreamSegment.
      * @param streamSegmentId   The Id of the StreamSegment.
+     * @param containerId       The Id of the Container this StreamSegment belongs to.
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId) {
-        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
+        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, containerId);
     }
 
     /**
@@ -72,16 +74,19 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @param streamSegmentName     The name of the StreamSegment.
      * @param streamSegmentId       The Id of the StreamSegment.
      * @param parentStreamSegmentId The Id of the Parent StreamSegment.
+     * @param containerId           The Id of the Container this StreamSegment belongs to.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
+        Preconditions.checkArgument(containerId >= 0, "containerId");
 
         this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
         this.name = streamSegmentName;
         this.streamSegmentId = streamSegmentId;
         this.parentStreamSegmentId = parentStreamSegmentId;
+        this.containerId = containerId;
         this.sealed = false;
         this.deleted = false;
         this.merged = false;
@@ -132,6 +137,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public long getParentId() {
         return this.parentStreamSegmentId;
+    }
+
+    @Override
+    public int getContainerId() {
+        return this.containerId;
     }
 
     @Override

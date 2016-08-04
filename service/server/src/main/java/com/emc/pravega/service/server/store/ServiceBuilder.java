@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndexFactory;
@@ -30,8 +29,10 @@ import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
+import com.emc.pravega.service.server.mocks.InMemoryCache;
+import com.emc.pravega.service.server.reading.CacheKey;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
-import com.emc.pravega.service.server.reading.InMemoryCache;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -58,7 +59,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
     private SegmentContainerRegistry containerRegistry;
     private SegmentContainerManager containerManager;
     private MetadataRepository metadataRepository;
-    private Cache cache;
+    private Cache<CacheKey> cache;
 
     //endregion
 
@@ -144,12 +145,12 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     protected abstract SegmentContainerManager createSegmentContainerManager();
 
-    protected Cache createCache() {
+    protected Cache<CacheKey> createCache() {
         return new InMemoryCache();
     }
 
     protected ReadIndexFactory createReadIndexFactory() {
-        Cache cache = getSingleton(this.cache, this::createCache, c -> this.cache = c);
+        Cache<CacheKey> cache = getSingleton(this.cache, this::createCache, c -> this.cache = c);
         return new ContainerReadIndexFactory(cache);
     }
 

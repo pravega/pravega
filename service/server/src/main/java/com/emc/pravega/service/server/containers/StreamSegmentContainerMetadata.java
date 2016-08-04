@@ -19,8 +19,6 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.AutoReleaseLock;
-import com.emc.pravega.common.concurrent.ReadWriteAutoReleaseLock;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -53,7 +51,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final int streamSegmentContainerId;
     private final AbstractMap<Long, Long> truncationMarkers;
     private final HashSet<Long> truncationPoints;
-    private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
+    private final Object lock = new Object();
 
     //endregion
 
@@ -84,14 +82,14 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * @return The Id of the StreamSegment, or NO_STREAM_SEGMENT_ID if the Metadata has no knowledge of it.
      */
     public long getStreamSegmentId(String streamSegmentName) {
-        try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
+        synchronized (this.lock) {
             return this.streamSegmentIds.getOrDefault(streamSegmentName, NO_STREAM_SEGMENT_ID);
         }
     }
 
     @Override
     public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
-        try (AutoReleaseLock ignored = this.lock.acquireReadLock()) {
+        synchronized (this.lock) {
             return this.segmentMetadata.getOrDefault(streamSegmentId, null);
         }
     }
@@ -120,12 +118,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId));
+            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId()));
         }
 
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
@@ -133,7 +131,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
@@ -142,7 +140,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId));
+            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId()));
         }
 
         log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
@@ -157,7 +155,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public Collection<String> deleteStreamSegment(String streamSegmentName) {
         Collection<String> result = new ArrayList<>();
         result.add(streamSegmentName);
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
             if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no batches associated
@@ -222,7 +220,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public void reset() {
         ensureRecoveryMode();
         this.sequenceNumber.set(0);
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             this.streamSegmentIds.clear();
             this.segmentMetadata.clear();
         }
@@ -286,7 +284,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
         Map.Entry<Long, Long> result = null;
         synchronized (this.truncationMarkers) {
-
             for (Map.Entry<Long, Long> tm : this.truncationMarkers.entrySet()) {
                 long seqNo = tm.getKey();
                 if (seqNo == operationSequenceNumber) {

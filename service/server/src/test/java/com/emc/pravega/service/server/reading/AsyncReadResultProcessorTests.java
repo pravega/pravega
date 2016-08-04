@@ -67,7 +67,7 @@ public class AsyncReadResultProcessorTests {
                 return null;
             }
 
-            return new MemoryReadResultEntry(new ByteArrayReadIndexEntry(offset, entries.get(idx)), 0, entries.get(idx).length);
+            return new CacheReadResultEntry(offset, entries.get(idx), 0, entries.get(idx).length);
         };
 
         // Start an AsyncReadResultProcessor.
