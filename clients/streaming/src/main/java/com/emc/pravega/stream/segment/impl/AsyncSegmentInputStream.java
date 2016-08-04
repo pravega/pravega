@@ -21,6 +21,9 @@ import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 
+/**
+ * Allows for reading from a Segment asynchronously.
+ */
 abstract class AsyncSegmentInputStream implements AutoCloseable {
 	
 	/**

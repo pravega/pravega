@@ -19,11 +19,11 @@ package com.emc.pravega.stream.segment;
 
 import java.io.IOException;
 
+/**
+ * A segment has been sealed and no more events may be published to it.
+ */
 public class SegmentSealedException extends IOException {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
 }

@@ -21,6 +21,9 @@ import java.util.UUID;
 
 import com.emc.pravega.stream.TxFailedException;
 
+/**
+ * The mirror of Transaction but that is specific to one segment.
+ */
 public interface SegmentTransaction<Type> {
     UUID getId();
 

@@ -86,6 +86,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	    private final ReusableLatch connectionSetup = new ReusableLatch();
 	    private final ReusableLatch inflightEmpty = new ReusableLatch(true);
 
+		/**
+		 * Blocks until there are no more messages inflight. (No locking required)
+		 */
 		private void waitForEmptyInflight() throws InterruptedException {
 			inflightEmpty.await();
 		}
@@ -94,12 +97,18 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			connectionSetup.release();
 		}
 
+		/**
+		 * @return The current connection (May be null if not connected)
+		 */
 		private ClientConnection getConnection() {
 	          synchronized (lock) {
 	              return connection;
 	          }
 		}
 		
+		/**
+		 * @param newConnection The new connection that has been established that should used going forward.
+		 */
 		private void newConnection(ClientConnection newConnection) {
 			synchronized (lock) {
 				connectionSetup.reset();
@@ -108,6 +117,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
+		/**
+		 * @param e Error that has occurred that needs to be handled by tearing down the connection.
+		 */
 		private void failConnection(Exception e) {
             log.warn("Connection failed due to", e);
 		    ClientConnection oldConnection;
@@ -122,6 +134,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			oldConnection.close();
 		}
 
+		/**
+		 * Block until a connection has been established and AppendSetup has come back from the server.
+		 */
 		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
 			try {
 				connectionSetup.await();
@@ -143,6 +158,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
+        /**
+         * Add event to the infight
+         */
         private Append createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff,
                 CompletableFuture<Void> callback) {
             synchronized (lock) {
@@ -154,6 +172,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
             }
         }
 
+		/**
+		 * Remove all events with event numbers below the provided level from inflight and return them.
+		 */
 		private List<CompletableFuture<Void>> removeInflightBelow(long ackLevel) {
 			synchronized (lock) {
 				ArrayList<CompletableFuture<Void>> result = new ArrayList<>();
@@ -279,6 +300,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 	}
 
+    /**
+     * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
+     */
     private ClientConnection connection() throws SegmentSealedException {
         long delay = 1;
         for (int attempt = 0; attempt < 5; attempt++) {

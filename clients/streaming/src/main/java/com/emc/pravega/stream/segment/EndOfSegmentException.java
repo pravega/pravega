@@ -19,11 +19,11 @@ package com.emc.pravega.stream.segment;
 
 import java.io.IOException;
 
+/**
+ * A segment has ended. No more events may be consumed from it.
+ */
 public class EndOfSegmentException extends IOException {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
 }

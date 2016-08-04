@@ -46,6 +46,10 @@ import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * This class takes in events, finds out which segment they belong to and then calls produce on the appropriate segment.
+ * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
+ */
 @Slf4j
 public class ProducerImpl<Type> implements Producer<Type> {
 

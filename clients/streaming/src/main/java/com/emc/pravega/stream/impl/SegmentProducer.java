@@ -21,15 +21,24 @@ import java.util.List;
 
 import com.emc.pravega.stream.segment.SegmentSealedException;
 
+/**
+ * This is the mirror of Producer but that only deals with one segment.
+ */
 public interface SegmentProducer<Type> extends AutoCloseable {
     void publish(Event<Type> m) throws SegmentSealedException;
 
-    void flush() throws SegmentSealedException; // Block on all outstanding
-                                                 // writes.
+    /**
+     * Block on all outstanding writes.
+     */
+    void flush() throws SegmentSealedException; 
+    
     @Override
     void close() throws SegmentSealedException;
 
     boolean isAlreadySealed();
 
+    /**
+     * @return All events that have been sent to publish but are not yet acknolaged.
+     */
     List<Event<Type>> getUnackedEvents();
 }
