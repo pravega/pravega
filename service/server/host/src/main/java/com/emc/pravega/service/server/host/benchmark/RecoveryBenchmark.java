@@ -188,7 +188,7 @@ public class RecoveryBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.input.totalAppendLength / ONE_MB / (this.totalDurationNanos / 1000000000));
+            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.input.totalAppendLength / ONE_MB , (this.totalDurationNanos / 1000000000));
         }
 
         @Override

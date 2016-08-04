@@ -36,12 +36,16 @@ import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import javax.annotation.concurrent.GuardedBy;
+
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorage implements Storage {
-    private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
     private final Object lock = new Object();
+    @GuardedBy("lock")
+    private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
+    @GuardedBy("lock")
     private boolean closed;
 
     //region AutoCloseable Implementation
@@ -137,10 +141,13 @@ public class InMemoryStorage implements Storage {
 
     private static class StreamSegmentData {
         private static final int BUFFER_SIZE = 1024 * 1024;
-        private final String name;
-        private final ArrayList<byte[]> data;
         private final Object lock = new Object();
+        private final String name;
+        @GuardedBy("lock")
+        private final ArrayList<byte[]> data;
+        @GuardedBy("lock")
         private long length;
+        @GuardedBy("lock")
         private boolean sealed;
 
         public StreamSegmentData(String name) {

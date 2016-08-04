@@ -29,6 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.BiFunction;
 
+import javax.annotation.concurrent.GuardedBy;
+
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.ServerConnection;
@@ -67,8 +69,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     private final Object lock = new Object();
 
+    @GuardedBy("lock")
     private final LinkedHashMap<UUID, List<Append>> waitingAppends = new LinkedHashMap<>();
+    @GuardedBy("lock")
     private final HashMap<UUID, Long> latestEventNumbers = new HashMap<>();
+    @GuardedBy("lock")
     private Append outstandingAppend = null;
 
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {

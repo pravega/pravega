@@ -29,6 +29,7 @@ public class ReusableLatch {
 
     private final Semaphore impl;
     private final AtomicBoolean released;
+    private final Object releasingLock = new Object();
 
     public ReusableLatch() {
         this(false);
@@ -68,7 +69,7 @@ public class ReusableLatch {
      */
     public void release() {
         if (released.compareAndSet(false, true)) {
-            synchronized (released) {
+            synchronized (releasingLock) {
                 if (released.get()) {
                     impl.release(Integer.MAX_VALUE);
                 }
@@ -88,7 +89,7 @@ public class ReusableLatch {
      */
     public void reset() {
         if (released.compareAndSet(true, false)) {
-            synchronized (released) {
+            synchronized (releasingLock) {
                 if (!released.get()) {
                     impl.drainPermits();
                 }

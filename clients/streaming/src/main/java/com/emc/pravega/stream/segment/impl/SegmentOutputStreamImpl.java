@@ -27,6 +27,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 
+import javax.annotation.concurrent.GuardedBy;
+
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -71,13 +73,18 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	 */
 	private static final class State {
 		private final Object lock = new Object();
+	    @GuardedBy("lock")
 		private boolean closed = false;
+	    @GuardedBy("lock")
 		private ClientConnection connection;
+	    @GuardedBy("lock")
 		private Exception exception = null;
-		private final ReusableLatch connectionSetup = new ReusableLatch();
+	    @GuardedBy("lock")
 		private final ConcurrentSkipListMap<Append,CompletableFuture<Void>> inflight = new ConcurrentSkipListMap<>();
-		private final ReusableLatch inflightEmpty = new ReusableLatch(true);
+	    @GuardedBy("lock")
 		private long eventNumber = 0;
+	    private final ReusableLatch connectionSetup = new ReusableLatch();
+	    private final ReusableLatch inflightEmpty = new ReusableLatch(true);
 
 		private void waitForEmptyInflight() throws InterruptedException {
 			inflightEmpty.await();

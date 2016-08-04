@@ -18,9 +18,11 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import java.util.Random;
+
 import org.junit.Assert;
 
-import java.util.Random;
+import com.emc.pravega.common.MathHelpers;
 
 /**
  * Unit tests for StreamSegmentSealOperation class.
@@ -39,7 +41,7 @@ public class StreamSegmentSealOperationTests extends OperationTestsBase<StreamSe
     @Override
     protected void configurePreSerialization(StreamSegmentSealOperation operation, Random random) {
         if (operation.getStreamSegmentLength() < 0) {
-            operation.setStreamSegmentLength(Math.abs(random.nextLong()));
+            operation.setStreamSegmentLength(MathHelpers.abs(random.nextLong()));
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }

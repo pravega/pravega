@@ -18,15 +18,16 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import org.junit.Test;
-
-import com.emc.pravega.testcommon.AssertExtensions;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.CompletionException;
+
+import org.junit.Test;
+
+import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Base class for all Log Operation test.
@@ -42,7 +43,7 @@ public abstract class OperationTestsBase<T extends Operation> {
 
         // Verify we cannot serialize without a valid Sequence Number.
         trySerialize(baseOp, "Serialization was possible without a valid Sequence Number.");
-        baseOp.setSequenceNumber(Math.abs(random.nextLong()));
+        baseOp.setSequenceNumber(MathHelpers.abs(random.nextLong()));
 
         // Verify that whatever Pre-Serialization requirements are needed will actually prevent serialization.
         int configIter = 0;
