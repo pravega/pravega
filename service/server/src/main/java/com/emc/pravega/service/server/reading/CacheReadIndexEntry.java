@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.service.server.CacheKey;
 import com.google.common.base.Preconditions;
 
 /**

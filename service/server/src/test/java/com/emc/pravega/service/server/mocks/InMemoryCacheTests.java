@@ -1,6 +1,6 @@
 package com.emc.pravega.service.server.mocks;
 
-import com.emc.pravega.service.server.reading.CacheKey;
+import com.emc.pravega.service.server.CacheKey;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -10,14 +10,14 @@ import java.util.function.Consumer;
  * Unit tests for the InMemoryCache class.
  */
 public class InMemoryCacheTests {
-    private static final int CONTAINER_COUNT = 100;
-    private static final int SEGMENT_COUNT = 10;
+    private static final String CACHE_ID = "cache_id";
+    private static final int SEGMENT_COUNT = 1000;
     private static final int OFFSET_COUNT = 100;
     private static final long OFFSET_MULTIPLIER = 1024 * 1024 * 1024;
 
     @Test
     public void testFunctionality() {
-        InMemoryCache cache = new InMemoryCache();
+        InMemoryCache cache = new InMemoryCache(CACHE_ID);
 
         // Populate the cache.
         forAllCombinations(key -> cache.insert(key, getData(key)));
@@ -35,13 +35,11 @@ public class InMemoryCacheTests {
     }
 
     private void forAllCombinations(Consumer<CacheKey> consumer) {
-        for (int containerId = 0; containerId < CONTAINER_COUNT; containerId++) {
-            for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
-                for (long baseOffset = 0; baseOffset < OFFSET_COUNT; baseOffset += 1) {
-                    long offset = baseOffset * OFFSET_MULTIPLIER;
-                    CacheKey key = new CacheKey(containerId, segmentId, offset);
-                    consumer.accept(key);
-                }
+        for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
+            for (long baseOffset = 0; baseOffset < OFFSET_COUNT; baseOffset += 1) {
+                long offset = baseOffset * OFFSET_MULTIPLIER;
+                CacheKey key = new CacheKey(segmentId, offset);
+                consumer.accept(key);
             }
         }
     }

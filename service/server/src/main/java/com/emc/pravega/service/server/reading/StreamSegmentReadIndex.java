@@ -24,6 +24,7 @@ import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
@@ -54,7 +55,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
     private final String traceObjectId;
     private final TreeMap<Long, ReadIndexEntry> entries; // Key = Last Offset of Entry, Value = Entry; TODO: we can implement a version of this that doesn't require Key
-    private final Cache<CacheKey> cache;
+    private final Cache cache;
     private final FutureReadResultEntryCollection futureReads;
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
     private SegmentMetadata metadata;
@@ -74,7 +75,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param metadata The StreamSegmentMetadata to use.
      * @throws NullPointerException If any of the arguments are null.
      */
-    StreamSegmentReadIndex(SegmentMetadata metadata, Cache<CacheKey> cache, boolean recoveryMode) {
+    StreamSegmentReadIndex(SegmentMetadata metadata, Cache cache, boolean recoveryMode) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
 
@@ -162,17 +163,18 @@ class StreamSegmentReadIndex implements AutoCloseable {
     /**
      * Appends the given range of bytes at the given offset.
      *
-     * @param offset The offset within the StreamSegment to append at.
-     * @param data   The range of bytes to append.
+     * @param cacheKey The Key (in the Cache) of the data to be appended.
+     * @param length   the length of the data to be appended.
      * @throws NullPointerException     If data is null.
      * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's DurableLogLength.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      */
-    public void append(long offset, byte[] data) {
+    public void append(CacheKey cacheKey, int length) {
         Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkArgument(cacheKey.getStreamSegmentId() == this.metadata.getId(), "Wrong StreamSegmentId.");
         Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
-        if (data.length == 0) {
+        if (length == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
             return;
         }
@@ -181,14 +183,11 @@ class StreamSegmentReadIndex implements AutoCloseable {
         // Adding at the end means that we always need to "catch-up" with DurableLogLength. Check to see if adding
         // this entry will make us catch up to it or not.
         long durableLogLength = this.metadata.getDurableLogLength();
-        long endOffset = offset + data.length;
-        Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
-
-        // Add the new data to the Cache.
-        ReadIndexEntry entry = addToCache(offset, data);
+        long endOffset = cacheKey.getOffset() + length;
+        Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", cacheKey.getOffset(), endOffset, durableLogLength);
 
         // Then append an entry for it in the ReadIndex.
-        appendEntry(entry);
+        appendEntry(new CacheReadIndexEntry(cacheKey, length));
     }
 
     /**
@@ -308,12 +307,6 @@ class StreamSegmentReadIndex implements AutoCloseable {
             assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
             this.lastAppendedOffset = entry.getLastStreamSegmentOffset();
         }
-    }
-
-    private CacheReadIndexEntry addToCache(long offset, byte[] data){
-        CacheKey cacheKey = new CacheKey(this.metadata.getContainerId(), this.metadata.getId(), offset);
-        this.cache.insert(cacheKey, data);
-        return new CacheReadIndexEntry(cacheKey, data.length);
     }
 
     //endregion

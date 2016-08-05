@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -53,7 +54,7 @@ public class ContainerReadIndex implements ReadIndex {
     private final String traceObjectId;
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
     private final Object lock = new Object();
-    private final Cache<CacheKey> cache;
+    private final Cache cache;
     private ContainerMetadata metadata;
     private ContainerMetadata preRecoveryMetadata;
     private boolean closed;
@@ -68,7 +69,7 @@ public class ContainerReadIndex implements ReadIndex {
      * @param metadata The ContainerMetadata to attach to.
      * @param cache    The cache to store data into.
      */
-    public ContainerReadIndex(ContainerMetadata metadata, Cache<CacheKey> cache) {
+    public ContainerReadIndex(ContainerMetadata metadata, Cache cache) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkArgument(!metadata.isRecoveryMode(), "Given ContainerMetadata is in Recovery Mode.");
@@ -102,14 +103,19 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public void append(long streamSegmentId, long offset, byte[] data) {
+    public int getContainerId() {
+        return this.metadata.getContainerId();
+    }
+
+    @Override
+    public void append(CacheKey cacheKey, int length) {
         Exceptions.checkNotClosed(this.closed, this);
-        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
+        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, cacheKey.getStreamSegmentId(), cacheKey.getOffset(), length);
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
-        StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
+        StreamSegmentReadIndex index = getReadIndex(cacheKey.getStreamSegmentId(), true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
-        index.append(offset, data);
+        index.append(cacheKey, length);
     }
 
     @Override
