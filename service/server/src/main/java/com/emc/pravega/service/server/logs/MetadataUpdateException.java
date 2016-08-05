@@ -24,6 +24,11 @@ import com.emc.pravega.service.contracts.StreamingException;
  * Exception that is thrown whenever the Metadata cannot be updated.
  */
 public class MetadataUpdateException extends StreamingException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public MetadataUpdateException(String message) {
         super(message);
     }

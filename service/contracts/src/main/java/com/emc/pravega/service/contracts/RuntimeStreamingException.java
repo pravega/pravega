@@ -23,6 +23,11 @@ package com.emc.pravega.service.contracts;
  */
 public class RuntimeStreamingException extends RuntimeException {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the RuntimeStreamingException class.
      *
      * @param message The detail message.

@@ -42,7 +42,7 @@ import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.ReusableLatch;
 import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedExcepetion;
+import com.emc.pravega.stream.segment.SegmentSealedException;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -115,7 +115,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			oldConnection.close();
 		}
 
-		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedExcepetion {
+		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
 			try {
 				connectionSetup.await();
 				synchronized (lock) {
@@ -129,7 +129,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 				throw new RuntimeException(e);
 			} catch (ExecutionException e) {
 				throw new ConnectionFailedException(e.getCause());
-			} catch (IllegalArgumentException|SegmentSealedExcepetion e) {
+			} catch (IllegalArgumentException|SegmentSealedException e) {
 				throw e;
 			} catch (Exception e) {
 				throw new RuntimeException(e);
@@ -194,7 +194,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 		@Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
-			state.failConnection(new SegmentSealedExcepetion());
+			state.failConnection(new SegmentSealedException());
 		}
 
 		@Override
@@ -258,7 +258,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	 */
 	@Override
 	@Synchronized
-	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedExcepetion {
+	public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
 	    if (buff.remaining() > SegmentOutputStream.MAX_WRITE_SIZE) {
 	        throw new IllegalArgumentException("Write size too large: "+buff.remaining());
 	    }
@@ -272,7 +272,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 	}
 
-    private ClientConnection connection() throws SegmentSealedExcepetion {
+    private ClientConnection connection() throws SegmentSealedException {
         long delay = 1;
         for (int attempt = 0; attempt < 5; attempt++) {
             try {
@@ -298,7 +298,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	 */
 	@Override
 	@Synchronized
-	public void close() throws SegmentSealedExcepetion {
+	public void close() throws SegmentSealedException {
 		flush();
 		state.setClosed(true);
 		ClientConnection connection = state.getConnection();
@@ -312,7 +312,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	 */
 	@Override
 	@Synchronized
-	public void flush() throws SegmentSealedExcepetion {
+	public void flush() throws SegmentSealedException {
 		try {
 			ClientConnection connection = connection();
 			connection.send(new KeepAlive());

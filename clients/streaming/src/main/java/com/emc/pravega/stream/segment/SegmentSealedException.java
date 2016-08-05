@@ -19,6 +19,11 @@ package com.emc.pravega.stream.segment;
 
 import java.io.IOException;
 
-public class SegmentSealedExcepetion extends IOException {
+public class SegmentSealedException extends IOException {
+
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
 
 }

@@ -23,6 +23,11 @@ package com.emc.pravega.service.contracts;
  */
 public class StreamingException extends Exception {
     /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
+    /**
      * Creates a new instance of the StreamingException class.
      *
      * @param message The detail message.

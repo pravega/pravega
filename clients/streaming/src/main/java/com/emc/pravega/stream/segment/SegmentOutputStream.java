@@ -29,17 +29,17 @@ public abstract class SegmentOutputStream implements AutoCloseable {
      * @param onComplete future to be completed when data has been replicated and stored durably.
      * @return
      */
-    public abstract void write(ByteBuffer buff, CompletableFuture<Void> onComplete) throws SegmentSealedExcepetion;
+    public abstract void write(ByteBuffer buff, CompletableFuture<Void> onComplete) throws SegmentSealedException;
 
     /**
      * Flushes and then closes the output stream.
      * Frees any resources associated with it.
      */
     @Override
-    public abstract void close() throws SegmentSealedExcepetion;
+    public abstract void close() throws SegmentSealedException;
 
     /**
      * Block on all writes who's future has not yet completed.
      */
-    public abstract void flush() throws SegmentSealedExcepetion;
+    public abstract void flush() throws SegmentSealedException;
 }

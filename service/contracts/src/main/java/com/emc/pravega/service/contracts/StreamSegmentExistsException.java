@@ -22,6 +22,11 @@ package com.emc.pravega.service.contracts;
  * Represents an exception that is thrown when a StreamSegment that already exists is attempted to be created again.
  */
 public class StreamSegmentExistsException extends StreamSegmentException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public StreamSegmentExistsException(String streamSegmentName) {
         super(streamSegmentName, "The StreamSegment exists already.");
     }

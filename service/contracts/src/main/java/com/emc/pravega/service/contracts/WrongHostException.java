@@ -21,6 +21,10 @@ package com.emc.pravega.service.contracts;
 import lombok.Getter;
 
 public class WrongHostException extends StreamSegmentException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
     @Getter
     private final String correctHost;
 

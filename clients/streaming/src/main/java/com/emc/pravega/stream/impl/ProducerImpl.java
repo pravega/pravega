@@ -39,7 +39,7 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.segment.SegmentManager;
 import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedExcepetion;
+import com.emc.pravega.stream.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
@@ -91,7 +91,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 iter.remove();
                 try {
                     producer.close();
-                } catch (SegmentSealedExcepetion e) {
+                } catch (SegmentSealedException e) {
                     log.warn("Caught exception closing old producer: ", e);
                 }
                 toResend.addAll(producer.getUnackedEvents());
@@ -142,7 +142,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         try {
             log.publish(event);
             return true;
-        } catch (SegmentSealedExcepetion e) {
+        } catch (SegmentSealedException e) {
             return false;
         }
     }
@@ -216,7 +216,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 for (SegmentProducer<Type> p : producers.values()) {
                     try {
                         p.flush();
-                    } catch (SegmentSealedExcepetion e) {
+                    } catch (SegmentSealedException e) {
                         success = false;
                     }
                 }
@@ -239,7 +239,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 for (SegmentProducer<Type> p : producers.values()) {
                     try {
                         p.close();
-                    } catch (SegmentSealedExcepetion e) {
+                    } catch (SegmentSealedException e) {
                         success = false;
                     }
                 }

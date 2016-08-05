@@ -23,7 +23,12 @@ import com.google.common.util.concurrent.Service;
 /**
  * Exception thrown whenever a Container is in an invalid State
  */
-public class IllegalContainerStateException extends RuntimeException {
+public class IllegalContainerStateException extends RuntimeException { // TODO: this should extend ContainerException, but that is not a RuntimeException.
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+
     public IllegalContainerStateException(String message) {
         super(message);
     }

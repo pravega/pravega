@@ -218,7 +218,7 @@ public class ContainerReadIndexTests {
 
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
             byte[] actualData = readContents.get(segmentId).toByteArray();
-            int expectedLength = isSealed ? (int) (long) expectedData.length : nonSealReadLimit;
+            int expectedLength = isSealed ? (int) expectedData.length : nonSealReadLimit;
             Assert.assertEquals("Unexpected read length for segment " + expectedData, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + expectedData, expectedData, 0, actualData, 0, actualData.length);
         }

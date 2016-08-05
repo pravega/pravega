@@ -22,6 +22,11 @@ package com.emc.pravega.common;
  * Thrown when an object has been closed via AutoCloseable.close().
  */
 public class ObjectClosedException extends IllegalStateException {
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 1L;
+
     public ObjectClosedException(Object object) {
         super(getMessage(object));
     }
