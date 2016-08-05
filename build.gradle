@@ -185,3 +185,12 @@ project('benchmark') {
     }
 }
 
+
+project('cluster') {
+}
+
+project('zkutils') {
+    dependencies {
+        compile project(':cluster')
+    }
+}

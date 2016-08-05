@@ -12,5 +12,7 @@
 // To declare projects as part of a multi-project build use the 'include' method
 
 
-include 'common', 'clients:streaming', 'service:contracts', 'service:storage', 'service:storage:impl', 'service:server', 'service:server:host', 'integrationtests', 'testcommon', 'benchmark'
+include 'common', 'clients:streaming', 'service:contracts', 'service:storage',
+        'service:storage:impl', 'service:server', 'service:server:host',
+        'integrationtests', 'testcommon', 'benchmark', 'cluster', 'zkutils'
 
