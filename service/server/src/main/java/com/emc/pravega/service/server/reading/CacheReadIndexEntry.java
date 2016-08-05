@@ -74,7 +74,7 @@ class CacheReadIndexEntry extends ReadIndexEntry {
      */
     CacheReadIndexEntry withAdjustedOffset(long offsetAdjustment) {
         // CacheReadIndexEntry always have length < Int32.MAX_VALUE, so it's safe to cast to int.
-        return new CacheReadIndexEntry(this.cacheKey, this.getStreamSegmentOffset() + offsetAdjustment, (int)this.getLength());
+        return new CacheReadIndexEntry(this.cacheKey, this.getStreamSegmentOffset() + offsetAdjustment, (int) this.getLength());
     }
 
     //endregion

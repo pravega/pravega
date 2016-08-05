@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
@@ -83,26 +84,20 @@ class MemoryLogUpdater {
      * @throws DataCorruptionException If a serious, non-recoverable, data corruption was detected, such as trying to
      *                                 append operations out of order.
      */
-    void add(Operation operation) throws DataCorruptionException {
+    void process(Operation operation) throws DataCorruptionException {
         CacheKey cacheKey = addToCache(operation);
         try {
             // Add entry to MemoryTransactionLog and ReadIndex. This callback is invoked from the QueueProcessor,
             // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
-            if (!addToMemoryOperationLog(operation, cacheKey)) {
-                // This is a pretty nasty one. It's safer to shut down the container than continue.
-                // We either recorded the Operation correctly, but invoked this callback out of order, or we really
-                // recorded the Operation in the wrong order (by sequence number). In either case, we will be inconsistent
-                // while serving reads, so better stop now than later.
-                throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
-            }
+            operation = addToMemoryOperationLog(operation, cacheKey);
 
             // Add entry to read index (if applicable).
             if (operation instanceof StorageOperation) {
-                this.cacheUpdater.addToReadIndex((StorageOperation) operation, cacheKey);
+                this.cacheUpdater.addToReadIndex((StorageOperation) operation);
             }
         } catch (Exception | Error ex) {
             if (cacheKey != null) {
-                // Cleanup the cache after failing to process an operation that did add something to the cache.
+                // Cleanup the cache after failing to process an operation that did process something to the cache.
                 this.cacheUpdater.removeFromCache(cacheKey);
             }
 
@@ -137,9 +132,29 @@ class MemoryLogUpdater {
         return null;
     }
 
-    private boolean addToMemoryOperationLog(Operation operation, CacheKey key) {
-        // TODO: use operation and key to transform StreamSegmentAppendOperations into something that doesn't hold
-        return this.inMemoryOperationLog.addIf(operation, previous -> previous.getSequenceNumber() < operation.getSequenceNumber());
+    private Operation addToMemoryOperationLog(Operation operation, CacheKey key) throws DataCorruptionException {
+        if (key != null) {
+            // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
+            assert operation instanceof StreamSegmentAppendOperation : "non-null CacheKey, but operation is not a StreamSegmentAppendOperation";
+            try {
+                operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation, key);
+            } catch (Exception | Error ex) {
+                throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+            }
+        }
+
+        long seqNo = operation.getSequenceNumber();
+        boolean added = this.inMemoryOperationLog.addIf(operation, previous -> previous.getSequenceNumber() < seqNo);
+        if (!added) {
+            // This is a pretty nasty one. It's safer to shut down the container than continue.
+            // We either recorded the Operation correctly, but invoked this callback out of order, or we really
+            // recorded the Operation in the wrong order (by sequence number). In either case, we will be inconsistent
+            // while serving reads, so better stop now than later.
+            throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
+        }
+
+        // Return either the original operation or the newly created one.
+        return operation;
     }
 
     //endregion

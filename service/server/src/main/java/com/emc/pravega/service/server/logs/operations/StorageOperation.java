@@ -72,7 +72,7 @@ public abstract class StorageOperation extends Operation {
 
     @Override
     public String toString() {
-        return String.format("%s, StreamId = %d", super.toString(), getStreamSegmentId());
+        return String.format("%s, SegmentId = %d", super.toString(), getStreamSegmentId());
     }
 
     //endregion

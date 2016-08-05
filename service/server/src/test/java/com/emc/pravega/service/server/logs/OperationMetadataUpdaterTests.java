@@ -456,8 +456,8 @@ public class OperationMetadataUpdaterTests {
         // Parent does not exist.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when attempting to map a Batch StreamSegment to an inexistent parent.",
-                () -> updater.preProcessOperation(createBatchMap(12345))
-                , ex -> ex instanceof MetadataUpdateException);
+                () -> updater.preProcessOperation(createBatchMap(12345)),
+                ex -> ex instanceof MetadataUpdateException);
 
         // Brand new batch (and parent).
         StreamSegmentMapOperation mapParent = createMap();

@@ -27,13 +27,16 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -53,12 +56,10 @@ import java.util.function.Consumer;
  */
 public class MemoryLogUpdaterTests {
     /**
-     * Tests the functionality of the add() method.
-     *
-     * @throws Exception
+     * Tests the functionality of the process() method.
      */
     @Test
-    public void testAdd() throws Exception {
+    public void testProcess() throws Exception {
         int segmentCount = 10;
         int operationCountPerType = 5;
 
@@ -66,7 +67,9 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
+        @Cleanup
+        InMemoryCache cache = new InMemoryCache("0");
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(cache, readIndex));
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -76,14 +79,17 @@ public class MemoryLogUpdaterTests {
         Iterator<Operation> logIterator = opLog.read(op -> true, opLog.getSize());
         int currentIndex = -1;
         int currentReadIndex = -1;
+        OperationComparer comparer = new OperationComparer(true, cache); // Need an Op Comparer that uses a cache to compare data.
         while (logIterator.hasNext()) {
             currentIndex++;
             Operation expected = operations.get(currentIndex);
-            Assert.assertEquals("Unexpected operation queued to MemoryOperationLog at sequence " + currentIndex, expected, logIterator.next());
+            Operation actual = logIterator.next();
+            comparer.assertEquals(expected, actual);
             if (expected instanceof StorageOperation) {
                 currentReadIndex++;
                 TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
                 if (expected instanceof StreamSegmentAppendOperation) {
+                    Assert.assertTrue("StreamSegmentAppendOperation was not added as a CachedStreamSegmentAppendOperation to the Memory Log.", actual instanceof CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
                     CacheKey expectedKey = new CacheKey(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset());
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
@@ -102,7 +108,7 @@ public class MemoryLogUpdaterTests {
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
                 "MemoryLogUpdater accepted an operation that was out of order.",
-                () -> updater.add(new MergeBatchOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
+                () -> updater.process(new MergeBatchOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
@@ -215,7 +221,7 @@ public class MemoryLogUpdaterTests {
 
         for (int i = 0; i < operations.size(); i++) {
             operations.get(i).setSequenceNumber(i);
-            updater.add(operations.get(i));
+            updater.process(operations.get(i));
         }
 
         return operations;
@@ -237,11 +243,6 @@ public class MemoryLogUpdaterTests {
 
         TestReadIndex(Consumer<MethodInvocation> methodInvokeCallback) {
             this.methodInvokeCallback = methodInvokeCallback;
-        }
-
-        @Override
-        public int getContainerId() {
-            return 0;
         }
 
         @Override

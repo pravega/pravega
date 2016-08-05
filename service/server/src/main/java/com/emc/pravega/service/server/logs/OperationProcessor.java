@@ -43,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
  * at once, generates DataFrames from them and commits them to the DataFrameLog, one by one, in sequence.
  */
 @Slf4j
-public class OperationProcessor extends AbstractExecutionThreadService implements Container {
+class OperationProcessor extends AbstractExecutionThreadService implements Container {
     //region Members
 
     private final String traceObjectId;
@@ -66,7 +66,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
      * @param checkpointPolicy The Checkpoint Policy for Metadata.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public OperationProcessor(UpdateableContainerMetadata metadata, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryLogUpdater logUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(logUpdater, "logUpdater");
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
@@ -334,7 +334,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
         private final MemoryLogUpdater logUpdater;
         private final MetadataCheckpointPolicy checkpointPolicy;
 
-        public QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
+        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryLogUpdater logUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
             assert logUpdater != null : "logUpdater is null";
             assert checkpointPolicy != null : "checkpointPolicy is null";
@@ -351,7 +351,7 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
          *
          * @param operation The operation to append.
          */
-        public void addPending(CompletableOperation operation) {
+        void addPending(CompletableOperation operation) {
             this.pendingOperations.add(operation);
         }
 
@@ -368,12 +368,11 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
             this.metadataUpdater.commit();
 
-            // TODO: consider running this on its own thread, but they must still be in the same sequence!
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
             while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
-                    this.logUpdater.add(e.getOperation());
+                    this.logUpdater.process(e.getOperation());
                 } catch (DataCorruptionException ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
@@ -384,7 +383,6 @@ public class OperationProcessor extends AbstractExecutionThreadService implement
             }
 
             this.logUpdater.flush();
-
             this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
         }
 

@@ -27,14 +27,6 @@ import java.util.Collection;
  * Defines a ReadIndex for StreamSegments, that allows adding data only at the end.
  */
 public interface ReadIndex extends AutoCloseable {
-
-    /**
-     * Gets a value indicating the Id of the StreamSegmentContainer for this ReadIndex.
-     *
-     * @return
-     */
-    int getContainerId();
-
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *

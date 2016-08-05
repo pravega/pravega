@@ -29,13 +29,14 @@ import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
-import com.emc.pravega.service.server.logs.operations.OperationHelpers;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -107,7 +108,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
+        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata, cache);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, metadata, mergeBatches, sealStreamSegments);
         performReadIndexChecks(completionFutures, readIndex);
     }
@@ -193,7 +194,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             oc.completion.join();
         }
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
+        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata, cache);
         performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, metadata, false, false);
         performReadIndexChecks(completionFutures, readIndex);
     }
@@ -267,7 +268,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             }
         }
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
+        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata, cache);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
         performReadIndexChecks(completionFutures, readIndex);
     }
@@ -323,7 +324,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
+        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata, cache);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
         performReadIndexChecks(completionFutures, readIndex);
     }
@@ -418,7 +419,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
 
         AssertExtensions.assertGreaterThan("No operation succeeded.", 0, successCount);
-        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, metadata);
+        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, metadata, cache);
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
@@ -430,12 +431,13 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, Cache cache) throws Exception {
         // Log Operation based checks
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
         long lastSeqNo = -1;
         Iterator<Operation> memoryLogIterator = memoryLog.read(o -> true, operations.size() + 1);
+        OperationComparer memoryLogComparer = new OperationComparer(true, cache);
         for (LogTestHelpers.OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
                 // We expect this operation to not have been processed.
@@ -451,12 +453,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memoryLogIterator.hasNext());
-            Assert.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next()); // Ok to use assertEquals because we are actually expecting the same object here.
+            memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next()); // Use memoryLogComparer: we are actually expecting the same object here.
 
             // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
             DataFrameReader.ReadResult<Operation> readResult = dataFrameReader.getNext();
             Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, readResult);
-            OperationHelpers.assertEquals(expectedOp, readResult.getItem());
+            OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem()); // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
 
             // Check truncation markers if this is the last Operation to be written.
             long dataFrameSeq = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());

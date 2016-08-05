@@ -35,7 +35,7 @@ import com.emc.pravega.service.server.TestDurableDataLogFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
-import com.emc.pravega.service.server.logs.operations.OperationHelpers;
+import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -123,7 +123,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Wait for all such operations to complete. If any of them failed, this will fail too and report the exception.
         LogTestHelpers.allOf(completionFutures).join();
 
-        performLogOperationChecks(completionFutures, durableLog);
+        performLogOperationChecks(completionFutures, durableLog, setup.cache);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, setup.metadata, mergeBatches, sealStreamSegments);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -200,7 +200,7 @@ public class DurableLogTests extends OperationLogTestBase {
             oc.completion.join();
         }
 
-        performLogOperationChecks(completionFutures, durableLog);
+        performLogOperationChecks(completionFutures, durableLog, setup.cache);
         performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -265,7 +265,7 @@ public class DurableLogTests extends OperationLogTestBase {
             }
         }
 
-        performLogOperationChecks(completionFutures, durableLog);
+        performLogOperationChecks(completionFutures, durableLog, setup.cache);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -314,7 +314,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 LogTestHelpers.allOf(completionFutures)::join,
                 ex -> ex instanceof IOException || ex instanceof DurableDataLogException);
 
-        performLogOperationChecks(completionFutures, durableLog);
+        performLogOperationChecks(completionFutures, durableLog, setup.cache);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
 
@@ -553,7 +553,7 @@ public class DurableLogTests extends OperationLogTestBase {
             durableLog.startAsync().awaitRunning();
 
             List<Operation> recoveredOperations = readAllDurableLog(durableLog);
-            AssertExtensions.assertListEquals("Recovered operations do not match original ones.", originalOperations, recoveredOperations, OperationHelpers::assertEquals);
+            AssertExtensions.assertListEquals("Recovered operations do not match original ones.", originalOperations, recoveredOperations, OperationComparer.DEFAULT::assertEquals);
             performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, metadata, mergeBatches, sealStreamSegments);
             performReadIndexChecks(completionFutures, readIndex);
 
@@ -749,7 +749,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
                     if (i < originalOperations.size() - 1) {
                         Operation firstOp = reader.next();
-                        OperationHelpers.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
+                        OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
                     } else {
                         // Sometimes the Truncation Point is on the same DataFrame as other data, and it's the last DataFrame;
                         // In that case, it cannot be truncated, since truncating the frame would mean losing the Checkpoint as well.
@@ -867,7 +867,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
                     if (i < originalOperations.size() - 1) {
                         Operation firstOp = reader.next();
-                        OperationHelpers.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
+                        OperationComparer.DEFAULT.assertEquals(String.format("Unexpected first operation after truncating SeqNo %d.", currentOperation.getSequenceNumber()), originalOperations.get(i + 1), firstOp);
                     }
                 }
             }
@@ -881,12 +881,12 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //region Helpers
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog) throws Exception {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog, Cache cache) throws Exception {
         // Log Operation based checks
         long lastSeqNo = -1;
         Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();
         verifyFirstItemIsMetadataCheckpoint(logIterator);
-
+        OperationComparer comparer = new OperationComparer(true, cache);
         for (LogTestHelpers.OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
                 // We expect this operation to not have been processed.
@@ -902,7 +902,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from DurableLog. Expected: " + expectedOp, logIterator.hasNext());
-            Assert.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, logIterator.next()); // Ok to use assertEquals because we are actually expecting the same object here.
+            comparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, logIterator.next()); // Ok to use assertEquals because we are actually expecting the same object here.
         }
     }
 
@@ -952,16 +952,16 @@ public class DurableLogTests extends OperationLogTestBase {
     //region ContainerSetup
 
     private static class ContainerSetup implements AutoCloseable {
-        public final CloseableExecutorService executorService;
-        public final TestDurableDataLogFactory dataLogFactory;
-        public final AtomicReference<TestDurableDataLog> dataLog;
-        public final StreamSegmentContainerMetadata metadata;
-        public final ReadIndex readIndex;
-        public final Storage storage;
-        public DurableLogConfig durableLogConfig;
+        final CloseableExecutorService executorService;
+        final TestDurableDataLogFactory dataLogFactory;
+        final AtomicReference<TestDurableDataLog> dataLog;
+        final StreamSegmentContainerMetadata metadata;
+        final ReadIndex readIndex;
+        final Storage storage;
+        DurableLogConfig durableLogConfig;
         private final Cache cache;
 
-        public ContainerSetup() {
+        ContainerSetup() {
             this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
             this.dataLog = new AtomicReference<>();
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), this.dataLog::set);
@@ -980,20 +980,20 @@ public class DurableLogTests extends OperationLogTestBase {
             this.executorService.close();
         }
 
-        public DurableLog createDurableLog() {
+        DurableLog createDurableLog() {
             DurableLogConfig config = this.durableLogConfig == null ? defaultDurableLogConfig() : this.durableLogConfig;
             return new DurableLog(config, this.metadata, this.dataLogFactory, new CacheUpdater(this.cache, this.readIndex), this.executorService.get());
         }
 
-        public void setDurableLogConfig(DurableLogConfig config) {
+        void setDurableLogConfig(DurableLogConfig config) {
             this.durableLogConfig = config;
         }
 
-        public static DurableLogConfig defaultDurableLogConfig() {
+        static DurableLogConfig defaultDurableLogConfig() {
             return new DurableLogConfig(createRawDurableLogConfig(null, null));
         }
 
-        public static DurableLogConfig createDurableLogConfig(Integer checkpointMinCommitCount, Long checkpointMinTotalCommitLength) {
+        static DurableLogConfig createDurableLogConfig(Integer checkpointMinCommitCount, Long checkpointMinTotalCommitLength) {
             return new DurableLogConfig(createRawDurableLogConfig(checkpointMinCommitCount, checkpointMinTotalCommitLength));
         }
 

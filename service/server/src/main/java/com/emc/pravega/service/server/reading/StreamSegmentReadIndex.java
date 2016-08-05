@@ -344,7 +344,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
         for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getFirstReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
             assert entry != null : "Serving a StorageReadResultEntry with a null result";
-            assert !(entry instanceof StorageReadResultEntry) : "Serving a StorageReadResultEntry with another StorageReadResultEntry.";
+            assert !(entry instanceof FutureReadResultEntry) : "Serving a FutureReadResultEntry with another FutureReadResultEntry.";
 
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.

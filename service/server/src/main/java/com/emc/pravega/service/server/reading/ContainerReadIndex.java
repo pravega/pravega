@@ -103,11 +103,6 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public int getContainerId() {
-        return this.metadata.getContainerId();
-    }
-
-    @Override
     public void append(CacheKey cacheKey, int length) {
         Exceptions.checkNotClosed(this.closed, this);
         log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, cacheKey.getStreamSegmentId(), cacheKey.getOffset(), length);

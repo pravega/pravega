@@ -1,26 +1,48 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
+import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.storage.Cache;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashSet;
 
 /**
  * Provides methods for updating the Cache and the ReadIndex, as a result of the DurableLog processing operations.
  */
+@Slf4j
 public class CacheUpdater {
     //region Members
 
     private final Cache cache;
     private final ReadIndex readIndex;
     private HashSet<Long> recentStreamSegmentIds;
+    private final String traceObjectId;
 
     //endregion
 
@@ -36,6 +58,7 @@ public class CacheUpdater {
         Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(readIndex, "readIndex");
 
+        this.traceObjectId = String.format("CacheUpdater[%s]", cache.getId());
         this.cache = cache;
         this.readIndex = readIndex;
         this.recentStreamSegmentIds = new HashSet<>();
@@ -71,18 +94,23 @@ public class CacheUpdater {
      * Registers the given operation in the ReadIndex.
      *
      * @param operation The operation to register.
-     * @param cacheKey  The cache key, if any, for the operation. This only needs to be supplied if the operation is a
-     *                  StreamSegmentAppendOperation.
      */
-    void addToReadIndex(StorageOperation operation, CacheKey cacheKey) {
-        if (operation instanceof StreamSegmentAppendOperation) {
-            // Record an beginMerge operation.
-            Preconditions.checkArgument(cacheKey.isInCache(), "key must be inserted into the cache prior to adding StreamSegmentAppendOperation to the ReadIndex");
+    void addToReadIndex(StorageOperation operation) {
+        if (operation instanceof CachedStreamSegmentAppendOperation) {
+            // Record a CachedStreamSegmentAppendOperation. This has all the info required to properly record an append
+            // in the ReadIndex.
+            CachedStreamSegmentAppendOperation appendOperation = (CachedStreamSegmentAppendOperation) operation;
+            Preconditions.checkArgument(appendOperation.getCacheKey().isInCache(), "key must be inserted into the cache prior to adding CachedStreamSegmentAppendOperation to the ReadIndex");
+            this.readIndex.append(appendOperation.getCacheKey(), appendOperation.getLength());
+        } else if (operation instanceof StreamSegmentAppendOperation) {
+            // Record a StreamSegmentAppendOperation. Just in case, we also support this type of operation, but we need to
+            // log a warning indicating so. This means we do not optimize memory properly, and we end up storing data
+            // in two different places.
+            log.warn("{}: Unexpected operation encountered: {}", this.traceObjectId, operation);
             StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
-            this.readIndex.append(cacheKey, appendOperation.getData().length);
-        }
-
-        if (operation instanceof MergeBatchOperation) {
+            CacheKey key = addToCache(appendOperation);
+            this.readIndex.append(key, appendOperation.getData().length);
+        } else if (operation instanceof MergeBatchOperation) {
             // Record a Merge Batch operation. We call beginMerge here, and the LogSynchronizer will call completeMerge.
             MergeBatchOperation mergeOperation = (MergeBatchOperation) operation;
             this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getTargetStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId());

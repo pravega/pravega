@@ -347,7 +347,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         }
 
         // Add to InMemory Operation Log.
-        this.memoryLogUpdater.add(operation);
+        this.memoryLogUpdater.process(operation);
     }
 
     private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {
