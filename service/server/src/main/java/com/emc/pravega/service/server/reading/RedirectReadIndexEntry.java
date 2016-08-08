@@ -23,7 +23,7 @@ import com.google.common.base.Preconditions;
 /**
  * Read Index Entry that redirects to a different StreamSegment.
  */
-public class RedirectReadIndexEntry extends ReadIndexEntry {
+class RedirectReadIndexEntry extends ReadIndexEntry {
     private final StreamSegmentReadIndex redirectReadIndex;
 
     /**
@@ -35,14 +35,14 @@ public class RedirectReadIndexEntry extends ReadIndexEntry {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException if the offset is a negative number.
      */
-    protected RedirectReadIndexEntry(long streamSegmentOffset, long length, StreamSegmentReadIndex redirectReadIndex) {
+    RedirectReadIndexEntry(long streamSegmentOffset, long length, StreamSegmentReadIndex redirectReadIndex) {
         super(streamSegmentOffset, length);
 
         Preconditions.checkNotNull(redirectReadIndex, "redirectReadIndex");
         this.redirectReadIndex = redirectReadIndex;
     }
 
-    protected StreamSegmentReadIndex getRedirectReadIndex() {
+    StreamSegmentReadIndex getRedirectReadIndex() {
         return this.redirectReadIndex;
     }
 }

@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Unit tests for OperationMetadataUpdater class.
  */
 public class OperationMetadataUpdaterTests {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final String SEGMENT_NAME = "Segment_123";
     private static final long SEGMENT_ID = 123;
     private static final String SEALED_BATCH_NAME = "Segment_123#Batch_Sealed";
@@ -456,8 +456,8 @@ public class OperationMetadataUpdaterTests {
         // Parent does not exist.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when attempting to map a Batch StreamSegment to an inexistent parent.",
-                () -> updater.preProcessOperation(createBatchMap(12345))
-                , ex -> ex instanceof MetadataUpdateException);
+                () -> updater.preProcessOperation(createBatchMap(12345)),
+                ex -> ex instanceof MetadataUpdateException);
 
         // Brand new batch (and parent).
         StreamSegmentMapOperation mapParent = createMap();

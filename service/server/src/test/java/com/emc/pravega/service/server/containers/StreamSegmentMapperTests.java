@@ -59,7 +59,7 @@ import java.util.function.Predicate;
  * Unit tests for StreamSegmentMapper class.
  */
 public class StreamSegmentMapperTests {
-    private static final String CONTAINER_ID = "Container";
+    private static final int CONTAINER_ID = 123;
     private static final int THREAD_POOL_SIZE = 10;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -465,8 +465,8 @@ public class StreamSegmentMapperTests {
         //region Unimplemented Methods
 
         @Override
-        public String getId() {
-            return null;
+        public int getId() {
+            return -1;
         }
 
         @Override

@@ -21,8 +21,6 @@ package com.emc.pravega.common.util;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.emc.pravega.common.util.TruncateableList;
-
 import java.util.Iterator;
 
 /**
@@ -39,7 +37,7 @@ public class TruncateableListTests {
         TruncateableList<Integer> list = new TruncateableList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             list.add(i);
-            Assert.assertEquals("Unexpected value from getSize.", i + 1, list.getSize());
+            Assert.assertEquals("Unexpected value from size.", i + 1, list.size());
         }
 
         //Read 1/2 items
@@ -71,12 +69,12 @@ public class TruncateableListTests {
             // Happy case.
             boolean resultValue = list.addIf(currentValue, prev -> prev < currentValue);
             Assert.assertTrue("Unexpected return value from addIf for successful append.", resultValue);
-            Assert.assertEquals("Unexpected value from getSize after successful append.", i + 1, list.getSize());
+            Assert.assertEquals("Unexpected value from size after successful append.", i + 1, list.size());
 
             // Unhappy case
             resultValue = list.addIf(currentValue, prev -> prev > currentValue);
             Assert.assertFalse("Unexpected return value from addIf for unsuccessful append.", resultValue);
-            Assert.assertEquals("Unexpected value from getSize after unsuccessful append.", i + 1, list.getSize());
+            Assert.assertEquals("Unexpected value from size after unsuccessful append.", i + 1, list.size());
         }
 
         Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
@@ -95,17 +93,17 @@ public class TruncateableListTests {
 
         // Truncate 25% of items.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for getSize after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.getSize());
+        Assert.assertEquals("Unexpected value for size after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
         checkRange("Truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate the same 25% of items - verify no change.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for getSize after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.getSize());
+        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
         checkRange("Re-truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate all items.
         list.truncate(i -> true);
-        Assert.assertEquals("Unexpected value for getSize after truncating all items.", 0, list.getSize());
+        Assert.assertEquals("Unexpected value for size after truncating all items.", 0, list.size());
         Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
         Assert.assertFalse("List should be empty.", readResult.hasNext());
     }

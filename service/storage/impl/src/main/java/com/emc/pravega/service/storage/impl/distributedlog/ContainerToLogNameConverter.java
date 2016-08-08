@@ -27,7 +27,7 @@ class ContainerToLogNameConverter {
      * @param containerId
      * @return
      */
-    static String getLogName(String containerId) {
-        return String.format("container_%s", containerId);
+    static String getLogName(int containerId) {
+        return String.format("container_%d", containerId);
     }
 }

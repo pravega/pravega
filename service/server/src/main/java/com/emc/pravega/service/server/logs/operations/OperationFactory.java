@@ -54,7 +54,7 @@ public class OperationFactory implements LogItemFactory<Operation> {
         OperationConstructors() {
             constructors = new HashMap<>();
             try {
-                //TODO: there might be a better way to do this dynamically...
+                // We purposefully do not create CachedStreamSegmentAppendOperations. Those are in-memory only and need not be serialized.
                 map(StreamSegmentAppendOperation.OPERATION_TYPE, StreamSegmentAppendOperation::new);
                 map(StreamSegmentSealOperation.OPERATION_TYPE, StreamSegmentSealOperation::new);
                 map(MergeBatchOperation.OPERATION_TYPE, MergeBatchOperation::new);

@@ -21,7 +21,7 @@ package com.emc.pravega.service.server.reading;
 import com.emc.pravega.common.Exceptions;
 
 /**
- * An entry in the Read Index with data at a particular offset..
+ * An entry in the Read Index with data at a particular offset.
  */
 abstract class ReadIndexEntry {
     //region Members
@@ -40,7 +40,7 @@ abstract class ReadIndexEntry {
      * @throws IllegalArgumentException if the offset is a negative number.
      * @throws IllegalArgumentException if the length is a negative number.
      */
-    protected ReadIndexEntry(long streamSegmentOffset, long length) {
+    ReadIndexEntry(long streamSegmentOffset, long length) {
         Exceptions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset", "Offset must be a non-negative number.");
         Exceptions.checkArgument(length >= 0, "length", "Length must be a non-negative number.");
 
@@ -57,8 +57,17 @@ abstract class ReadIndexEntry {
      *
      * @return
      */
-    public long getStreamSegmentOffset() {
+    long getStreamSegmentOffset() {
         return this.streamSegmentOffset;
+    }
+
+    /**
+     * Gets the length of this entry.
+     *
+     * @return
+     */
+    long getLength() {
+        return this.length;
     }
 
     /**
@@ -66,17 +75,8 @@ abstract class ReadIndexEntry {
      *
      * @return
      */
-    public long getLastStreamSegmentOffset() {
+    long getLastStreamSegmentOffset() {
         return this.streamSegmentOffset + this.length - 1;
-    }
-
-    /**
-     * Gets a byte array containing the data for this entry.
-     *
-     * @return
-     */
-    public long getLength() {
-        return this.length;
     }
 
     @Override

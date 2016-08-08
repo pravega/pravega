@@ -30,7 +30,7 @@ public interface Container extends Service, AutoCloseable {
      *
      * @return
      */
-    String getId();
+    int getId();
 
     @Override
     void close();

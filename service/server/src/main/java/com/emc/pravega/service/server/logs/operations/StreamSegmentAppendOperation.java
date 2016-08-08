@@ -29,7 +29,8 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * Log Operation that represents a StreamSegment Append.
+ * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
+ * can be serialized to a DurableDataLog. This operation (although possible), should not be directly added to the In-Memory Transaction Log.
  */
 public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members

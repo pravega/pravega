@@ -23,10 +23,10 @@ package com.emc.pravega.service.contracts;
  */
 public abstract class ContainerException extends StreamingException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
-    private final String containerId;
+    private final int containerId;
 
     /**
      * Creates a new instance of the ContainerException class.
@@ -34,7 +34,7 @@ public abstract class ContainerException extends StreamingException {
      * @param containerId The Id of the ContainerException.
      * @param message     The message for this exception.
      */
-    public ContainerException(String containerId, String message) {
+    public ContainerException(int containerId, String message) {
         this(containerId, message, null);
     }
 
@@ -45,8 +45,8 @@ public abstract class ContainerException extends StreamingException {
      * @param message     The message for this exception.
      * @param cause       The causing exception.
      */
-    public ContainerException(String containerId, String message, Throwable cause) {
-        super(String.format("%s (%s).", message, containerId), cause);
+    public ContainerException(int containerId, String message, Throwable cause) {
+        super(String.format("%s (%d).", message, containerId), cause);
         this.containerId = containerId;
     }
 
@@ -55,7 +55,7 @@ public abstract class ContainerException extends StreamingException {
      *
      * @return
      */
-    public String getContainerId() {
+    public int getContainerId() {
         return this.containerId;
     }
 }

@@ -43,6 +43,13 @@ public interface SegmentMetadata extends SegmentProperties {
     long getParentId();
 
     /**
+     * Gets a value indicating the id of the Container this StreamSegment belongs to.
+     *
+     * @return
+     */
+    int getContainerId();
+
+    /**
      * Gets a value indicating whether this StreamSegment has been merged into another.
      *
      * @return

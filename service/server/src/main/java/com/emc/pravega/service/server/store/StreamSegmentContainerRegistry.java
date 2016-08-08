@@ -47,7 +47,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     //region Members
 
     private final SegmentContainerFactory factory;
-    private final AbstractMap<String, ContainerWithHandle> containers;
+    private final AbstractMap<Integer, ContainerWithHandle> containers;
     private final Executor executor;
     private boolean closed;
 
@@ -99,12 +99,12 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     }
 
     @Override
-    public Collection<String> getRegisteredContainerIds() {
+    public Collection<Integer> getRegisteredContainerIds() {
         return this.containers.keySet();
     }
 
     @Override
-    public SegmentContainer getContainer(String containerId) throws ContainerNotFoundException {
+    public SegmentContainer getContainer(int containerId) throws ContainerNotFoundException {
         Exceptions.checkNotClosed(this.closed, this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
         if (result == null) {
@@ -115,11 +115,11 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     }
 
     @Override
-    public CompletableFuture<ContainerHandle> startContainer(String containerId, Duration timeout) {
+    public CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
 
         // Check if container exists
-        Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %s is already registered.", containerId);
+        Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %d is already registered.", containerId);
 
         // If not, create one and register it.
         ContainerWithHandle newContainer = new ContainerWithHandle(this.factory.createStreamSegmentContainer(containerId), new SegmentContainerHandle(containerId));
@@ -127,7 +127,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         if (existingContainer != null) {
             // We had a race and some other request beat us to it.
             newContainer.container.close();
-            throw new IllegalArgumentException(String.format("Container %s is already registered.", containerId));
+            throw new IllegalArgumentException(String.format("Container %d is already registered.", containerId));
         }
 
         log.info("Registered SegmentContainer {}.", containerId);
@@ -191,15 +191,15 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         public final SegmentContainer container;
         public final SegmentContainerHandle handle;
 
-        public ContainerWithHandle(SegmentContainer container, SegmentContainerHandle handle) {
-            assert container.getId().equals(handle.getContainerId()) : "Mismatch between container id and handle container id.";
+        ContainerWithHandle(SegmentContainer container, SegmentContainerHandle handle) {
+            assert container.getId() == handle.getContainerId() : "Mismatch between container id and handle container id.";
             this.container = container;
             this.handle = handle;
         }
 
         @Override
         public String toString() {
-            return String.format("Container Id = %s, State = %s", this.container.getId(), this.container.state());
+            return String.format("Container Id = %d, State = %s", this.container.getId(), this.container.state());
         }
     }
 
@@ -208,25 +208,25 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
     //region SegmentContainerHandle
 
     private static class SegmentContainerHandle implements ContainerHandle {
-        private final String containerId;
-        private Consumer<String> containerStoppedListener;
+        private final int containerId;
+        private Consumer<Integer> containerStoppedListener;
 
         /**
          * Creates a new instance of the ContainerHandle class.
          *
          * @param containerId The Id of the container.
          */
-        public SegmentContainerHandle(String containerId) {
+        public SegmentContainerHandle(int containerId) {
             this.containerId = containerId;
         }
 
         @Override
-        public String getContainerId() {
+        public int getContainerId() {
             return this.containerId;
         }
 
         @Override
-        public void setContainerStoppedListener(Consumer<String> handler) {
+        public void setContainerStoppedListener(Consumer<Integer> handler) {
             this.containerStoppedListener = handler;
         }
 
@@ -235,7 +235,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
          * whether normally or via an exception.
          */
         void notifyContainerStopped() {
-            Consumer<String> handler = this.containerStoppedListener;
+            Consumer<Integer> handler = this.containerStoppedListener;
             if (handler != null) {
                 CallbackHelpers.invokeSafely(handler, this.containerId, null);
             }
@@ -243,7 +243,7 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         @Override
         public String toString() {
-            return String.format("SegmentContainerId = %s", this.containerId);
+            return String.format("SegmentContainerId = %d", this.containerId);
         }
     }
 
