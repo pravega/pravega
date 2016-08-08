@@ -1,3 +1,4 @@
+*.iml
 .project
 build
 .classpath
@@ -6,6 +7,5 @@ bin/
 .gradle
 output
 .idea
-.iml
 target
 log/
