@@ -159,11 +159,33 @@ public class TruncateableList<T> {
     }
 
     /**
+     * Gets the first element in the list, if any.
+     *
+     * @return The first element, or null if the list is empty.
+     */
+    public T getFirst() {
+        synchronized (this.lock) {
+            return getNodeValue(this.head);
+        }
+    }
+
+    /**
+     * Gets the last element in the list, if any.
+     *
+     * @return The last element, or null if the list is empty.
+     */
+    public T getLast() {
+        synchronized (this.lock) {
+            return getNodeValue(this.tail);
+        }
+    }
+
+    /**
      * Gets a value indicating the current size of the list.
      *
      * @return The result.
      */
-    public int getSize() {
+    public int size() {
         return this.size;
     }
 
@@ -175,14 +197,14 @@ public class TruncateableList<T> {
      * @return An Enumeration of the resulting items. If no results are avaialable for the given parameters, an empty enumeration is returned.
      */
     public Iterator<T> read(Predicate<T> firstItemTester, int count) {
-        ListNode<T> firstNode = this.getFirst(firstItemTester);
+        ListNode<T> firstNode = getFirstWithCondition(firstItemTester);
         return new NodeIterator<>(firstNode, count);
     }
 
     /**
      * Gets the first node for which the given predicate returns true.
      */
-    private ListNode<T> getFirst(Predicate<T> firstItemTester) {
+    private ListNode<T> getFirstWithCondition(Predicate<T> firstItemTester) {
         ListNode<T> firstNode;
         synchronized (this.lock) {
             firstNode = this.head;
@@ -194,6 +216,14 @@ public class TruncateableList<T> {
         return firstNode;
     }
 
+    private T getNodeValue(ListNode<T> node) {
+        if (node == null || node.isTruncated()) {
+            return null;
+        } else {
+            return node.item;
+        }
+    }
+
     //endregion
 
     //region ListNode
@@ -203,7 +233,7 @@ public class TruncateableList<T> {
      *
      * @param <T> The type of node contents.
      */
-    private class ListNode<T> {
+    private static class ListNode<T> {
         private final T item;
         private ListNode<T> next;
         private boolean truncated;
@@ -213,7 +243,7 @@ public class TruncateableList<T> {
          *
          * @param item
          */
-        public ListNode(T item) {
+        ListNode(T item) {
             this.item = item;
         }
 
@@ -222,7 +252,7 @@ public class TruncateableList<T> {
          *
          * @return The result
          */
-        public T getItem() {
+        T getItem() {
             return this.item;
         }
 
@@ -231,7 +261,7 @@ public class TruncateableList<T> {
          *
          * @return The next node, or null if no such node exists.
          */
-        public ListNode<T> getNext() {
+        ListNode<T> getNext() {
             return this.next;
         }
 
@@ -240,14 +270,14 @@ public class TruncateableList<T> {
          *
          * @param next The next node in the list.
          */
-        public void setNext(ListNode<T> next) {
+        void setNext(ListNode<T> next) {
             this.next = next;
         }
 
         /**
          * Indicates that this node has been truncated out of the list.
          */
-        public void markTruncated() {
+        void markTruncated() {
             this.truncated = true;
         }
 
@@ -256,7 +286,7 @@ public class TruncateableList<T> {
          *
          * @return
          */
-        public boolean isTruncated() {
+        boolean isTruncated() {
             return this.truncated;
         }
 
@@ -275,7 +305,7 @@ public class TruncateableList<T> {
      *
      * @param <T> The type of the items in the list.
      */
-    private class NodeIterator<T> implements Iterator<T> {
+    private static class NodeIterator<T> implements Iterator<T> {
         private ListNode<T> nextNode;
         private final int maxCount;
         private int countSoFar;
@@ -286,7 +316,7 @@ public class TruncateableList<T> {
          * @param firstNode The first node in the iterator.
          * @param maxCount  The maximum number of items to return with the iterator.
          */
-        public NodeIterator(ListNode<T> firstNode, int maxCount) {
+        NodeIterator(ListNode<T> firstNode, int maxCount) {
             Preconditions.checkArgument(maxCount >= 0, "maxCount");
 
             this.nextNode = firstNode;

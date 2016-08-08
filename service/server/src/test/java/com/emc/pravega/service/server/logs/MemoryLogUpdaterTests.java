@@ -73,10 +73,10 @@ public class MemoryLogUpdaterTests {
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
-        Assert.assertEquals("Unexpected size for MemoryOperationLog.", operations.size(), opLog.getSize());
+        Assert.assertEquals("Unexpected size for MemoryOperationLog.", operations.size(), opLog.size());
         Assert.assertEquals("Unexpected number of items added to ReadIndex.", operations.size() - segmentCount * operationCountPerType, methodInvocations.size());
 
-        Iterator<Operation> logIterator = opLog.read(op -> true, opLog.getSize());
+        Iterator<Operation> logIterator = opLog.read(op -> true, opLog.size());
         int currentIndex = -1;
         int currentReadIndex = -1;
         OperationComparer comparer = new OperationComparer(true, cache); // Need an Op Comparer that uses a cache to compare data.
@@ -191,7 +191,7 @@ public class MemoryLogUpdaterTests {
         methodInvocations.clear(); // We've already tested up to here.
         updater.clear();
         updater.flush();
-        Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.getSize());
+        Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.size());
 
         Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 2, methodInvocations.size());
         TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
