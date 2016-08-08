@@ -15,11 +15,11 @@ allprojects {
     apply plugin: 'eclipse'
     apply plugin: 'maven'
     apply plugin: 'signing'
-    apply plugin: 'checkstyle'
+    //apply plugin: 'checkstyle'
 
-    checkstyle {
-        toolVersion = "7.1"
-    }
+    //checkstyle {
+    //    toolVersion = "7.1"
+    //}
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -35,10 +35,10 @@ allprojects {
 		}
     }
 
-    checkstyle {
-        configFile = new File(rootDir, "checkstyle/checkstyle.xml")
-        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
-    }
+    //checkstyle {
+    //    configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+    //    configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+    //}
 
     dependencies {
         // The production code uses the SLF4J logging API at compile time
@@ -125,6 +125,12 @@ project('service:server:host') {
     }
 }
 
+project('controller') {
+    dependencies {
+        testCompile project(':testcommon')
+    }
+}
+
 project('integrationtests') {
     dependencies {
         compile project(':common')
@@ -176,7 +182,6 @@ project('benchmark') {
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
-
 
     task startProducer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartECSProducer"
