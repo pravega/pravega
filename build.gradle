@@ -28,6 +28,9 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
+	maven {
+	 url "http://maven.twttr.com"
+	}
     }
 
     checkstyle {
