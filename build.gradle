@@ -43,6 +43,10 @@ allprojects {
         // https://mvnrepository.com/artifact/com.emc.ecs/object-client
         compile group: 'com.emc.ecs', name: 'object-client', version: '2.2.2'
         compile 'org.scala-lang:scala-library:2.11.7'
+        
+        // https://mvnrepository.com/artifact/com.101tec/zkclient
+        compile group: 'com.101tec', name: 'zkclient', version: '0.3'
+
 
         // Declare the dependency for your favourite test framework you want to use in your tests.
         // TestNG is also supported by the Gradle Test task. Just change the
@@ -187,10 +191,11 @@ project('benchmark') {
 
 
 project('cluster') {
+    dependencies {
+        compile project(':zkutils')
+    }
 }
 
 project('zkutils') {
-    dependencies {
-        compile project(':cluster')
-    }
+
 }
