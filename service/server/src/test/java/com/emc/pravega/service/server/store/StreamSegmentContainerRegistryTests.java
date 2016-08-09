@@ -42,7 +42,7 @@ import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for the StreamSegmentContainerRegistry class.
@@ -62,16 +62,15 @@ public class StreamSegmentContainerRegistryTests {
         TestContainerFactory factory = new TestContainerFactory();
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
-        HashSet<String> expectedContainerIds = new HashSet<>();
+        HashSet<Integer> expectedContainerIds = new HashSet<>();
         Collection<CompletableFuture<ContainerHandle>> handleFutures = new ArrayList<>();
-        for (int i = 0; i < containerCount; i++) {
-            String containerId = getContainerId(i);
+        for (int containerId = 0; containerId < containerCount; containerId++) {
             handleFutures.add(registry.startContainer(containerId, TIMEOUT));
             expectedContainerIds.add(containerId);
         }
 
         Collection<ContainerHandle> handles = FutureHelpers.allOfWithResults(handleFutures).join();
-        HashSet<String> actualHandleIds = new HashSet<>();
+        HashSet<Integer> actualHandleIds = new HashSet<>();
         for (ContainerHandle handle : handles) {
             actualHandleIds.add(handle.getContainerId());
             SegmentContainer container = registry.getContainer(handle.getContainerId());
@@ -84,7 +83,7 @@ public class StreamSegmentContainerRegistryTests {
 
         AssertExtensions.assertThrows(
                 "getContainer did not throw when passed an invalid container id.",
-                () -> registry.getContainer("foo"),
+                () -> registry.getContainer(containerCount + 1),
                 ex -> ex instanceof ContainerNotFoundException);
     }
 
@@ -93,7 +92,7 @@ public class StreamSegmentContainerRegistryTests {
      */
     @Test
     public void testStopContainer() throws Exception {
-        final String containerId = "Container";
+        final int containerId = 123;
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
@@ -101,7 +100,7 @@ public class StreamSegmentContainerRegistryTests {
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
         // Register a Listener for the Container.Stop event.
-        AtomicReference<String> stopListenerCallback = new AtomicReference<>();
+        AtomicInteger stopListenerCallback = new AtomicInteger();
         handle.setContainerStoppedListener(stopListenerCallback::set);
 
         TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
@@ -122,7 +121,7 @@ public class StreamSegmentContainerRegistryTests {
      */
     @Test
     public void testContainerFailureOnStartup() throws Exception {
-        final String containerId = "Container";
+        final int containerId = 123;
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
@@ -144,7 +143,7 @@ public class StreamSegmentContainerRegistryTests {
      */
     @Test
     public void testContainerFailureWhileRunning() throws Exception {
-        final String containerId = "Container";
+        final int containerId = 123;
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
@@ -153,7 +152,7 @@ public class StreamSegmentContainerRegistryTests {
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
         // Register a Listener for the Container.Stop event.
-        AtomicReference<String> stopListenerCallback = new AtomicReference<>();
+        AtomicInteger stopListenerCallback = new AtomicInteger();
         handle.setContainerStoppedListener(stopListenerCallback::set);
 
         TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
@@ -167,10 +166,6 @@ public class StreamSegmentContainerRegistryTests {
                 "Container is still registered after failure.",
                 () -> registry.getContainer(containerId),
                 ex -> ex instanceof ContainerNotFoundException);
-    }
-
-    private String getContainerId(int i) {
-        return "Container_" + i;
     }
 
     //region TestContainerFactory
@@ -187,7 +182,7 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public SegmentContainer createStreamSegmentContainer(String containerId) {
+        public SegmentContainer createStreamSegmentContainer(int containerId) {
             return new TestContainer(containerId, this.startException);
         }
     }
@@ -197,12 +192,12 @@ public class StreamSegmentContainerRegistryTests {
     //region TestContainer
 
     private static class TestContainer extends AbstractService implements SegmentContainer {
-        private final String id;
+        private final int id;
         private Exception startException;
         private Exception stopException;
         private boolean closed;
 
-        public TestContainer(String id, Exception startException) {
+        public TestContainer(int id, Exception startException) {
             this.id = id;
             this.startException = startException;
         }
@@ -217,7 +212,7 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public String getId() {
+        public int getId() {
             return this.id;
         }
 

@@ -26,14 +26,14 @@ import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Cleanup;
 
-import static com.emc.pravega.testcommon.ErrorInjector.throwAsyncExceptionIfNeeded;
-
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+
+import static com.emc.pravega.testcommon.ErrorInjector.throwAsyncExceptionIfNeeded;
 
 /**
  * Test DurableDataLog. Wraps around an existing DurableDataLog, and allows controlling behavior for each method, such
@@ -196,7 +196,7 @@ public class TestDurableDataLog implements DurableDataLog {
      * @param maxAppendSize The maximum append size for the log.
      * @return The newly created log.
      */
-    public static TestDurableDataLog create(String containerId, int maxAppendSize) {
+    public static TestDurableDataLog create(int containerId, int maxAppendSize) {
         try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize)) {
             DurableDataLog log = factory.createDurableDataLog(containerId);
             return create(log);

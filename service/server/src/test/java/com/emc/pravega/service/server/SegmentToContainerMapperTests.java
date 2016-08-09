@@ -63,12 +63,12 @@ public class SegmentToContainerMapperTests {
 
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
         Assert.assertEquals("Unexpected value for getTotalContainerCount().", containerCount, m.getTotalContainerCount());
-        HashMap<String, Integer> containerMapCounts = new HashMap<>();
+        HashMap<Integer, Integer> containerMapCounts = new HashMap<>();
 
         // Generate all possible names with the given length and assign them to a container.
         for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
-            String containerId = m.getContainerId(segmentName);
+            int containerId = m.getContainerId(segmentName);
             containerMapCounts.put(containerId, containerMapCounts.getOrDefault(containerId, 0) + 1);
         }
 
@@ -102,10 +102,10 @@ public class SegmentToContainerMapperTests {
         // Generate all possible names with the given length and assign them to a container.
         for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
-            String containerId = m.getContainerId(segmentName);
+            int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < batchPerParentCount; i++) {
                 String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
-                String batchContainerId = m.getContainerId(batchName);
+                int batchContainerId = m.getContainerId(batchName);
                 Assert.assertEquals("Parent and batch were not assigned to the same container.", containerId, batchContainerId);
             }
         }

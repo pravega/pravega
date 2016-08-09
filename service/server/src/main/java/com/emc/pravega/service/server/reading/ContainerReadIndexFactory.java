@@ -18,17 +18,17 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ReadIndexFactory;
-import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.storage.Cache;
 
 /**
  * Default implementation for ReadIndexFactory.
  */
 public class ContainerReadIndexFactory implements ReadIndexFactory {
-
     @Override
-    public ReadIndex createReadIndex(ContainerMetadata containerMetadata) {
-        return new ContainerReadIndex(containerMetadata);
+    public ReadIndex createReadIndex(ContainerMetadata containerMetadata, Cache cache) {
+        return new ContainerReadIndex(containerMetadata, cache);
     }
 }
