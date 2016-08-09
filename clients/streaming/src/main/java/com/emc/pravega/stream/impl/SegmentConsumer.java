@@ -34,10 +34,20 @@ public interface SegmentConsumer<Type> extends AutoCloseable {
      */
     Type getNextEvent(long timeout) throws EndOfSegmentException;
 
+    /**
+     * Returns the current offset. This can be passed to {@link #setOffset(long)} to restore to the current position.
+     */
     long getOffset();
 
+    /**
+     * Given an offset obtained from {@link SegmentConsumer#getOffset()} reset consumption to that position.
+     */
     void setOffset(long offset);
 
+    /**
+     * Closes the consumer. Frees any resources associated with it.
+     * No further opertations may be performed.
+     */
     @Override
     void close();
 }
