@@ -9,3 +9,5 @@ output
 .iml
 target
 log/
+.metadata/
+.recommenders/
