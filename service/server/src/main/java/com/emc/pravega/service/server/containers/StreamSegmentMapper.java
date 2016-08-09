@@ -79,7 +79,7 @@ public class StreamSegmentMapper {
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.traceObjectId = String.format("StreamSegmentMapper[%s]", containerMetadata.getContainerId());
+        this.traceObjectId = String.format("StreamSegmentMapper[%d]", containerMetadata.getContainerId());
         this.containerMetadata = containerMetadata;
         this.durableLog = durableLog;
         this.storage = storage;

@@ -33,7 +33,7 @@ import java.util.function.Function;
  * Unit tests for StreamSegmentContainerMetadata class.
  */
 public class StreamSegmentContainerMetadataTests {
-    private static final String CONTAINER_ID = "Container";
+    private static final int CONTAINER_ID = 1234567;
     private static final int SEGMENT_COUNT = 100;
     private static final int BATCHES_PER_SEGMENT_COUNT = 2;
 

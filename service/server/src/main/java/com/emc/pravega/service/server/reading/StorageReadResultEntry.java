@@ -36,7 +36,6 @@ class StorageReadResultEntry extends ReadResultEntryBase {
      *
      * @param streamSegmentOffset The offset in the StreamSegment that this entry starts at.
      * @param requestedReadLength The maximum number of bytes requested for read.
-     * @throws IllegalArgumentException If type is not ReadResultEntryType.Future or ReadResultEntryType.Storage.
      */
     StorageReadResultEntry(long streamSegmentOffset, int requestedReadLength, ContentFetcher contentFetcher) {
         super(ReadResultEntryType.Storage, streamSegmentOffset, requestedReadLength);

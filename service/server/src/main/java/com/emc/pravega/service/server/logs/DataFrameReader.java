@@ -62,14 +62,13 @@ public class DataFrameReader<T extends LogItem> implements CloseableIterator<Dat
      * @param log            The DataFrameLog to read data frames from.
      * @param logItemFactory A LogItemFactory to create LogItems upon deserialization.
      * @param containerId    The Container Id for the DataFrameReader (used primarily for logging).
-     * @throws NullPointerException    If log is null.
+     * @throws NullPointerException    If any of the arguments are null.
      * @throws DurableDataLogException If the given log threw an exception while initializing a Reader.
      */
-    public DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, String containerId) throws DurableDataLogException {
+    public DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, int containerId) throws DurableDataLogException {
         Preconditions.checkNotNull(log, "log");
         Preconditions.checkNotNull(logItemFactory, "logItemFactory");
-        Exceptions.checkNotNullOrEmpty(containerId, "containerId");
-        this.traceObjectId = String.format("DataFrameReader[%s]", containerId);
+        this.traceObjectId = String.format("DataFrameReader[%d]", containerId);
         this.frameContentsEnumerator = new FrameEntryEnumerator(log, traceObjectId);
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
         this.logItemFactory = logItemFactory;

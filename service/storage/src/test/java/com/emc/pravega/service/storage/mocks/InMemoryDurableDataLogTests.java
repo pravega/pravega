@@ -23,7 +23,7 @@ import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.testcommon.AssertExtensions;
-
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -123,6 +123,30 @@ public class InMemoryDurableDataLogTests {
         }
     }
 
+    /**
+     * Tests the ability to iterate through the entries at the same time as we are modifying the list.
+     */
+    @Test
+    public void testConcurrentIterator() throws Exception {
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+            TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
+
+            // Create a reader and read one item.
+            @Cleanup
+            CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(-1);
+            DurableDataLog.ReadItem firstItem = reader.getNext();
+            Assert.assertNotNull("Nothing read before modification.", firstItem);
+
+            // Make a modification.
+            log.append(new ByteArrayInputStream("foo".getBytes()), TIMEOUT).join();
+
+            // Try to get a new item.
+            DurableDataLog.ReadItem secondItem = reader.getNext();
+            Assert.assertNotNull("Nothing read after modification.", secondItem);
+        }
+    }
+
     //endregion
 
     //region InMemoryDurableDataLog-specific tests
@@ -207,6 +231,7 @@ public class InMemoryDurableDataLogTests {
     }
 
     private void testRead(DurableDataLog log, long afterSequenceNumber, TreeMap<Long, byte[]> writeData) throws Exception {
+        @Cleanup
         CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(afterSequenceNumber);
         SortedMap<Long, byte[]> expectedData = writeData.tailMap(afterSequenceNumber, false);
         Iterator<Long> expectedKeyIterator = expectedData.keySet().iterator();
@@ -226,7 +251,7 @@ public class InMemoryDurableDataLogTests {
         }
     }
 
-    protected DurableDataLog createDurableDataLog() {
+    private DurableDataLog createDurableDataLog() {
         return new InMemoryDurableDataLog(new InMemoryDurableDataLog.EntryCollection());
     }
 }
