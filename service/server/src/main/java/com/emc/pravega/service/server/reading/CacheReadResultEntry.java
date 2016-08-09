@@ -27,20 +27,21 @@ import java.io.ByteArrayInputStream;
 /**
  * Read Result Entry for data that is readily available for reading (in memory).
  */
-class MemoryReadResultEntry extends ReadResultEntryBase {
+class CacheReadResultEntry extends ReadResultEntryBase {
     /**
-     * Creates a new instance of the MemoryReadResultEntry class.
+     * Creates a new instance of the CacheReadResultEntry class.
      *
-     * @param entry The ByteArrayReadIndexEntry to create the Result Entry from.
-     * @throws IndexOutOfBoundsException If entryOffset, length or both are invalid.
+     * @param streamSegmentOffset The offset within the StreamSegment where this ReadResultEntry starts at. NOTE: this is
+     *                            not where the first byte of 'data' starts, rather it's where dataOffset points to in the
+     *                            StreamSegment.
+     * @param data                The data buffer that contains the data.
+     * @param dataOffset          The offset within data where this ReadResultEntry starts at.
+     * @param dataLength          The length of the data that this ReadResultEntry has.
+     * @throws IllegalArgumentException If entryOffset, length or both are invalid.
      */
-    MemoryReadResultEntry(ByteArrayReadIndexEntry entry, int entryOffset, int length) {
-        super(ReadResultEntryType.Cache, entry.getStreamSegmentOffset() + entryOffset, length);
-        Exceptions.checkArgument(entryOffset >= 0, "entryOffset", "EntryOffset must be non-negative.");
-        Exceptions.checkArgument(length > 0, "length", "Length must be a positive integer.");
-        Exceptions.checkArgument(entryOffset + length <= entry.getLength(), "entryOffset + length", "EntryOffset + Length must be less than the size of the entry data.");
-
-        // Data Stream is readily available.
-        complete(new ReadResultEntryContents(new ByteArrayInputStream(entry.getData(), entryOffset, length), length));
+    CacheReadResultEntry(long streamSegmentOffset, byte[] data, int dataOffset, int dataLength) {
+        super(ReadResultEntryType.Cache, streamSegmentOffset + dataOffset, dataLength);
+        Exceptions.checkArrayRange(dataOffset, dataLength, data.length, "dataOffset", "dataLength");
+        complete(new ReadResultEntryContents(new ByteArrayInputStream(data, dataOffset, dataLength), dataLength));
     }
 }

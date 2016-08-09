@@ -28,7 +28,7 @@ import java.util.HashMap;
  * In-memory mock for DurableDataLogFactory. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
-    private final HashMap<String, InMemoryDurableDataLog.EntryCollection> persistedData = new HashMap<>();
+    private final HashMap<Integer, InMemoryDurableDataLog.EntryCollection> persistedData = new HashMap<>();
     private final int maxAppendSize;
     private boolean closed;
 
@@ -41,7 +41,7 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
     }
 
     @Override
-    public DurableDataLog createDurableDataLog(String containerId) {
+    public DurableDataLog createDurableDataLog(int containerId) {
         Exceptions.checkNotClosed(this.closed, this);
 
         InMemoryDurableDataLog.EntryCollection entries;

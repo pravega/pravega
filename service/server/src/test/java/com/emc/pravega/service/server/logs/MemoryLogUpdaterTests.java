@@ -21,18 +21,22 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
+import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.testcommon.AssertExtensions;
-
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -52,12 +56,10 @@ import java.util.function.Consumer;
  */
 public class MemoryLogUpdaterTests {
     /**
-     * Tests the functionality of the add() method.
-     *
-     * @throws Exception
+     * Tests the functionality of the process() method.
      */
     @Test
-    public void testAdd() throws Exception {
+    public void testProcess() throws Exception {
         int segmentCount = 10;
         int operationCountPerType = 5;
 
@@ -65,29 +67,34 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
+        @Cleanup
+        InMemoryCache cache = new InMemoryCache("0");
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(cache, readIndex));
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
-        Assert.assertEquals("Unexpected size for MemoryOperationLog.", operations.size(), opLog.getSize());
+        Assert.assertEquals("Unexpected size for MemoryOperationLog.", operations.size(), opLog.size());
         Assert.assertEquals("Unexpected number of items added to ReadIndex.", operations.size() - segmentCount * operationCountPerType, methodInvocations.size());
 
-        Iterator<Operation> logIterator = opLog.read(op -> true, opLog.getSize());
+        Iterator<Operation> logIterator = opLog.read(op -> true, opLog.size());
         int currentIndex = -1;
         int currentReadIndex = -1;
+        OperationComparer comparer = new OperationComparer(true, cache); // Need an Op Comparer that uses a cache to compare data.
         while (logIterator.hasNext()) {
             currentIndex++;
             Operation expected = operations.get(currentIndex);
-            Assert.assertEquals("Unexpected operation queued to MemoryOperationLog at sequence " + currentIndex, expected, logIterator.next());
+            Operation actual = logIterator.next();
+            comparer.assertEquals(expected, actual);
             if (expected instanceof StorageOperation) {
                 currentReadIndex++;
                 TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
                 if (expected instanceof StreamSegmentAppendOperation) {
+                    Assert.assertTrue("StreamSegmentAppendOperation was not added as a CachedStreamSegmentAppendOperation to the Memory Log.", actual instanceof CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
+                    CacheKey expectedKey = new CacheKey(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset());
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", expectedKey, invokedMethod.args.get("key"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData().length, invokedMethod.args.get("length"));
                 } else if (expected instanceof MergeBatchOperation) {
                     MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
@@ -101,7 +108,7 @@ public class MemoryLogUpdaterTests {
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
                 "MemoryLogUpdater accepted an operation that was out of order.",
-                () -> updater.add(new MergeBatchOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
+                () -> updater.process(new MergeBatchOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
@@ -114,10 +121,9 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
 
-        StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata("1");
-        StreamSegmentContainerMetadata metadata2 = new StreamSegmentContainerMetadata("1");
+        StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata(1);
         updater.enterRecoveryMode(metadata1);
         updater.exitRecoveryMode(true);
 
@@ -145,7 +151,7 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
@@ -179,13 +185,13 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, readIndex);
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
         populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
         updater.clear();
         updater.flush();
-        Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.getSize());
+        Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.size());
 
         Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 2, methodInvocations.size());
         TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
@@ -199,48 +205,51 @@ public class MemoryLogUpdaterTests {
 
     private ArrayList<Operation> populate(MemoryLogUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
         ArrayList<Operation> operations = new ArrayList<>();
+        long offset = 0;
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
                 StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date()));
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
-                operations.add(new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j)));
+                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j));
+                appendOp.setStreamSegmentOffset(offset);
+                offset += appendOp.getData().length;
+                operations.add(appendOp);
                 operations.add(new MergeBatchOperation(i, j));
             }
         }
 
         for (int i = 0; i < operations.size(); i++) {
             operations.get(i).setSequenceNumber(i);
-            updater.add(operations.get(i));
+            updater.process(operations.get(i));
         }
 
         return operations;
     }
 
     private static class TestReadIndex implements ReadIndex {
-        public static final String APPEND = "append";
-        public static final String BEGIN_MERGE = "beginMerge";
-        public static final String COMPLETE_MERGE = "completeMerge";
-        public static final String READ = "read";
-        public static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
-        public static final String CLEAR = "clear";
-        public static final String PERFORM_GARBAGE_COLLECTION = "performGarbageCollection";
-        public static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
-        public static final String EXIT_RECOVERY_MODE = "exitRecoveryMode";
+        static final String APPEND = "append";
+        static final String BEGIN_MERGE = "beginMerge";
+        static final String COMPLETE_MERGE = "completeMerge";
+        static final String READ = "read";
+        static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
+        static final String CLEAR = "clear";
+        static final String PERFORM_GARBAGE_COLLECTION = "performGarbageCollection";
+        static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
+        static final String EXIT_RECOVERY_MODE = "exitRecoveryMode";
 
         private final Consumer<MethodInvocation> methodInvokeCallback;
         private boolean closed;
 
-        public TestReadIndex(Consumer<MethodInvocation> methodInvokeCallback) {
+        TestReadIndex(Consumer<MethodInvocation> methodInvokeCallback) {
             this.methodInvokeCallback = methodInvokeCallback;
         }
 
         @Override
-        public void append(long streamSegmentId, long offset, byte[] data) {
+        public void append(CacheKey key, int length) {
             invoke(new MethodInvocation(APPEND)
-                    .withArg("streamSegmentId", streamSegmentId)
-                    .withArg("offset", offset)
-                    .withArg("data", data));
+                    .withArg("key", key)
+                    .withArg("length", length));
         }
 
         @Override
@@ -306,16 +315,16 @@ public class MemoryLogUpdaterTests {
             }
         }
 
-        public static class MethodInvocation {
-            public final String methodName;
-            public final AbstractMap<String, Object> args;
+        static class MethodInvocation {
+            final String methodName;
+            final AbstractMap<String, Object> args;
 
-            public MethodInvocation(String name) {
+            MethodInvocation(String name) {
                 this.methodName = name;
                 this.args = new HashMap<>();
             }
 
-            public MethodInvocation withArg(String name, Object value) {
+            MethodInvocation withArg(String name, Object value) {
                 this.args.put(name, value);
                 return this;
             }

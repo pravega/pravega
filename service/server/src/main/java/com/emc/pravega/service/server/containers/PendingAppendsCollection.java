@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * only while they are in the Durable Log Operation Queue or in the Durable Log Queue Processor. As soon as the
  * related operation completes, all traces of its existence are removed from this collection.
  */
-public class PendingAppendsCollection implements AutoCloseable {
+class PendingAppendsCollection implements AutoCloseable {
     //region Members
 
     private final ConcurrentHashMap<String, Entry> entries;
@@ -48,7 +48,7 @@ public class PendingAppendsCollection implements AutoCloseable {
     /**
      * Creates a new instance of the PendingAppendsCollection class.
      */
-    public PendingAppendsCollection() {
+    PendingAppendsCollection() {
         this.entries = new ConcurrentHashMap<>();
     }
 
@@ -77,7 +77,7 @@ public class PendingAppendsCollection implements AutoCloseable {
      * @param operation          The StreamSegmentAppendOperation to register to.
      * @param completionCallback A CompletableFuture that will indicate the outcome of the operation.
      */
-    public void register(StreamSegmentAppendOperation operation, CompletableFuture<Long> completionCallback) {
+    void register(StreamSegmentAppendOperation operation, CompletableFuture<Long> completionCallback) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkNotNull(operation, "operation");
         Preconditions.checkNotNull(operation, "completionCallback");

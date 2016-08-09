@@ -110,7 +110,7 @@ public class RecoveryBenchmark extends Benchmark {
     //region Actual benchmark implementation
 
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
-        final String containerId = "0";
+        final int containerId = 0;
         log("Running %s", testInput);
 
         serviceBuilder.getContainerManager().initialize(TIMEOUT).join();

@@ -25,7 +25,7 @@ import com.google.common.util.concurrent.Service;
  */
 public class IllegalContainerStateException extends RuntimeException { // TODO: this should extend ContainerException, but that is not a RuntimeException.
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
@@ -33,7 +33,7 @@ public class IllegalContainerStateException extends RuntimeException { // TODO: 
         super(message);
     }
 
-    public IllegalContainerStateException(String containerId, Service.State expectedState, Service.State desiredState) {
-        super(String.format("Container %s is in an invalid state for this operation. Expected: %s; Actual: %s.", containerId, desiredState, expectedState));
+    public IllegalContainerStateException(int containerId, Service.State expectedState, Service.State desiredState) {
+        super(String.format("Container %d is in an invalid state for this operation. Expected: %s; Actual: %s.", containerId, desiredState, expectedState));
     }
 }

@@ -30,14 +30,12 @@ public interface ReadIndex extends AutoCloseable {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *
-     * @param streamSegmentId The Id of the StreamSegment to append to.
-     * @param offset          The offset in the StreamSegment where to write this append. The offset must be at the end
-     *                        of the StreamSegment as it exists in the ReadIndex.
-     * @param data            The data to append.
-     * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
-     * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the StreamSegment.
+     * @param cacheKey The Key (in the Cache) of the data to be appended..
+     * @param length   the length of the data to be appended.
+     * @throws IllegalArgumentException If the cacheKey.getOffset() does not match the expected value (end of StreamSegment in ReadIndex).
+     * @throws IllegalArgumentException If the cacheKey.getOffset() + data.length exceeds the metadata DurableLogLength of the StreamSegment.
      */
-    void append(long streamSegmentId, long offset, byte[] data);
+    void append(CacheKey cacheKey, int length);
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.
@@ -49,10 +47,10 @@ public interface ReadIndex extends AutoCloseable {
      * The ReadIndex entries of the two Streams are actually joined together.
      * </ol>
      *
-     * @param targetStreamSegmentId     The Id of the StreamSegment to merge into.
-     * @param offset                    The offset in the Target StreamSegment where to merge the Source StreamSegment.
-     *                                  The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
-     * @param sourceStreamSegmentId     The Id of the StreamSegment to merge.
+     * @param targetStreamSegmentId The Id of the StreamSegment to merge into.
+     * @param offset                The offset in the Target StreamSegment where to merge the Source StreamSegment.
+     *                              The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
+     * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
      * @throws IllegalArgumentException If the offset + SourceStreamSegment.length exceeds the metadata DurableLogLength
      *                                  of the target StreamSegment.
@@ -115,10 +113,10 @@ public interface ReadIndex extends AutoCloseable {
      *
      * @param successfulRecovery Indicates whether recovery was successful. If not, the ReadIndex may be cleared out to
      *                           avoid further issues.
-     * @throws IllegalStateException    If the ReadIndex is already in recovery mode.
-     * @throws NullPointerException     If the parameter is null.
+     * @throws IllegalStateException   If the ReadIndex is already in recovery mode.
+     * @throws NullPointerException    If the parameter is null.
      * @throws DataCorruptionException If the new Metadata Store does not contain information about a StreamSegment in
-     *                                  the Read Index or it has conflicting information about it.
+     *                                 the Read Index or it has conflicting information about it.
      */
     void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException;
 

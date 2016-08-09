@@ -44,7 +44,7 @@ import java.util.function.Predicate;
  * Unit tests for DataFrameReader class.
  */
 public class DataFrameReaderTests {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SMALL_RECORD_MIN_SIZE = 0;
     private static final int SMALL_RECORD_MAX_SIZE = 128;
