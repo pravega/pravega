@@ -15,23 +15,16 @@
   * See the License for the specific language governing permissions and
   * limitations under the License.
   */
-package com.emc.pravega.zkutils.zkimplementation
+
+package com.emc.pravega.zkutils.dummy
 
 import com.emc.pravega.zkutils.abstraction.ConfigSyncManager
-import org.apache.zookeeper.{WatchedEvent, Watcher, ZooKeeper}
+import org.apache.zookeeper.Watcher
 
-class ZookeeperClient(connectString: String, sessionTimeout: Int, watcher :Watcher)
-  extends ZooKeeper(connectString, sessionTimeout, watcher) with Watcher with ConfigSyncManager {
-  /**
-    * Callback from the watcher
-    */
-  override def process(event: WatchedEvent): Unit = {
-    //Process the incoming events
-  }
-
-  /**
-    * Sample ZK methods. Will add more as implementation progresses
-    **/
+/**
+  * Created by kandha on 8/8/16.
+  */
+class DummyZK(connectString: String, sessionTimeout: Int, watcher :Watcher) extends ConfigSyncManager {
   override def createEntry(path: String, value: Array[Byte]): String = ???
 
   override def deleteEntry(path: String): Unit = ???

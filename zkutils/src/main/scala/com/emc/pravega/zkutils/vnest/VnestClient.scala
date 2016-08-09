@@ -19,9 +19,17 @@
 
 package com.emc.pravega.zkutils.vnest
 
+import com.emc.pravega.zkutils.abstraction.ConfigSyncManager
+import org.apache.zookeeper.Watcher
+
 /**
   * Created by kandha on 8/8/16.
   */
-class VnestClient {
+class VnestClient(connectString: String, sessionTimeout: Int, watcher :Watcher) extends ConfigSyncManager {
+  /**
+    * Sample ZK methods. Will add more as implementation progresses
+    **/
+  override def createEntry(path: String, value: Array[Byte]): String = ???
 
+  override def deleteEntry(path: String): Unit = ???
 }
