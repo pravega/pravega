@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -43,8 +43,6 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.ReusableLatch;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedException;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +55,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @RequiredArgsConstructor
 @Slf4j
-public class SegmentOutputStreamImpl extends SegmentOutputStream {
+class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 	private final ConnectionFactory connectionFactory;
 	private final String endpoint;
@@ -282,7 +280,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	}
 	
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentOutputStream#write(java.nio.ByteBuffer, java.util.concurrent.CompletableFuture)
+	 * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer, java.util.concurrent.CompletableFuture)
 	 */
 	@Override
 	@Synchronized
@@ -325,7 +323,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
     }
 
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentOutputStream#close()
+	 * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#close()
 	 */
 	@Override
 	@Synchronized
@@ -339,7 +337,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	}
 
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentOutputStream#flush()
+	 * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#flush()
 	 */
 	@Override
 	@Synchronized

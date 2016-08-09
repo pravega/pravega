@@ -25,9 +25,10 @@ import java.util.concurrent.Future;
  * @param <Type> The type of events that go in this stream
  */
 public interface Producer<Type> extends AutoCloseable {
+    
     /**
-     * Send a event to the stream. Events that are published should appear in the stream exactly once.
-     * Note that the implementation provides retry logic. Internal retires will not violate the exactly once semantic so
+     * Send an event to the stream. Events that are published should appear in the stream exactly once.
+     * Note that the implementation provides retry logic. Internal retries will not violate the exactly once semantic so
      * it is better to rely on them than to wrap this with custom retry logic.
      * 
      * @param routingKey A free form string that is used to route messages to consumers. Two events published with the
@@ -43,6 +44,8 @@ public interface Producer<Type> extends AutoCloseable {
     Future<Void> publish(String routingKey, Type event);
 
     /**
+     * Start a new transaction on this stream.
+     * 
      * @param transactionTimeout The number of milliseconds after now, that if commit has not been called by, the
      *            transaction may be dropped. Note that this should not be set unnecessarily high, as having long running
      *            transactions may interfere with a streams to scale in response to a change in rate. For this reason
@@ -52,7 +55,7 @@ public interface Producer<Type> extends AutoCloseable {
     Transaction<Type> startTransaction(long transactionTimeout);
 
     /**
-     * @return The configuration that this producer was create with.
+     * Returns the configuration that this producer was create with.
      */
     ProducerConfig getConfig();
 

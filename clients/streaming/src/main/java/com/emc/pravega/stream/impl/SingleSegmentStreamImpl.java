@@ -32,7 +32,7 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentManager;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;

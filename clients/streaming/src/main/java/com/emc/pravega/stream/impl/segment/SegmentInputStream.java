@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment;
+package com.emc.pravega.stream.impl.segment;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +33,7 @@ public abstract class SegmentInputStream implements AutoCloseable {
 	public abstract void setOffset(long offset);
 
     /**
-     * @return The current offset. (Passing this to setOffst in the future will reset reads to the
+     * @return The current offset. (Passing this to setOffset in the future will reset reads to the
      *         current position in the segment.)
      */
     public abstract long getOffset();
@@ -47,7 +47,7 @@ public abstract class SegmentInputStream implements AutoCloseable {
 	 * Reads bytes from the segment to attempt to fill the provided buffer.
 	 * Buffering is performed internally to try to prevent blocking.
 	 * Similarly the bufferProvided may not be fully filled, if doing so can prevent further blocking. 
-	 * The number of bytes that can be read without blocking can be obtained by calling avaliable().
+	 * The number of bytes that can be read without blocking can be obtained by calling available().
 	 * 
 	 * This method will always read at least one byte even if blocking is required to obtain it.
 	 *  

@@ -15,14 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment;
+package com.emc.pravega.stream.impl.segment;
 
 import java.io.IOException;
 
 /**
- * A segment has been sealed and no more events may be published to it.
+ * A segment has ended. No more events may be consumed from it.
  */
-public class SegmentSealedException extends IOException {
+public class EndOfSegmentException extends IOException {
 
     private static final long serialVersionUID = 1L;
 

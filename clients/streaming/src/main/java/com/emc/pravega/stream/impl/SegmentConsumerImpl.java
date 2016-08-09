@@ -21,9 +21,12 @@ import java.nio.ByteBuffer;
 
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.segment.EndOfSegmentException;
-import com.emc.pravega.stream.segment.SegmentInputStream;
+import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 
+/**
+ * Reads items from the segmentInputStream, deserializes them with the Serializer and returns them to the caller.
+ */
 public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
 
     private final SegmentId segmentId;
@@ -39,7 +42,7 @@ public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
     @Override
     public Type getNextEvent(long timeout) throws EndOfSegmentException {
         ByteBuffer buffer;
-        synchronized (in) { // TODO: This implementation sucks. It is unnecessary allocating 2 byte
+        synchronized (in) { // TODO: Improve this. The code is currently unnecessary allocating 2 byte
                             // arrays. This could be made less redundant with lower level code.
             buffer = ByteBuffer.allocate(4);
             in.read(buffer);

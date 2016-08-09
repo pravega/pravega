@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.segment.EndOfSegmentException;
+import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 
 /**
  * The mirror of {@link Consumer} but that is specific to a single segment.
@@ -27,6 +27,11 @@ import com.emc.pravega.stream.segment.EndOfSegmentException;
 public interface SegmentConsumer<Type> extends AutoCloseable {
     SegmentId getSegmentId();
 
+    /**
+     * Return the next event, blocking for at most timeout.
+     * If there is no event after timeout null will be returned.
+     * EndOfSegmentException indicates the segment has ended an no more events may be read.
+     */
     Type getNextEvent(long timeout) throws EndOfSegmentException;
 
     long getOffset();

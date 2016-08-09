@@ -12,7 +12,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import java.util.Iterator;
 import java.util.Map.Entry;
@@ -33,7 +33,7 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
+class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     private final ConnectionFactory connectionFactory;
     private final String endpoint;

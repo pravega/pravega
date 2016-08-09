@@ -24,7 +24,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.segment.impl.SegmentManagerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 
 /**
  * A StreamManager for the special case where the streams it creates will only ever be composed of one segment.

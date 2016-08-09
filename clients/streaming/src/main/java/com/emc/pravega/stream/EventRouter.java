@@ -26,6 +26,8 @@ package com.emc.pravega.stream;
 public interface EventRouter {
 
     /**
+     * Selects which segment an event should be published to.
+     * 
      * @param stream The stream for which a decision needs to be made.
      * @param routingKey The key that should be used to select from the segment that the event should go to.
      * @return The Segment that has been selected.

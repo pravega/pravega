@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl;
 
 import java.util.List;
 
-import com.emc.pravega.stream.segment.SegmentSealedException;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
 /**
  * This is the mirror of Producer but that only deals with one segment.

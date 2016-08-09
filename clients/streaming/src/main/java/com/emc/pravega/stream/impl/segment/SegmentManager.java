@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment;
+package com.emc.pravega.stream.impl.segment;
 
 import java.util.UUID;
 
@@ -73,5 +73,5 @@ public interface SegmentManager {
      * same client (i.e., there can be concurrent Stream Readers in the same
      * process space).
      */
-    SegmentInputStream openLogForReading(String name, SegmentInputConfiguration config);
+    SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config);
 }

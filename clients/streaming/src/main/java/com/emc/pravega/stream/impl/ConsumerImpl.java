@@ -26,9 +26,9 @@ import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.segment.EndOfSegmentException;
-import com.emc.pravega.stream.segment.SegmentInputStream;
-import com.emc.pravega.stream.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.impl.segment.SegmentInputStream;
+import com.emc.pravega.stream.impl.segment.SegmentManager;
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
@@ -77,7 +77,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         if (replacment.isPresent()) {
             SegmentId segmentId = replacment.get();
             Long position = futureOwnedLogs.remove(segmentId);
-            SegmentInputStream in = segmentManager.openLogForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
+            SegmentInputStream in = segmentManager.openSegmentForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
             in.setOffset(position);
             consumers.add(new SegmentConsumerImpl<>(segmentId, in, deserializer));
             rateChangeListener.rateChanged(stream, false);
@@ -107,7 +107,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             futureOwnedLogs.clear();
             futureOwnedLogs.putAll(position.getFutureOwnedLogs());
             for (SegmentId s : position.getOwnedSegments()) {
-                SegmentInputStream in = segmentManager.openLogForReading(s.getQualifiedName(), config.getSegmentConfig());
+                SegmentInputStream in = segmentManager.openSegmentForReading(s.getQualifiedName(), config.getSegmentConfig());
                 in.setOffset(position.getOffsetForOwnedLog(s));
                 consumers.add(new SegmentConsumerImpl<>(s, in, deserializer));
             }

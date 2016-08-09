@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -31,7 +31,7 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
 	 * 
 	 * 
 	 * @param Offset The offset in the segment to read from
-	 * @param Length The suggested number of bytes to read. (Note the result may contain either more or less than this value.
+	 * @param Length The suggested number of bytes to read. (Note the result may contain either more or less than this value.)
 	 * @return A future for the result of the read call. The future will either complete with data or an exception.  
 	 */
 	public abstract CompletableFuture<SegmentRead> read(long offset, int length);
