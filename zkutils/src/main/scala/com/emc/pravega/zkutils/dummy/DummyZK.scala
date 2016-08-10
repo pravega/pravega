@@ -28,4 +28,6 @@ class DummyZK(connectString: String, sessionTimeout: Int, watcher :Watcher) exte
   override def createEntry(path: String, value: Array[Byte]): String = ???
 
   override def deleteEntry(path: String): Unit = ???
+
+  override def refreshCluster(): Unit = ???
 }

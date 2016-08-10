@@ -35,4 +35,6 @@ class ZookeeperClient(connectString: String, sessionTimeout: Int, watcher :Watch
   override def createEntry(path: String, value: Array[Byte]): String = ???
 
   override def deleteEntry(path: String): Unit = ???
+
+  override def refreshCluster(): Unit = ???
 }

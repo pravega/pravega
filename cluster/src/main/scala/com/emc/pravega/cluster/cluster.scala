@@ -20,6 +20,8 @@ package com.emc.pravega.cluster
 
 import java.util
 
+import com.emc.pravega.zkutils.abstraction.ConfigSyncManager
+
 import scala.collection.mutable
 
 /**
@@ -37,16 +39,26 @@ class cluster {
 
   val listeners:   mutable.Set[ClusterListener] = mutable.Set[ClusterListener]()
 
+  var manager:ConfigSyncManager = null
+
   def getPravegaNodes: Iterable[PravegaNode] = nodes.values
 
   def getPravegaControllers: Iterable[PravegaController] = controllers.values
 
+  def  initializeCluster(syncType:String,connectionString: String,sessionTimeout:Int):Unit = {
+    this.synchronized {
+      if(manager == null)
+      manager = ConfigSyncManager.createManager(syncType, connectionString, sessionTimeout)
+      refreshCluster()
+      manager
+    }
+  }
 
   /**
     * Reads the complete cluster from the store and updates the existing data
     **/
   def refreshCluster():Unit = {
-
+    manager.refreshCluster()
   }
 
   def addNode(node:PravegaNode, endpoint:Endpoint): Unit = {

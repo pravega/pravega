@@ -32,4 +32,6 @@ class VnestClient(connectString: String, sessionTimeout: Int, watcher :Watcher) 
   override def createEntry(path: String, value: Array[Byte]): String = ???
 
   override def deleteEntry(path: String): Unit = ???
+
+  override def refreshCluster(): Unit = ???
 }

@@ -29,15 +29,26 @@ import org.apache.zookeeper.{WatchedEvent, Watcher}
   */
 trait ConfigSyncManager {
 
+
+
   /**
     * Sample ZK methods. Will add more as implementation progresses
     * */
   def createEntry(path:String, value: Array[Byte]):String;
-  def deleteEntry(path:String);
+  def deleteEntry(path:String): Unit;
+  def refreshCluster(): Unit;
 
 }
 
 object ConfigSyncManager extends Watcher {
+  /**
+    * Creates a ConfigSyncManager object depdning on type.
+    * This is used to interact with the ZK or VNext
+    * @param zkType
+    * @param connectionString
+    * @param sessionTimeout
+    * @return
+    */
   def createManager(zkType: String, connectionString: String, sessionTimeout: Int): ConfigSyncManager = {
     zkType match {
       case "dummy" => new DummyZK(connectionString, sessionTimeout, this)
