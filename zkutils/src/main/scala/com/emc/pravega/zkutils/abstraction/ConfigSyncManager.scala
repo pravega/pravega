@@ -32,12 +32,13 @@ trait ConfigSyncManager {
 
 
   /**
-    * Sample ZK methods. Will add more as implementation progresses
+    * Sample configuration/synchronization methods. Will add more as implementation progresses
     * */
   def createEntry(path:String, value: Array[Byte]):String;
   def deleteEntry(path:String): Unit;
   def refreshCluster(): Unit;
-
+  def registerPravegaNode(host: String, port: Int, jsonMetadata: String): Unit;
+  def registerPravegaController(host: String, port: Int, jsonMetadata: String): Unit;
 }
 
 object ConfigSyncManager extends Watcher {
@@ -57,6 +58,10 @@ object ConfigSyncManager extends Watcher {
     }
   }
 
+  /**
+    *
+    * @param event
+    */
   override def process(event: WatchedEvent): Unit = {
 
   }

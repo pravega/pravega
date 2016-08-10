@@ -22,9 +22,28 @@ package com.emc.pravega.cluster;
  * Created by kandha on 8/5/16.
  */
 public interface ClusterListener {
+    /**
+     * Notification that a new Pravega node is added to the cluster
+     * @param node
+     */
     void nodeAdded(PravegaNode node);
+
+    /**
+     * Notification that a pravega node is removed from the cluster
+     * @param node
+     */
     void nodeRemoved(PravegaNode node);
+
+    /**
+     * Notification that a controller is added to the cluster
+     * @param controller
+     */
     void controllerAdded(PravegaController controller);
+
+    /**
+     * Notification that a controller is removed from the cluster
+     * @param controller
+     */
     void controllerRemoved(PravegaController controller);
 
 }

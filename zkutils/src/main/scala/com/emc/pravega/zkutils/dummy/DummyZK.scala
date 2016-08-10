@@ -30,4 +30,16 @@ class DummyZK(connectString: String, sessionTimeout: Int, watcher :Watcher) exte
   override def deleteEntry(path: String): Unit = ???
 
   override def refreshCluster(): Unit = ???
+
+  override def registerPravegaNode(host: String, port: Int, jsonMetadata: String): Unit = {
+    var jsonMap = Map(
+                  "host" -> host,
+                  "port" -> port,
+                  "metadata" -> jsonMetadata
+    )
+
+
+  }
+
+  override def registerPravegaController(host: String, port: Int, jsonMetadata: String): Unit = ???
 }

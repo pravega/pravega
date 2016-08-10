@@ -71,10 +71,24 @@ class cluster {
     listeners.foreach(_.controllerAdded(controller))
   }
 
+  def registerPravegaNode(host: String, port:Int,jsonMetadata: String):Unit = {
+    manager.registerPravegaNode(host,port,jsonMetadata)
+  }
+
+  /**
+    * Listener specific functions:
+    * Registers a new listener
+    * @param clusterListener
+    */
   def registerListener(clusterListener: ClusterListener):Unit = {
     if(listeners.contains(clusterListener)==false) listeners.add(clusterListener)
   }
 
+  /**
+    * Listener specific functions:
+    * Removes a registered listener
+    * @param clusterListener
+    */
   def deRegisterListener(clusterListener: ClusterListener):Unit = {
     if(listeners.contains(clusterListener)) listeners.remove(clusterListener)
   }

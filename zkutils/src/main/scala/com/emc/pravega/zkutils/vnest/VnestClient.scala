@@ -34,4 +34,8 @@ class VnestClient(connectString: String, sessionTimeout: Int, watcher :Watcher) 
   override def deleteEntry(path: String): Unit = ???
 
   override def refreshCluster(): Unit = ???
+
+  override def registerPravegaNode(host: String, port: Int, jsonMetadata: String): Unit = ???
+
+  override def registerPravegaController(host: String, port: Int, jsonMetadata: String): Unit = ???
 }

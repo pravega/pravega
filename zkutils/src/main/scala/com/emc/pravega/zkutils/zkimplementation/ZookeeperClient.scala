@@ -20,8 +20,13 @@ package com.emc.pravega.zkutils.zkimplementation
 import com.emc.pravega.zkutils.abstraction.ConfigSyncManager
 import org.apache.zookeeper.{WatchedEvent, Watcher, ZooKeeper}
 
+import scala.collection.{Iterable, Map}
+
 class ZookeeperClient(connectString: String, sessionTimeout: Int, watcher :Watcher)
   extends ZooKeeper(connectString, sessionTimeout, watcher) with Watcher with ConfigSyncManager {
+
+  val pravegaNodesPath       = "/pravega/nodes"
+  val pravegaControllersPath = "/pravega/controllers"
   /**
     * Callback from the watcher
     */
@@ -37,4 +42,36 @@ class ZookeeperClient(connectString: String, sessionTimeout: Int, watcher :Watch
   override def deleteEntry(path: String): Unit = ???
 
   override def refreshCluster(): Unit = ???
+
+  def jsonEncode(obj: Any): String = {
+      obj match {
+        case null => "null"
+        case b: Boolean => b.toString
+        case s: String => "\"" + s + "\""
+        case n: Number => n.toString
+        case m: Map[_, _] =>
+          "{" +
+            m.map(elem =>
+              elem match {
+                case t: Tuple2[_,_] => jsonEncode(t._1) + ":" + jsonEncode(t._2)
+                case _ => throw new IllegalArgumentException("Invalid element (" + elem + ") in " + obj)
+              }).mkString(",") + "}"
+        case a: Array[_] => jsonEncode(a.toSeq)
+        case i: Iterable[_] => "[" + i.map(jsonEncode).mkString(",") + "]"
+        case other: AnyRef => throw new IllegalArgumentException("Unknown type " + other.getClass + ": " + other)
+      }
+  }
+
+  override def registerPravegaNode(host: String, port: Int, jsonMetadata: String): Unit = {
+    val jsonMap = Map(
+      "host" -> host,
+      "port" -> port,
+      "metadata" -> jsonMetadata
+    )
+
+    val nodeJson = jsonEncode(jsonMap)
+
+  }
+
+  override def registerPravegaController(host: String, port: Int, jsonMetadata: String): Unit = ???
 }
