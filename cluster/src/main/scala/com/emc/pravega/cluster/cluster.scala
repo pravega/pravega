@@ -41,6 +41,14 @@ class cluster {
 
   def getPravegaControllers: Iterable[PravegaController] = controllers.values
 
+
+  /**
+    * Reads the complete cluster from the store and updates the existing data
+    **/
+  def refreshCluster():Unit = {
+
+  }
+
   def addNode(node:PravegaNode, endpoint:Endpoint): Unit = {
     nodes.put(endpoint, node)
     listeners.foreach {_.nodeAdded(node)}

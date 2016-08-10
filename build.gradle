@@ -28,6 +28,9 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
+	maven {
+            url "http://maven.twttr.com"
+        }
     }
 
     checkstyle {
@@ -40,8 +43,6 @@ allprojects {
         compile 'org.slf4j:slf4j-api:1.7.14'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'ch.qos.logback', name: 'logback-core', version: '1.1.7'
-        // https://mvnrepository.com/artifact/com.emc.ecs/object-client
-        compile group: 'com.emc.ecs', name: 'object-client', version: '2.2.2'
         compile 'org.scala-lang:scala-library:2.11.7'
         
         // https://mvnrepository.com/artifact/com.101tec/zkclient
@@ -179,6 +180,8 @@ project('benchmark') {
         testCompile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
+        // https://mvnrepository.com/artifact/com.emc.ecs/object-client
+        compile group: 'com.emc.ecs', name: 'object-client', version: '2.2.2'
     }
 
 
