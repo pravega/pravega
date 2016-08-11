@@ -45,11 +45,11 @@ class StorageReadResultEntry extends ReadResultEntryBase {
 
     @Override
     public void requestContent(Duration timeout) {
-        this.contentFetcher.accept(getStreamSegmentOffset(), getRequestedReadLength(), this::complete, this::fail);
+        this.contentFetcher.accept(getStreamSegmentOffset(), getRequestedReadLength(), this::complete, this::fail, timeout);
     }
 
     @FunctionalInterface
     interface ContentFetcher {
-        void accept(long streamSegmentOffset, int requestedReadLength, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback);
+        void accept(long streamSegmentOffset, int requestedReadLength, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout);
     }
 }

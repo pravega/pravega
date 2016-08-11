@@ -89,7 +89,7 @@ class LogHandle implements AutoCloseable {
      * @param logName              The Distributed Log Name to bind to.
      * @param handleClosedCallback A callback that will be invoked when this LogHandle is closed.
      */
-    public LogHandle(String logName, Consumer<LogHandle> handleClosedCallback) {
+    LogHandle(String logName, Consumer<LogHandle> handleClosedCallback) {
         Preconditions.checkNotNull(handleClosedCallback, "handleClosedCallback");
         Exceptions.checkNotNullOrEmpty(logName, "logName");
 

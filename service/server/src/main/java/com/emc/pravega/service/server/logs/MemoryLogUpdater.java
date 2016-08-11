@@ -95,7 +95,7 @@ class MemoryLogUpdater {
             if (operation instanceof StorageOperation) {
                 this.cacheUpdater.addToReadIndex((StorageOperation) operation);
             }
-        } catch (Exception | Error ex) {
+        } catch (Throwable ex) {
             if (cacheKey != null) {
                 // Cleanup the cache after failing to process an operation that did process something to the cache.
                 this.cacheUpdater.removeFromCache(cacheKey);
@@ -138,7 +138,7 @@ class MemoryLogUpdater {
             assert operation instanceof StreamSegmentAppendOperation : "non-null CacheKey, but operation is not a StreamSegmentAppendOperation";
             try {
                 operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation, key);
-            } catch (Exception | Error ex) {
+            } catch (Throwable ex) {
                 throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
             }
         }

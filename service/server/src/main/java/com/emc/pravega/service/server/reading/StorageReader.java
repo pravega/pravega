@@ -1,0 +1,372 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.emc.pravega.service.server.reading;
+
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.storage.ReadOnlyStorage;
+import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+
+/**
+ * Facilitates and Organizes the reads from Storage.
+ */
+@Slf4j
+class StorageReader implements AutoCloseable {
+    //region Members
+
+    private final String traceObjectId;
+    private final ReadOnlyStorage storage;
+    private final Executor executor;
+    private final TreeMap<Long, Request> pendingRequests;
+    private final String segmentName;
+    private final Object lock = new Object();
+    private boolean closed;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the StorageReader class.
+     *
+     * @param storage  A ReadOnlyStorage to use for data fetching.
+     * @param executor An Executor to use for running asynchronous tasks.
+     */
+    StorageReader(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
+        Preconditions.checkNotNull(storage, "storage");
+        Preconditions.checkNotNull(executor, "executor");
+
+        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata.getId());
+        this.segmentName = segmentMetadata.getName();
+        this.storage = storage;
+        this.executor = executor;
+        this.pendingRequests = new TreeMap<>();
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        synchronized (this.lock) {
+            if (this.closed) {
+                return;
+            }
+
+            this.closed = true;
+
+            // Cancel all pending reads and unregister them.
+            ArrayList<Request> toClose = new ArrayList<>(this.pendingRequests.values());
+            toClose.forEach(Request::cancel);
+        }
+    }
+
+    //endregion
+
+    //region Request Processing
+
+    /**
+     * Queues the given request. The Request will be checked against existing pending Requests. If necessary, this request
+     * will be adjusted to take advantage of an existing request (i.e., if it overlaps with an existing request, no actual
+     * Storage read will happen for this one, yet the result of the previous one will be used instead). The callbacks passed
+     * to the request will be invoked with either the result of the read or with the exception that caused the read to fail.
+     *
+     * @param request The request to queue.
+     */
+    void queueRequest(Request request) {
+        log.debug("{}: StorageRead.Queue {}", this.traceObjectId, request);
+        synchronized (this.lock) {
+            Exceptions.checkNotClosed(this.closed, this);
+            Request existingRequest = findOverlappingRequest(request);
+            if (existingRequest != null) {
+                // We found an overlapping request. Adjust the current request length
+                int newLength = (int) (existingRequest.getOffset() + existingRequest.getLength() - request.getOffset());
+                if (newLength > 0 && newLength < request.getLength()) {
+                    request.adjustLength(newLength);
+                    existingRequest.addDependent(request);
+                    return;
+                }
+            }
+
+            this.pendingRequests.put(request.getOffset(), request);
+        }
+
+        // Initiate the Storage Read.
+        executeStorageRead(request);
+    }
+
+    /**
+     * Executes the Storage Read for the given request.
+     *
+     * @param request The request.
+     */
+    private void executeStorageRead(Request request) {
+        try {
+            byte[] buffer = new byte[request.length];
+            CompletableFuture<Void> future = this.storage
+                    .read(this.segmentName, request.offset, buffer, 0, buffer.length, request.getTimeout())
+                    .thenAcceptAsync(bytesRead -> {
+                        ByteArraySegment segment = new ByteArraySegment(buffer, 0, bytesRead);
+                        request.complete(segment);
+                    }, this.executor);
+
+            // If anything happened with the read (or our handling of it), fail the request.
+            FutureHelpers.exceptionListener(future, request::fail);
+
+            // Unregister the Request after every request fulfillment.
+            future.whenComplete((r, ex) -> finalizeRequest(request));
+        } catch (Throwable ex) {
+            request.fail(ex);
+            finalizeRequest(request);
+        }
+    }
+
+    /**
+     * Ensures that the given request has been finalized (if not, it is failed), and unregisters it from the pending reads.
+     *
+     * @param request The request.
+     */
+    private void finalizeRequest(Request request) {
+        // Check, one last time, if the request was finalized. Better fail it with an AssertionError rather than leave it
+        // hanging forever.
+        if (!request.isDone()) {
+            request.fail(new AssertionError("Request finalized but not yet completed."));
+        }
+
+        // Unregister the request.
+        synchronized (this.lock) {
+            this.pendingRequests.remove(request.getOffset());
+        }
+
+        log.debug("{}: StorageRead.Finalize {}, Success = {}", this.traceObjectId, request, !request.resultFuture.isCompletedExceptionally());
+    }
+
+    /**
+     * Finds a pending Request that overlaps with the given request, based on the given request's Offset.
+     *
+     * @param request The request.
+     * @return The overlapping request, or null if no such request exists.
+     */
+    private Request findOverlappingRequest(Request request) {
+        Map.Entry<Long, Request> previousEntry = this.pendingRequests.floorEntry(request.getOffset());
+        if (previousEntry != null && request.getOffset() < previousEntry.getValue().getEndOffset()) {
+            // Found one.
+            return previousEntry.getValue();
+        }
+
+        // Either no previous entry, or the highest previous entry does not overlap.
+        return null;
+    }
+
+    //endregion
+
+    //region Request
+
+    /**
+     * Represents a Request for a StorageReader operation.
+     */
+    static class Request {
+        //region Members
+
+        private final long offset;
+        private int length;
+        private final CompletableFuture<ByteArraySegment> resultFuture;
+        private final Duration timeout;
+
+        //endregion
+
+        //region Constructor
+
+        /**
+         * Creates a new instance of the StorageReader.Request class.
+         *
+         * @param offset          The offset to read at.
+         * @param length          The length of the read.
+         * @param successCallback A Consumer that will be invoked in case of successful completion of this request.
+         * @param failureCallback A Consumer that will be invoked in case this request failed to process.
+         * @param timeout         Timeout for the request.
+         */
+        Request(long offset, int length, Consumer<ByteArraySegment> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
+            Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
+            Preconditions.checkArgument(length > 0, "length must be a positive integer.");
+
+            this.offset = offset;
+            this.length = length;
+            this.timeout = timeout;
+            this.resultFuture = new CompletableFuture<>();
+            this.resultFuture.thenAccept(successCallback);
+            FutureHelpers.exceptionListener(this.resultFuture, failureCallback);
+        }
+
+        //endregion
+
+        //region Properties
+
+        /**
+         * Gets a value indicating the Starting Offset for this Request.
+         *
+         * @return The result.
+         */
+        long getOffset() {
+            return this.offset;
+        }
+
+        /**
+         * Gets a value indicating the length of this Request.
+         *
+         * @return The result.
+         */
+        int getLength() {
+            return this.length;
+        }
+
+        /**
+         * Gets a value indicating the last offset of this Request.
+         *
+         * @return The result.
+         */
+        long getEndOffset() {
+            return this.offset + this.length;
+        }
+
+        /**
+         * Gets a value indicating whether this request is completed (whether successfully or failed).
+         *
+         * @return The result.
+         */
+        boolean isDone() {
+            return this.resultFuture.isDone();
+        }
+
+        /**
+         * Gets a value indicating the timeout for this operation.
+         *
+         * @return The result.
+         */
+        Duration getTimeout() {
+            return this.timeout;
+        }
+
+        /**
+         * Registers the given request as a dependent of this request. If this Request succeeds, the given Request will
+         * be completed as well (with the appropriate result). If this Request fails, the given Request will fail as well.
+         *
+         * @param request The request to add as a dependent.
+         */
+        void addDependent(Request request) {
+            Preconditions.checkArgument(isSubRequest(this, request), "Given Request does is not a sub-request of this one.");
+            this.resultFuture.thenRun(() -> request.complete(this));
+            FutureHelpers.exceptionListener(this.resultFuture, request::fail);
+        }
+
+        /**
+         * Re-sets the offset and length to the given arguments.
+         *
+         * @param newLength The new Length.
+         * @throws IllegalArgumentException If the new interval is outside of the original request interval.
+         */
+        private void adjustLength(int newLength) {
+            Preconditions.checkArgument(newLength >= 0 && newLength <= this.length, "length is outside of the original request bounds.");
+            this.length = newLength;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Offset = %d, Length = %d", this.offset, this.length);
+        }
+
+        //endregion
+
+        // region Completion
+
+        /**
+         * Cancels this Request.
+         */
+        private void cancel() {
+            fail(new CancellationException());
+        }
+
+        /**
+         * Completes this Request with the given request as a source (this Request is a sub-interval of the given request).
+         *
+         * @param source The source Request to complete with.
+         */
+        private void complete(Request source) {
+            Preconditions.checkArgument(source.isDone(), "Given request .");
+            Preconditions.checkArgument(isSubRequest(source, this), "This Request is not a sub-request of the given one.");
+
+            try {
+                ByteArraySegment sourceResult = source.resultFuture.join();
+                int offset = (int) (this.getOffset() - source.getOffset());
+                complete(sourceResult.subSegment(offset, getLength()));
+            } catch (Throwable ex) {
+                fail(ex);
+            }
+        }
+
+        /**
+         * Completes this Request with the given result.
+         *
+         * @param result      The result to complete with.
+         */
+        private void complete(ByteArraySegment result) {
+            Preconditions.checkState(!isDone(), "This. Request is already completed.");
+            this.resultFuture.complete(result);
+        }
+
+        /**
+         * Fails this Request with the given Exception.
+         *
+         * @param exception The exception to fail with.
+         */
+        private void fail(Throwable exception) {
+            Preconditions.checkState(!isDone(), "This Request is already completed.");
+            this.resultFuture.completeExceptionally(exception);
+        }
+
+        /**
+         * Determines if the innerRequest is a sub-request of outerRequest.
+         *
+         * @param outerRequest The outer request.
+         * @param innerRequest The inner request.
+         * @return True if innerRequest can be fulfilled with the result from outerRequest, false otherwise.
+         */
+        private static boolean isSubRequest(Request outerRequest, Request innerRequest) {
+            return innerRequest.getOffset() >= outerRequest.getOffset()
+                    && innerRequest.getEndOffset() <= outerRequest.getEndOffset();
+        }
+
+        //endregion
+    }
+
+    //endregion
+}

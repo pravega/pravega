@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.google.common.base.Preconditions;
 
 import java.util.Properties;
@@ -39,6 +40,7 @@ public class ServiceBuilderConfig {
 
     /**
      * Creates a new instance of the ServiceBuilderConfig class.
+     *
      * @param properties
      */
     public ServiceBuilderConfig(Properties properties) {
@@ -50,6 +52,7 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a new instance of the ServiceConfig for this builder.
+     *
      * @return
      */
     public ServiceConfig getServiceConfig() {
@@ -58,6 +61,7 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a new instance of the DurableLogConfig for this builder.
+     *
      * @return
      */
     public DurableLogConfig getDurableLogConfig() {
@@ -65,7 +69,17 @@ public class ServiceBuilderConfig {
     }
 
     /**
+     * Gets a new instance of the ReadIndexConfig for this builder.
+     *
+     * @return
+     */
+    public ReadIndexConfig getReadIndexConfig() {
+        return getConfig(ReadIndexConfig::new);
+    }
+
+    /**
      * Gets a new instance of a ComponentConfig for this builder.
+     *
      * @param constructor The constructor for the new instance.
      * @param <T>
      * @return
@@ -93,9 +107,9 @@ public class ServiceBuilderConfig {
         set(p, "dlog", "hostname", "zk1");
         set(p, "dlog", "port", "2181");
         set(p, "dlog", "namespace", "messaging/distributedlog/mynamespace");
-//        set(p, "dlog", "hostname", "localhost");
-//        set(p, "dlog", "port", "7000");
-//        set(p, "dlog", "namespace", "messaging/distributedlog");
+        //        set(p, "dlog", "hostname", "localhost");
+        //        set(p, "dlog", "port", "7000");
+        //        set(p, "dlog", "namespace", "messaging/distributedlog");
         return new ServiceBuilderConfig(p);
     }
 

@@ -18,6 +18,8 @@
 
 package com.emc.pravega.service.storage;
 
+import com.emc.pravega.common.util.ByteArraySegment;
+
 /**
  * Defines a Cache that can be used by the ReadIndex.
  */
@@ -36,6 +38,14 @@ public interface Cache extends AutoCloseable {
      * @param data The payload associated with the given key.
      */
     void insert(Key key, byte[] data);
+
+    /**
+     * Inserts a new entry into the cache.
+     *
+     * @param key  The the key of the entry.
+     * @param data A ByteArraySegment representing the payload associated with the given key.
+     */
+    void insert(Key key, ByteArraySegment data);
 
     /**
      * Retrieves a cache entry with given key.
@@ -99,6 +109,7 @@ public interface Cache extends AutoCloseable {
 
         /**
          * For in-memory representations of the Cache, hashCode() is required.
+         *
          * @return
          */
         @Override
@@ -106,6 +117,7 @@ public interface Cache extends AutoCloseable {
 
         /**
          * For in-memory representation of the Cache, equals() is required.
+         *
          * @param obj
          * @return
          */
