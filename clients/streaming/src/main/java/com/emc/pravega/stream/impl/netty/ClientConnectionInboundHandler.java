@@ -33,6 +33,9 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Bridges the gap between netty and the ReplyProcessor on the client.
+ */
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 

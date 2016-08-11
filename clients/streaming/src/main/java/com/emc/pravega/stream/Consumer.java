@@ -17,15 +17,39 @@
  */
 package com.emc.pravega.stream;
 
+/**
+ * A consumer for a stream.
+ * @param <T> The type of events being sent through this stream.
+ */
 public interface Consumer<T> extends AutoCloseable {
+    
+    /**
+     * @param timeout An upper bound on how long the call may block before returning null.
+     * @return Then next event in the stream, or null if timeout is reached.
+     */
     T getNextEvent(long timeout);
 
+    /**
+     * @return The configuration that this consumer was created with.
+     */
     ConsumerConfig getConfig();
 
+    /**
+     * @return An object that can be by calling setPosition to return to the current position within the stream.
+     */
     Position getPosition();
 
+    /**
+     * Reset the position of the consumer back to where it was previously.
+     * 
+     * @param state The position previously obtained from {@link #getPosition()}
+     */
     void setPosition(Position state);
 
+    /**
+     * Close the consumer. No further actions may be performed.
+     * @see java.lang.AutoCloseable#close()
+     */
     @Override
     void close();
 }

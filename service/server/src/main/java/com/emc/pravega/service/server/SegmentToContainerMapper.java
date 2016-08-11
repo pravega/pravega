@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.MathHelpers;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.
@@ -66,6 +67,17 @@ public final class SegmentToContainerMapper {
             // Standalone StreamSegment.
             return mapStreamSegmentNameToContainerId(streamSegmentName);
         }
+    }
+
+    /**
+     * Gets the container Id based on its numeric value.
+     *
+     * @param numericContainerId
+     * @return
+     */
+    public String getContainerId(int numericContainerId) {
+        assert numericContainerId >= 0 : "numericContainerId must be a non-negative number. Given " + numericContainerId;
+        return Integer.toString(numericContainerId);
     }
 
     private int mapStreamSegmentNameToContainerId(String streamSegmentName) {

@@ -18,6 +18,7 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.Append;
+
 import com.emc.pravega.common.netty.WireCommands.CreateBatch;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
@@ -28,6 +29,10 @@ import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SealSegment;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 
+/**
+ * A RequestProcessor that hands off all implementation to another RequestProcessor.
+ * This is useful for creating subclasses that only handle a subset of Commands.
+ */
 public abstract class DelegatingRequestProcessor implements RequestProcessor {
 
     public abstract RequestProcessor getNextRequestProcessor();

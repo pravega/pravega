@@ -19,7 +19,7 @@ package com.emc.pravega.stream;
 
 import java.io.Serializable;
 
-import com.emc.pravega.stream.segment.SegmentInputConfiguration;
+import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 
 public class ConsumerConfig implements Serializable {
 

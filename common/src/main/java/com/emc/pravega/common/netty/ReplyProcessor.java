@@ -33,6 +33,9 @@ import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
+/**
+ * A class that handles each type of reply. (Visitor pattern)
+ */
 public interface ReplyProcessor {
     void wrongHost(WrongHost wrongHost);
 

@@ -22,6 +22,9 @@ import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.NonNull;
 
+/**
+ * An identifier for a segment of a stream.
+ */
 @Data
 public class SegmentId {
     private final String scope;

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
@@ -23,8 +23,6 @@ import java.util.concurrent.Future;
 
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
-import com.emc.pravega.stream.segment.EndOfSegmentException;
-import com.emc.pravega.stream.segment.SegmentInputStream;
 import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
@@ -35,7 +33,7 @@ import lombok.Synchronized;
  * @see SegmentInputStream
  */
 @RequiredArgsConstructor
-public class SegmentInputStreamImpl extends SegmentInputStream {
+class SegmentInputStreamImpl extends SegmentInputStream {
 
 	private final AsyncSegmentInputStream asyncInput;
 	private static final int READ_LENGTH = 1024 * 1024;
@@ -65,7 +63,7 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 	}
 
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentInputStream#read(java.nio.ByteBuffer)
+	 * @see com.emc.pravega.stream.impl.segment.SegmentInputStream#read(java.nio.ByteBuffer)
 	 */
 	@Override
 	@Synchronized

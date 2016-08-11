@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import static org.junit.Assert.*;
 

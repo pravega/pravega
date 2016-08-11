@@ -19,7 +19,7 @@ package com.emc.pravega.stream;
 
 import java.io.Serializable;
 
-import com.emc.pravega.stream.segment.SegmentOutputConfiguration;
+import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 
 import lombok.Data;
 
