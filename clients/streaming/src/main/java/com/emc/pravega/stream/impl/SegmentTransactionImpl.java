@@ -22,8 +22,8 @@ import java.util.UUID;
 
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedException;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     private final Serializer<Type> serializer;

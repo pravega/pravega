@@ -15,11 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+
+import org.apache.commons.lang.NotImplementedException;
 
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
@@ -30,12 +32,8 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.stream.TxFailedException;
+import com.google.common.annotations.VisibleForTesting;
 import com.emc.pravega.stream.Transaction.Status;
-import com.emc.pravega.stream.segment.SegmentInputConfiguration;
-import com.emc.pravega.stream.segment.SegmentInputStream;
-import com.emc.pravega.stream.segment.SegmentManager;
-import com.emc.pravega.stream.segment.SegmentOutputConfiguration;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -43,6 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
+@VisibleForTesting
 public class SegmentManagerImpl implements SegmentManager {
 
 	private final String endpoint;
@@ -55,7 +54,7 @@ public class SegmentManagerImpl implements SegmentManager {
 		ClientConnection connection = connectionFactory.establishConnection(endpoint, new FailingReplyProcessor() {
 			@Override
 			public void wrongHost(WrongHost wrongHost) {
-				result.completeExceptionally(new UnsupportedOperationException("TODO"));
+				result.completeExceptionally(new NotImplementedException());
 			}
 			@Override
 			public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
@@ -92,33 +91,33 @@ public class SegmentManagerImpl implements SegmentManager {
 	}
 
 	@Override
-	public SegmentInputStream openLogForReading(String name, SegmentInputConfiguration config) {
+	public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
 		return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name));
 	}
 
 	@Override
 	public SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId) {
-		throw new UnsupportedOperationException();
+		throw new NotImplementedException();
 	}
 
     @Override
     public void createTransaction(String segmentName, UUID txId, long timeout) {
-        throw new UnsupportedOperationException();
+        throw new NotImplementedException();
     }
 
     @Override
     public void commitTransaction(UUID txId) throws TxFailedException {
-        throw new UnsupportedOperationException();
+        throw new NotImplementedException();
     }
 
     @Override
     public boolean dropTransaction(UUID txId) {
-        throw new UnsupportedOperationException();
+        throw new NotImplementedException();
     }
 
     @Override
     public Status checkTransactionStatus(UUID txId) {
-        throw new UnsupportedOperationException();
+        throw new NotImplementedException();
     }
 
 }

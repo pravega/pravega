@@ -15,11 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.stream.impl.segment;
 
-@FunctionalInterface
-public interface AckListener {
+import static org.junit.Assert.fail;
 
-    void ack(String eventId);
+import org.junit.Ignore;
+import org.junit.Test;
 
+@Ignore
+public class LogClientTest {
+	@Test
+	public void testTimeouts() {
+		fail();
+	}
+	@Test
+	public void testCreateLog() {
+		fail();
+	}
+	@Test
+	public void testLogExists() {
+		fail();
+	}
 }

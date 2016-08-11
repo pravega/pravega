@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -26,6 +26,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
+
+import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
@@ -41,8 +43,6 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.ReusableLatch;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedException;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +55,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @RequiredArgsConstructor
 @Slf4j
-public class SegmentOutputStreamImpl extends SegmentOutputStream {
+class SegmentOutputStreamImpl extends SegmentOutputStream {
 
 	private final ConnectionFactory connectionFactory;
 	private final String endpoint;
@@ -71,14 +71,22 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	 */
 	private static final class State {
 		private final Object lock = new Object();
+	    @GuardedBy("lock")
 		private boolean closed = false;
+	    @GuardedBy("lock")
 		private ClientConnection connection;
+	    @GuardedBy("lock")
 		private Exception exception = null;
-		private final ReusableLatch connectionSetup = new ReusableLatch();
+	    @GuardedBy("lock")
 		private final ConcurrentSkipListMap<Append,CompletableFuture<Void>> inflight = new ConcurrentSkipListMap<>();
-		private final ReusableLatch inflightEmpty = new ReusableLatch(true);
+	    @GuardedBy("lock")
 		private long eventNumber = 0;
+	    private final ReusableLatch connectionSetup = new ReusableLatch();
+	    private final ReusableLatch inflightEmpty = new ReusableLatch(true);
 
+		/**
+		 * Blocks until there are no more messages inflight. (No locking required)
+		 */
 		private void waitForEmptyInflight() throws InterruptedException {
 			inflightEmpty.await();
 		}
@@ -87,12 +95,18 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			connectionSetup.release();
 		}
 
+		/**
+		 * @return The current connection (May be null if not connected)
+		 */
 		private ClientConnection getConnection() {
 	          synchronized (lock) {
 	              return connection;
 	          }
 		}
 		
+		/**
+		 * @param newConnection The new connection that has been established that should used going forward.
+		 */
 		private void newConnection(ClientConnection newConnection) {
 			synchronized (lock) {
 				connectionSetup.reset();
@@ -101,6 +115,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
+		/**
+		 * @param e Error that has occurred that needs to be handled by tearing down the connection.
+		 */
 		private void failConnection(Exception e) {
             log.warn("Connection failed due to", e);
 		    ClientConnection oldConnection;
@@ -115,6 +132,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			oldConnection.close();
 		}
 
+		/**
+		 * Block until a connection has been established and AppendSetup has come back from the server.
+		 */
 		private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
 			try {
 				connectionSetup.await();
@@ -136,6 +156,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 			}
 		}
 
+        /**
+         * Add event to the infight
+         */
         private Append createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff,
                 CompletableFuture<Void> callback) {
             synchronized (lock) {
@@ -147,6 +170,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
             }
         }
 
+		/**
+		 * Remove all events with event numbers below the provided level from inflight and return them.
+		 */
 		private List<CompletableFuture<Void>> removeInflightBelow(long ackLevel) {
 			synchronized (lock) {
 				ArrayList<CompletableFuture<Void>> result = new ArrayList<>();
@@ -254,7 +280,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	}
 	
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentOutputStream#write(java.nio.ByteBuffer, java.util.concurrent.CompletableFuture)
+	 * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer, java.util.concurrent.CompletableFuture)
 	 */
 	@Override
 	@Synchronized
@@ -272,6 +298,9 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 	}
 
+    /**
+     * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
+     */
     private ClientConnection connection() throws SegmentSealedException {
         long delay = 1;
         for (int attempt = 0; attempt < 5; attempt++) {
@@ -294,7 +323,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
     }
 
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentOutputStream#close()
+	 * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#close()
 	 */
 	@Override
 	@Synchronized
@@ -308,7 +337,7 @@ public class SegmentOutputStreamImpl extends SegmentOutputStream {
 	}
 
 	/**
-	 * @see com.emc.pravega.stream.segment.SegmentOutputStream#flush()
+	 * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#flush()
 	 */
 	@Override
 	@Synchronized

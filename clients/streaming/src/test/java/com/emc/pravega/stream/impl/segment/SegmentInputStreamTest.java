@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment.impl;
+package com.emc.pravega.stream.impl.segment;
 
 import static org.junit.Assert.fail;
 
@@ -23,17 +23,26 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 @Ignore
-public class LogClientTest {
+public class SegmentInputStreamTest {
+
 	@Test
-	public void testTimeouts() {
+	public void testConfigChange() {
 		fail();
 	}
 	@Test
-	public void testCreateLog() {
+	public void testOffsetIncrements() {
 		fail();
 	}
 	@Test
-	public void testLogExists() {
+	public void testSetOffset() {
+		fail();
+	}
+	@Test
+	public void testClose() {
+		fail();
+	}
+	@Test
+	public void testAutoClose() {
 		fail();
 	}
 }

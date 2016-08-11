@@ -12,13 +12,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package com.emc.pravega.stream.segment;
+package com.emc.pravega.stream.impl.segment;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines an OuptputStreamFor a segment.
+ * Defines an OuptputStream for a segment.
  * Allows data to be appended to the end of the segment by calling {@link #write()}
  */
 public abstract class SegmentOutputStream implements AutoCloseable {

@@ -30,6 +30,9 @@ import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * A RequestProcessor that throws on every method. (Useful to subclass)
+ */
 @Slf4j
 public class FailingRequestProcessor implements RequestProcessor {
 

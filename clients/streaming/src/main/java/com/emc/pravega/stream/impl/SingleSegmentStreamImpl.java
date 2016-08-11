@@ -19,7 +19,6 @@ package com.emc.pravega.stream.impl;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.UUID;
 
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
@@ -33,13 +32,14 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.Transaction.Status;
-import com.emc.pravega.stream.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentManager;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
 
+/**
+ * An implementation of a stream for the special case where the stream is only ever composed of one segment.
+ */
 public class SingleSegmentStreamImpl implements Stream {
 
     private final String scope;
@@ -82,11 +82,6 @@ public class SingleSegmentStreamImpl implements Stream {
     @Override
     public StreamSegments getLatestSegments() {
         return getSegments(System.currentTimeMillis());
-    }
-
-    @Override
-    public long getRate(long time) {
-        return 0;
     }
 
     @Override

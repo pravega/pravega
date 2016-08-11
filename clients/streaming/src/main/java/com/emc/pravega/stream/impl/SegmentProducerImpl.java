@@ -24,10 +24,13 @@ import java.util.Vector;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedException;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
+/**
+ * Sends events to the SegmentOutputStream and tracks the ones that are outstanding.
+ */
 public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
 
     private final Serializer<Type> serializer;
@@ -48,7 +51,7 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
     public void publish(Event<Type> m) throws SegmentSealedException {
         checkSealedAndClosed();
         ByteBuffer buffer = serializer.serialize(m.getValue());
-        out.write(buffer, m.getCallback());
+        out.write(buffer, m.getAckFuture());
         outstanding.add(m);
     }
 

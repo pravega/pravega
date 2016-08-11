@@ -17,11 +17,11 @@
  */
 package com.emc.pravega.stream;
 
+/**
+ * A transaction has failued. Usually because of it timed out or someone called {@link Transaction#drop()}
+ */
 public class TxFailedException extends Exception {
 
-    /**
-     * 
-     */
     private static final long serialVersionUID = 1L;
 
     public TxFailedException() {
