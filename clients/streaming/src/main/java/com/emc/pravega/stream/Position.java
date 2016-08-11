@@ -21,6 +21,14 @@ import java.io.Serializable;
 
 import com.emc.pravega.stream.impl.PositionImpl;
 
+/**
+ * A position in a stream. Used to restore to a consumer particular point in a stream.
+ * Note that this is serializable so that it can be written to an external datastore.
+ */
 public interface Position extends Serializable {
+    
+    /**
+     * Used internally. Do not call.
+     */
     PositionImpl asImpl();
 }

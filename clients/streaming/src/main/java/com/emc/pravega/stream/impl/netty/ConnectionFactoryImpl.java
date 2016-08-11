@@ -61,7 +61,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 		this.port = port;
 		try {
 			this.group = new EpollEventLoopGroup();
-		} catch (ExceptionInInitializerError e) {
+		} catch (ExceptionInInitializerError|NoClassDefFoundError e) {
 		    log.warn("Epoll not available. Falling back on NIO.");
 			nio = true;
 			this.group = new NioEventLoopGroup();

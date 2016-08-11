@@ -15,8 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.segment;
+package com.emc.pravega.stream.impl.segment;
 
-public class SegmentInputConfiguration {
+import java.io.Serializable;
+
+/**
+ * Placeholder for configuration for reading from a segment.
+ */
+public class SegmentOutputConfiguration implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
 }

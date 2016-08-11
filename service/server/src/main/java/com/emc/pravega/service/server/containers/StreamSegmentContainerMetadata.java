@@ -36,6 +36,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.concurrent.GuardedBy;
+
 /**
  * Metadata for a Stream Segment Container.
  */
@@ -45,11 +47,15 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     private final String traceObjectId;
     private final AtomicLong sequenceNumber;
+    @GuardedBy("lock")
     private final AbstractMap<String, Long> streamSegmentIds;
+    @GuardedBy("lock")
     private final AbstractMap<Long, UpdateableSegmentMetadata> segmentMetadata;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
+    @GuardedBy("lock")
     private final AbstractMap<Long, Long> truncationMarkers;
+    @GuardedBy("lock")
     private final HashSet<Long> truncationPoints;
     private final Object lock = new Object();
 

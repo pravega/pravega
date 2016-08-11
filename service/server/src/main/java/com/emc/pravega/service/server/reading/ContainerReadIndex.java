@@ -37,6 +37,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.concurrent.GuardedBy;
+
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
  * <p>
@@ -52,11 +54,15 @@ public class ContainerReadIndex implements ReadIndex {
     //region Members
 
     private final String traceObjectId;
+    @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
+    @GuardedBy("lock")
     private final Object lock = new Object();
     private final Cache cache;
     private ContainerMetadata metadata;
+    @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
+    @GuardedBy("lock")
     private boolean closed;
 
     //endregion

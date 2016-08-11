@@ -17,6 +17,10 @@
  */
 package com.emc.pravega.common.netty;
 
+/**
+ * A factory that establishes connections to Prevaga servers.
+ * The underlying implementation may or may not implement connection pooling.
+ */
 public interface ConnectionFactory extends AutoCloseable {
 
     ClientConnection establishConnection(String endpoint, ReplyProcessor rp);
