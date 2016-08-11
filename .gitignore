@@ -1,4 +1,5 @@
 *.iml
+src/gen/**
 .project
 build
 .classpath

@@ -1,0 +1,9 @@
+apply plugin: "java"
+apply plugin: 'application'
+
+mainClassName = "com.emc.pravega.controller.client.Client"
+//applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
+
+dependencies {
+    compile project(":controller:api")
+}
