@@ -346,7 +346,17 @@ public class ContainerReadIndexTests {
         appendDataInStorage(context, segmentContents);
 
         // Check all the appended data.
-        checkReadIndex("PostAppend", segmentContents, context);
+        checkReadIndex("StorageReads", segmentContents, context);
+
+        // Pretty brutal, but will do the job for this test: delete all segments from the storage. This way, if something
+        // wasn't cached properly in the last read, the ReadIndex would delegate to Storage, which would fail.
+        for (long segmentId : segmentIds) {
+            context.storage.delete(context.metadata.getStreamSegmentMetadata(segmentId).getName(), TIMEOUT).join();
+        }
+
+        // Now do the read again - if everything was cached properly in the previous call to 'checkReadIndex', no Storage
+        // call should be executed.
+        checkReadIndex("CacheReads", segmentContents, context);
     }
 
     /**

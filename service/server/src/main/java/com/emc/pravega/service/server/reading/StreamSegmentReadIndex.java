@@ -555,8 +555,14 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
-        Consumer<ByteArraySegment> doneCallback = data -> {
-            insert(offset, data);
+        Consumer<StorageReader.Result> doneCallback = result -> {
+            if (!result.isDerived()) {
+                // Only insert primary results into the cache. Derived results are always sub-portions of primaries
+                // and there is no need to insert them too, as they are already contained within.
+                insert(offset, result.getData());
+            }
+
+            ByteArraySegment data = result.getData();
             successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
         };
 

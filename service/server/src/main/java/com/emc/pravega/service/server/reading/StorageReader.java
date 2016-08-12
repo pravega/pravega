@@ -189,6 +189,46 @@ class StorageReader implements AutoCloseable {
 
     //endregion
 
+    //region Result
+
+    /**
+     * Represents a Result for a StorageReaderOperation.
+     */
+    static class Result {
+        private final ByteArraySegment data;
+        private boolean derived;
+
+        private Result(ByteArraySegment data, boolean derived) {
+            this.data = data;
+            this.derived = derived;
+        }
+
+        /**
+         * Gets a pointer to a ByteArraySegment that contains the data for this Result.
+         *
+         * @return The result.
+         */
+        public ByteArraySegment getData() {
+            return this.data;
+        }
+
+        /**
+         * Gets a value indicating whether this Result is derived from another result that has already been completed.
+         *
+         * @return The result.
+         */
+        public boolean isDerived() {
+            return this.derived;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Length = %d, Derived = %s", this.data.getLength(), this.derived);
+        }
+    }
+
+    //endregion
+
     //region Request
 
     /**
@@ -199,7 +239,7 @@ class StorageReader implements AutoCloseable {
 
         private final long offset;
         private int length;
-        private final CompletableFuture<ByteArraySegment> resultFuture;
+        private final CompletableFuture<Result> resultFuture;
         private final Duration timeout;
 
         //endregion
@@ -215,7 +255,7 @@ class StorageReader implements AutoCloseable {
          * @param failureCallback A Consumer that will be invoked in case this request failed to process.
          * @param timeout         Timeout for the request.
          */
-        Request(long offset, int length, Consumer<ByteArraySegment> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
+        Request(long offset, int length, Consumer<Result> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
             Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
             Preconditions.checkArgument(length > 0, "length must be a positive integer.");
 
@@ -321,13 +361,15 @@ class StorageReader implements AutoCloseable {
          * @param source The source Request to complete with.
          */
         private void complete(Request source) {
-            Preconditions.checkArgument(source.isDone(), "Given request .");
+            Preconditions.checkState(!isDone(), "This Request is already completed.");
+            Preconditions.checkArgument(source.isDone(), "Given request is not completed.");
             Preconditions.checkArgument(isSubRequest(source, this), "This Request is not a sub-request of the given one.");
 
             try {
-                ByteArraySegment sourceResult = source.resultFuture.join();
+                // Get the source Request's result, slice it and return the sub-segment that this request maps to.
+                Result sourceResult = source.resultFuture.join();
                 int offset = (int) (this.getOffset() - source.getOffset());
-                complete(sourceResult.subSegment(offset, getLength()));
+                this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
             } catch (Throwable ex) {
                 fail(ex);
             }
@@ -336,11 +378,11 @@ class StorageReader implements AutoCloseable {
         /**
          * Completes this Request with the given result.
          *
-         * @param result      The result to complete with.
+         * @param data The result to complete with.
          */
-        private void complete(ByteArraySegment result) {
-            Preconditions.checkState(!isDone(), "This. Request is already completed.");
-            this.resultFuture.complete(result);
+        private void complete(ByteArraySegment data) {
+            Preconditions.checkState(!isDone(), "This Request is already completed.");
+            this.resultFuture.complete(new Result(data, false));
         }
 
         /**

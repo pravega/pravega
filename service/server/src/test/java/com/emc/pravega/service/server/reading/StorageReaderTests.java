@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CloseableExecutorService;
@@ -73,11 +72,11 @@ public class StorageReaderTests {
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         byte[] segmentData = populateSegment(storage);
-        HashMap<StorageReader.Request, CompletableFuture<ByteArraySegment>> requestCompletions = new HashMap<>();
+        HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
         int readOffset = 0;
         while (readOffset < segmentData.length) {
             int readLength = Math.min(defaultReadLength, segmentData.length - readOffset);
-            CompletableFuture<ByteArraySegment> requestCompletion = new CompletableFuture<>();
+            CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
             StorageReader.Request r = new StorageReader.Request(readOffset, readLength, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
             reader.queueRequest(r);
             requestCompletions.put(r, requestCompletion);
@@ -86,13 +85,13 @@ public class StorageReaderTests {
 
         // Check that the read requests returned with the right data.
         for (val entry : requestCompletions.entrySet()) {
-            ByteArraySegment readData = entry.getValue().join();
+            StorageReader.Result readData = entry.getValue().join();
             StorageReader.Request request = entry.getKey();
             int expectedReadLength = Math.min(request.getLength(), (int) (segmentData.length - request.getOffset()));
 
             Assert.assertNotNull("No data returned for request " + request, readData);
-            Assert.assertEquals("Unexpected read length for request " + request, expectedReadLength, readData.getLength());
-            AssertExtensions.assertStreamEquals("Unexpected read contents for request " + request, new ByteArrayInputStream(segmentData, (int) request.getOffset(), expectedReadLength), readData.getReader(), expectedReadLength);
+            Assert.assertEquals("Unexpected read length for request " + request, expectedReadLength, readData.getData().getLength());
+            AssertExtensions.assertStreamEquals("Unexpected read contents for request " + request, new ByteArrayInputStream(segmentData, (int) request.getOffset(), expectedReadLength), readData.getData().getReader(), expectedReadLength);
         }
     }
 
@@ -137,8 +136,8 @@ public class StorageReaderTests {
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
-    private CompletableFuture<ByteArraySegment> sendRequest(StorageReader reader, long offset, int length) {
-        CompletableFuture<ByteArraySegment> requestCompletion = new CompletableFuture<>();
+    private CompletableFuture<StorageReader.Result> sendRequest(StorageReader reader, long offset, int length) {
+        CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
         reader.queueRequest(new StorageReader.Request(offset, length, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT));
         return requestCompletion;
     }
@@ -165,8 +164,8 @@ public class StorageReaderTests {
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         // Create some reads.
-        CompletableFuture<ByteArraySegment> c1 = new CompletableFuture<>();
-        CompletableFuture<ByteArraySegment> c2 = new CompletableFuture<>();
+        CompletableFuture<StorageReader.Result> c1 = new CompletableFuture<>();
+        CompletableFuture<StorageReader.Result> c2 = new CompletableFuture<>();
         reader.queueRequest(new StorageReader.Request(0, 100, c1::complete, c1::completeExceptionally, TIMEOUT));
         reader.queueRequest(new StorageReader.Request(50, 100, c2::complete, c2::completeExceptionally, TIMEOUT));
 
@@ -200,10 +199,10 @@ public class StorageReaderTests {
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         // Create some reads.
-        HashMap<StorageReader.Request, CompletableFuture<ByteArraySegment>> requestCompletions = new HashMap<>();
+        HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
 
         for (int i = 0; i < readCount; i++) {
-            CompletableFuture<ByteArraySegment> requestCompletion = new CompletableFuture<>();
+            CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
             StorageReader.Request r = new StorageReader.Request(i * 10, 9, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
             reader.queueRequest(r);
             requestCompletions.put(r, requestCompletion);
