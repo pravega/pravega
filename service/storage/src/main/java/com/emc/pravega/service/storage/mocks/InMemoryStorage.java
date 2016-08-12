@@ -26,6 +26,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +43,7 @@ import java.util.concurrent.ForkJoinPool;
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorage implements Storage {
+    @GuardedBy("lock")
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
     private final Object lock = new Object();
     private final Executor executor;

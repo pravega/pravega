@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
@@ -96,9 +97,11 @@ class MemoryLogUpdater {
                 this.cacheUpdater.addToReadIndex((StorageOperation) operation);
             }
         } catch (Throwable ex) {
-            if (cacheKey != null) {
-                // Cleanup the cache after failing to process an operation that did process something to the cache.
-                this.cacheUpdater.removeFromCache(cacheKey);
+            if (!ExceptionHelpers.mustRethrow(ex)) {
+                if (cacheKey != null) {
+                    // Cleanup the cache after failing to process an operation that did process something to the cache.
+                    this.cacheUpdater.removeFromCache(cacheKey);
+                }
             }
 
             throw ex;
@@ -139,7 +142,11 @@ class MemoryLogUpdater {
             try {
                 operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation, key);
             } catch (Throwable ex) {
-                throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+                if (ExceptionHelpers.mustRethrow(ex)) {
+                    throw ex;
+                } else {
+                    throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+                }
             }
         }
 

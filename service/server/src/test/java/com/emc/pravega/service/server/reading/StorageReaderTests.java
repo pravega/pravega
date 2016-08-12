@@ -54,7 +54,7 @@ public class StorageReaderTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     /**
-     * Tests the queueRequest method with valid Requests:
+     * Tests the execute method with valid Requests:
      * * All StreamSegments exist and have enough data.
      * * All read offsets are valid (but we may choose to read more than the length of the Segment).
      * * ReadRequests may overlap.
@@ -78,7 +78,7 @@ public class StorageReaderTests {
             int readLength = Math.min(defaultReadLength, segmentData.length - readOffset);
             CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
             StorageReader.Request r = new StorageReader.Request(readOffset, readLength, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
-            reader.queueRequest(r);
+            reader.execute(r);
             requestCompletions.put(r, requestCompletion);
             readOffset += offsetIncrement;
         }
@@ -96,7 +96,7 @@ public class StorageReaderTests {
     }
 
     /**
-     * Tests the queueRequest method with invalid Requests:
+     * Tests the execute method with invalid Requests:
      * * StreamSegment does not exist
      * * Invalid read offset
      * * Too long of a read (offset+length is beyond the Segment's length)
@@ -138,7 +138,7 @@ public class StorageReaderTests {
 
     private CompletableFuture<StorageReader.Result> sendRequest(StorageReader reader, long offset, int length) {
         CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-        reader.queueRequest(new StorageReader.Request(offset, length, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT));
+        reader.execute(new StorageReader.Request(offset, length, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT));
         return requestCompletion;
     }
 
@@ -166,8 +166,8 @@ public class StorageReaderTests {
         // Create some reads.
         CompletableFuture<StorageReader.Result> c1 = new CompletableFuture<>();
         CompletableFuture<StorageReader.Result> c2 = new CompletableFuture<>();
-        reader.queueRequest(new StorageReader.Request(0, 100, c1::complete, c1::completeExceptionally, TIMEOUT));
-        reader.queueRequest(new StorageReader.Request(50, 100, c2::complete, c2::completeExceptionally, TIMEOUT));
+        reader.execute(new StorageReader.Request(0, 100, c1::complete, c1::completeExceptionally, TIMEOUT));
+        reader.execute(new StorageReader.Request(50, 100, c2::complete, c2::completeExceptionally, TIMEOUT));
 
         Assert.assertFalse("One or more of the reads has completed prematurely.", c1.isDone() || c2.isDone());
 
@@ -204,7 +204,7 @@ public class StorageReaderTests {
         for (int i = 0; i < readCount; i++) {
             CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
             StorageReader.Request r = new StorageReader.Request(i * 10, 9, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
-            reader.queueRequest(r);
+            reader.execute(r);
             requestCompletions.put(r, requestCompletion);
         }
 

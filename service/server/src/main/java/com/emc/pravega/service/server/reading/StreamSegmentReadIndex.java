@@ -568,7 +568,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
         // Queue the request for async processing.
         length = getReadAlignedLength(offset, length);
-        this.storageReader.queueRequest(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
+        this.storageReader.execute(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
     }
 
     /**

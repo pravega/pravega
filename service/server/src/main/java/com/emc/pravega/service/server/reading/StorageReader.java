@@ -21,11 +21,13 @@ package com.emc.pravega.service.server.reading;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Map;
@@ -45,9 +47,11 @@ class StorageReader implements AutoCloseable {
     private final String traceObjectId;
     private final ReadOnlyStorage storage;
     private final Executor executor;
+    @GuardedBy("lock")
     private final TreeMap<Long, Request> pendingRequests;
     private final String segmentName;
     private final Object lock = new Object();
+    @GuardedBy("lock")
     private boolean closed;
 
     //endregion
@@ -102,7 +106,7 @@ class StorageReader implements AutoCloseable {
      *
      * @param request The request to queue.
      */
-    void queueRequest(Request request) {
+    void execute(Request request) {
         log.debug("{}: StorageRead.Queue {}", this.traceObjectId, request);
         synchronized (this.lock) {
             Exceptions.checkNotClosed(this.closed, this);
@@ -145,6 +149,10 @@ class StorageReader implements AutoCloseable {
             // Unregister the Request after every request fulfillment.
             future.whenComplete((r, ex) -> finalizeRequest(request));
         } catch (Throwable ex) {
+            if (ExceptionHelpers.mustRethrow(ex)) {
+                throw ex;
+            }
+
             request.fail(ex);
             finalizeRequest(request);
         }
@@ -371,6 +379,10 @@ class StorageReader implements AutoCloseable {
                 int offset = (int) (this.getOffset() - source.getOffset());
                 this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
             } catch (Throwable ex) {
+                if (ExceptionHelpers.mustRethrow(ex)) {
+                    throw ex;
+                }
+
                 fail(ex);
             }
         }
