@@ -9,6 +9,10 @@
 
 // Apply the java plugin to add support for Java
 
+plugins {
+    id "org.jruyi.thrift" version "0.3.1"
+}
+
 allprojects {
     apply plugin: 'java'
     apply plugin: 'idea'
@@ -190,3 +194,47 @@ project('benchmark') {
     }
 }
 
+project('controller:api') {
+    compileThrift {
+        recurse true
+        sourceDir "$projectDir/src/main/thrift"
+        outputDir  "$projectDir/src/generated"
+        generator 'java', 'private-members', 'hashcode'
+    }
+
+    tasks.compileJava.dependsOn(compileThrift)
+
+    sourceSets {
+        generated.java.srcDirs += "$projectDir/src/generated/gen-java"
+    }
+
+    checkstyle {
+        // Exclude generated code from Checkstyle checks
+        sourceSets -= sourceSets.generated
+    }
+
+    dependencies {
+        // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
+        compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
+    }
+}
+
+project('controller:client') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.controller.client.Client"
+    //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
+
+    dependencies {
+        compile project(":controller:api")
+    }
+}
+
+project('controller:server') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.controller.server.Server"
+    //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
+
+    dependencies {
+        compile project(":controller:api")
+    }
+}

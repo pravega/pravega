@@ -1,5 +1,5 @@
 *.iml
-src/gen/**
+src/generated/**
 .project
 build
 .classpath
