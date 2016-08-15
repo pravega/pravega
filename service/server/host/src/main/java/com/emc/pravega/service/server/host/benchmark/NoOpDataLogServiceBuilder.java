@@ -58,7 +58,7 @@ public class NoOpDataLogServiceBuilder extends InMemoryServiceBuilder {
     private static class NoOpDurableDataLogFactory implements DurableDataLogFactory {
 
         @Override
-        public DurableDataLog createDurableDataLog(String containerId) {
+        public DurableDataLog createDurableDataLog(int containerId) {
             return new NoOpDataLogServiceBuilder.NoOpDurableDataLog();
         }
 

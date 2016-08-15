@@ -93,7 +93,7 @@ public abstract class Operation implements LogItem {
     /**
      * Gets an internal unique number representing the type of this operation.
      *
-     * @return
+     * @return The result.
      */
     protected abstract byte getOperationType();
 
@@ -141,7 +141,6 @@ public abstract class Operation implements LogItem {
      *
      * @param header The OperationHeader to use.
      * @param source The input stream to read from.
-     * @throws IOException            If the given DataInputStream threw one.
      * @throws SerializationException If the deserialization failed.
      */
     private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -173,7 +172,7 @@ public abstract class Operation implements LogItem {
      * @throws IOException            If the input stream threw one.
      * @throws SerializationException If the versions mismatched.
      */
-    protected byte readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
+    byte readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
         byte version = source.readByte();
         if (version != expectedVersion) {
             throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()), String.format("Unsupported version: %d.", version));
@@ -189,7 +188,7 @@ public abstract class Operation implements LogItem {
      * @param message The message to include in the exception.
      * @throws IllegalStateException The exception that is thrown.
      */
-    protected void ensureSerializationCondition(boolean isTrue, String message) {
+    void ensureSerializationCondition(boolean isTrue, String message) {
         Preconditions.checkState(isTrue, "Unable to serialize Operation: %s", message);
     }
 
@@ -223,17 +222,17 @@ public abstract class Operation implements LogItem {
         /**
          * The type of the operation.
          */
-        public final byte operationType;
+        final byte operationType;
 
         /**
          * The sequence number for the operation.
          */
-        public final long sequenceNumber;
+        final long sequenceNumber;
 
         /**
          * Magic value.
          */
-        public final int magic;
+        final int magic;
 
         /**
          * Creates a new instance of the OperationHeader class.
@@ -241,7 +240,7 @@ public abstract class Operation implements LogItem {
          * @param operationType  The type of the operation.
          * @param sequenceNumber The sequence number for the operation.
          */
-        public OperationHeader(byte operationType, long sequenceNumber) {
+        OperationHeader(byte operationType, long sequenceNumber) {
             this.operationType = operationType;
             this.sequenceNumber = sequenceNumber;
             this.magic = MagicGenerator.newMagic();
@@ -253,7 +252,7 @@ public abstract class Operation implements LogItem {
          * @param source The DataInputStream to deserialize from.
          * @throws SerializationException If deserialization failed.
          */
-        public OperationHeader(DataInputStream source) throws SerializationException {
+        OperationHeader(DataInputStream source) throws SerializationException {
             try {
                 byte headerVersion = source.readByte();
                 if (headerVersion == HEADER_VERSION) {
@@ -274,7 +273,7 @@ public abstract class Operation implements LogItem {
          * @param target The DataOutputStream to serialize to.
          * @throws IOException If the DataOutputStream threw one.
          */
-        public void serialize(DataOutputStream target) throws IOException {
+        void serialize(DataOutputStream target) throws IOException {
             target.writeByte(HEADER_VERSION);
             target.writeInt(this.magic);
             target.writeByte(this.operationType);

@@ -22,7 +22,7 @@ import java.util.List;
 import lombok.Data;
 
 /**
- * The segments that within a stream at a perticular point in time.
+ * The segments that within a stream at a particular point in time.
  */
 @Data
 public class StreamSegments {

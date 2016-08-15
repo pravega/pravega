@@ -84,7 +84,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
         try {
             bossGroup = new EpollEventLoopGroup(1);
             workerGroup = new EpollEventLoopGroup();
-        } catch (ExceptionInInitializerError e) {
+        } catch (ExceptionInInitializerError|NoClassDefFoundError e) {
             nio = true;
             bossGroup = new NioEventLoopGroup(1);
             workerGroup = new NioEventLoopGroup();

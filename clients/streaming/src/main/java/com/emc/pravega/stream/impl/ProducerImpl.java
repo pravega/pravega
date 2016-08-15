@@ -1,19 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE
+ * file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+ * License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 package com.emc.pravega.stream.impl;
 
@@ -39,13 +34,17 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.segment.SegmentManager;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedException;
+import com.emc.pravega.stream.impl.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * This class takes in events, finds out which segment they belong to and then calls produce on the appropriate segment.
+ * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
+ */
 @Slf4j
 public class ProducerImpl<Type> implements Producer<Type> {
 
@@ -69,7 +68,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         this.router = router;
         this.serializer = serializer;
         this.config = config;
-        synchronized (lock) {   
+        synchronized (lock) {
             List<Event<Type>> list = setupSegmentProducers();
             if (!list.isEmpty()) {
                 throw new IllegalStateException("Producer initialized with unsent messages?!");
@@ -117,7 +116,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (lock) {
-            if (!attemptPublish(new Event<>(routingKey, event, result))) {
+            if (!attemptPublish(new Event<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
@@ -125,10 +124,9 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     /**
-     * If a log sealed is encountered, we need to
-     * 1. Find the new segments to produce to.
-     * 2. For each outstanding message find which new segment it should go to and send it there.
-     * This can happen recursively if segments turn over very quickly.
+     * If a log sealed is encountered, we need to 1. Find the new segments to produce to. 2. For each outstanding
+     * message find which new segment it should go to and send it there. This can happen recursively if segments turn
+     * over very quickly.
      */
     private void handleLogSealed() {
         List<Event<Type>> toResend = setupSegmentProducers();

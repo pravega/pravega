@@ -58,7 +58,7 @@ public final class SegmentToContainerMapper {
      * @param streamSegmentName
      * @return
      */
-    public String getContainerId(String streamSegmentName) {
+    public int getContainerId(String streamSegmentName) {
         String parentStreamSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
         if (parentStreamSegmentName != null) {
             // This is a batch. Map it to the parent's Container.
@@ -80,8 +80,7 @@ public final class SegmentToContainerMapper {
         return Integer.toString(numericContainerId);
     }
 
-    private String mapStreamSegmentNameToContainerId(String streamSegmentName) {
-        int numericContainerId = MathHelpers.abs(streamSegmentName.hashCode()) % this.containerCount;
-        return getContainerId(numericContainerId);
+    private int mapStreamSegmentNameToContainerId(String streamSegmentName) {
+        return Math.abs(streamSegmentName.hashCode()) % this.containerCount;
     }
 }

@@ -51,6 +51,7 @@ public class AssertExtensions {
             }
         } catch (Exception ex) {
             if (!tester.test(ex)) {
+                ex.printStackTrace();
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
             }
         }

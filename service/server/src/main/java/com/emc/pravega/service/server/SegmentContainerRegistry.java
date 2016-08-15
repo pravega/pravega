@@ -39,7 +39,7 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * Gets a read-only collection of registered container ids.
      * @return
      */
-    Collection<String> getRegisteredContainerIds();
+    Collection<Integer> getRegisteredContainerIds();
 
     /**
      * Gets a reference to the SegmentContainer with given Id.
@@ -47,7 +47,7 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * @param containerId The Id of the SegmentContainer.
      * @return The requested SegmentContainer, or null if no such container is started.
      */
-    SegmentContainer getContainer(String containerId) throws ContainerNotFoundException;
+    SegmentContainer getContainer(int containerId) throws ContainerNotFoundException;
 
     /**
      * Starts processing the container with given Id.
@@ -59,7 +59,7 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * the operation failed, the Future will contain the reason for the failure.
      * @throws IllegalStateException If the container is already started.
      */
-    CompletableFuture<ContainerHandle> startContainer(String containerId, Duration timeout);
+    CompletableFuture<ContainerHandle> startContainer(int containerId, Duration timeout);
 
     /**
      * Starts processing the container associated with the given handle.

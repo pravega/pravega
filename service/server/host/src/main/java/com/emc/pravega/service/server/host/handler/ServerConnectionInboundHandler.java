@@ -32,7 +32,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Handler implementation for the echo server.
+ * Acts as a bridge between Netty and the RequestProcessor on the server.
  */
 @Slf4j
 public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ServerConnection {

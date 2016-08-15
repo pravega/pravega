@@ -57,7 +57,7 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
     //region DurableDataLogFactory Implementation
 
     @Override
-    public DurableDataLog createDurableDataLog(String containerId) {
+    public DurableDataLog createDurableDataLog(int containerId) {
         String logName = ContainerToLogNameConverter.getLogName(containerId);
         return new DistributedLogDataLog(logName, this.client);
     }

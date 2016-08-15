@@ -23,7 +23,6 @@ import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
-import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.LogItemFactory;
@@ -74,14 +73,14 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param config              Durable Log Configuration.
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
-     * @param readIndex           A ReadIndex where to store newly processed appends.
+     * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, ReadIndex readIndex, Executor executor) {
+    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, Executor executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
-        Preconditions.checkNotNull(readIndex, "readIndex");
+        Preconditions.checkNotNull(cacheUpdater, "cacheUpdater");
         Preconditions.checkNotNull(executor, "executor");
 
         this.config = config;
@@ -93,7 +92,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.executor = executor;
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = new MemoryOperationLog();
-        this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, readIndex);
+        this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cacheUpdater);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryLogUpdater, this.durableDataLog, checkpointPolicy);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
@@ -177,7 +176,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region Container Implementation
 
     @Override
-    public String getId() {
+    public int getId() {
         return this.metadata.getContainerId();
     }
 
@@ -348,7 +347,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         }
 
         // Add to InMemory Operation Log.
-        this.memoryLogUpdater.add(operation);
+        this.memoryLogUpdater.process(operation);
     }
 
     private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {

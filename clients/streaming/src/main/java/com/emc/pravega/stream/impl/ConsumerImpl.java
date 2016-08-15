@@ -1,16 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for additional information regarding
- * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE
+ * file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+ * License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 package com.emc.pravega.stream.impl;
 
@@ -28,9 +26,9 @@ import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.segment.EndOfSegmentException;
-import com.emc.pravega.stream.segment.SegmentInputStream;
-import com.emc.pravega.stream.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
+import com.emc.pravega.stream.impl.segment.SegmentInputStream;
+import com.emc.pravega.stream.impl.segment.SegmentManager;
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
@@ -55,8 +53,6 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         setPosition(position);
     }
 
-
-
     @Override
     public Type getNextEvent(long timeout) {
         synchronized (consumers) {
@@ -70,6 +66,10 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         }
     }
 
+    /**
+     * When a segment ends we can immediately start consuming for any future logs that succeed it. If there are no such
+     * segments the rate change listener needs to get involved otherwise the consumer may sit idle.
+     */
     private void handleEndOfSegment(SegmentConsumer<Type> oldSegment) {
         consumers.remove(oldSegment);
         SegmentId oldLogId = oldSegment.getSegmentId();
@@ -77,8 +77,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         if (replacment.isPresent()) {
             SegmentId segmentId = replacment.get();
             Long position = futureOwnedLogs.remove(segmentId);
-            SegmentInputStream in = segmentManager.openLogForReading(segmentId.getQualifiedName(),
-                                                                       config.getSegmentConfig());
+            SegmentInputStream in = segmentManager.openSegmentForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
             in.setOffset(position);
             consumers.add(new SegmentConsumerImpl<>(segmentId, in, deserializer));
             rateChangeListener.rateChanged(stream, false);
@@ -108,7 +107,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             futureOwnedLogs.clear();
             futureOwnedLogs.putAll(position.getFutureOwnedLogs());
             for (SegmentId s : position.getOwnedSegments()) {
-                SegmentInputStream in = segmentManager.openLogForReading(s.getQualifiedName(), config.getSegmentConfig());
+                SegmentInputStream in = segmentManager.openSegmentForReading(s.getQualifiedName(), config.getSegmentConfig());
                 in.setOffset(position.getOffsetForOwnedLog(s));
                 consumers.add(new SegmentConsumerImpl<>(s, in, deserializer));
             }
