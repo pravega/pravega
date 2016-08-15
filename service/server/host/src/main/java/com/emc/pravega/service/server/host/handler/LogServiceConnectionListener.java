@@ -47,6 +47,8 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.
@@ -64,6 +66,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
+        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
     @Override

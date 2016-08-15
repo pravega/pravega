@@ -18,10 +18,10 @@
 
 package com.emc.pravega.common.util;
 
+import java.util.Iterator;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.Iterator;
 
 /**
  * Unit tests for TruncateableList class.

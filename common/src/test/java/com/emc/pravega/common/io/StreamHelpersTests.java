@@ -18,13 +18,11 @@
 
 package com.emc.pravega.common.io;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.emc.pravega.common.io.StreamHelpers;
-
 import java.io.IOException;
 import java.io.InputStream;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamHelpers class.

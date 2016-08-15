@@ -55,6 +55,8 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -79,7 +81,7 @@ public class AppendTest {
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
-
+        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = new InMemoryServiceBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
     }
