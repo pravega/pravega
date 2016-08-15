@@ -53,7 +53,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 /**
  * Hands off any received data from a client to the CommandProcessor.
  */
-public final class LogServiceConnectionListener implements ConnectionListener {
+public final class PravegaConnectionListener implements ConnectionListener {
 
     private final boolean ssl;
     private final int port;
@@ -62,7 +62,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
 
-    public LogServiceConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
@@ -114,7 +114,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new LogServiceRequestProcessor(store, lsh)));
+                         new PravegaRequestProcessor(store, lsh)));
              }
          });
 

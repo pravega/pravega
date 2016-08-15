@@ -34,8 +34,8 @@ import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
-import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
-import com.emc.pravega.service.server.host.handler.LogServiceRequestProcessor;
+import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.handler.PravegaRequestProcessor;
 import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandler;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -157,19 +157,19 @@ public class AppendTest {
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh)));
         return channel;
     }
 
     @Test
-    public void appendThroughLogClient() throws Exception {
+    public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
         String segmentName = "abc";
         int port = 8765;
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
@@ -191,7 +191,7 @@ public class AppendTest {
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         @Cleanup
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");

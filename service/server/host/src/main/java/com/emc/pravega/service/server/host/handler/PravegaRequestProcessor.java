@@ -54,7 +54,7 @@ import com.emc.pravega.service.contracts.WrongHostException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class LogServiceRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
+public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
 
@@ -62,7 +62,7 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 
     private final ServerConnection connection;
 
-    public LogServiceRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
         this.segmentStore = segmentStore;
         this.connection = connection;
     }
