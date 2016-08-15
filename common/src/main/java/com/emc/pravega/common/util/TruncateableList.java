@@ -65,7 +65,7 @@ public class TruncateableList<T> {
                 this.head = node;
                 this.tail = node;
             } else {
-                this.tail.setNext(node);
+                this.tail.next = node;
                 this.tail = node;
             }
 
@@ -89,12 +89,12 @@ public class TruncateableList<T> {
                 this.head = node;
                 this.tail = node;
             } else {
-                if (!lastItemChecker.test(this.tail.getItem())) {
+                if (!lastItemChecker.test(this.tail.item)) {
                     // Test failed
                     return false;
                 }
 
-                this.tail.setNext(node);
+                this.tail.next = node;
                 this.tail = node;
             }
 
@@ -115,22 +115,15 @@ public class TruncateableList<T> {
             // We truncate by finding the new head and simply pointing our head reference to it, as well as disconnecting
             // its predecessor node from it.
             // We also need to mark every truncated node as such - this will instruct ongoing reads to stop serving truncated data.
-            ListNode<T> newHead = this.head;
-            ListNode<T> prevNode = null;
-            while (newHead != null && tester.test(newHead.item)) {
-                newHead.markTruncated();
-                prevNode = newHead;
-                newHead = newHead.next;
+            ListNode<T> current = this.head;
+            while (current != null && tester.test(current.item)) {
+                current = trim(current);
                 count++;
             }
 
-            this.head = newHead;
+            this.head = current;
             if (this.head == null) {
                 this.tail = null;
-            }
-
-            if (prevNode != null) {
-                prevNode.next = null;
             }
 
             this.size -= count;
@@ -147,8 +140,7 @@ public class TruncateableList<T> {
             // Mark every node as truncated.
             ListNode<T> current = this.head;
             while (current != null) {
-                current.markTruncated();
-                current = current.next;
+                current = trim(current);
             }
 
             // Clear the list.
@@ -198,7 +190,7 @@ public class TruncateableList<T> {
      */
     public Iterator<T> read(Predicate<T> firstItemTester, int count) {
         ListNode<T> firstNode = getFirstWithCondition(firstItemTester);
-        return new NodeIterator<>(firstNode, count);
+        return new NodeIterator<>(firstNode, count, this.lock);
     }
 
     /**
@@ -209,7 +201,7 @@ public class TruncateableList<T> {
         synchronized (this.lock) {
             firstNode = this.head;
             while (firstNode != null && !firstItemTester.test(firstNode.item)) {
-                firstNode = firstNode.getNext();
+                firstNode = firstNode.next;
             }
         }
 
@@ -217,77 +209,31 @@ public class TruncateableList<T> {
     }
 
     private T getNodeValue(ListNode<T> node) {
-        if (node == null || node.isTruncated()) {
+        if (node == null) {
             return null;
         } else {
             return node.item;
         }
     }
 
+    private ListNode<T> trim(ListNode<T> node) {
+        ListNode<T> next = node.next;
+        node.next = null;
+        node.truncated = true;
+        return next;
+    }
+
     //endregion
 
     //region ListNode
 
-    /**
-     * An individual node in the list.
-     *
-     * @param <T> The type of node contents.
-     */
     private static class ListNode<T> {
-        private final T item;
-        private ListNode<T> next;
-        private boolean truncated;
+        final T item;
+        ListNode<T> next;
+        boolean truncated;
 
-        /**
-         * Creates a new instance of the ListNode class with the given item as contents.
-         *
-         * @param item
-         */
         ListNode(T item) {
             this.item = item;
-        }
-
-        /**
-         * Gets the contents of this node.
-         *
-         * @return The result
-         */
-        T getItem() {
-            return this.item;
-        }
-
-        /**
-         * Gets a pointer to the next node in the list.
-         *
-         * @return The next node, or null if no such node exists.
-         */
-        ListNode<T> getNext() {
-            return this.next;
-        }
-
-        /**
-         * Sets the next node in the list.
-         *
-         * @param next The next node in the list.
-         */
-        void setNext(ListNode<T> next) {
-            this.next = next;
-        }
-
-        /**
-         * Indicates that this node has been truncated out of the list.
-         */
-        void markTruncated() {
-            this.truncated = true;
-        }
-
-        /**
-         * Gets a value indicating whether this node has been truncated out of the list.
-         *
-         * @return
-         */
-        boolean isTruncated() {
-            return this.truncated;
         }
 
         @Override
@@ -306,44 +252,52 @@ public class TruncateableList<T> {
      * @param <T> The type of the items in the list.
      */
     private static class NodeIterator<T> implements Iterator<T> {
-        private ListNode<T> nextNode;
+        private ListNode<T> currentNode;
         private final int maxCount;
         private int countSoFar;
+        private final Object lock;
 
-        /**
-         * Creates a new instance of the NodeIterator class, starting with the given node.
-         *
-         * @param firstNode The first node in the iterator.
-         * @param maxCount  The maximum number of items to return with the iterator.
-         */
-        NodeIterator(ListNode<T> firstNode, int maxCount) {
-            Preconditions.checkArgument(maxCount >= 0, "maxCount");
+        NodeIterator(ListNode<T> firstNode, int maxCount, Object lock) {
+            Preconditions.checkArgument(maxCount >= 0, "maxCount must be a positive integer");
 
-            this.nextNode = firstNode;
+            this.currentNode = firstNode;
             this.maxCount = maxCount;
+            this.lock = lock;
         }
 
         //region Iterator Implementation
 
         @Override
         public boolean hasNext() {
-            return this.countSoFar < this.maxCount && this.nextNode != null && !this.nextNode.isTruncated();
+            return this.countSoFar < this.maxCount && this.currentNode != null && !this.currentNode.truncated;
         }
 
         @Override
         public T next() {
-            T result;
-            if (this.countSoFar >= this.maxCount || this.nextNode == null) {
-                throw new NoSuchElementException("Reached the end of the enumeration.");
-            } else if (this.nextNode.isTruncated()) {
-                throw new NoSuchElementException("List has been truncated and current read may not continue.");
-            } else {
-                result = this.nextNode.item;
-                this.nextNode = this.nextNode.getNext();
-                this.countSoFar++;
+            if (!hasNext()) {
+                // There is a scenarios where calling hasNext() returns true for the caller, but we end up in here.
+                // If the current element has been truncated out after the user's call to hasNext() but before the call
+                // to next(), we are forced to throw this exception because we cannot return a truncated element.
+                throw new NoSuchElementException("No more elements left to iterate on.");
             }
 
+            T result = this.currentNode.item;
+            fetchNext();
             return result;
+        }
+
+        private void fetchNext() {
+            synchronized (this.lock) {
+                if (hasNext()) {
+                    // We haven't exceeded our max count and we still have nodes to advance to.
+                    // Store the current node in "resultNode" and advance the current node to the next one.
+                    this.currentNode = this.currentNode.next;
+                    this.countSoFar++;
+                } else {
+                    // Either exceeded the max count or cannot advance anymore (truncated or end of list).
+                    this.currentNode = null;
+                }
+            }
         }
 
         //endregion

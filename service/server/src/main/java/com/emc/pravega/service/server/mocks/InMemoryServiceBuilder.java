@@ -42,7 +42,7 @@ public class InMemoryServiceBuilder extends ServiceBuilder {
 
     @Override
     protected StorageFactory createStorageFactory() {
-        return new InMemoryStorageFactory();
+        return new InMemoryStorageFactory(super.executorService);
     }
 
     @Override

@@ -217,7 +217,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
     //endregion
 
     static class EntryCollection {
-        //private final LinkedList<Entry> entries;
         private final TruncateableList<Entry> entries;
         private final AtomicReference<String> writeLock;
         private final int maxAppendSize;

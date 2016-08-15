@@ -31,6 +31,7 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
@@ -49,7 +50,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     protected final SegmentToContainerMapper segmentToContainerMapper;
     protected final ServiceBuilderConfig serviceBuilderConfig;
-    private final ExecutorService executorService;
+    protected final ExecutorService executorService;
     private OperationLogFactory operationLogFactory;
     private ReadIndexFactory readIndexFactory;
     private DurableDataLogFactory dataLogFactory;
@@ -149,7 +150,9 @@ public abstract class ServiceBuilder implements AutoCloseable {
     }
 
     protected ReadIndexFactory createReadIndexFactory() {
-        return new ContainerReadIndexFactory();
+        StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
+        ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getReadIndexConfig();
+        return new ContainerReadIndexFactory(readIndexConfig, storageFactory, this.executorService);
     }
 
     private SegmentContainerFactory createSegmentContainerFactory() {

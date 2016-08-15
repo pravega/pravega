@@ -18,10 +18,12 @@
 
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Unit tests for TruncateableList class.
@@ -106,6 +108,46 @@ public class TruncateableListTests {
         Assert.assertEquals("Unexpected value for size after truncating all items.", 0, list.size());
         Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
         Assert.assertFalse("List should be empty.", readResult.hasNext());
+    }
+
+    /**
+     * Tests the iterator while concurrently adding or truncating items.
+     */
+    @Test
+    public void testConcurrentIterator() {
+        TruncateableList<Integer> list = new TruncateableList<>();
+        for (int i = 0; i < ITEM_COUNT; i++) {
+            list.add(i);
+        }
+
+        // Test with additions.
+        Iterator<Integer> addIterator = list.read(i -> true, ITEM_COUNT * 2);
+        int firstValue = addIterator.next();
+        Assert.assertEquals("Unexpected first value, pre-modification.", 0, firstValue);
+        list.add(ITEM_COUNT);
+        checkRange("Post-addition.", 1, ITEM_COUNT, addIterator);
+
+        // Test with truncation.
+        Iterator<Integer> truncateIterator = list.read(i -> true, ITEM_COUNT * 2);
+        truncateIterator.next(); // Read 1 value
+        list.truncate(i -> i < 10);
+        Assert.assertFalse("Unexpected value from hasNext when list has been truncated.", truncateIterator.hasNext());
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from next() when current element has been truncated.",
+                truncateIterator::next,
+                ex -> ex instanceof NoSuchElementException);
+
+        // Test when we do a truncation between calls to hasNext() and next().
+        // This is always a possibility. If the list gets truncated between calls to hasNext() and next(), we cannot
+        // return a truncated element. This means we expect a NoSuchElementException to be thrown from next(), even though
+        // the previous call to hasNext() returned true (now it should return false).
+        Iterator<Integer> midTruncateIterator = list.read(i -> true, ITEM_COUNT * 2);
+        Assert.assertTrue("Unexpected value from hasNext when not been truncated.", midTruncateIterator.hasNext());
+        list.truncate(i -> i < 20);
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from next() when current element has been truncated (after hasNext() and before next()).",
+                midTruncateIterator::next,
+                ex -> ex instanceof NoSuchElementException);
     }
 
     /**
