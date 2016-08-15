@@ -19,6 +19,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
@@ -462,10 +463,30 @@ public final class WireCommands {
         public void process(ReplyProcessor cp) {
             cp.segmentRead(this);
         }
-
+        
         @Override
-        public void writeFields(DataOutput out) {
-            throw new UnsupportedOperationException();
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeLong(offset);
+            out.writeBoolean(atTail);
+            out.writeBoolean(endOfSegment);
+            int dataLength = data.remaining();
+            out.writeInt(dataLength);
+            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            long offset = in.readLong();
+            boolean atTail = in.readBoolean();
+            boolean endOfSegment = in.readBoolean();
+            int dataLength = in.readInt();
+            if (dataLength > length) {
+                throw new BufferOverflowException();
+            }
+            byte[] data = new byte[dataLength];
+            in.readFully(data);
+            return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data));
         }
     }
 

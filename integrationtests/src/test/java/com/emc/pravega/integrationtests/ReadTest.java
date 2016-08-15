@@ -121,6 +121,7 @@ public class ReadTest {
         for (int i = 0; i < entries; i++) {
             expected.put(data);
         }
+        expected.rewind();
         assertEquals(expected, result.getData());
     }
 
