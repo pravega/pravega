@@ -25,7 +25,6 @@ import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
@@ -191,7 +190,7 @@ public class ContainerReadIndexTests {
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 long offset = segmentMetadata.getDurableLogLength();
                 segmentMetadata.setDurableLogLength(offset + data.length);
-                appendToReadIndex(context, segmentId, offset, data);
+                context.readIndex.append(segmentId, offset, data);
                 recordAppend(segmentId, data, segmentContents);
                 triggerFutureReadsCallback.run();
             }
@@ -225,7 +224,7 @@ public class ContainerReadIndexTests {
 
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
             byte[] actualData = readContents.get(segmentId).toByteArray();
-            int expectedLength = isSealed ? (int) expectedData.length : nonSealReadLimit;
+            int expectedLength = isSealed ? expectedData.length : nonSealReadLimit;
             Assert.assertEquals("Unexpected read length for segment " + expectedData.length, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + expectedData, expectedData, 0, actualData, 0, actualData.length);
         }
@@ -258,28 +257,28 @@ public class ContainerReadIndexTests {
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
         long segmentOffset = segmentMetadata.getDurableLogLength();
         segmentMetadata.setDurableLogLength(segmentOffset + appendData.length);
-        appendToReadIndex(context, segmentId, segmentOffset, appendData);
+        context.readIndex.append(segmentId, segmentOffset, appendData);
 
         UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
         long batchOffset = batchMetadata.getDurableLogLength();
         batchMetadata.setDurableLogLength(batchOffset + appendData.length);
-        appendToReadIndex(context, batchId, batchOffset, appendData);
+        context.readIndex.append(batchId, batchOffset, appendData);
 
         // 1. Appends at wrong offsets.
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with an offset beyond the Segment's DurableLogOffset.",
-                () -> appendToReadIndex(context, segmentId, Integer.MAX_VALUE, "foo".getBytes()),
+                () -> context.readIndex.append(segmentId, Integer.MAX_VALUE, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with invalid offset.",
-                () -> appendToReadIndex(context, segmentId, 0, "foo".getBytes()),
+                () -> context.readIndex.append(segmentId, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         // 2. Appends or reads with wrong SegmentIds
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with invalid SegmentId.",
-                () -> appendToReadIndex(context, batchId + 1, 0, "foo".getBytes()),
+                () -> context.readIndex.append(batchId + 1, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
@@ -320,7 +319,7 @@ public class ContainerReadIndexTests {
         context.readIndex.beginMerge(segmentId, mergeOffset, batchId);
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when called on a Batch that was already sealed.",
-                () -> appendToReadIndex(context, batchId, batchMetadata.getLength(), "foo".getBytes()),
+                () -> context.readIndex.append(batchId, batchMetadata.getLength(), "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -442,17 +441,6 @@ public class ContainerReadIndexTests {
         }
     }
 
-    private void appendToReadIndex(TestContext context, long segmentId, long offset, byte[] data) {
-        CacheKey key = new CacheKey(segmentId, offset);
-        context.cache.insert(key, data);
-        try {
-            context.readIndex.append(key, data.length);
-        } catch (Throwable ex) {
-            context.cache.remove(key);
-            throw ex;
-        }
-    }
-
     private void appendData(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         appendData(segmentIds, segmentContents, context, null);
     }
@@ -468,7 +456,7 @@ public class ContainerReadIndexTests {
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 long offset = segmentMetadata.getDurableLogLength();
                 segmentMetadata.setDurableLogLength(offset + data.length);
-                appendToReadIndex(context, segmentId, offset, data);
+                context.readIndex.append(segmentId, offset, data);
                 recordAppend(segmentId, data, segmentContents);
                 if (callback != null) {
                     callback.run();

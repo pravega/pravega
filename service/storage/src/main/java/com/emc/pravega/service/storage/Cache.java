@@ -80,7 +80,6 @@ public interface Cache extends AutoCloseable {
      * Defines a generic Key for an entry in the Cache.
      */
     abstract class Key {
-        private boolean inCache;
 
         /**
          * Gets a pointer to a byte array representing the serialization of the Cache Key.
@@ -88,24 +87,6 @@ public interface Cache extends AutoCloseable {
          * @return
          */
         public abstract byte[] getSerialization();
-
-        /**
-         * Indicates that this Key has been added to the cache (or removed).
-         *
-         * @param isInCache True if it has been added to the cache, false otherwise.
-         */
-        public void markInCache(boolean isInCache) {
-            this.inCache = true;
-        }
-
-        /**
-         * Gets a value indicating whether this Key has been added to the cache.
-         *
-         * @return
-         */
-        public boolean isInCache() {
-            return this.inCache;
-        }
 
         /**
          * For in-memory representations of the Cache, hashCode() is required.

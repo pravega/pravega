@@ -30,6 +30,7 @@ import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,8 +39,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -124,14 +123,14 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public void append(CacheKey cacheKey, int length) {
+    public CacheKey append(long streamSegmentId, long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
-        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, cacheKey.getStreamSegmentId(), cacheKey.getOffset(), length);
+        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
-        StreamSegmentReadIndex index = getReadIndex(cacheKey.getStreamSegmentId(), true);
+        StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
-        index.append(cacheKey, length);
+        return index.append(offset, data);
     }
 
     @Override

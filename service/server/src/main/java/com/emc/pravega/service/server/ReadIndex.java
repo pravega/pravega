@@ -30,12 +30,15 @@ public interface ReadIndex extends AutoCloseable {
     /**
      * Appends a range of bytes at the end of the Read Index for the given StreamSegmentId.
      *
-     * @param cacheKey The Key (in the Cache) of the data to be appended..
-     * @param length   the length of the data to be appended.
-     * @throws IllegalArgumentException If the cacheKey.getOffset() does not match the expected value (end of StreamSegment in ReadIndex).
-     * @throws IllegalArgumentException If the cacheKey.getOffset() + data.length exceeds the metadata DurableLogLength of the StreamSegment.
+     * @param streamSegmentId The Id of the StreamSegment to append to.
+     * @param offset          The offset in the StreamSegment where to write this append. The offset must be at the end
+     *                        of the StreamSegment as it exists in the ReadIndex.
+     * @param data            The data to append.
+     * @return The CacheKey associated with the data that was just appended.
+     * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
+     * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the StreamSegment.
      */
-    void append(CacheKey cacheKey, int length);
+    CacheKey append(long streamSegmentId, long offset, byte[] data);
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.

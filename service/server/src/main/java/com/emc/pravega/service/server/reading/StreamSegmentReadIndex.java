@@ -176,31 +176,33 @@ class StreamSegmentReadIndex implements AutoCloseable {
     /**
      * Appends the given range of bytes at the given offset.
      *
-     * @param cacheKey The Key (in the Cache) of the data to be appended.
-     * @param length   the length of the data to be appended.
+     * @param offset The offset within the StreamSegment to append at.
+     * @param data   The range of bytes to append.
      * @throws NullPointerException     If data is null.
      * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's DurableLogLength.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      */
-    public void append(CacheKey cacheKey, int length) {
+    public CacheKey append(long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkArgument(cacheKey.getStreamSegmentId() == this.metadata.getId(), "Wrong StreamSegmentId.");
         Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
-        if (length == 0) {
+        if (data.length == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
-            return;
+            return null;
         }
 
         // Metadata check can be done outside the write lock.
         // Adding at the end means that we always need to "catch-up" with DurableLogLength. Check to see if adding
         // this entry will make us catch up to it or not.
         long durableLogLength = this.metadata.getDurableLogLength();
-        long endOffset = cacheKey.getOffset() + length;
-        Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", cacheKey.getOffset(), endOffset, durableLogLength);
+        long endOffset = offset + data.length;
+        Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
 
         // Then append an entry for it in the ReadIndex.
-        appendEntry(new CacheReadIndexEntry(cacheKey, length));
+        CacheKey key = new CacheKey(this.metadata.getId(), offset);
+        this.cache.insert(key, data);
+        appendEntry(new CacheReadIndexEntry(key, data.length));
+        return key;
     }
 
     /**
