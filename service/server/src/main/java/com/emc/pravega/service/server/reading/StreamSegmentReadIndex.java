@@ -325,7 +325,8 @@ class StreamSegmentReadIndex implements AutoCloseable {
     private void insert(long offset, ByteArraySegment data) {
         log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
 
-        // TODO: There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
+        // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
+        // the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
         CacheKey cacheKey = new CacheKey(this.metadata.getId(), offset);
         this.cache.insert(cacheKey, data);
         ReadIndexEntry entry = new CacheReadIndexEntry(cacheKey, data.getLength());
