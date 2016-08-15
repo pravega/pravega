@@ -41,7 +41,7 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 	private static final int READ_LENGTH = 1024 * 1024;
 	private final CircularBuffer buffer = new CircularBuffer(2 * READ_LENGTH);
 	private long offset = 0;
-	private boolean receivedEndOfStream = false;
+	private boolean receivedEndOfSegment = false;
 	private Future<SegmentRead> outstandingRequest = null;
 
 	@Override
@@ -49,7 +49,7 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 	public void setOffset(long offset) {
 		this.offset = offset;
 		buffer.clear();
-		receivedEndOfStream = false;
+		receivedEndOfSegment = false;
 	}
 
 	@Override
@@ -79,7 +79,7 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 				throw new RuntimeException(e.getCause());
 			}
 		}
-		if (buffer.dataAvailable() <= 0 && receivedEndOfStream) {
+		if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
 			throw new EndOfSegmentException();
 		}
 		int read = buffer.read(toFill);
@@ -98,8 +98,8 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 		if (segmentRead.getData().hasRemaining()) {
 			buffer.fill(segmentRead.getData());
 		}
-		if (segmentRead.isEndOfStream()) {
-			receivedEndOfStream = true;
+		if (segmentRead.isEndOfSegment()) {
+			receivedEndOfSegment = true;
 		}
 		if (!segmentRead.getData().hasRemaining()) {
 			outstandingRequest = null;
@@ -111,7 +111,7 @@ public class SegmentInputStreamImpl extends SegmentInputStream {
 	 * @return If there is enough room for another request, and we aren't already waiting on one
 	 */
 	private void issueRequestIfNeeded() {
-		if (!receivedEndOfStream && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
+		if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > READ_LENGTH) {
 			outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), READ_LENGTH);
 		}
 	}

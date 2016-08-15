@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -18,7 +18,11 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.BiFunction;
@@ -33,9 +37,13 @@ import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.ReadResultEntry;
+import com.emc.pravega.service.contracts.ReadResultEntryContents;
+import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -61,25 +69,92 @@ public class LogServiceRequestProcessor extends FailingRequestProcessor implemen
 
     @Override
     public void readSegment(ReadSegment readSegment) {
+        final String segment = readSegment.getSegment();
         CompletableFuture<ReadResult> future = segmentStore
-                .read(readSegment.getSegment(), readSegment.getOffset(), readSegment.getSuggestedLength(), TIMEOUT);
-        future.handle(new BiFunction<ReadResult, Throwable, Void>() {
-            @Override
-            public Void apply(ReadResult t, Throwable u) {
-                try {
-                    if (t != null) {
-                        // TODO: Return data...
-                        // This really should stream the data out in multiple results as
-                        // it is available.
-                    } else {
-                        handleException(readSegment.getSegment(), "Read segment", u);
-                    }
-                } catch (Throwable e) {
-                    handleException(readSegment.getSegment(), "Read segment", e);
+            .read(segment, readSegment.getOffset(), readSegment.getSuggestedLength(), TIMEOUT);
+        future.thenApply((ReadResult t) -> {
+            ArrayList<ReadResultEntry> cachedEntries = new ArrayList<>();
+            ReadResultEntry nonCachedEntry = null;
+            while (t.hasNext()) {
+                ReadResultEntry entry = t.next();
+                if (entry.getType() == ReadResultEntryType.Cache) {
+                    cachedEntries.add(entry);
+                } else {
+                    nonCachedEntry = entry;
+                    break;
                 }
-                return null;
             }
+            boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == ReadResultEntryType.EndOfStreamSegment;
+            boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == ReadResultEntryType.Future;
+
+            SegmentRead reply = createSegmentRead(segment, readSegment.getOffset(), atTail, endOfSegment, cachedEntries);
+
+            if (reply != null) {
+                connection.send(reply);
+            }
+            // If the data we returned is short or non-existent, additional data should be sent when available.
+            if ((reply == null || reply.getData().remaining() < readSegment.getSuggestedLength() / 2) && nonCachedEntry != null) {
+                nonCachedEntry.requestContent(TIMEOUT);
+                final long offset = nonCachedEntry.getStreamSegmentOffset();
+                nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
+                    ByteBuffer data = ByteBuffer.allocate(contents.getLength());
+                    try {
+                        contents.getData().read(data.array());
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                    connection.send(new SegmentRead(segment, offset, atTail, endOfSegment, data));
+                    return null;
+                }).exceptionally((Throwable e) -> {
+                    handleException(segment, "Read segment", e);
+                    return null;
+                });
+            }
+            return null;
+        }).exceptionally((Throwable t) -> {
+            handleException(segment, "Read segment", t);
+            return null;
         });
+    }
+
+    private SegmentRead createSegmentRead(String segment, long initailOffset, boolean atTail, boolean endOfSegment,
+            List<ReadResultEntry> entries) {
+        if (entries.isEmpty()) {
+            return null;
+        }
+        long expectedOffset = initailOffset;
+        int totalSize = 0;
+        //Validate and find total size
+        for (ReadResultEntry entry : entries) {
+            if (entry.getType() != ReadResultEntryType.Cache) {
+                throw new IllegalArgumentException("Only cached entries supported.");
+            }
+            if (entry.getStreamSegmentOffset() != expectedOffset) {
+                throw new IllegalStateException(
+                        "There was a gap in the data read between: " + expectedOffset + " and " + entry.getStreamSegmentOffset());
+            }
+            ReadResultEntryContents content = entry.getContent().getNow(null);
+            expectedOffset += content.getLength();
+            totalSize += content.getLength();
+        }
+        //Copy Data
+        ByteBuffer data = ByteBuffer.allocate(totalSize);
+        int bytesCopied = 0;
+        for (ReadResultEntry entry : entries) {
+            ReadResultEntryContents content = entry.getContent().getNow(null);
+            int copied;
+            try {
+                copied = content.getData().read(data.array(), bytesCopied, totalSize-bytesCopied);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            if (copied != content.getLength()) {
+                throw new IllegalStateException("Bug in InputStream.read!?!");
+            }
+            bytesCopied += copied;
+        }
+        return new SegmentRead(segment, initailOffset, atTail, endOfSegment, data);
+
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.emc.pravega.integrationtests;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.common.netty.Reply;
 import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.WireCommand;
@@ -111,7 +112,7 @@ public class AppendTest {
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
 
-    private Reply sendRequest(EmbeddedChannel channel, CommandDecoder decoder, Request request) throws Exception {
+    static Reply sendRequest(EmbeddedChannel channel, CommandDecoder decoder, Request request) throws Exception {
         channel.writeInbound(request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
@@ -129,13 +130,14 @@ public class AppendTest {
         return (Reply) decoded;
     }
 
-    private EmbeddedChannel createChannel(StreamSegmentStore store) {
+    static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
-        EmbeddedChannel channel = new EmbeddedChannel(new CommandEncoder(),
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
+                new CommandEncoder(),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 lsh);
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
         return channel;
     }
 

@@ -455,7 +455,7 @@ public final class WireCommands {
         final String segment;
         final long offset;
         final boolean atTail;
-        final boolean endOfStream;
+        final boolean endOfSegment;
         final ByteBuffer data;
 
         @Override
