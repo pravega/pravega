@@ -56,7 +56,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
-    private static final Duration TIMEOUT = Duration.ofMinutes(1);
+    static final Duration TIMEOUT = Duration.ofMinutes(1);
 
     private final StreamSegmentStore segmentStore;
 
@@ -85,7 +85,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 }
             }
             boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == ReadResultEntryType.EndOfStreamSegment;
-            boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == ReadResultEntryType.Future;
+            boolean atTail = !endOfSegment && (nonCachedEntry == null || nonCachedEntry.getType() == ReadResultEntryType.Future);
 
             SegmentRead reply = createSegmentRead(segment, readSegment.getOffset(), atTail, endOfSegment, cachedEntries);
 
