@@ -21,9 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import javax.annotation.concurrent.GuardedBy;
+
+import com.emc.pravega.common.netty.InvalidMessageException;
+import com.emc.pravega.common.netty.WireCommandType;
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
-import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -36,10 +40,15 @@ import lombok.Synchronized;
 class SegmentInputStreamImpl extends SegmentInputStream {
 
 	private final AsyncSegmentInputStream asyncInput;
-	private static final int READ_LENGTH = 1024 * 1024;
-	private final CircularBuffer buffer = new CircularBuffer(2 * READ_LENGTH);
+	private static final int READ_LENGTH = SegmentOutputStream.MAX_WRITE_SIZE;
+	@GuardedBy("$lock")
+	private final CircularBuffer buffer = new CircularBuffer(2 * SegmentOutputStream.MAX_WRITE_SIZE);
+	@GuardedBy("$lock")
+	private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
 	private long offset = 0;
+	@GuardedBy("$lock")
 	private boolean receivedEndOfSegment = false;
+	@GuardedBy("$lock")
 	private Future<SegmentRead> outstandingRequest = null;
 
 	@Override
@@ -56,43 +65,50 @@ class SegmentInputStreamImpl extends SegmentInputStream {
 		return offset;
 	}
 
-	@Override
-	@Synchronized
-	public int available() {
-		return buffer.dataAvailable();
-	}
-
 	/**
-	 * @see com.emc.pravega.stream.impl.segment.SegmentInputStream#read(java.nio.ByteBuffer)
+	 * @see com.emc.pravega.stream.impl.segment.SegmentInputStream#read()
 	 */
 	@Override
 	@Synchronized
-	public int read(ByteBuffer toFill) throws EndOfSegmentException {
-	    Preconditions.checkNotNull(toFill);
+	public ByteBuffer read() throws EndOfSegmentException {
 		issueRequestIfNeeded();
-		if (outstandingRequest.isDone() || buffer.dataAvailable() <= 0) {
-			try {
-				handleRequest();
-			} catch (ExecutionException e) {
-				throw new RuntimeException(e.getCause());
-			}
+		if (outstandingRequest.isDone() || buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
+			handleRequest();
 		}
 		if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
 			throw new EndOfSegmentException();
 		}
-		int read = buffer.read(toFill);
-		offset += read;
-		return read;
+		headerReadingBuffer.clear();
+		offset += buffer.read(headerReadingBuffer);
+		headerReadingBuffer.flip();
+		int type = headerReadingBuffer.getInt();
+		int length = headerReadingBuffer.getInt();
+		if (type != WireCommandType.APPEND.getCode()) {
+		    throw new InvalidMessageException("Event was of wrong type: "+type);
+		}
+		if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
+		    throw new InvalidMessageException("Event of invalid length: "+length);
+		}
+	    ByteBuffer result = ByteBuffer.allocate(length);
+	    offset += buffer.read(result);
+		while (result.hasRemaining()) {
+		    handleRequest();
+		    offset += buffer.read(result);
+		}
+		result.flip();
+		return result;
 	}
 
-	private void handleRequest() throws ExecutionException {
+	private void handleRequest() {
 		SegmentRead segmentRead;
 		try {
 			segmentRead = outstandingRequest.get();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new RuntimeException(e);
-		}
+		} catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
 		if (segmentRead.getData().hasRemaining()) {
 			buffer.fill(segmentRead.getData());
 		}

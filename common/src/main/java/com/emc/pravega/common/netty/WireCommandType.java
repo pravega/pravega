@@ -57,7 +57,7 @@ import com.google.common.base.Preconditions;
  * 
  * (Types below that are grouped into pairs where there is a corresponding request and reply.)
  */
-enum WireCommandType {
+public enum WireCommandType {
     PADDING(-1, Padding::readFrom),
 
     PARTIAL_EVENT(-2, PartialEvent::readFrom),

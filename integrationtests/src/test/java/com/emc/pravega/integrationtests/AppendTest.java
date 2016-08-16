@@ -173,10 +173,10 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl logClient = new SegmentManagerImpl(endpoint, clientCF);
-        logClient.createSegment(segmentName);
+        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
+        segmentClient.createSegment(segmentName);
         @Cleanup("close")
-        SegmentOutputStream out = logClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();

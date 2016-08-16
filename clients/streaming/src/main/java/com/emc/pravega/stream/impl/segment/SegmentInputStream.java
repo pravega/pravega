@@ -19,6 +19,8 @@ package com.emc.pravega.stream.impl.segment;
 
 import java.nio.ByteBuffer;
 
+import com.emc.pravega.stream.Producer;
+
 /**
  * Defines a InputStream for a single segment.
  * Once created the offset must be provided by calling setOffset.
@@ -39,23 +41,12 @@ public abstract class SegmentInputStream implements AutoCloseable {
     public abstract long getOffset();
 	
 	/**
-	 * @return The number of bytes that can be read by calling read without blocking.
-	 */
-	public abstract int available();
-	
-	/**
-	 * Reads bytes from the segment to attempt to fill the provided buffer.
+	 * Reads bytes from the segment a single event.
 	 * Buffering is performed internally to try to prevent blocking.
-	 * Similarly the bufferProvided may not be fully filled, if doing so can prevent further blocking. 
-	 * The number of bytes that can be read without blocking can be obtained by calling available().
-	 * 
-	 * This method will always read at least one byte even if blocking is required to obtain it.
-	 *  
-	 * @param toFill A buffer to fill by reading from the segment
-	 * @return the number of bytes read
-	 * @throws EndOfSegmentException If no bytes were read because the end of the segment was reached.
+	 * @return A ByteBuffer containing the serialized data that was written via {@link Producer#publish(String, Object)}
+	 * @throws EndOfSegmentException If no event could beread because the end of the segment was reached.
 	 */
-	public abstract int read(ByteBuffer toFill) throws EndOfSegmentException;
+	public abstract ByteBuffer read() throws EndOfSegmentException;
 
 	/**
 	 * Close this InputStream. No further methods may be called after close. 
