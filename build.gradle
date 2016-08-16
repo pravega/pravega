@@ -132,12 +132,6 @@ project('service:server:host') {
     }
 }
 
-project('controller') {
-    dependencies {
-        testCompile project(':testcommon')
-    }
-}
-
 project('integrationtests') {
     dependencies {
         compile project(':common')
@@ -197,6 +191,12 @@ project('benchmark') {
     }
 }
 
+project('controller') {
+    dependencies {
+        testCompile project(':testcommon')
+    }
+}
+
 project('controller:api') {
     compileThrift {
         recurse true
@@ -205,15 +205,18 @@ project('controller:api') {
         generator 'java', 'private-members', 'hashcode'
     }
 
-    tasks.compileJava.dependsOn(compileThrift)
-
     sourceSets {
-        generated.java.srcDirs += "$projectDir/src/generated/gen-java"
+        main.java.srcDirs += "$projectDir/src/generated/gen-java"
+    }
+
+    tasks.compileJava.dependsOn(compileThrift)
+    jar {
+        from "$buildDir/thrift-stubs"
     }
 
     checkstyle {
         // Exclude generated code from Checkstyle checks
-        sourceSets -= sourceSets.generated
+        sourceSets -= sourceSets.main
     }
 
     dependencies {
@@ -223,12 +226,10 @@ project('controller:api') {
 }
 
 project('controller:client') {
-    apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.client.Client"
-    //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
-
     dependencies {
         compile project(":controller:api")
+        compile project(":clients")
+        compile project(":clients:streaming")
     }
 }
 
