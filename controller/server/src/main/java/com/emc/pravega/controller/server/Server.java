@@ -33,14 +33,8 @@ import org.apache.thrift.transport.TServerTransport;
  */
 public class Server {
 
-    public static ConsumerService.Iface consumerService;
-
-    public static ConsumerService.Processor processor;
-
     public static void main(String[] args) {
         try {
-            consumerService = new ConsumerServiceImpl();
-            processor = new ConsumerService.Processor(consumerService);
 
             final TMultiplexedProcessor processor = new TMultiplexedProcessor();
             processor.registerProcessor("consumerService", new ConsumerService.Processor(new ConsumerServiceImpl()));

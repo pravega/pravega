@@ -210,9 +210,6 @@ project('controller:api') {
     }
 
     tasks.compileJava.dependsOn(compileThrift)
-    jar {
-        from "$buildDir/thrift-stubs"
-    }
 
     checkstyle {
         // Exclude generated code from Checkstyle checks
