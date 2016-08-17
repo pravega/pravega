@@ -86,8 +86,8 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
-        Preconditions.checkNotNull(cache, "storage");
-        Preconditions.checkNotNull(cache, "executor");
+        Preconditions.checkNotNull(storage, "storage");
+        Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkArgument(!metadata.isRecoveryMode(), "Given ContainerMetadata is in Recovery Mode.");
 
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
