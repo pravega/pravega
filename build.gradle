@@ -9,8 +9,15 @@
 
 // Apply the java plugin to add support for Java
 
-plugins {
-    id "org.jruyi.thrift" version "0.3.1"
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "gradle.plugin.org.jruyi.gradle:thrift-gradle-plugin:0.3.1"
+    }
 }
 
 allprojects {
@@ -198,10 +205,13 @@ project('controller') {
 }
 
 project('controller:api') {
+
+    apply plugin: "org.jruyi.thrift"
+
     compileThrift {
         recurse true
         sourceDir "$projectDir/src/main/thrift"
-        outputDir  "$projectDir/src/generated"
+        outputDir "$projectDir/src/generated"
         generator 'java', 'private-members', 'hashcode'
     }
 
