@@ -1,4 +1,4 @@
-namespace java com.emc.pravega.controller.stream.api
+namespace java com.emc.pravega.controller.stream.api.v1
 
 enum Status {
     SUCCESS,
@@ -36,13 +36,19 @@ struct Position {
 }
 
 /*
+ * Admin APIs supported by Stream Controller service
+ */
+service AdminService {
+    Status createStream (1: StreamConfig streamConfig)
+    Status alterStream (1: StreamConfig streamConfig)
+}
+
+/*
  * Producer APIs supported by Stream Controller service
  */
 service ProducerService {
-    Status createStream (1: StreamConfig streamConfig)
-    Status alterStream (1: StreamConfig streamConfig)
-    list<string>  getCurrentSeqments(1:string stream)
-    string getURL(1:SegmentId id)
+    list<string> getCurrentSegments(1:string stream)
+    string getURI(1:SegmentId id)
 }
 
 /*

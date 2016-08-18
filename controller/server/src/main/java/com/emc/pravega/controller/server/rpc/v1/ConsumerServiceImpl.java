@@ -15,10 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server;
+package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.stream.api.ConsumerService;
-import com.emc.pravega.controller.stream.api.Position;
+import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.controller.stream.api.v1.ConsumerService;
+import com.emc.pravega.controller.stream.api.v1.Position;
 import org.apache.thrift.TException;
 
 import java.util.List;
@@ -27,13 +28,24 @@ import java.util.List;
  * Stream Controller Consumer API server implementation.
  */
 public class ConsumerServiceImpl implements ConsumerService.Iface {
+
+    private Api.Consumer consumerApi;
+
+    public ConsumerServiceImpl(Api.Consumer consumerApi) {
+        this.consumerApi = consumerApi;
+    }
+
     @Override
     public List<Position> getPositions(String stream, long timestamp, int count) throws TException {
-        throw new UnsupportedOperationException("TODO");
+        //invoke Api.Consumer.getPositions(...)
+        consumerApi.getPositions(stream, timestamp, count);
+        return null;
     }
 
     @Override
     public List<Position> updatePositions(List<Position> positions) throws TException {
-        throw new UnsupportedOperationException("TODO");
+        //invoke Api.Consumer.updatePositions(...)
+        consumerApi.updatePositions(null);
+        return null;
     }
 }

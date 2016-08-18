@@ -15,32 +15,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.client.rpc;
+package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.client.ApiV1;
-import com.emc.pravega.controller.stream.api.Status;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.controller.stream.api.v1.ProducerService;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import org.apache.thrift.TException;
 
 import java.util.List;
 
 /**
- * Producer Controller client.
+ * Stream Controller Producer API server implementation.
  */
-public class Producer implements ApiV1.Producer {
-    @Override
-    public Status createStream(StreamConfiguration streamConfig) {
-        throw new UnsupportedOperationException("TODO");
+public class ProducerServiceImpl implements ProducerService.Iface {
+
+    private Api.Producer producerApi;
+
+    public ProducerServiceImpl(Api.Producer producerApi) {
+        this.producerApi = producerApi;
     }
 
     @Override
-    public Status alterStream(StreamConfiguration streamConfig) {
-        throw new UnsupportedOperationException("TODO");
+    public List<String> getCurrentSegments(String stream) throws TException {
+        //invoke Api.Producer.getCurrentSegments(...)
+        producerApi.getCurrentSegments(null);
+        return null;
     }
 
     @Override
-    public List<StreamSegments> getLatestSegments(Stream stream) {
-        throw new UnsupportedOperationException("TODO");
+    public String getURI(SegmentId id) throws TException {
+        //invoke Api.Producer.getURI(...)
+        producerApi.getURI(id);
+        return null;
     }
 }

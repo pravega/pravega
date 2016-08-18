@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * <p/>
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- * <p/>
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.controller.server;
+package com.emc.pravega.controller.server.rpc;
 
 
-import com.emc.pravega.controller.stream.api.ConsumerService;
-import com.emc.pravega.controller.stream.api.ProducerService;
+import com.emc.pravega.controller.stream.api.v1.AdminService;
+import com.emc.pravega.controller.stream.api.v1.ConsumerService;
+import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import org.apache.thrift.TMultiplexedProcessor;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TServer.Args;
@@ -29,21 +30,19 @@ import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
 
 /**
- * Entrypoint for Server. (Initial version)
+ * Thrift based RPC server implementation. (Initial version)
  */
-public class Server {
+public class RPCServer {
 
-    public static void main(String[] args) {
+    public static void start(AdminService.Iface adminService, ConsumerService.Iface consumerService, ProducerService.Iface producerService) {
         try {
 
             final TMultiplexedProcessor processor = new TMultiplexedProcessor();
-            processor.registerProcessor("consumerService", new ConsumerService.Processor(new ConsumerServiceImpl()));
-            processor.registerProcessor("producerService", new ProducerService.Processor(new ProducerServiceImpl()));
+            processor.registerProcessor("consumerService", new ConsumerService.Processor(consumerService));
+            processor.registerProcessor("producerService", new ProducerService.Processor(producerService));
 
-            Runnable simple = new Runnable() {
-                public void run() {
-                    simple(processor);
-                }
+            Runnable simple = () -> {
+                simple(processor);
             };
 
             new Thread(simple).start();
@@ -52,7 +51,7 @@ public class Server {
         }
     }
 
-    public static void simple(final TMultiplexedProcessor processor) {
+    private static void simple(final TMultiplexedProcessor processor) {
         try {
             TServerTransport serverTransport = new TServerSocket(9090);
             TServer server = new TSimpleServer(new Args(serverTransport).processor(processor));

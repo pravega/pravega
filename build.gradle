@@ -204,7 +204,7 @@ project('controller') {
     }
 }
 
-project('controller:api') {
+project('controller:contract') {
 
     apply plugin: "org.jruyi.thrift"
 
@@ -229,23 +229,22 @@ project('controller:api') {
     dependencies {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
+        compile project(":clients:streaming") //TODO: All the model components used should be moved to seperate library.
     }
 }
 
 project('controller:client') {
     dependencies {
-        compile project(":controller:api")
-        compile project(":clients")
-        compile project(":clients:streaming")
+        compile project(":controller:contract")
     }
 }
 
 project('controller:server') {
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.server.Server"
+    mainClassName = "com.emc.pravega.controller.server.Main"
     //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
 
     dependencies {
-        compile project(":controller:api")
+        compile project(":controller:contract")
     }
 }
