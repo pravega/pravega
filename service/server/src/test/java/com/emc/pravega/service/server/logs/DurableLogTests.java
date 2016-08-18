@@ -24,6 +24,7 @@ import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CloseableExecutorService;
+import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
@@ -41,6 +42,7 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
@@ -87,6 +89,7 @@ public class DurableLogTests extends OperationLogTestBase {
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfig(100, 1024);
 
     //region Adding operations
 
@@ -510,9 +513,9 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE));
         @Cleanup
-        Storage storage = new InMemoryStorage();
-        @Cleanup
         CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup
+        Storage storage = new InMemoryStorage(executorService.get());
 
         HashSet<Long> streamSegmentIds;
         AbstractMap<Long, Long> batches;
@@ -524,7 +527,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -548,7 +551,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Second DurableLog. We use this for recovery.
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -577,9 +580,9 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage();
-        @Cleanup
         CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup
+        Storage storage = new InMemoryStorage(executorService.get());
 
         HashSet<Long> streamSegmentIds;
         List<LogTestHelpers.OperationWithCompletion> completionFutures;
@@ -589,7 +592,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService.get())) {
             durableLog.startAsync().awaitRunning();
 
@@ -610,7 +613,7 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService.get())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
@@ -638,7 +641,7 @@ public class DurableLogTests extends OperationLogTestBase {
         metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
         dataLog.set(null);
         try (
-                ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService.get())) {
 
             // Reset error injectors to nothing.
@@ -694,15 +697,15 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage();
+        CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+        @Cleanup
+        Storage storage = new InMemoryStorage(executorService.get());
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
         @Cleanup
-        CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
-        @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
 
         // First DurableLog. We use this for generating data.
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, new CacheUpdater(cache, readIndex), executorService.get())) {
@@ -805,15 +808,15 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage();
+        CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+        @Cleanup
+        Storage storage = new InMemoryStorage(executorService.get());
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
         @Cleanup
-        CloseableExecutorService executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
-        @Cleanup
         InMemoryCache cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata, cache);
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cache, storage, executorService.get());
         HashSet<Long> streamSegmentIds;
         List<LogTestHelpers.OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
@@ -967,8 +970,8 @@ public class DurableLogTests extends OperationLogTestBase {
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE), this.dataLog::set);
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
-            this.readIndex = new ContainerReadIndex(metadata, this.cache);
-            this.storage = new InMemoryStorage();
+            this.storage = new InMemoryStorage(this.executorService.get());
+            this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cache, this.storage, this.executorService.get());
         }
 
         @Override

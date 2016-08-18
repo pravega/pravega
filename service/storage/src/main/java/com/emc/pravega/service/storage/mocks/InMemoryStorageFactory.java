@@ -18,22 +18,31 @@
 
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorageFactory implements StorageFactory {
-    private final InMemoryStorage storage = new InMemoryStorage();
+    private final InMemoryStorage storage;
     private boolean closed;
+
+    public InMemoryStorageFactory() {
+        this(ForkJoinPool.commonPool());
+    }
+
+    public InMemoryStorageFactory(Executor executor) {
+        this.storage = new InMemoryStorage(executor);
+    }
 
     @Override
     public Storage getStorageAdapter() {
-        if (this.closed) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(this.closed, this);
         return storage;
     }
 

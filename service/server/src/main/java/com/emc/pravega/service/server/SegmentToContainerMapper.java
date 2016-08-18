@@ -68,17 +68,6 @@ public final class SegmentToContainerMapper {
         }
     }
 
-    /**
-     * Gets the container Id based on its numeric value.
-     *
-     * @param numericContainerId
-     * @return
-     */
-    public String getContainerId(int numericContainerId) {
-        assert numericContainerId >= 0 : "numericContainerId must be a non-negative number. Given " + numericContainerId;
-        return Integer.toString(numericContainerId);
-    }
-
     private int mapStreamSegmentNameToContainerId(String streamSegmentName) {
         return Math.abs(streamSegmentName.hashCode()) % this.containerCount;
     }

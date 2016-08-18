@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.server.CloseableExecutorService;
+import com.emc.pravega.service.server.ConfigHelpers;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
