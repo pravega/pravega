@@ -21,7 +21,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.Ignore;
@@ -120,7 +119,6 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
-        verify(connection).send(new SegmentRead(streamSegmentName, data.length, true, false, ByteBuffer.wrap(data)));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }

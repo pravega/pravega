@@ -18,6 +18,11 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.*;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -43,7 +48,6 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -57,6 +61,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
+    static final int MAX_READ_SIZE = 2 * 1024 * 1024;
 
     private final StreamSegmentStore segmentStore;
 
@@ -70,30 +75,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void readSegment(ReadSegment readSegment) {
         final String segment = readSegment.getSegment();
-        CompletableFuture<ReadResult> future = segmentStore
-            .read(segment, readSegment.getOffset(), readSegment.getSuggestedLength(), TIMEOUT);
+        final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
+        CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
             ArrayList<ReadResultEntry> cachedEntries = new ArrayList<>();
             ReadResultEntry nonCachedEntry = null;
             while (t.hasNext()) {
                 ReadResultEntry entry = t.next();
-                if (entry.getType() == ReadResultEntryType.Cache) {
+                if (entry.getType() == Cache) {
                     cachedEntries.add(entry);
                 } else {
                     nonCachedEntry = entry;
                     break;
                 }
             }
-            boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == ReadResultEntryType.EndOfStreamSegment;
-            boolean atTail = !endOfSegment && (nonCachedEntry == null || nonCachedEntry.getType() == ReadResultEntryType.Future);
+            boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
+            boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
-            SegmentRead reply = createSegmentRead(segment, readSegment.getOffset(), atTail, endOfSegment, cachedEntries);
-
-            if (reply != null) {
+            if (!cachedEntries.isEmpty()) {
+                SegmentRead reply = createSegmentRead(segment, readSegment.getOffset(), atTail, endOfSegment, cachedEntries);
                 connection.send(reply);
-            }
-            // If the data we returned is short or non-existent, additional data should be sent when available.
-            if ((reply == null || reply.getData().remaining() < readSegment.getSuggestedLength() / 2) && nonCachedEntry != null) {
+            } else {
+                if (nonCachedEntry == null) {
+                    throw new IllegalStateException("No ReadResultEntries returned from read!?");
+                }
                 nonCachedEntry.requestContent(TIMEOUT);
                 final long offset = nonCachedEntry.getStreamSegmentOffset();
                 nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
@@ -119,14 +124,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private SegmentRead createSegmentRead(String segment, long initailOffset, boolean atTail, boolean endOfSegment,
             List<ReadResultEntry> entries) {
-        if (entries.isEmpty()) {
-            return null;
-        }
         long expectedOffset = initailOffset;
         int totalSize = 0;
-        //Validate and find total size
+        // Validate and find total size
         for (ReadResultEntry entry : entries) {
-            if (entry.getType() != ReadResultEntryType.Cache) {
+            if (entry.getType() != Cache) {
                 throw new IllegalArgumentException("Only cached entries supported.");
             }
             if (entry.getStreamSegmentOffset() != expectedOffset) {
@@ -137,14 +139,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             expectedOffset += content.getLength();
             totalSize += content.getLength();
         }
-        //Copy Data
+        // Copy Data
         ByteBuffer data = ByteBuffer.allocate(totalSize);
         int bytesCopied = 0;
         for (ReadResultEntry entry : entries) {
             ReadResultEntryContents content = entry.getContent().getNow(null);
             int copied;
             try {
-                copied = content.getData().read(data.array(), bytesCopied, totalSize-bytesCopied);
+                copied = content.getData().read(data.array(), bytesCopied, totalSize - bytesCopied);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

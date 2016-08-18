@@ -29,27 +29,33 @@ import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
 
-import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 /**
  * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
  * @see SegmentInputStream
  */
-@RequiredArgsConstructor
 class SegmentInputStreamImpl extends SegmentInputStream {
 
-	private final AsyncSegmentInputStream asyncInput;
 	private static final int READ_LENGTH = SegmentOutputStream.MAX_WRITE_SIZE;
+	static final int BUFFER_SIZE = 2 * READ_LENGTH;
+	
+	private final AsyncSegmentInputStream asyncInput;
 	@GuardedBy("$lock")
-	private final CircularBuffer buffer = new CircularBuffer(2 * SegmentOutputStream.MAX_WRITE_SIZE);
+	private final CircularBuffer buffer = new CircularBuffer(BUFFER_SIZE);
 	@GuardedBy("$lock")
 	private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
-	private long offset = 0;
+	@GuardedBy("$lock")
+	private long offset;
 	@GuardedBy("$lock")
 	private boolean receivedEndOfSegment = false;
 	@GuardedBy("$lock")
 	private Future<SegmentRead> outstandingRequest = null;
+	
+	SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
+        this.asyncInput = asyncInput;
+        this.offset = offset;
+	}
 
 	@Override
 	@Synchronized
@@ -72,9 +78,10 @@ class SegmentInputStreamImpl extends SegmentInputStream {
 	@Synchronized
 	public ByteBuffer read() throws EndOfSegmentException {
 		issueRequestIfNeeded();
-		if (outstandingRequest.isDone() || buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
-			handleRequest();
-		}
+        while ((outstandingRequest != null && outstandingRequest.isDone() && buffer.capacityAvailable() > 0)
+                || (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE)) {
+            handleRequest();
+        }
 		if (buffer.dataAvailable() <= 0 && receivedEndOfSegment) {
 			throw new EndOfSegmentException();
 		}

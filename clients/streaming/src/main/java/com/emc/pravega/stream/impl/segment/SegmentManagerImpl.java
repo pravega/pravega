@@ -92,7 +92,7 @@ public class SegmentManagerImpl implements SegmentManager {
 
 	@Override
 	public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
-		return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name));
+		return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name), 0);
 	}
 
 	@Override
