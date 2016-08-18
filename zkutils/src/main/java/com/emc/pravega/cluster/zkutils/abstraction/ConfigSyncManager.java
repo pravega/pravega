@@ -16,30 +16,26 @@
   * limitations under the License.
   */
 
-package com.emc.pravega.zkutils.dummy
 
-import com.emc.pravega.zkutils.abstraction.ConfigSyncManager
-import org.apache.zookeeper.Watcher
+package com.emc.pravega.cluster.zkutils.abstraction;
+
 
 /**
   * Created by kandha on 8/8/16.
   */
-class DummyZK(connectString: String, sessionTimeout: Int, watcher :Watcher) extends ConfigSyncManager {
-  override def createEntry(path: String, value: Array[Byte]): String = ???
-
-  override def deleteEntry(path: String): Unit = ???
-
-  override def refreshCluster(): Unit = ???
-
-  override def registerPravegaNode(host: String, port: Int, jsonMetadata: String): Unit = {
-    var jsonMap = Map(
-                  "host" -> host,
-                  "port" -> port,
-                  "metadata" -> jsonMetadata
-    )
+public interface ConfigSyncManager {
 
 
-  }
 
-  override def registerPravegaController(host: String, port: Int, jsonMetadata: String): Unit = ???
+  /**
+    * Sample configuration/synchronization methods. Will add more as implementation progresses
+    **/
+  String  createEntry(String path, byte[] value);
+  void deleteEntry(String path);
+  void  refreshCluster();
+  void registerPravegaNode(String host, int port, String jsonMetadata);
+  void registerPravegaController(String host, int port, String jsonMetadata);
+
+
 }
+

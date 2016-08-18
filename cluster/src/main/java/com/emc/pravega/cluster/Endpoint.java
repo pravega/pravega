@@ -16,25 +16,43 @@
   * limitations under the License.
   */
 
-package com.emc.pravega.cluster
+package com.emc.pravega.cluster;
 
 /**
   * Created by kandha on 8/4/16.
+  * This class represents and access point for node and controllers
   */
-class PravegaNode (val endpoint: Endpoint){
+public final class Endpoint{
+    private String hostName;
+    private int port;
 
-}
-
-object PravegaNode {
-  /**
-    * Creates a PravegaNode object from a given configuration
-    * @param jsonString pravega node configuration.
-    *                   This will come in from zookeeper abstraction
-    * @return A PravegaNode object
-    */
-  def createPravegaNode(jsonString:String):PravegaNode = {
-    //TODO: Parse the json string to get node specific settings
-    val endpoints:Array[String] = jsonString.split(':')
-    new PravegaNode(new Endpoint(endpoints(0),endpoints(1).toInt))
+    /**
+     * Constructor
+     * @param hostname hostname used to connect to the node
+     * @param port port associated with the node
+     */
+  Endpoint(String hostname, int port) {
+      this.hostName = hostname;
+      this.port     = port;
   }
+    /**
+    * Override hash code so that it can be used as a parameter of a hashmap etc
+    * @return the hashcode
+    */
+  @Override
+  public int hashCode() {
+      return (hostName+":"+port).hashCode();
+  }
+
+
+  /**
+    * Get a custom string representation
+    * @return a string representation
+    */
+  @Override
+  public String toString() {
+    return   (hostName+":"+port);
+  }
+
+
 }

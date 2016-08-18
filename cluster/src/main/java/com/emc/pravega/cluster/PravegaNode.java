@@ -16,27 +16,15 @@
   * limitations under the License.
   */
 
-package com.emc.pravega.cluster
+package com.emc.pravega.cluster;
 
 /**
   * Created by kandha on 8/4/16.
-  * This class represents and access point for node and controllers
-  *
-  * @param hostname
-  * @param port
   */
-class Endpoint(val hostname: String, val port: Int) {
-  /**
-    * Override hash code so that it can be used as a parameter of a hashmap etc
-    * @return
-    */
-  override def hashCode(): Int = (hostname+":"+port).hashCode
-
-  /**
-    * Get a custom string represenation
-    * @return
-    */
-  override def toString: String = (hostname+":",+port).toString
-
+public final class PravegaNode {
+    private Endpoint ep;
+    public PravegaNode (Endpoint  endpoint) {
+        this.ep = endpoint;
+    }
 
 }

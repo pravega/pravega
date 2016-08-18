@@ -1,0 +1,229 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.emc.pravega.cluster;
+
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerCreator;
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * This class represents a pravega cluster.
+ * A pravega cluster contains a number of pravega nodes and controller nodes.
+ * Each node instance is uniquely identified by an Endpoint class.
+ *
+ * An Endpoint class represents a server IP and port on which either the
+ * pravega node Or the controller listens
+ */
+final class Cluster implements ConfigChangeListener {
+    private ConcurrentHashMap<Endpoint,PravegaNode> nodes;
+    private ConcurrentHashMap<Endpoint,PravegaController> controllers;
+    private List<ClusterListener> listeners;
+    private ConfigSyncManager manager;
+
+    public Cluster() {
+        nodes        = new ConcurrentHashMap<>();
+        controllers  = new ConcurrentHashMap<>();
+        listeners    = new CopyOnWriteArrayList<ClusterListener>();
+        manager      = null;
+    }
+
+    public Cluster(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws IOException {
+        this();
+        initializeCluster(syncType,connectionString,sessionTimeout);
+
+    }
+
+
+    /**
+     * Gets a list of nodes with the cluster class right now.
+     * @return
+     */
+    public Iterable<PravegaNode> getPravegaNodes() {
+        return nodes.values();
+    }
+
+    /**
+     * Returns list of controllers available with the cluster class right now.
+     * @return
+     */
+    public Iterable<PravegaController> getPravegaControllers() {
+        return controllers.values();
+    }
+
+    /**
+     * Initializes the cluster with a given type
+     * @param syncType               Type of the config manager
+     * @param connectionString       String used to connect to the config manager
+     * @param sessionTimeout         Session timeout for the connection
+     */
+    public void  initializeCluster(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws IOException {
+        synchronized(this) {
+            if(manager == null)
+                manager = new ConfigSyncManagerCreator().createManager(syncType, connectionString, sessionTimeout);
+            refreshCluster();
+        }
+    }
+
+    /**
+     * Reads the complete cluster from the store and updates the existing data
+     **/
+    public void refreshCluster() {
+        nodes.clear();
+        controllers.clear();
+        manager.refreshCluster();
+    }
+
+
+
+    /**
+     * Private method to add a node and notify all listeners
+     * @param node
+     * @param endpoint
+     */
+    private void addNode(PravegaNode node, Endpoint endpoint) {
+        nodes.put(endpoint, node);
+        listeners.forEach(
+                (listener)->
+                {
+                    listener.nodeAdded(node);
+                });
+    }
+
+
+    /**
+     * Private method to add a controller and notify all listeners
+     * @param controller
+     * @param endpoint
+     */
+    private void addController(PravegaController controller, Endpoint endpoint) {
+        controllers.put(endpoint, controller);
+        listeners.forEach(
+                (listener)->
+                {
+                    listener.controllerAdded(controller);
+                });
+    }
+
+
+    /**
+     * Private method to remove a controller and notify all the listeners
+     * @param endpoint
+     */
+    private void removeController(Endpoint endpoint) {
+        PravegaController controller = controllers.remove(endpoint);
+        listeners.forEach(
+                (listener)->
+                {
+                    listener.controllerRemoved(controller);
+                });
+    }
+
+    /**
+     * Private method to remove a node and notify all the listeners
+     * @param endpoint
+     */
+    private void removeNode(Endpoint endpoint) {
+        PravegaNode node = nodes.remove(endpoint);
+        listeners.forEach(
+                (listener)->
+                {
+                    listener.nodeRemoved(node);
+                });
+    }
+
+    /**
+     * Registers the current pravega node with a specific hostname and port with the config store
+     * @param host
+     * @param port
+     * @param jsonMetadata
+     */
+    public void registerPravegaNode(String host,int port, String jsonMetadata) {
+        manager.registerPravegaNode(host,port,jsonMetadata);
+    }
+
+    /**
+     * Listener specific functions:
+     * Registers a new listener
+     * @param clusterListener
+     */
+    public synchronized void registerListener(ClusterListener clusterListener) {
+        if(listeners.contains(clusterListener)==false) listeners.add(clusterListener);
+    }
+
+    /**
+     * Listener specific functions:
+     * Removes a registered listener
+     * @param clusterListener
+     */
+    public void deRegisterListener(ClusterListener clusterListener) {
+        if(listeners.contains(clusterListener)) listeners.remove(clusterListener);
+    }
+
+    /**
+     * Notification from the config manager abstraction to notify a node is added
+     * @param host
+     * @param port
+     */
+    @Override
+    public void nodeAddedNotification(String host, int port) {
+        Endpoint ep = new Endpoint(host,port);
+        addNode(new PravegaNode(ep),ep);
+    }
+
+    /**
+     * Notification from config manager abstraction to notify a controller is added
+     * @param host
+     * @param port
+     */
+    @Override
+    public void controllerAddedNotification(String host, int port) {
+        Endpoint ep = new Endpoint(host,port);
+        addController(new PravegaController(ep),ep);
+    }
+
+    /**
+     * Notification from the config manager abstraction to notify a node is removed
+     * @param host
+     * @param port
+     */
+    @Override
+    public void nodeRemovedNotification(String host, int port) {
+        Endpoint ep = new Endpoint(host,port);
+        removeNode(ep);
+    }
+
+    /**
+     * Notification from config manager abstraction to notify a controller is removed
+     * @param host
+     * @param port
+     */
+    @Override
+    public void controllerRemovedNotification(String host, int port) {
+        Endpoint ep = new Endpoint(host,port);
+        removeController(ep);
+    }
+
+
+}

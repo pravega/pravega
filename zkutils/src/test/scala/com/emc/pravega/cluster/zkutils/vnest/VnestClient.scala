@@ -17,15 +17,15 @@
   */
 
 
-package com.emc.pravega.zkutils.vnest
+package com.emc.pravega.cluster.zkutils.vnest
 
-import com.emc.pravega.zkutils.abstraction.ConfigSyncManager
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager
 import org.apache.zookeeper.Watcher
 
 /**
   * Created by kandha on 8/8/16.
   */
-class VnestClient(connectString: String, sessionTimeout: Int, watcher :Watcher) extends ConfigSyncManager {
+class VnestClientTest(connectString: String, sessionTimeout: Int, watcher :Watcher) extends ConfigSyncManager {
   /**
     * Sample ZK methods. Will add more as implementation progresses
     **/
