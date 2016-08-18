@@ -87,9 +87,8 @@ public class SegmentInputStreamTest {
         ByteBuffer read = testBlocking(() -> stream.read(),
                                        () -> fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
-        read = testBlocking(() -> stream.read(), 
-                            () -> fakeNetwork.complete(1, 
-                                    new SegmentRead("Foo", wireData.capacity(), false, false, wireData.slice())));
+        read = testBlocking(() -> stream
+            .read(), () -> fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
     }
 
@@ -113,9 +112,9 @@ public class SegmentInputStreamTest {
     public void testLongerThanRequestedRead() throws EndOfSegmentException {
         byte[] data = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         int numEntries = SegmentInputStreamImpl.BUFFER_SIZE / data.length;
-               
+
         ByteBuffer wireData = ByteBuffer.allocate((data.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * numEntries);
-        for (int i=0;i<numEntries;i++) {
+        for (int i = 0; i < numEntries; i++) {
             wireData.putInt(WireCommandType.EVENT.getCode());
             wireData.putInt(data.length);
             wireData.put(data);
@@ -125,10 +124,10 @@ public class SegmentInputStreamTest {
         fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, wireData.slice()));
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
-        for (int i=0;i<numEntries;i++) {
+        for (int i = 0; i < numEntries; i++) {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
-        ByteBuffer read = testBlocking(()->stream.read(),()-> {
+        ByteBuffer read = testBlocking(() -> stream.read(), () -> {
             fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, createEventFromData(data)));
         });
         assertEquals(ByteBuffer.wrap(data), read);

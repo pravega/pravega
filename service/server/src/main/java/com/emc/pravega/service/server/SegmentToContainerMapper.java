@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.MathHelpers;
 
 /**
  * Defines a Mapper from StreamSegment Name to Container Id.

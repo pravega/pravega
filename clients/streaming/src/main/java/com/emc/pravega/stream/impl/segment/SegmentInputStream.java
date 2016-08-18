@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -29,29 +29,30 @@ import com.emc.pravega.stream.Producer;
  * Get offset can be used to store a location to revert back to that position in the future.
  */
 public abstract class SegmentInputStream implements AutoCloseable {
-	/**
-	 * @param offset Sets the offset for reading from the segment.
-	 */
-	public abstract void setOffset(long offset);
+    /**
+     * @param offset Sets the offset for reading from the segment.
+     */
+    public abstract void setOffset(long offset);
 
     /**
      * @return The current offset. (Passing this to setOffset in the future will reset reads to the
      *         current position in the segment.)
      */
     public abstract long getOffset();
-	
-	/**
-	 * Reads bytes from the segment a single event.
-	 * Buffering is performed internally to try to prevent blocking.
-	 * @return A ByteBuffer containing the serialized data that was written via {@link Producer#publish(String, Object)}
-	 * @throws EndOfSegmentException If no event could beread because the end of the segment was reached.
-	 */
-	public abstract ByteBuffer read() throws EndOfSegmentException;
 
-	/**
-	 * Close this InputStream. No further methods may be called after close. 
-	 * This will free any resources associated with the InputStream.
-	 */
-	@Override
-	public abstract void close();
+    /**
+     * Reads bytes from the segment a single event.
+     * Buffering is performed internally to try to prevent blocking.
+     * 
+     * @return A ByteBuffer containing the serialized data that was written via {@link Producer#publish(String, Object)}
+     * @throws EndOfSegmentException If no event could beread because the end of the segment was reached.
+     */
+    public abstract ByteBuffer read() throws EndOfSegmentException;
+
+    /**
+     * Close this InputStream. No further methods may be called after close.
+     * This will free any resources associated with the InputStream.
+     */
+    @Override
+    public abstract void close();
 }
