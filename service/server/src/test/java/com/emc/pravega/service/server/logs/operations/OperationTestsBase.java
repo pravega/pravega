@@ -18,17 +18,13 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.common.MathHelpers;
 import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
-
-import org.junit.Test;
-
-import com.emc.pravega.common.MathHelpers;
-import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Base class for all Log Operation test.

@@ -94,7 +94,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
             this.dataLogFactory = null;
         }
 
-        if(this.readIndexFactory != null){
+        if (this.readIndexFactory != null) {
             this.readIndexFactory.close();
             this.readIndexFactory = null;
         }
