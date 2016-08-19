@@ -23,7 +23,7 @@ import com.emc.pravega.service.storage.Cache;
 /**
  * Defines a Factory for ReadIndex objects.
  */
-public interface ReadIndexFactory {
+public interface ReadIndexFactory extends AutoCloseable {
     /**
      * Creates an instance of a ReadIndex class with given arguments.
      *
@@ -33,4 +33,7 @@ public interface ReadIndexFactory {
      * @throws NullPointerException If any of the arguments are null.
      */
     ReadIndex createReadIndex(ContainerMetadata containerMetadata, Cache cache);
+
+    @Override
+    void close();
 }

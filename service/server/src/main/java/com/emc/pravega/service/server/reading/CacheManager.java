@@ -25,9 +25,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,11 +45,12 @@ import java.util.concurrent.TimeUnit;
  * The CacheManager Clients can use this information to evict those Cache Entries that have a generation below the oldest generation number.
  */
 @Slf4j
-class CacheManager extends AbstractScheduledService implements AutoCloseable {
+public class CacheManager extends AbstractScheduledService implements AutoCloseable {
     //region Members
 
     private static final String TRACE_OBJECT_ID = "CacheManager";
     private final Collection<Client> clients;
+    private final ScheduledExecutorService executorService;
     private int currentGeneration;
     private int oldestGeneration;
     private final CachePolicy policy;
@@ -60,14 +63,16 @@ class CacheManager extends AbstractScheduledService implements AutoCloseable {
     /**
      * Creates a new instance of the CacheManager class.
      *
-     * @param policy The policy to use with this CacheManager.
+     * @param policy          The policy to use with this CacheManager.
+     * @param executorService (Optional) An executorService to use for scheduled tasks.
      */
-    CacheManager(CachePolicy policy) {
+    public CacheManager(CachePolicy policy, @Nullable ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(policy, "policy");
         this.policy = policy;
         this.clients = new HashSet<>();
         this.oldestGeneration = 0;
         this.currentGeneration = 0;
+        this.executorService = executorService;
     }
 
     //endregion
@@ -92,7 +97,12 @@ class CacheManager extends AbstractScheduledService implements AutoCloseable {
     //region AbstractScheduledService Implementation
 
     @Override
-    protected void runOneIteration() throws Exception {
+    protected ScheduledExecutorService executor() {
+        return this.executorService != null ? this.executorService : super.executor();
+    }
+
+    @Override
+    protected void runOneIteration() {
         Exceptions.checkNotClosed(this.closed, this);
 
         // Run through all the active clients and gather status.
@@ -146,6 +156,7 @@ class CacheManager extends AbstractScheduledService implements AutoCloseable {
         synchronized (this.clients) {
             if (!this.clients.contains(client)) {
                 this.clients.add(client);
+                client.updateGenerations(this.currentGeneration, this.oldestGeneration);
             }
         }
 
@@ -344,7 +355,7 @@ class CacheManager extends AbstractScheduledService implements AutoCloseable {
         /**
          * Gets a value indicating the newest generation found in any cache entry.
          *
-         * @return
+         * @return The result.
          */
         int getNewestGeneration() {
             return this.newestGeneration;

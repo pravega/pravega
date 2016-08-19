@@ -35,12 +35,11 @@ import java.util.function.BiFunction;
  * Unit tests for the CacheManager class.
  */
 public class CacheManagerTests {
-
     /**
      * Tests the ability to increment the current generation (or not) based on the activity of the clients.
      */
     @Test
-    public void testIncrementCurrentGeneration() throws Exception {
+    public void testIncrementCurrentGeneration() {
         final int clientCount = 10;
         final int cycleCount = 12345;
         final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
@@ -103,7 +102,7 @@ public class CacheManagerTests {
      * Tests the ability to increment the oldest generation (or not) based on the activity of the clients.
      */
     @Test
-    public void testIncrementOldestGeneration() throws Exception {
+    public void testIncrementOldestGeneration() {
         final int cycleCount = 12345;
         final int defaultOldestGeneration = 0;
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
@@ -177,7 +176,7 @@ public class CacheManagerTests {
      * Tests the ability of the CacheManager to auto-unregister a client that was detected as having been closed.
      */
     @Test
-    public void testAutoUnregister() throws Exception {
+    public void testAutoUnregister() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
         TestCacheManager cm = new TestCacheManager(policy);
@@ -202,7 +201,7 @@ public class CacheManagerTests {
 
     private static class TestClient implements CacheManager.Client {
         private CacheManager.CacheStatus currentStatus;
-        private BiFunction<Integer, Integer, Long> updateGenerationsImpl;
+        private BiFunction<Integer, Integer, Long> updateGenerationsImpl = (current, oldest) -> -1L;
 
         void setCacheStatus(long size, int oldestGeneration, int newestGeneration) {
             this.currentStatus = new CacheManager.CacheStatus(size, oldestGeneration, newestGeneration);
@@ -220,17 +219,6 @@ public class CacheManagerTests {
         @Override
         public long updateGenerations(int currentGeneration, int oldestGeneration) {
             return this.updateGenerationsImpl.apply(currentGeneration, oldestGeneration);
-        }
-    }
-
-    private static class TestCacheManager extends CacheManager {
-        TestCacheManager(CachePolicy policy) {
-            super(policy);
-        }
-
-        @Override
-        public void runOneIteration() throws Exception {
-            super.runOneIteration();
         }
     }
 }

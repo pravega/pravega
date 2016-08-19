@@ -25,7 +25,7 @@ import java.time.Duration;
 /**
  * Represents a Policy for a CacheManager.
  */
-class CachePolicy {
+public class CachePolicy {
     //region Members
 
     private final long maxSize;
@@ -59,7 +59,7 @@ class CachePolicy {
      *
      * @return The value.
      */
-    long getMaxSize() {
+    public long getMaxSize() {
         return this.maxSize;
     }
 
@@ -69,7 +69,7 @@ class CachePolicy {
      *
      * @return The value.
      */
-    int getMaxGenerations() {
+    public int getMaxGenerations() {
         return this.maxGenerations;
     }
 
@@ -78,7 +78,7 @@ class CachePolicy {
      *
      * @return The value.
      */
-    Duration getGenerationDuration() {
+    public Duration getGenerationDuration() {
         return this.generationDuration;
     }
 
