@@ -27,9 +27,10 @@
   <module name="RegexpHeader">
     <property name="header" value="/\*\*\n *"/>
   </module>
-
+  <module name="SuppressWarningsFilter"/>
   <module name="TreeWalker">
-
+    <module name="SuppressWarningsHolder" />
+    <module name="SuppressWarnings"/>
     <!-- code cleanup -->
     <module name="UnusedImports"/>
     <module name="RedundantImport"/>

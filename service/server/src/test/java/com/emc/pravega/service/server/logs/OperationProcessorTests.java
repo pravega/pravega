@@ -317,6 +317,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
         // immediately shut down and stop accepting other ops.
