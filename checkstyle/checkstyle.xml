@@ -67,9 +67,13 @@
     <module name="LocalFinalVariableName"/>
     <module name="MemberName"/>
     <module name="ClassTypeParameterName">
+        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T' 
+        IE: T, E, E1, TFoo, or FooT -->
       <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)|(T[a-zA-Z0-9]*$)"/>
     </module>
     <module name="MethodTypeParameterName">
+        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T' 
+        IE: T, E, E1, TFoo, or FooT -->
       <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)|(T[a-zA-Z0-9]*$)"/>
     </module>
     <module name="PackageName"/>
