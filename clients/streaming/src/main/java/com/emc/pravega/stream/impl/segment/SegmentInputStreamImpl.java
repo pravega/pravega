@@ -31,6 +31,7 @@ import javax.annotation.concurrent.GuardedBy;
 import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
+import com.google.common.base.Preconditions;
 
 import lombok.Synchronized;
 
@@ -57,6 +58,8 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     private Future<SegmentRead> outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
+        Preconditions.checkArgument(offset >= 0);
+        Preconditions.checkNotNull(asyncInput);
         this.asyncInput = asyncInput;
         this.offset = offset;
     }
@@ -64,6 +67,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     @Override
     @Synchronized
     public void setOffset(long offset) {
+        Preconditions.checkArgument(offset >= 0);
         this.offset = offset;
         buffer.clear();
         receivedEndOfSegment = false;

@@ -17,6 +17,9 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -43,6 +46,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.ReusableLatch;
+import com.google.common.base.Preconditions;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -269,9 +273,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
 
     @Synchronized
     void connect() throws ConnectionFailedException {
-        if (state.isClosed()) {
-            throw new IllegalStateException("LogOutputStream was already closed");
-        }
+        checkState(!state.isClosed(), "LogOutputStream was already closed");
         if (state.getConnection() == null) {
             ClientConnection connection = connectionFactory.establishConnection(endpoint, responseProcessor);
             state.newConnection(connection);
@@ -287,9 +289,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Override
     @Synchronized
     public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
-        if (buff.remaining() > SegmentOutputStream.MAX_WRITE_SIZE) {
-            throw new IllegalArgumentException("Write size too large: " + buff.remaining());
-        }
+        checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff.remaining());
         ClientConnection connection = connection();
         Append append = state.createNewInflightAppend(connectionId, segment, buff, callback);
         try {
@@ -330,6 +330,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Override
     @Synchronized
     public void close() throws SegmentSealedException {
+        if (state.isClosed()) {
+            return;
+        }
         flush();
         state.setClosed(true);
         ClientConnection connection = state.getConnection();

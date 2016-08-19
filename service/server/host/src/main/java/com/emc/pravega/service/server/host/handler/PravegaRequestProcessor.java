@@ -27,10 +27,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.function.BiFunction;
 
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
@@ -54,6 +54,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -78,43 +79,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength())); 
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
-            ArrayList<ReadResultEntry> cachedEntries = new ArrayList<>();
-            ReadResultEntry nonCachedEntry = null;
-            while (t.hasNext()) {
-                ReadResultEntry entry = t.next();
-                if (entry.getType() == Cache) {
-                    cachedEntries.add(entry);
-                } else {
-                    nonCachedEntry = entry;
-                    break;
-                }
-            }
-            boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
-            boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
-
-            if (!cachedEntries.isEmpty()) {
-                SegmentRead reply = createSegmentRead(segment, readSegment.getOffset(), atTail, endOfSegment, cachedEntries);
-                connection.send(reply);
-            } else {
-                if (nonCachedEntry == null) {
-                    throw new IllegalStateException("No ReadResultEntries returned from read!?");
-                }
-                nonCachedEntry.requestContent(TIMEOUT);
-                final long offset = nonCachedEntry.getStreamSegmentOffset();
-                nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
-                    ByteBuffer data = ByteBuffer.allocate(contents.getLength());
-                    try {
-                        contents.getData().read(data.array());
-                    } catch (IOException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                    connection.send(new SegmentRead(segment, offset, atTail, endOfSegment, data));
-                    return null;
-                }).exceptionally((Throwable e) -> {
-                    handleException(segment, "Read segment", e);
-                    return null;
-                });
-            }
+            handleReadResult(readSegment, t);
             return null;
         }).exceptionally((Throwable t) -> {
             handleException(segment, "Read segment", t);
@@ -122,87 +87,112 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         });
     }
 
-    private SegmentRead createSegmentRead(String segment, long initailOffset, boolean atTail, boolean endOfSegment,
-            List<ReadResultEntry> entries) {
-        long expectedOffset = initailOffset;
-        int totalSize = 0;
-        // Validate and find total size
-        for (ReadResultEntry entry : entries) {
-            if (entry.getType() != Cache) {
-                throw new IllegalArgumentException("Only cached entries supported.");
-            }
-            if (entry.getStreamSegmentOffset() != expectedOffset) {
-                throw new IllegalStateException(
-                        "There was a gap in the data read between: " + expectedOffset + " and " + entry.getStreamSegmentOffset());
-            }
-            ReadResultEntryContents content = entry.getContent().getNow(null);
-            expectedOffset += content.getLength();
-            totalSize += content.getLength();
+    /**
+     * Handles a readResult. 
+     * If there are cached entries that can be returned without blocking only these are returned.
+     * Otherwise the call will request the data and setup a callback to return the data when it is available. 
+     */
+    private void handleReadResult(ReadSegment request, ReadResult result) {
+        String segment = request.getSegment();
+        ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
+        ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
+        
+        boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
+        boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
+
+        if (!cachedEntries.isEmpty()) {
+            ByteBuffer data = copyData(cachedEntries);
+            SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
+            connection.send(reply);
+        } else {
+            Preconditions.checkState(nonCachedEntry != null,"No ReadResultEntries returned from read!?");
+            nonCachedEntry.requestContent(TIMEOUT);
+            nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
+                ByteBuffer data = copyData(Collections.singletonList(contents));
+                SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), atTail, endOfSegment, data);
+                connection.send(reply);
+                return null;
+            }).exceptionally((Throwable e) -> {
+                handleException(segment, "Read segment", e);
+                return null;
+            });
         }
-        // Copy Data
+    }
+
+    /**
+     * Reads all of the cachedEntries from the ReadResult and puts their content into the cachedEntries list.
+     * Upon encountering a non-cached entry, it stops iterating and returns it.
+     */
+    private ReadResultEntry collectCachedEntries(long initailOffset, ReadResult readResult,
+            ArrayList<ReadResultEntryContents> cachedEntries) {
+        long expectedOffset = initailOffset;
+        while (readResult.hasNext()) {
+            ReadResultEntry entry = readResult.next();
+            if (entry.getType() == Cache) {
+                Preconditions.checkState(entry.getStreamSegmentOffset() == expectedOffset,
+                                         "Data returned from read was not contigious.");
+                ReadResultEntryContents content = entry.getContent().getNow(null);
+                expectedOffset += content.getLength();
+                cachedEntries.add(content);
+            } else {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Copy all of the contents provided into a byteBuffer and return it.
+     */
+    private ByteBuffer copyData(List<ReadResultEntryContents> contents) {
+        int totalSize = contents.stream().mapToInt(ReadResultEntryContents::getLength).sum();
         ByteBuffer data = ByteBuffer.allocate(totalSize);
         int bytesCopied = 0;
-        for (ReadResultEntry entry : entries) {
-            ReadResultEntryContents content = entry.getContent().getNow(null);
-            int copied;
+        for (ReadResultEntryContents content : contents) {
             try {
-                copied = content.getData().read(data.array(), bytesCopied, totalSize - bytesCopied);
+                int copied = content.getData().read(data.array(), bytesCopied, totalSize - bytesCopied);
+                Preconditions.checkState(copied == content.getLength());
+                bytesCopied += copied;
             } catch (IOException e) {
+                //Not possible
                 throw new RuntimeException(e);
             }
-            if (copied != content.getLength()) {
-                throw new IllegalStateException("Bug in InputStream.read!?!");
-            }
-            bytesCopied += copied;
         }
-        return new SegmentRead(segment, initailOffset, atTail, endOfSegment, data);
-
+        return data;
     }
 
     @Override
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamSegmentInfo) {
         String segmentName = getStreamSegmentInfo.getSegmentName();
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(segmentName, TIMEOUT);
-        future.handle(new BiFunction<SegmentProperties, Throwable, Void>() {
-            @Override
-            public Void apply(SegmentProperties properties, Throwable u) {
-                try {
-                    if (properties != null) {
-                        StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
-                                true,
-                                properties.isSealed(),
-                                properties.isDeleted(),
-                                properties.getLastModified().getTime(),
-                                properties.getLength());
-                        connection.send(result);
-                    } else {
-                        connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
-                    }
-                } catch (Throwable e) {
-                    handleException(segmentName, "Get segment info", e);
-                }
-                return null;
+        future.thenApply(properties -> {
+            if (properties != null) {
+                StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
+                        true,
+                        properties.isSealed(),
+                        properties.isDeleted(),
+                        properties.getLastModified().getTime(),
+                        properties.getLength());
+                connection.send(result);
+            } else {
+                connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
             }
+            return null;
+        }).exceptionally((Throwable e) -> {
+            handleException(segmentName, "Get segment info", e);
+            return null;
         });
     }
 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         CompletableFuture<Void> future = segmentStore.createStreamSegment(createStreamsSegment.getSegment(), TIMEOUT);
-        future.handle(new BiFunction<Void, Throwable, Void>() {
-            @Override
-            public Void apply(Void t, Throwable u) {
-                try {
-                    if (u == null) {
-                        connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
-                    } else {
-                        handleException(createStreamsSegment.getSegment(), "Create segment", u);
-                    }
-                } catch (Throwable e) {
-                    handleException(createStreamsSegment.getSegment(), "Create segment", e);
-                }
-                return null;
-            }
+        future.thenApply((Void v) -> {
+            connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
+            return null;
+        }).exceptionally((Throwable e)-> {
+            handleException(createStreamsSegment.getSegment(), "Create segment", e);
+            return null;
         });
     }
 
