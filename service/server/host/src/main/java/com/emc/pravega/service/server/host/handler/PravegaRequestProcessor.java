@@ -105,7 +105,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             SegmentRead reply =  new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
         } else {
-            Preconditions.checkState(nonCachedEntry != null,"No ReadResultEntries returned from read!?");
+            Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
                 ByteBuffer data = copyData(Collections.singletonList(contents));
@@ -190,7 +190,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         future.thenApply((Void v) -> {
             connection.send(new SegmentCreated(createStreamsSegment.getSegment()));
             return null;
-        }).exceptionally((Throwable e)-> {
+        }).exceptionally((Throwable e) -> {
             handleException(createStreamsSegment.getSegment(), "Create segment", e);
             return null;
         });

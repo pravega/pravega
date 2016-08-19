@@ -46,7 +46,6 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.ReusableLatch;
-import com.google.common.base.Preconditions;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
