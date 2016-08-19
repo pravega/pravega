@@ -9,8 +9,15 @@
 
 // Apply the java plugin to add support for Java
 
-plugins {
-    id "org.jruyi.thrift" version "0.3.1"
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "gradle.plugin.org.jruyi.gradle:thrift-gradle-plugin:0.3.1"
+    }
 }
 
 allprojects {
@@ -129,12 +136,6 @@ project('service:server:host') {
     }
 }
 
-project('controller') {
-    dependencies {
-        testCompile project(':testcommon')
-    }
-}
-
 project('integrationtests') {
     dependencies {
         compile project(':common')
@@ -194,47 +195,53 @@ project('benchmark') {
     }
 }
 
-project('controller:api') {
+project('controller') {
+    dependencies {
+        testCompile project(':testcommon')
+    }
+}
+
+project('controller:contract') {
+
+    apply plugin: "org.jruyi.thrift"
+
     compileThrift {
         recurse true
         sourceDir "$projectDir/src/main/thrift"
-        outputDir  "$projectDir/src/generated"
+        outputDir "$projectDir/src/generated"
         generator 'java', 'private-members', 'hashcode'
+    }
+
+    sourceSets {
+        main.java.srcDirs += "$projectDir/src/generated/gen-java"
     }
 
     tasks.compileJava.dependsOn(compileThrift)
 
-    sourceSets {
-        generated.java.srcDirs += "$projectDir/src/generated/gen-java"
-    }
-
     checkstyle {
         // Exclude generated code from Checkstyle checks
-        sourceSets -= sourceSets.generated
+        sourceSets -= sourceSets.main
     }
 
     dependencies {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
+        compile project(":clients:streaming") //TODO: All the model components used should be moved to seperate library.
     }
 }
 
 project('controller:client') {
-    apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.client.Client"
-    //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
-
     dependencies {
-        compile project(":controller:api")
+        compile project(":controller:contract")
     }
 }
 
 project('controller:server') {
     apply plugin: 'application'
-    mainClassName = "com.emc.pravega.controller.server.Server"
+    mainClassName = "com.emc.pravega.controller.server.Main"
     //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
 
     dependencies {
-        compile project(":controller:api")
+        compile project(":controller:contract")
     }
 }
