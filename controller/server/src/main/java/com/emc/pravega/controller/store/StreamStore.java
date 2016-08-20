@@ -25,7 +25,6 @@ import java.util.Map;
 /**
  * In-memory stream store.
  */
-@Data
 public class StreamStore {
 
     Map<String, SegmentStore> streams = new HashMap<>();

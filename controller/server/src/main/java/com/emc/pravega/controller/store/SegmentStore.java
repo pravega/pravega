@@ -61,7 +61,7 @@ public class SegmentStore {
         int number = segments.size();
         predecessors.stream().forEach(x -> Preconditions.checkArgument(0 <= x && x <= number - 1));
         Segment segment = new Segment(number, start, Long.MAX_VALUE, keyStart, keyEnd, predecessors, null);
-        currentSegments.add(segment.number);
+        currentSegments.add(segment.getNumber());
         segments.add(segment);
     }
 
@@ -71,10 +71,10 @@ public class SegmentStore {
      */
     public void addActiveSegment(Segment segment) {
         Preconditions.checkNotNull(segment);
-        Preconditions.checkState(segment.end == Long.MAX_VALUE);
-        segment.number = segments.size();
-        segment.successors = null;
-        currentSegments.add(segment.number);
+        Preconditions.checkState(segment.getEnd() == Long.MAX_VALUE);
+        segment.setNumber(segments.size());
+        segment.setSuccessors(null);
+        currentSegments.add(segment.getNumber());
         segments.add(segment);
     }
 
@@ -96,14 +96,14 @@ public class SegmentStore {
         List<Integer> currentSegments = new ArrayList<>();
         Map<Integer, Integer> futureSegments = new HashMap<>();
         int i = 0;
-        while (i < segments.size() && timestamp >= segments.get(i).start) {
-            if (segments.get(i).end >= timestamp) {
+        while (i < segments.size() && timestamp >= segments.get(i).getStart()) {
+            if (segments.get(i).getEnd() >= timestamp) {
                 Segment segment = segments.get(i);
-                List<Integer> futures = segment.successors.stream()
-                        .filter(x -> segments.get(x).predecessors.size() == 1)
+                List<Integer> futures = segment.getSuccessors().stream()
+                        .filter(x -> segments.get(x).getPredecessors().size() == 1)
                         .collect(Collectors.toList());
-                currentSegments.add(segment.number);
-                futures.forEach(x -> futureSegments.put(x, segment.number));
+                currentSegments.add(segment.getNumber());
+                futures.forEach(x -> futureSegments.put(x, segment.getNumber()));
             }
             i++;
         }

@@ -21,10 +21,12 @@ package com.emc.pravega.controller.store;
  * In-memory representation of a stream segment.
  */
 import lombok.Data;
+import lombok.ToString;
 
 import java.util.List;
 
 @Data
+@ToString(includeFieldNames=true)
 public class Segment {
 
     enum Status {
@@ -33,14 +35,14 @@ public class Segment {
         Sealed,
     }
 
-    int number;
-    long start;
-    long end;
-    double keyStart;
-    double keyEnd;
-    Status status;
-    List<Integer> successors;
-    List<Integer> predecessors;
+    private int number;
+    private long start;
+    private long end;
+    private double keyStart;
+    private double keyEnd;
+    private Status status;
+    private List<Integer> successors;
+    private List<Integer> predecessors;
 
     public Segment(int number, long start, long end, double keyStart, double keyEnd) {
         this.number = number;
@@ -58,9 +60,5 @@ public class Segment {
         this.keyEnd = keyEnd;
         this.successors = successors;
         this.predecessors = predecessors;
-    }
-
-    public String toString() {
-        return String.format("[number=%d, end=%d, start=%d]", this.number, this.end, this.start);
     }
 }
