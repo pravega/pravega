@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 /**
  * In-memory segment store of a stream
  */
-public class SegmentStore {
+public class SegmentStore implements SegmentMetadataStore {
     /**
      * Stores all segments in the stream, ordered by number, which implies that
      * these segments are also ordered in the increaing order of their start times.
@@ -57,30 +57,35 @@ public class SegmentStore {
      * Adds a new active segment to the store, with smallest number higher than that of existing segments.
      * End time is assumed to be Max_Value, and successors null, since it is an active segment.
      */
-    public void addActiveSegment(long start, double keyStart, double keyEnd, List<Integer> predecessors) {
+    @Override
+    public Segment addActiveSegment(long start, double keyStart, double keyEnd, List<Integer> predecessors) {
         int number = segments.size();
         predecessors.stream().forEach(x -> Preconditions.checkArgument(0 <= x && x <= number - 1));
         Segment segment = new Segment(number, start, Long.MAX_VALUE, keyStart, keyEnd, predecessors, null);
         currentSegments.add(segment.getNumber());
         segments.add(segment);
+        return segment;
     }
 
     /**
      * Adds a new active segment to the store, with smallest number higher than that of existing segments.
      * End time is assumed to be Max_Value, and successors null, since it is an active segment.
      */
-    public void addActiveSegment(Segment segment) {
+    @Override
+    public Segment addActiveSegment(Segment segment) {
         Preconditions.checkNotNull(segment);
         Preconditions.checkState(segment.getEnd() == Long.MAX_VALUE);
         segment.setNumber(segments.size());
         segment.setSuccessors(null);
         currentSegments.add(segment.getNumber());
         segments.add(segment);
+        return segment;
     }
 
     /**
      * @return the list of currently active segments
      */
+    @Override
     public SegmentFutures getActiveSegments() {
         return new SegmentFutures(Collections.unmodifiableList(currentSegments), null);
     }
@@ -92,6 +97,7 @@ public class SegmentStore {
      * using augmented interval tree or segment index.
      * TODO: maintain a augmented interval tree or segment tree index
      */
+    @Override
     public SegmentFutures getActiveSegments(long timestamp) {
         List<Integer> currentSegments = new ArrayList<>();
         Map<Integer, Integer> futureSegments = new HashMap<>();
@@ -115,13 +121,15 @@ public class SegmentStore {
      * @param positions current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    public List<SegmentFutures> getNextPositions(List<Integer> completedSegments, List<SegmentFutures> positions) {
+    @Override
+    public List<SegmentFutures> getNextSegments(List<Integer> completedSegments, List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
         throw new UnsupportedOperationException("Not implemented, yet");
     }
 
-    public void scale(List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
+    @Override
+    public List<Segment> scale(List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(newSegments);
         Preconditions.checkArgument(sealedSegments.size() > 0);

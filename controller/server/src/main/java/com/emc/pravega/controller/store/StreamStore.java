@@ -17,15 +17,13 @@
  */
 package com.emc.pravega.controller.store;
 
-import lombok.Data;
-
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * In-memory stream store.
  */
-public class StreamStore {
+public class StreamStore implements StreamMetadataStore {
 
     Map<String, SegmentStore> streams = new HashMap<>();
 
@@ -34,10 +32,7 @@ public class StreamStore {
         // TODO initialize from persistent store, create collections of appropriate size
     }
 
-    public SegmentStore getSegmentStore(String stream) {
-        return streams.get(stream);
-    }
-
+    @Override
     public void addStream(String stream) {
         streams.put(stream, new SegmentStore());
     }
@@ -45,4 +40,10 @@ public class StreamStore {
     public void addStream(String stream, SegmentStore segments) {
         streams.put(stream, segments);
     }
+
+    @Override
+    public SegmentMetadataStore getSegmentMetadata(String stream) {
+        return streams.get(stream);
+    }
+
 }
