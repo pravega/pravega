@@ -5,7 +5,7 @@ package com.emc.pravega.controller.store;
  */
 public interface StreamMetadataStore {
 
-    void addStream(String stream);
+    boolean addStream(Stream stream);
 
-    SegmentMetadataStore getSegmentMetadata(String stream);
+    Stream getStream(String name);
 }

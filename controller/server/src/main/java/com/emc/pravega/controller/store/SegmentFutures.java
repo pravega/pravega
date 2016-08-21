@@ -22,8 +22,8 @@ import java.util.Map;
 
 /**
  * List of segments from where a consumer can start reading, or a producer can start producing to.
- * For each segment, SegmentFutures also lists all the segments that can be read from or produced to after
- * that segment is completely read, or sealed, respectively.
+ * For each segment, SegmentFutures also lists all the segments that can be read from (produced to) after
+ * that segment is completely read (sealed).
  */
 public class SegmentFutures {
     // current segments to read from or write to

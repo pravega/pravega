@@ -25,7 +25,7 @@ import java.util.Map;
  */
 public class StreamStore implements StreamMetadataStore {
 
-    Map<String, SegmentStore> streams = new HashMap<>();
+    Map<String, Stream> streams = new HashMap<>();
 
     public void initialize() {
         streams = new HashMap<>();
@@ -33,17 +33,18 @@ public class StreamStore implements StreamMetadataStore {
     }
 
     @Override
-    public void addStream(String stream) {
-        streams.put(stream, new SegmentStore());
-    }
-
-    public void addStream(String stream, SegmentStore segments) {
-        streams.put(stream, segments);
+    public boolean addStream(Stream stream) {
+        String name = stream.getName();
+        if (! streams.containsKey(name)) {
+            streams.put(name, stream);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
-    public SegmentMetadataStore getSegmentMetadata(String stream) {
+    public Stream getStream(String stream) {
         return streams.get(stream);
     }
-
 }
