@@ -26,7 +26,7 @@ import lombok.ToString;
 import java.util.List;
 
 @Data
-@ToString(includeFieldNames=true)
+@ToString(includeFieldNames = true)
 public class Segment {
 
     enum Status {

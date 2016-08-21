@@ -35,13 +35,19 @@ public class SegmentStore implements SegmentMetadataStore {
      * these segments are also ordered in the increaing order of their start times.
      * Segment number is the index of that segment in this list.
      */
-    List<Segment> segments;
+    private List<Segment> segments;
 
     /**
      * Stores segment numbers of currently active segments in the stream.
      * It enables efficient access to current segments by producers and tailing consumers.
      */
-    List<Integer> currentSegments;
+    private List<Integer> currentSegments;
+
+    private String stream;
+
+    SegmentStore(String stream) {
+        this.stream = stream;
+    }
 
     public void initialize() {
         // TODO: initialize from persistent store, create arrays of appropriate size
@@ -49,8 +55,14 @@ public class SegmentStore implements SegmentMetadataStore {
         segments = new ArrayList<>();
     }
 
+    @Override
     public Segment getSegment(int number) {
         return segments.get(number);
+    }
+
+    @Override
+    public String getStream() {
+        return this.stream;
     }
 
     /**

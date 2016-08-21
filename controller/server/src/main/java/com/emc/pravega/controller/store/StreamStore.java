@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.store;
 
+import com.emc.pravega.stream.StreamConfiguration;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,23 +30,34 @@ public class StreamStore implements StreamMetadataStore {
     Map<String, Stream> streams = new HashMap<>();
 
     public void initialize() {
-        streams = new HashMap<>();
         // TODO initialize from persistent store, create collections of appropriate size
+        streams = new HashMap<>();
     }
 
     @Override
-    public boolean addStream(Stream stream) {
-        String name = stream.getName();
-        if (! streams.containsKey(name)) {
+    public Stream createStream(String name, StreamConfiguration configuration) {
+        if (!streams.containsKey(name)) {
+            Stream stream = new Stream(name, configuration, new SegmentStore(name));
             streams.put(name, stream);
-            return true;
+            return stream;
         } else {
-            return false;
+            throw new StreamAlreadyExistsException(name);
         }
     }
 
     @Override
-    public Stream getStream(String stream) {
-        return streams.get(stream);
+    public boolean updateStream(String name, StreamConfiguration configuration) {
+        if (streams.containsKey(name)) {
+            Stream stream = streams.get(name);
+            stream.setConfiguration(configuration);
+            return true;
+        } else {
+            throw new StreamNotFoundException(name);
+        }
+    }
+
+    @Override
+    public Stream getStream(String name) {
+        return streams.get(name);
     }
 }
