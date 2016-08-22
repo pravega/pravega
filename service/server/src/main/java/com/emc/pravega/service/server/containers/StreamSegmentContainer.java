@@ -92,11 +92,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param cacheFactory             The CacheFactory to use to create Caches.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    public StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
+    StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
+        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
@@ -105,7 +106,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.cache = cacheFactory.getCache(String.format("Container_%d", streamSegmentContainerId));
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.cache);
         this.executor = executor;
-        this.durableLog = durableLogFactory.createDurableLog(metadata, new CacheUpdater(this.cache, this.readIndex));
+        this.durableLog = durableLogFactory.createDurableLog(this.metadata, new CacheUpdater(this.cache, this.readIndex));
         this.durableLog.addListener(new ServiceShutdownListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, executor);
