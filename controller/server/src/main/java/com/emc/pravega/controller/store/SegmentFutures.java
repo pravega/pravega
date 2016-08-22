@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.store;
 
+import lombok.Data;
+
 import java.util.List;
 import java.util.Map;
 
@@ -25,12 +27,13 @@ import java.util.Map;
  * For each segment, SegmentFutures also lists all the segments that can be read from (produced to) after
  * that segment is completely read (sealed).
  */
+@Data
 public class SegmentFutures {
     // current segments to read from or write to
-    public List<Integer> current;
+    private List<Integer> current;
 
     // future segments to read from or write to when curent segment is completely read (consumer) or sealed (producer)
-    public Map<Integer, Integer> futures;
+    private Map<Integer, Integer> futures;
 
     SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
         this.current = current;
