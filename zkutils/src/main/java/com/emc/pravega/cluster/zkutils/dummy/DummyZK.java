@@ -19,6 +19,7 @@
 package com.emc.pravega.cluster.zkutils.dummy;
 
 
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
 
 import java.util.HashMap;
@@ -29,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
   * Created by kandha on 8/8/16.
   */
 public class DummyZK implements ConfigSyncManager {
+    private final ConfigChangeListener listener;
     /**
      * Place in the configuration manager where the data about live nodes is stored.
      *
@@ -38,20 +40,19 @@ public class DummyZK implements ConfigSyncManager {
 
     ConcurrentHashMap<String,byte[]> valueMap;
 
-    public DummyZK(String connectString, int sessionTimeout) {
+    public DummyZK(String connectString, int sessionTimeout, ConfigChangeListener listener) {
         valueMap = new ConcurrentHashMap<>();
+        this.listener = listener;
     }
 
     /**
      * Sample configuration/synchronization methods. Will add more as implementation progresses
-     *
-     * @param path
+     *  @param path
      * @param value
      */
     @Override
-    public String createEntry(String path, byte[] value) {
+    public void createEntry(String path, byte[] value) {
         valueMap.put(path,value);
-        return path;
     }
 
     @Override
@@ -73,7 +74,7 @@ public class DummyZK implements ConfigSyncManager {
         jsonMap.put ("metadata", jsonMetadata);
 
         createEntry(nodeInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
-
+        listener.nodeAddedNotification(host,port);
 
     }
 
@@ -85,6 +86,19 @@ public class DummyZK implements ConfigSyncManager {
         jsonMap.put ("metadata", jsonMetadata);
 
         createEntry(controllerInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
+        listener.controllerAddedNotification(host,port);
+    }
+
+    @Override
+    public void deregisterPravegaController(String host, int port) {
+        this.deleteEntry(controllerInfoRoot + "/" + host + ":" + port);
+        listener.controllerRemovedNotification(host, port);
+    }
+
+    @Override
+    public void deregisterPravegaNode(String host, int port) {
+        this.deleteEntry(nodeInfoRoot + "/" + host + ":" + port);
+        listener.nodeRemovedNotification(host, port);
     }
 
     String jsonEncode(Object obj ) {

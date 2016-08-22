@@ -22,11 +22,9 @@ import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerCreator;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * This class represents a pravega cluster.
@@ -36,20 +34,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * An Endpoint class represents a server IP and port on which either the
  * pravega node Or the controller listens
  */
-final class Cluster implements ConfigChangeListener {
+@Slf4j
+public final class Cluster implements ConfigChangeListener {
     private ConcurrentHashMap<Endpoint,PravegaNode> nodes;
     private ConcurrentHashMap<Endpoint,PravegaController> controllers;
-    private List<ClusterListener> listeners;
+    private ConcurrentHashMap<String, ClusterListener> listeners;
     private ConfigSyncManager manager;
 
     public Cluster() {
         nodes        = new ConcurrentHashMap<>();
         controllers  = new ConcurrentHashMap<>();
-        listeners    = new CopyOnWriteArrayList<ClusterListener>();
+        listeners    = new ConcurrentHashMap<>();
         manager      = null;
     }
 
-    public Cluster(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws IOException {
+    public Cluster(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws Exception {
         this();
         initializeCluster(syncType,connectionString,sessionTimeout);
 
@@ -73,15 +72,26 @@ final class Cluster implements ConfigChangeListener {
     }
 
     /**
-     * Initializes the cluster with a given type
+     * Returns list of listeners available with the cluster class right now.
+     * @return
+     */
+    public Iterable<ClusterListener> getListeners() {
+        log.warn("Returning listeners size = "+ listeners.size());
+        return listeners.values();
+    }
+
+    /**
+     * Initializes the cluster with a given config manager type
      * @param syncType               Type of the config manager
      * @param connectionString       String used to connect to the config manager
      * @param sessionTimeout         Session timeout for the connection
      */
-    public void  initializeCluster(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws IOException {
+    public void  initializeCluster(ConfigSyncManagerType syncType, String connectionString,
+                                   int sessionTimeout) throws Exception {
         synchronized(this) {
             if(manager == null)
-                manager = new ConfigSyncManagerCreator().createManager(syncType, connectionString, sessionTimeout);
+                manager = new ConfigSyncManagerCreator().createManager(syncType, connectionString,
+                        sessionTimeout, this);
             refreshCluster();
         }
     }
@@ -89,7 +99,7 @@ final class Cluster implements ConfigChangeListener {
     /**
      * Reads the complete cluster from the store and updates the existing data
      **/
-    public void refreshCluster() {
+    public void refreshCluster() throws Exception {
         nodes.clear();
         controllers.clear();
         manager.refreshCluster();
@@ -105,7 +115,7 @@ final class Cluster implements ConfigChangeListener {
     private void addNode(PravegaNode node, Endpoint endpoint) {
         nodes.put(endpoint, node);
         listeners.forEach(
-                (listener)->
+                (name, listener)->
                 {
                     listener.nodeAdded(node);
                 });
@@ -120,7 +130,7 @@ final class Cluster implements ConfigChangeListener {
     private void addController(PravegaController controller, Endpoint endpoint) {
         controllers.put(endpoint, controller);
         listeners.forEach(
-                (listener)->
+                (name, listener)->
                 {
                     listener.controllerAdded(controller);
                 });
@@ -134,7 +144,7 @@ final class Cluster implements ConfigChangeListener {
     private void removeController(Endpoint endpoint) {
         PravegaController controller = controllers.remove(endpoint);
         listeners.forEach(
-                (listener)->
+                (name, listener)->
                 {
                     listener.controllerRemoved(controller);
                 });
@@ -147,7 +157,7 @@ final class Cluster implements ConfigChangeListener {
     private void removeNode(Endpoint endpoint) {
         PravegaNode node = nodes.remove(endpoint);
         listeners.forEach(
-                (listener)->
+                (name, listener)->
                 {
                     listener.nodeRemoved(node);
                 });
@@ -159,8 +169,36 @@ final class Cluster implements ConfigChangeListener {
      * @param port
      * @param jsonMetadata
      */
-    public void registerPravegaNode(String host,int port, String jsonMetadata) {
+    public void registerPravegaNode(String host,int port, String jsonMetadata) throws Exception {
         manager.registerPravegaNode(host,port,jsonMetadata);
+    }
+
+    /**
+     * Registers the current pravega controller with a specific hostname and port with the config store
+     * @param host
+     * @param port
+     * @param jsonMetadata
+     */
+    public void registerPravegaController(String host,int port, String jsonMetadata) throws Exception {
+        manager.registerPravegaController(host,port,jsonMetadata);
+    }
+
+    /**
+     * Unregisters the current pravega controller with a specific hostname and port with the config store
+     * @param host
+     * @param port
+     */
+    public void deregisterPravegaController(String host,int port) throws Exception {
+        manager.deregisterPravegaController(host,port);
+    }
+
+    /**
+     * Unregisters the current pravega node with a specific hostname and port with the config store
+     * @param host
+     * @param port
+     */
+    public void deregisterPravegaNode(String host,int port) {
+        manager.deregisterPravegaNode(host,port);
     }
 
     /**
@@ -168,8 +206,8 @@ final class Cluster implements ConfigChangeListener {
      * Registers a new listener
      * @param clusterListener
      */
-    public synchronized void registerListener(ClusterListener clusterListener) {
-        if(listeners.contains(clusterListener)==false) listeners.add(clusterListener);
+    public synchronized void registerListener(String name, ClusterListener clusterListener) {
+        listeners.put(name,clusterListener);
     }
 
     /**

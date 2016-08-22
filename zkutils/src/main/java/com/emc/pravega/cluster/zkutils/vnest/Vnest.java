@@ -19,26 +19,25 @@
 
 package com.emc.pravega.cluster.zkutils.vnest;
 
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
 
 /**
   * Created by kandha on 8/8/16.
   */
 public class Vnest implements ConfigSyncManager {
-    public Vnest(String connectString, int sessionTimeout) {
+    public Vnest(String connectString, int sessionTimeout, ConfigChangeListener listener) {
 
     }
 
 
     /**
      * Sample configuration/synchronization methods. Will add more as implementation progresses
-     *
-     * @param path
+     *  @param path
      * @param value
      */
     @Override
-    public String createEntry(String path, byte[] value) {
-        return null;
+    public void createEntry(String path, byte[] value) {
     }
 
     @Override
@@ -58,6 +57,16 @@ public class Vnest implements ConfigSyncManager {
 
     @Override
     public void registerPravegaController(String host, int port, String jsonMetadata) {
+
+    }
+
+    @Override
+    public void deregisterPravegaController(String host, int port) {
+
+    }
+
+    @Override
+    public void deregisterPravegaNode(String host, int port) {
 
     }
 }

@@ -30,12 +30,12 @@ public interface ConfigSyncManager {
   /**
     * Sample configuration/synchronization methods. Will add more as implementation progresses
     **/
-  String  createEntry(String path, byte[] value);
-  void deleteEntry(String path);
-  void  refreshCluster();
-  void registerPravegaNode(String host, int port, String jsonMetadata);
-  void registerPravegaController(String host, int port, String jsonMetadata);
-
-
+  void createEntry(String path, byte[] value) throws Exception;
+  void deleteEntry(String path) throws Exception;
+  void  refreshCluster() throws Exception;
+  void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception;
+  void registerPravegaController(String host, int port, String jsonMetadata) throws Exception;
+  void deregisterPravegaController(String host, int port) throws Exception;
+  void deregisterPravegaNode(String host, int port);
 }
 

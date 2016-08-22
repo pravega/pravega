@@ -44,6 +44,11 @@ public final class Endpoint{
       return (hostName+":"+port).hashCode();
   }
 
+  @Override
+  public boolean equals(Object ep) {
+      return toString().equals(ep.toString());
+  }
+
 
   /**
     * Get a custom string representation

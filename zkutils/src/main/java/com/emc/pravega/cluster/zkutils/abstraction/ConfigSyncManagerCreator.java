@@ -7,14 +7,19 @@ import com.emc.pravega.cluster.zkutils.zkimplementation.ZookeeperClient;
 import java.io.IOException;
 
 public final class ConfigSyncManagerCreator {
-    public ConfigSyncManager createManager(ConfigSyncManagerType type, String connectionString, int timeout) throws IOException {
+    public ConfigSyncManager createManager(ConfigSyncManagerType type, String connectionString, int timeout,
+                                           ConfigChangeListener listener) throws IOException {
         switch(type) {
             case DUMMY:
-                return new DummyZK(connectionString, timeout);
+                return new DummyZK(connectionString, timeout, listener);
             case ZK:
-                return new ZookeeperClient(connectionString,timeout);
+                try {
+                    return new ZookeeperClient(connectionString,timeout, listener);
+                } catch (Exception e) {
+                    return null;
+                }
             case VNEST:
-                return new Vnest(connectionString,timeout);
+                return new Vnest(connectionString,timeout, listener);
 
         }
         return null;
