@@ -507,7 +507,7 @@ public class ContainerReadIndexTests {
             segmentIds.forEach(appendOneEntry);
 
             // Each time we make a round of appends (one per segment), we increment the generation in the CacheManager.
-            context.cacheManager.runOneIteration();
+            context.cacheManager.applyCachePolicy();
         }
 
         // Read all the data from Storage, making sure we carefully associate them with the proper generation.
@@ -524,7 +524,7 @@ public class ContainerReadIndexTests {
                 Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex Cache.", appendSize, contents.getLength());
             }
 
-            context.cacheManager.runOneIteration();
+            context.cacheManager.applyCachePolicy();
         }
 
         Assert.assertEquals("Not expecting any removed Cache entries at this point (cache is not full).", 0, removedKeys.size());
@@ -532,7 +532,7 @@ public class ContainerReadIndexTests {
         // Append more data (equivalent to all post-storage entries), and verify that NO entries are being evicted (we cannot evict post-storage entries).
         for (int i = 0; i < postStorageEntryCount; i++) {
             segmentIds.forEach(appendOneEntry);
-            context.cacheManager.runOneIteration();
+            context.cacheManager.applyCachePolicy();
         }
 
         Assert.assertEquals("Not expecting any removed Cache entries at this point (only eligible entries were post-storage).", 0, removedKeys.size());
@@ -552,13 +552,13 @@ public class ContainerReadIndexTests {
         // Append more data (equivalent to the amount of data we 'touched'), and verify that the entries we just touched are not being removed..
         for (int i = 0; i < touchCount; i++) {
             segmentIds.forEach(appendOneEntry);
-            context.cacheManager.runOneIteration();
+            context.cacheManager.applyCachePolicy();
         }
 
         Assert.assertEquals("Not expecting any removed Cache entries at this point (we touched old entries and they now have the newest generation).", 0, removedKeys.size());
 
         // Increment the generations so that we are caught up to just before the generation where the "touched" items now live.
-        context.cacheManager.runOneIteration();
+        context.cacheManager.applyCachePolicy();
 
         // We expect all but the 'touchCount' pre-Storage entries to be removed.
         int expectedRemovalCount = (preStorageEntryCount - touchCount) * SEGMENT_COUNT;
@@ -580,7 +580,7 @@ public class ContainerReadIndexTests {
             @Cleanup
             ReadResult result = context.readIndex.read(readSegment.getId(), readSegment.getDurableLogLength() - appendSize, appendSize, TIMEOUT);
             result.next();
-            context.cacheManager.runOneIteration();
+            context.cacheManager.applyCachePolicy();
         }
 
         int expectedRemovalCountPerSegment = entriesPerSegment + touchCount + postStorageEntryCount;

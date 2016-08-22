@@ -88,7 +88,7 @@ public class CacheManagerTests {
                         }));
             }
 
-            cm.runOneIteration();
+            cm.applyCachePolicy();
 
             if (activityInCycle) {
                 Assert.assertEquals("CacheManager did not update all Clients with generation information when activity did happen during the cycle.", clients.size(), updatedClients.size());
@@ -119,7 +119,7 @@ public class CacheManagerTests {
         for (int cycleId = 0; cycleId < cycleCount * 3; cycleId++) {
             client.setCacheStatus(1, 0, currentGeneration.get());
             client.setUpdateGenerationsImpl((current, oldest) -> -1L);
-            cm.runOneIteration();
+            cm.applyCachePolicy();
             currentGeneration.incrementAndGet();
         }
 
@@ -152,7 +152,7 @@ public class CacheManagerTests {
                 });
             }
 
-            cm.runOneIteration();
+            cm.applyCachePolicy();
 
             // Verify how many times updateGenerations was invoked.
             int expectedCallCount = 0;
@@ -188,7 +188,7 @@ public class CacheManagerTests {
         client.setUpdateGenerationsImpl((current, oldest) -> {
             throw new ObjectClosedException(this);
         });
-        cm.runOneIteration();
+        cm.applyCachePolicy();
 
         // Now do the actual verification.
         client.setCacheStatus(1, 0, 1);
@@ -196,7 +196,7 @@ public class CacheManagerTests {
             Assert.fail("Client was not unregistered after throwing ObjectClosedException.");
             return -1L;
         });
-        cm.runOneIteration();
+        cm.applyCachePolicy();
     }
 
     private static class TestClient implements CacheManager.Client {

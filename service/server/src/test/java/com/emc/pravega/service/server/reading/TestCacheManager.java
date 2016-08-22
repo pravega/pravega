@@ -21,7 +21,7 @@ package com.emc.pravega.service.server.reading;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Exposes the runOneIteration method in the CacheManager.
+ * Exposes the applyCachePolicy method in the CacheManager.
  */
 class TestCacheManager extends CacheManager {
     TestCacheManager(CachePolicy policy) {
@@ -33,7 +33,7 @@ class TestCacheManager extends CacheManager {
     }
 
     @Override
-    public void runOneIteration() {
-        super.runOneIteration();
+    public void applyCachePolicy() {
+        super.applyCachePolicy();
     }
 }

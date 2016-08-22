@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
@@ -105,34 +106,17 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     protected void runOneIteration() {
         Exceptions.checkNotClosed(this.closed, this);
 
-        // Run through all the active clients and gather status.
-        CacheStatus currentStatus = collectStatus();
-        if (currentStatus == null) {
-            // This indicates we have no clients.
-            return;
-        }
-
-        // Increment current generation (if needed).
-        boolean currentChanged = adjustCurrentGeneration(currentStatus);
-
-        // Increment oldest generation (if needed and if possible).
-        boolean oldestChanged = adjustOldestGeneration(currentStatus);
-
-        if (!currentChanged && !oldestChanged) {
-            // Nothing changed, nothing to do.
-            return;
-        }
-
-        // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
-        // adjust the oldest anymore or we are unable to trigger any changes to the clients.
-        long sizeReduction;
-        do {
-            sizeReduction = updateClients();
-            if (sizeReduction > 0) {
-                currentStatus = currentStatus.withUpdatedSize(-sizeReduction);
-                oldestChanged = adjustOldestGeneration(currentStatus);
+        try {
+            applyCachePolicy();
+        } catch (Throwable ex) {
+            if (ExceptionHelpers.mustRethrow(ex)) {
+                throw ex;
             }
-        } while (sizeReduction > 0 && oldestChanged);
+
+            // Log the error and move on. If we don't catch the exception here, the AbstractScheduledService will
+            // auto-shutdown.
+            log.error("{}: Error {}.", TRACE_OBJECT_ID, ex);
+        }
     }
 
     @Override
@@ -182,6 +166,38 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     //region Helpers
 
+    protected void applyCachePolicy() {
+        // Run through all the active clients and gather status.
+        CacheStatus currentStatus = collectStatus();
+        if (currentStatus == null) {
+            // This indicates we have no clients.
+            return;
+        }
+
+        // Increment current generation (if needed).
+        boolean currentChanged = adjustCurrentGeneration(currentStatus);
+
+        // Increment oldest generation (if needed and if possible).
+        boolean oldestChanged = adjustOldestGeneration(currentStatus);
+
+        if (!currentChanged && !oldestChanged) {
+            // Nothing changed, nothing to do.
+            return;
+        }
+
+        // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
+        // adjust the oldest anymore or we are unable to trigger any changes to the clients.
+        long sizeReduction;
+        do {
+            sizeReduction = updateClients();
+            if (sizeReduction > 0) {
+                currentStatus = currentStatus.withUpdatedSize(-sizeReduction);
+                logCurrentStatus(currentStatus);
+                oldestChanged = adjustOldestGeneration(currentStatus);
+            }
+        } while (sizeReduction > 0 && oldestChanged);
+    }
+
     private CacheStatus collectStatus() {
         int minGeneration = this.currentGeneration;
         int maxGeneration = 0;
@@ -224,7 +240,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 // This object was closed but it was not unregistered. Do it now.
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 unregister(c);
-                continue;
+            } catch (Throwable ex) {
+                if (ExceptionHelpers.mustRethrow(ex)) {
+                    throw ex;
+                }
+
+                log.warn("{} Unable to update client {}. {}", TRACE_OBJECT_ID, c, ex);
             }
         }
 
@@ -280,6 +301,15 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         synchronized (this.clients) {
             return new ArrayList<>(this.clients);
         }
+    }
+
+    private void logCurrentStatus(CacheStatus status) {
+        log.info("{} Current Generation = {}, Oldest Generation = {}, Clients = {},  CacheSize = {} MB",
+                TRACE_OBJECT_ID,
+                this.currentGeneration,
+                this.oldestGeneration,
+                this.clients.size(),
+                status.getSize() / 1048576);
     }
 
     //endregion
