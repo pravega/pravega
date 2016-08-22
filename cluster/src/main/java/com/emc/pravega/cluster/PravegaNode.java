@@ -23,7 +23,7 @@ package com.emc.pravega.cluster;
   */
 public final class PravegaNode {
     private Endpoint ep;
-    public PravegaNode (Endpoint  endpoint) {
+    public PravegaNode(Endpoint  endpoint) {
         this.ep = endpoint;
     }
 

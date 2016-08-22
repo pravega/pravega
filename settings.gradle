@@ -14,5 +14,5 @@
 
 include 'common', 'clients:streaming', 'service:contracts', 'service:storage',
         'service:storage:impl', 'service:server', 'service:server:host',
-        'integrationtests', 'testcommon', 'benchmark', 'cluster', 'zkutils'
+        'integrationtests', 'testcommon', 'perfbenchmark', 'cluster', 'zkutils'
 

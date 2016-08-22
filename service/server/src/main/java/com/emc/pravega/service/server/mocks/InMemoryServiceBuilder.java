@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.mocks;
 
+import com.emc.pravega.cluster.Cluster;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -54,4 +55,10 @@ public class InMemoryServiceBuilder extends ServiceBuilder {
     protected SegmentContainerManager createSegmentContainerManager() {
         return new LocalSegmentContainerManager(getSegmentContainerRegistry(), this.segmentToContainerMapper);
     }
+
+    @Override
+    protected Cluster createCluster() {
+        return new Cluster();
+    }
+
 }

@@ -126,6 +126,7 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
+        compile project(':cluster')
         testCompile project(':testcommon')
     }
 }
@@ -180,7 +181,8 @@ project('integrationtests') {
 }
 
 
-project('benchmark') {
+project('perfbenchmark') {
+    apply plugin: 'scala'
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')

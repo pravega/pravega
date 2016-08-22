@@ -11,7 +11,7 @@ import org.scalatest.junit.JUnitRunner
 @RunWith(classOf[JUnitRunner])
 class clustertest extends WordSpec {
   "A cluster" when {
-    "created with dummy manager" ignore {
+    "created with dummy manager" should {
       " after initializtion" should {
         val clust: Cluster = new Cluster()
         clust.initializeCluster(ConfigSyncManagerType.DUMMY, "dummy", 0)
@@ -103,7 +103,7 @@ class clustertest extends WordSpec {
 
       }
     }
-    "created with ZK manager" should {
+    "created with ZK manager" ignore {
       " after initializtion" ignore {
         val clust: Cluster = new Cluster()
         clust.initializeCluster(ConfigSyncManagerType.ZK, "zk1:2181", 15000)

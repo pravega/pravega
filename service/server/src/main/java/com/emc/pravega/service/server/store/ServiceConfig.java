@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.server.store;
 
-import java.util.Properties;
-
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
 import com.emc.pravega.common.util.MissingPropertyException;
+
+import java.util.Properties;
 
 /**
  * General Service Configuration.
@@ -34,9 +34,15 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_CONTAINER_COUNT = "containerCount";
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";
+    private static final java.lang.String PROPERTY_LISTENING_IP = "listeningIP";
+    private static final java.lang.String PROPERTY_ZK_TIMEOUT = "zkTimeout" ;
+    private static final java.lang.String PROPERTY_ZK_CONNECTSTRING = "zkConnectString";
     private int containerCount;
     private int threadPoolSize;
     private int listeningPort;
+    private String listeningIP;
+    private int zkClusterTimeout;
+    private String zkConnectString;
 
     //endregion
 
@@ -86,6 +92,30 @@ public class ServiceConfig extends ComponentConfig {
         return this.listeningPort;
     }
 
+    /**
+     * Gets the value indicating the IP address the service is listening to
+     * @return
+     */
+    public String getListeningIP() {
+        return this.listeningIP;
+    }
+
+    /**
+     * Returns the timeout config for ZK cluster
+     * @return
+     */
+    public int getZKClusterTimeout() {
+        return this.zkClusterTimeout;
+    }
+
+    /**
+     * Returns the connection string sent to Curator framework
+     * @return
+     */
+    public String getZKConnectString() {
+        return this.zkConnectString;
+    }
+
     //endregion
 
     //region ComponentConfig Implementation
@@ -95,7 +125,13 @@ public class ServiceConfig extends ComponentConfig {
         this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
         this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);
+        this.listeningIP   = getProperty(PROPERTY_LISTENING_IP);
+        this.zkClusterTimeout = getInt32Property(PROPERTY_ZK_TIMEOUT);
+        this.zkConnectString = getProperty(PROPERTY_ZK_CONNECTSTRING);
     }
+
+
+
 
     //endregion
 }

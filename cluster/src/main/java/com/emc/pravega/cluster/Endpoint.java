@@ -22,7 +22,7 @@ package com.emc.pravega.cluster;
   * Created by kandha on 8/4/16.
   * This class represents and access point for node and controllers
   */
-public final class Endpoint{
+public final class Endpoint {
     private String hostName;
     private int port;
 
@@ -41,7 +41,7 @@ public final class Endpoint{
     */
   @Override
   public int hashCode() {
-      return (hostName+":"+port).hashCode();
+      return (hostName + ":" + port).hashCode();
   }
 
   @Override
@@ -56,7 +56,7 @@ public final class Endpoint{
     */
   @Override
   public String toString() {
-    return   (hostName+":"+port);
+    return   hostName + ":" + port;
   }
 
 

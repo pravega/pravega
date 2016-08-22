@@ -18,14 +18,9 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.cluster.Cluster;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.server.MetadataRepository;
-import com.emc.pravega.service.server.OperationLogFactory;
-import com.emc.pravega.service.server.ReadIndexFactory;
-import com.emc.pravega.service.server.SegmentContainerFactory;
-import com.emc.pravega.service.server.SegmentContainerManager;
-import com.emc.pravega.service.server.SegmentContainerRegistry;
-import com.emc.pravega.service.server.SegmentToContainerMapper;
+import com.emc.pravega.service.server.*;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
@@ -59,6 +54,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
     private SegmentContainerManager containerManager;
     private MetadataRepository metadataRepository;
     private CacheFactory cacheFactory;
+    private Cluster cluster;
 
     //endregion
 
@@ -132,6 +128,15 @@ public abstract class ServiceBuilder implements AutoCloseable {
         return getSingleton(this.containerRegistry, this::createSegmentContainerRegistry, cr -> this.containerRegistry = cr);
     }
 
+    /**
+     * Creates or gets a Cluster instance used throughout
+     * @return
+     */
+    public Cluster getCluster() {
+        return getSingleton(this.cluster, this::createCluster, cluster -> this.cluster = cluster);
+
+    }
+
     //endregion
 
     //region Component Builders
@@ -143,6 +148,8 @@ public abstract class ServiceBuilder implements AutoCloseable {
     protected abstract MetadataRepository createMetadataRepository();
 
     protected abstract SegmentContainerManager createSegmentContainerManager();
+
+    protected abstract Cluster createCluster();
 
     protected CacheFactory createCacheFactory() {
         return new InMemoryCacheFactory();
@@ -181,6 +188,8 @@ public abstract class ServiceBuilder implements AutoCloseable {
         setter.accept(instance);
         return instance;
     }
+
+
 
     //endregion
 }

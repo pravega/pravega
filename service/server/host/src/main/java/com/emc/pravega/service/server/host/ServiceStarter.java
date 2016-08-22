@@ -20,12 +20,13 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-
+import com.emc.pravega.cluster.Cluster;
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
@@ -39,6 +40,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private LogServiceConnectionListener listener;
     private boolean closed;
+    private Cluster cluster;
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
@@ -60,6 +62,17 @@ public final class ServiceStarter {
 
         this.listener = new LogServiceConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
         this.listener.startListening();
+
+        this.cluster = this.serviceBuilder.getCluster();
+
+        try {
+            cluster.initializeCluster(ConfigSyncManagerType.DUMMY, this.serviceConfig.getServiceConfig().getZKConnectString(),
+                    this.serviceConfig.getServiceConfig().getZKClusterTimeout());
+            cluster.registerPravegaNode(this.serviceConfig.getServiceConfig().getListeningIP(), this.serviceConfig.getServiceConfig().getListeningPort(), "");
+        } catch (Exception e) {
+            System.err.println("Zookeeper setup failed. Continuing with standalone existence.");
+        }
+
         System.out.println("LogServiceConnectionListener started successfully.");
     }
 
