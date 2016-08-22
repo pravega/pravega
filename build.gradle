@@ -38,12 +38,12 @@ allprojects {
         jcenter()
         mavenCentral()
         mavenLocal()
-		maven {
-			url "https://raw.github.com/twitter/bookkeeper/mvn-repo/4.3.4-TWTTR"
-		}
-		maven {
-			url "http://maven.twttr.com"
-		}
+	maven {
+		url "https://raw.github.com/twitter/bookkeeper/mvn-repo/4.3.4-TWTTR"
+	}
+	maven {
+		url "http://maven.twttr.com"
+	}
     }
 
     checkstyle {
