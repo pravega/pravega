@@ -123,9 +123,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Reads all of the cachedEntries from the ReadResult and puts their content into the cachedEntries list.
      * Upon encountering a non-cached entry, it stops iterating and returns it.
      */
-    private ReadResultEntry collectCachedEntries(long initailOffset, ReadResult readResult,
+    private ReadResultEntry collectCachedEntries(long initialOffset, ReadResult readResult,
             ArrayList<ReadResultEntryContents> cachedEntries) {
-        long expectedOffset = initailOffset;
+        long expectedOffset = initialOffset;
         while (readResult.hasNext()) {
             ReadResultEntry entry = readResult.next();
             if (entry.getType() == Cache) {
