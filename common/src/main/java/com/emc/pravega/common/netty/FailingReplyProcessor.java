@@ -33,6 +33,9 @@ import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
+/**
+ * A ReplyProcessor that throws on every method. (Useful to subclass)
+ */
 public class FailingReplyProcessor implements ReplyProcessor {
 
     @Override

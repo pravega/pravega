@@ -18,9 +18,11 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import java.util.Random;
+
 import org.junit.Assert;
 
-import java.util.Random;
+import com.emc.pravega.common.MathHelpers;
 
 /**
  * Unit tests for MergeBatchOperation class.
@@ -40,7 +42,7 @@ public class MergeBatchOperationTests extends OperationTestsBase<MergeBatchOpera
     @Override
     protected void configurePreSerialization(MergeBatchOperation operation, Random random) {
         if (operation.getBatchStreamSegmentLength() < 0) {
-            operation.setBatchStreamSegmentLength(Math.abs(random.nextLong()));
+            operation.setBatchStreamSegmentLength(MathHelpers.abs(random.nextLong()));
         } else if (operation.getTargetStreamSegmentOffset() < 0) {
             operation.setTargetStreamSegmentOffset(Math.abs(random.nextLong()));
         } else if (isPreSerializationConfigRequired(operation)) {

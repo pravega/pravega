@@ -18,21 +18,23 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import org.junit.Test;
-
 import com.emc.pravega.testcommon.AssertExtensions;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Random;
-import java.util.concurrent.CompletionException;
+
+import org.junit.Test;
+
+import com.emc.pravega.common.MathHelpers;
+import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Base class for all Log Operation test.
  */
 public abstract class OperationTestsBase<T extends Operation> {
-    protected static final int MAX_CONFIG_ITERATIONS = 10;
+    private static final int MAX_CONFIG_ITERATIONS = 10;
     private static final OperationFactory OPERATION_FACTORY = new OperationFactory();
 
     @Test
@@ -42,12 +44,12 @@ public abstract class OperationTestsBase<T extends Operation> {
 
         // Verify we cannot serialize without a valid Sequence Number.
         trySerialize(baseOp, "Serialization was possible without a valid Sequence Number.");
-        baseOp.setSequenceNumber(Math.abs(random.nextLong()));
+        baseOp.setSequenceNumber(MathHelpers.abs(random.nextLong()));
 
         // Verify that whatever Pre-Serialization requirements are needed will actually prevent serialization.
-        int configIter = 0;
-        while (configIter < MAX_CONFIG_ITERATIONS && isPreSerializationConfigRequired(baseOp)) {
-            configIter++;
+        int iteration = 0;
+        while (iteration < MAX_CONFIG_ITERATIONS && isPreSerializationConfigRequired(baseOp)) {
+            iteration++;
             trySerialize(baseOp, "Serialization was possible without completing all necessary pre-serialization steps.");
             configurePreSerialization(baseOp, random);
         }
@@ -61,7 +63,7 @@ public abstract class OperationTestsBase<T extends Operation> {
         Operation newOp = OPERATION_FACTORY.deserialize(inputStream);
 
         // Verify operations are the same.
-        OperationHelpers.assertEquals(baseOp, newOp);
+        OperationComparer.DEFAULT.assertEquals(baseOp, newOp);
     }
 
     /**
@@ -97,13 +99,7 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     private void trySerialize(T op, String message) {
         AssertExtensions.assertThrows(message,
-                () -> {
-                    try {
-                        op.serialize(new ByteArrayOutputStream());
-                    } catch (IOException ex) {
-                        throw new CompletionException(ex);
-                    }
-                },
+                () -> op.serialize(new ByteArrayOutputStream()),
                 ex -> ex instanceof IllegalStateException);
     }
 }

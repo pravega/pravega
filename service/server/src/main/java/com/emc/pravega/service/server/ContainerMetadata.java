@@ -37,7 +37,7 @@ public interface ContainerMetadata {
      *
      * @return
      */
-    String getContainerId();
+    int getContainerId();
 
     /**
      * Gets a value indicating whether we are currently in Recovery Mode.

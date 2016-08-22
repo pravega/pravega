@@ -19,13 +19,14 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.AutoReleaseLock;
-import com.emc.pravega.common.concurrent.ReadWriteAutoReleaseLock;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,6 +37,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
+
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * StreamSegment Container Read Index. Provides access to Read Indices for all StreamSegments within this Container.
@@ -52,10 +56,18 @@ public class ContainerReadIndex implements ReadIndex {
     //region Members
 
     private final String traceObjectId;
+    @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
-    private final ReadWriteAutoReleaseLock lock = new ReadWriteAutoReleaseLock();
+    @GuardedBy("lock")
+    private final Object lock = new Object();
+    private final Cache cache;
+    private final ReadOnlyStorage storage;
+    private final Executor executor;
+    private final ReadIndexConfig config;
     private ContainerMetadata metadata;
+    @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
+    @GuardedBy("lock")
     private boolean closed;
 
     //endregion
@@ -65,14 +77,27 @@ public class ContainerReadIndex implements ReadIndex {
     /**
      * Creates a new instance of the ContainerReadIndex class.
      *
+     * @param config   Configuration for the ReadIndex.
      * @param metadata The ContainerMetadata to attach to.
+     * @param cache    The cache to store data into.
+     * @param storage  Storage to read data not in the ReadIndex from.
+     * @param executor An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ContainerMetadata metadata) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, Executor executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
+        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(cache, "storage");
+        Preconditions.checkNotNull(cache, "executor");
         Preconditions.checkArgument(!metadata.isRecoveryMode(), "Given ContainerMetadata is in Recovery Mode.");
+
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
+        this.config = config;
+        this.cache = cache;
         this.metadata = metadata;
+        this.storage = storage;
+        this.executor = executor;
         this.preRecoveryMetadata = null;
     }
 
@@ -84,7 +109,7 @@ public class ContainerReadIndex implements ReadIndex {
     public void close() {
         if (!this.closed) {
             this.closed = true;
-            try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+            synchronized (this.lock) {
                 // Need to close all individual read indices in order to cancel Readers and Future Reads.
                 this.readIndices.values().forEach(StreamSegmentReadIndex::close);
                 this.readIndices.clear();
@@ -99,14 +124,14 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public void append(long streamSegmentId, long offset, byte[] data) {
+    public void append(CacheKey cacheKey, int length) {
         Exceptions.checkNotClosed(this.closed, this);
-        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
+        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, cacheKey.getStreamSegmentId(), cacheKey.getOffset(), length);
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
-        StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
+        StreamSegmentReadIndex index = getReadIndex(cacheKey.getStreamSegmentId(), true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
-        index.append(offset, data);
+        index.append(cacheKey, length);
     }
 
     @Override
@@ -169,7 +194,7 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkState(isRecoveryMode(), "Read Index is not in recovery mode. Cannot clear ReadIndex.");
         log.info("{}: Cleared.", this.traceObjectId);
 
-        try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             this.readIndices.values().forEach(StreamSegmentReadIndex::close);
             this.readIndices.clear();
         }
@@ -180,7 +205,7 @@ public class ContainerReadIndex implements ReadIndex {
         Exceptions.checkNotClosed(this.closed, this);
 
         List<Long> toRemove = new ArrayList<>();
-        try (AutoReleaseLock ignored = lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             for (Long streamSegmentId : this.readIndices.keySet()) {
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
                 if (segmentMetadata == null || segmentMetadata.isDeleted()) {
@@ -200,7 +225,7 @@ public class ContainerReadIndex implements ReadIndex {
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
         Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in recovery mode.");
-        Preconditions.checkArgument(this.metadata.getContainerId().equals(recoveryMetadataSource.getContainerId()), "Given ContainerMetadata refers to a different container than this ReadIndex.");
+        Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given ContainerMetadata refers to a different container than this ReadIndex.");
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
         assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we already are in recovery mode";
@@ -254,7 +279,7 @@ public class ContainerReadIndex implements ReadIndex {
      */
     private StreamSegmentReadIndex getReadIndex(long streamSegmentId, boolean createIfNotPresent) {
         StreamSegmentReadIndex index;
-        try (AutoReleaseLock readLock = lock.acquireReadLock()) {
+        synchronized (this.lock) {
             // Try to see if we have the index already in memory.
             index = this.readIndices.getOrDefault(streamSegmentId, null);
             if (index != null || !createIfNotPresent) {
@@ -262,29 +287,20 @@ public class ContainerReadIndex implements ReadIndex {
                 return index;
             }
 
-            try (AutoReleaseLock writeLock = lock.upgradeToWriteLock(readLock)) {
-                // We don't have it; we have acquired the exclusive write lock, and check again, just in case, if someone
-                // else got it for us.
-                index = this.readIndices.getOrDefault(streamSegmentId, null);
-                if (index != null) {
-                    return index;
-                }
+            // We don't have it, create one.
+            SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+            Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId", "StreamSegmentId {} does not exist in the metadata.", streamSegmentId);
+            Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId", "StreamSegmentId {} exists in the metadata but is marked as deleted.", streamSegmentId);
 
-                // We don't have it, and nobody else got it for us.
-                SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId", "StreamSegmentId {} does not exist in the metadata.", streamSegmentId);
-                Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId", "StreamSegmentId {} exists in the metadata but is marked as deleted.", streamSegmentId);
-
-                index = new StreamSegmentReadIndex(segmentMetadata, isRecoveryMode(), this.metadata.getContainerId());
-                this.readIndices.put(streamSegmentId, index);
-            }
+            index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cache, this.storage, this.executor, isRecoveryMode());
+            this.readIndices.put(streamSegmentId, index);
         }
 
         return index;
     }
 
     private boolean removeReadIndex(long streamSegmentId) {
-        try (AutoReleaseLock ignored = this.lock.acquireWriteLock()) {
+        synchronized (this.lock) {
             StreamSegmentReadIndex index = this.readIndices.remove(streamSegmentId);
             if (index != null) {
                 index.close();

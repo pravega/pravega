@@ -27,7 +27,7 @@ public interface DurableDataLogFactory extends AutoCloseable {
      *
      * @return The result.
      */
-    DurableDataLog createDurableDataLog(String containerId);
+    DurableDataLog createDurableDataLog(int containerId);
 
     @Override
     void close();

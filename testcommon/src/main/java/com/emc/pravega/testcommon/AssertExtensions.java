@@ -45,12 +45,13 @@ public class AssertExtensions {
         try {
             runnable.run();
             Assert.fail(message + " No exception has been thrown.");
-        } catch (CompletionException ex) {
+        } catch (CompletionException | ExecutionException ex) {
             if (!tester.test(ex.getCause())) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex.getCause());
             }
         } catch (Exception ex) {
             if (!tester.test(ex)) {
+                ex.printStackTrace();
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
             }
         }

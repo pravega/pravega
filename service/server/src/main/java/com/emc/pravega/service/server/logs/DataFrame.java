@@ -19,11 +19,15 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
+
+import static com.emc.pravega.common.util.BitConverter.readInt;
+import static com.emc.pravega.common.util.BitConverter.writeInt;
 
 /**
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a record
@@ -362,52 +366,6 @@ public class DataFrame {
 
     //endregion
 
-    //region Helpers
-
-    private static int writeInt(ByteArraySegment target, int offset, int value) {
-        target.setSequence(
-                offset,
-                (byte) (value >>> 24),
-                (byte) (value >>> 16),
-                (byte) (value >>> 8),
-                (byte) value);
-        return Integer.BYTES;
-    }
-
-    private static int readInt(ByteArraySegment source, int position) {
-        return (source.get(position) & 0xFF) << 24
-                | (source.get(position + 1) & 0xFF) << 16
-                | (source.get(position + 2) & 0xFF) << 8
-                | (source.get(position + 3) & 0xFF);
-    }
-
-    private static int writeLong(ByteArraySegment target, int offset, long value) {
-        target.setSequence(
-                offset,
-                (byte) (value >>> 56),
-                (byte) (value >>> 48),
-                (byte) (value >>> 40),
-                (byte) (value >>> 32),
-                (byte) (value >>> 24),
-                (byte) (value >>> 16),
-                (byte) (value >>> 8),
-                (byte) value);
-        return Long.BYTES;
-    }
-
-    private static long readLong(ByteArraySegment source, int position) {
-        return (long) (source.get(position) & 0xFF) << 56
-                | (long) (source.get(position + 1) & 0xFF) << 48
-                | (long) (source.get(position + 2) & 0xFF) << 40
-                | (long) (source.get(position + 3) & 0xFF) << 32
-                | (long) (source.get(position + 4) & 0xFF) << 24
-                | (source.get(position + 5) & 0xFF) << 16
-                | (source.get(position + 6) & 0xFF) << 8
-                | (source.get(position + 7) & 0xFF);
-    }
-
-    //endregion
-
     //region EntryHeader
 
     /**
@@ -467,7 +425,7 @@ public class DataFrame {
             Preconditions.checkState(this.data != null && !this.data.isReadOnly(), "Cannot serialize a read-only EntryHeader.");
 
             // Write length.
-            writeInt(this.data, 0, this.entryLength);
+            BitConverter.writeInt(this.data, 0, this.entryLength);
 
             // Write flags.
             byte flags = this.firstRecordEntry ? FIRST_ENTRY_MASK : 0;
@@ -596,7 +554,7 @@ public class DataFrame {
                 throw new SerializationException("DataFrame.Header.deserialize", "DataFrame.Header has insufficient number of bytes given its serialization version.");
             }
 
-            this.previousFrameSequence = readLong(source, sourceOffset);
+            this.previousFrameSequence = BitConverter.readLong(source, sourceOffset);
             sourceOffset += Long.BYTES;
             this.contentLength = readInt(source, sourceOffset);
             sourceOffset += Integer.BYTES;
@@ -622,7 +580,7 @@ public class DataFrame {
             int bufferOffset = 0;
             this.buffer.set(bufferOffset, this.version);
             bufferOffset += Byte.BYTES;
-            bufferOffset += writeLong(this.buffer, bufferOffset, this.previousFrameSequence);
+            bufferOffset += BitConverter.writeLong(this.buffer, bufferOffset, this.previousFrameSequence);
             bufferOffset += writeInt(this.buffer, bufferOffset, this.contentLength);
             this.buffer.set(bufferOffset, encodeFlags());
         }

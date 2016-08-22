@@ -19,6 +19,11 @@ package com.emc.pravega.stream.impl;
 
 import java.util.Collection;
 
+/**
+ * Used to select which event should go next when consuming from multiple segments.
+ *
+ * @param <Type> The type of events that are in the stream
+ */
 public interface Orderer<Type> {
 
     /**

@@ -1,19 +1,14 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements. See the NOTICE
+ * file distributed with this work for additional information regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+ * License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 package com.emc.pravega.stream.impl;
 
@@ -28,6 +23,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.concurrent.GuardedBy;
+
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -37,22 +34,28 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.segment.SegmentManager;
-import com.emc.pravega.stream.segment.SegmentOutputStream;
-import com.emc.pravega.stream.segment.SegmentSealedException;
+import com.emc.pravega.stream.impl.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * This class takes in events, finds out which segment they belong to and then calls produce on the appropriate segment.
+ * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
+ */
 @Slf4j
 public class ProducerImpl<Type> implements Producer<Type> {
 
+    private final Object lock = new Object();
     private final Stream stream;
     private final Serializer<Type> serializer;
     private final SegmentManager segmentManager;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
+    @GuardedBy("lock")
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
 
     ProducerImpl(Stream stream, SegmentManager segmentManager, EventRouter router, Serializer<Type> serializer,
@@ -65,15 +68,23 @@ public class ProducerImpl<Type> implements Producer<Type> {
         this.router = router;
         this.serializer = serializer;
         this.config = config;
-        List<Event<Type>> list = setupLogProducers();
-        if (!list.isEmpty()) {
-            throw new IllegalStateException("Producer initialized with unsent messages?!");
+        synchronized (lock) {
+            List<Event<Type>> list = setupSegmentProducers();
+            if (!list.isEmpty()) {
+                throw new IllegalStateException("Producer initialized with unsent messages?!");
+            }
         }
     }
 
-    private List<Event<Type>> setupLogProducers() {
+    /**
+     * Populate {@link #producers} by setting up a segmentProducer for each segment in the stream.
+     * 
+     * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
+     *         retransmitted.
+     */
+    private List<Event<Type>> setupSegmentProducers() {
         StreamSegments segments = stream.getLatestSegments();
-        
+
         for (SegmentId segment : segments.getSegments()) {
             if (!producers.containsKey(segment)) {
                 SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
@@ -82,7 +93,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             }
         }
         List<Event<Type>> toResend = new ArrayList<>();
-        
+
         Iterator<Entry<SegmentId, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
         while (iter.hasNext()) {
             Entry<SegmentId, SegmentProducer<Type>> entry = iter.next();
@@ -104,8 +115,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
     public Future<Void> publish(String routingKey, Type event) {
         Preconditions.checkState(!closed.get());
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (producers) {
-            if (!attemptPublish(new Event<>(routingKey, event, result))) {
+        synchronized (lock) {
+            if (!attemptPublish(new Event<Type>(event, routingKey, result))) {
                 handleLogSealed();
             }
         }
@@ -113,13 +124,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     /**
-     * If a log sealed is encountered, we need to
-     * 1. Find the new segments to produce to.
-     * 2. For each outstanding message find which new segment it should go to and send it there.
-     * This can happen recursively if segments turn over very quickly.
+     * If a log sealed is encountered, we need to 1. Find the new segments to produce to. 2. For each outstanding
+     * message find which new segment it should go to and send it there. This can happen recursively if segments turn
+     * over very quickly.
      */
     private void handleLogSealed() {
-        List<Event<Type>> toResend = setupLogProducers();
+        List<Event<Type>> toResend = setupSegmentProducers();
         while (toResend.isEmpty()) {
             List<Event<Type>> unsent = new ArrayList<>();
             for (Event<Type> event : toResend) {
@@ -128,26 +138,26 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 }
             }
             if (!unsent.isEmpty()) {
-                unsent.addAll(setupLogProducers());
+                unsent.addAll(setupSegmentProducers());
             }
             toResend = unsent;
         }
     }
 
     private boolean attemptPublish(Event<Type> event) {
-        SegmentProducer<Type> log = getLogProducer(event.getRoutingKey());
-        if (log == null || log.isAlreadySealed()) {
+        SegmentProducer<Type> segmentProducer = getSegmentProducer(event.getRoutingKey());
+        if (segmentProducer == null || segmentProducer.isAlreadySealed()) {
             return false;
         }
         try {
-            log.publish(event);
+            segmentProducer.publish(event);
             return true;
         } catch (SegmentSealedException e) {
             return false;
         }
     }
 
-    private SegmentProducer<Type> getLogProducer(String routingKey) {
+    private SegmentProducer<Type> getSegmentProducer(String routingKey) {
         SegmentId log = router.getSegmentForEvent(stream, routingKey);
         return producers.get(log);
     }
@@ -171,8 +181,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void commit() throws TxFailedException {
-            for (SegmentTransaction<Type> log : inner.values()) {
-                log.flush();
+            for (SegmentTransaction<Type> tx : inner.values()) {
+                tx.flush();
             }
             segmentManager.commitTransaction(txId);
         }
@@ -187,6 +197,13 @@ public class ProducerImpl<Type> implements Producer<Type> {
             return segmentManager.checkTransactionStatus(txId);
         }
 
+        @Override
+        public void flush() throws TxFailedException {
+            for (SegmentTransaction<Type> tx : inner.values()) {
+                tx.flush();
+            }
+        }
+
     }
 
     @Override
@@ -194,7 +211,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         UUID txId = UUID.randomUUID();
         Map<SegmentId, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<SegmentId> segmentIds;
-        synchronized (producers) {
+        synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
         for (SegmentId s : segmentIds) {
@@ -212,7 +229,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         boolean success = false;
         while (!success) {
             success = true;
-            synchronized (producers) {
+            synchronized (lock) {
                 for (SegmentProducer<Type> p : producers.values()) {
                     try {
                         p.flush();
@@ -232,7 +249,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         if (closed.getAndSet(true)) {
             return;
         }
-        synchronized (producers) {
+        synchronized (lock) {
             boolean success = false;
             while (!success) {
                 success = true;

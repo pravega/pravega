@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.common.MathHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import org.junit.Assert;
 
@@ -47,7 +48,7 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
     @Override
     protected void configurePreSerialization(StreamSegmentAppendOperation operation, Random random) {
         if (operation.getStreamSegmentOffset() < 0) {
-            operation.setStreamSegmentOffset(Math.abs(random.nextLong()));
+            operation.setStreamSegmentOffset(MathHelpers.abs(random.nextLong()));
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }

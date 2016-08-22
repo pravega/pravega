@@ -40,7 +40,7 @@ import java.util.function.Consumer;
  * Unit tests for DataFrameBuilder class.
  */
 public class DataFrameBuilderTests {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SMALL_RECORD_MIN_SIZE = 0;
     private static final int SMALL_RECORD_MAX_SIZE = 128;

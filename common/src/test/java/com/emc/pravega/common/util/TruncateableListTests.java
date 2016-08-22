@@ -18,12 +18,12 @@
 
 package com.emc.pravega.common.util;
 
+import com.emc.pravega.testcommon.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.emc.pravega.common.util.TruncateableList;
-
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Unit tests for TruncateableList class.
@@ -39,7 +39,7 @@ public class TruncateableListTests {
         TruncateableList<Integer> list = new TruncateableList<>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             list.add(i);
-            Assert.assertEquals("Unexpected value from getSize.", i + 1, list.getSize());
+            Assert.assertEquals("Unexpected value from size.", i + 1, list.size());
         }
 
         //Read 1/2 items
@@ -71,12 +71,12 @@ public class TruncateableListTests {
             // Happy case.
             boolean resultValue = list.addIf(currentValue, prev -> prev < currentValue);
             Assert.assertTrue("Unexpected return value from addIf for successful append.", resultValue);
-            Assert.assertEquals("Unexpected value from getSize after successful append.", i + 1, list.getSize());
+            Assert.assertEquals("Unexpected value from size after successful append.", i + 1, list.size());
 
             // Unhappy case
             resultValue = list.addIf(currentValue, prev -> prev > currentValue);
             Assert.assertFalse("Unexpected return value from addIf for unsuccessful append.", resultValue);
-            Assert.assertEquals("Unexpected value from getSize after unsuccessful append.", i + 1, list.getSize());
+            Assert.assertEquals("Unexpected value from size after unsuccessful append.", i + 1, list.size());
         }
 
         Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
@@ -95,19 +95,59 @@ public class TruncateableListTests {
 
         // Truncate 25% of items.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for getSize after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.getSize());
+        Assert.assertEquals("Unexpected value for size after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
         checkRange("Truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate the same 25% of items - verify no change.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for getSize after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.getSize());
+        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
         checkRange("Re-truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate all items.
         list.truncate(i -> true);
-        Assert.assertEquals("Unexpected value for getSize after truncating all items.", 0, list.getSize());
+        Assert.assertEquals("Unexpected value for size after truncating all items.", 0, list.size());
         Iterator<Integer> readResult = list.read(i -> true, ITEM_COUNT * 2);
         Assert.assertFalse("List should be empty.", readResult.hasNext());
+    }
+
+    /**
+     * Tests the iterator while concurrently adding or truncating items.
+     */
+    @Test
+    public void testConcurrentIterator() {
+        TruncateableList<Integer> list = new TruncateableList<>();
+        for (int i = 0; i < ITEM_COUNT; i++) {
+            list.add(i);
+        }
+
+        // Test with additions.
+        Iterator<Integer> addIterator = list.read(i -> true, ITEM_COUNT * 2);
+        int firstValue = addIterator.next();
+        Assert.assertEquals("Unexpected first value, pre-modification.", 0, firstValue);
+        list.add(ITEM_COUNT);
+        checkRange("Post-addition.", 1, ITEM_COUNT, addIterator);
+
+        // Test with truncation.
+        Iterator<Integer> truncateIterator = list.read(i -> true, ITEM_COUNT * 2);
+        truncateIterator.next(); // Read 1 value
+        list.truncate(i -> i < 10);
+        Assert.assertFalse("Unexpected value from hasNext when list has been truncated.", truncateIterator.hasNext());
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from next() when current element has been truncated.",
+                truncateIterator::next,
+                ex -> ex instanceof NoSuchElementException);
+
+        // Test when we do a truncation between calls to hasNext() and next().
+        // This is always a possibility. If the list gets truncated between calls to hasNext() and next(), we cannot
+        // return a truncated element. This means we expect a NoSuchElementException to be thrown from next(), even though
+        // the previous call to hasNext() returned true (now it should return false).
+        Iterator<Integer> midTruncateIterator = list.read(i -> true, ITEM_COUNT * 2);
+        Assert.assertTrue("Unexpected value from hasNext when not been truncated.", midTruncateIterator.hasNext());
+        list.truncate(i -> i < 20);
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from next() when current element has been truncated (after hasNext() and before next()).",
+                midTruncateIterator::next,
+                ex -> ex instanceof NoSuchElementException);
     }
 
     /**

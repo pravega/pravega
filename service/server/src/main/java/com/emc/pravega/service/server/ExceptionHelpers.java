@@ -30,6 +30,17 @@ import java.util.concurrent.ExecutionException;
 public class ExceptionHelpers {
 
     /**
+     * Determines if the given Throwable represents a fatal exception and cannot be handled.
+     *
+     * @param ex The Throwable to inspect.
+     * @return True if a fatal error which must be rethrown, false otherwise (it can be handled in a catch block).
+     */
+    public static boolean mustRethrow(Throwable ex) {
+        return ex instanceof OutOfMemoryError
+                || ex instanceof StackOverflowError;
+    }
+
+    /**
      * Extracts the inner exception from any Exception that may have an inner exception.
      *
      * @param ex

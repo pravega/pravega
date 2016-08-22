@@ -18,6 +18,17 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
+import org.apache.commons.lang.NotImplementedException;
+
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
@@ -48,17 +59,8 @@ import com.twitter.distributedlog.namespace.DistributedLogNamespace;
 import com.twitter.distributedlog.util.FutureUtils;
 import com.twitter.util.Future;
 import com.twitter.util.FutureEventListener;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Read/Write handle for a particular DistributedLog Stream.
@@ -89,7 +91,7 @@ class LogHandle implements AutoCloseable {
      * @param logName              The Distributed Log Name to bind to.
      * @param handleClosedCallback A callback that will be invoked when this LogHandle is closed.
      */
-    public LogHandle(String logName, Consumer<LogHandle> handleClosedCallback) {
+    LogHandle(String logName, Consumer<LogHandle> handleClosedCallback) {
         Preconditions.checkNotNull(handleClosedCallback, "handleClosedCallback");
         Exceptions.checkNotNullOrEmpty(logName, "logName");
 

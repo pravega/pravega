@@ -21,22 +21,30 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.server.ReadIndex;
+import com.emc.pravega.service.server.CloseableExecutorService;
+import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TruncationMarkerRepository;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
-import com.emc.pravega.service.server.logs.operations.OperationHelpers;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
@@ -53,6 +61,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Predicate;
 
@@ -60,7 +69,7 @@ import java.util.function.Predicate;
  * Unit tests for OperationProcessor class.
  */
 public class OperationProcessorTests extends OperationLogTestBase {
-    private static final String CONTAINER_ID = "TestContainer";
+    private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
 
@@ -75,16 +84,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
         boolean mergeBatches = true;
         boolean sealStreamSegments = true;
 
-        // Setup all the components for the OperationProcessor
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-        MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
+        TestContext context = new TestContext();
 
         // Generate some test data.
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
-        AbstractMap<Long, Long> batches = LogTestHelpers.createBatchesInMetadata(streamSegmentIds, batchesPerStreamSegment, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
+        AbstractMap<Long, Long> batches = LogTestHelpers.createBatchesInMetadata(streamSegmentIds, batchesPerStreamSegment, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, batches, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeBatches, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
@@ -92,7 +97,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -104,9 +109,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, metadata, mergeBatches, sealStreamSegments);
-        performReadIndexChecks(completionFutures, readIndex);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, context.metadata, mergeBatches, sealStreamSegments);
+        performReadIndexChecks(completionFutures, context.readIndex);
     }
 
     /**
@@ -124,19 +129,15 @@ public class OperationProcessorTests extends OperationLogTestBase {
         long deletedStreamSegmentId = 8; // We are going to prematurely mark this StreamSegment as deleted.
         long nonExistentStreamSegmentId; // This is a bogus StreamSegment, that does not exist.
 
-        // Setup all the components for the OperationProcessor
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-        MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
+        TestContext context = new TestContext();
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         nonExistentStreamSegmentId = streamSegmentIds.size();
         streamSegmentIds.add(nonExistentStreamSegmentId);
-        metadata.getStreamSegmentMetadata(sealedStreamSegmentId).markSealed();
-        metadata.getStreamSegmentMetadata(deletedStreamSegmentId).markDeleted();
+        context.metadata.getStreamSegmentMetadata(sealedStreamSegmentId).markSealed();
+        context.metadata.getStreamSegmentMetadata(deletedStreamSegmentId).markDeleted();
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
@@ -144,7 +145,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -188,9 +189,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
             oc.completion.join();
         }
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
-        performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, metadata, false, false);
-        performReadIndexChecks(completionFutures, readIndex);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performMetadataChecks(streamSegmentIds, streamSegmentsWithNoContents, new HashMap<>(), completionFutures, context.metadata, false, false);
+        performReadIndexChecks(completionFutures, context.readIndex);
     }
 
     /**
@@ -202,15 +203,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         int appendsPerStreamSegment = 80;
         int failAppendFrequency = 7; // Fail every X appends encountered.
 
-        // Setup all the components for the OperationProcessor
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-        MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
+        TestContext context = new TestContext();
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Replace some of the Append Operations with a FailedAppendOperations. Some operations fail at the beginning,
@@ -231,7 +228,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -260,9 +257,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
             }
         }
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
-        performReadIndexChecks(completionFutures, readIndex);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
+        performReadIndexChecks(completionFutures, context.readIndex);
     }
 
     /**
@@ -275,15 +272,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
         int failSyncCommitFrequency = 3; // Fail (synchronously) every X DataFrame commits (to DataLog).
         int failAsyncCommitFrequency = 5; // Fail (asynchronously) every X DataFrame commits (to DataLog).
 
-        // Setup all the components for the OperationProcessor
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-        MemoryOperationLog memoryLog = new MemoryOperationLog();
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(memoryLog, readIndex);
+        TestContext context = new TestContext();
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
@@ -291,7 +284,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
@@ -314,9 +307,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Stop the processor.
         operationProcessor.stopAsync().awaitTerminated();
 
-        performLogOperationChecks(completionFutures, memoryLog, dataLog, metadata);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, metadata, false, false);
-        performReadIndexChecks(completionFutures, readIndex);
+        performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
+        performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
+        performReadIndexChecks(completionFutures, context.readIndex);
     }
 
     /**
@@ -331,15 +324,15 @@ public class OperationProcessorTests extends OperationLogTestBase {
         int appendsPerStreamSegment = 80;
         int failAtOperationIndex = 123; // Fail Operation at index X.
 
-        // Setup all the components for the OperationProcessor
-        StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-        CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(metadata);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, readIndex);
+        TestContext context = new TestContext();
+
+        // Create a different log updater and Memory log - and use these throughout this test.
+        CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
+        MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
 
         // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
-        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, metadata);
+        HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
         // Setup an OperationProcessor and start it.
@@ -347,7 +340,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -407,7 +400,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         }
 
         AssertExtensions.assertGreaterThan("No operation succeeded.", 0, successCount);
-        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, metadata);
+        performLogOperationChecks(completionFutures, corruptedMemoryLog, dataLog, context.metadata, context.cache);
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
@@ -419,12 +412,13 @@ public class OperationProcessorTests extends OperationLogTestBase {
         return completionFutures;
     }
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers) throws Exception {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, MemoryOperationLog memoryLog, DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, Cache cache) throws Exception {
         // Log Operation based checks
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
         long lastSeqNo = -1;
         Iterator<Operation> memoryLogIterator = memoryLog.read(o -> true, operations.size() + 1);
+        OperationComparer memoryLogComparer = new OperationComparer(true, cache);
         for (LogTestHelpers.OperationWithCompletion oc : operations) {
             if (oc.completion.isCompletedExceptionally()) {
                 // We expect this operation to not have been processed.
@@ -440,12 +434,12 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memoryLogIterator.hasNext());
-            Assert.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next()); // Ok to use assertEquals because we are actually expecting the same object here.
+            memoryLogComparer.assertEquals("Unexpected Operation in MemoryLog.", expectedOp, memoryLogIterator.next()); // Use memoryLogComparer: we are actually expecting the same object here.
 
             // DataLog: read back using DataFrameReader and verify the operations match that of the expected list.
             DataFrameReader.ReadResult<Operation> readResult = dataFrameReader.getNext();
             Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, readResult);
-            OperationHelpers.assertEquals(expectedOp, readResult.getItem());
+            OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem()); // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
 
             // Check truncation markers if this is the last Operation to be written.
             long dataFrameSeq = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
@@ -478,5 +472,34 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 dlConfig,
                 () -> {
                 }, ForkJoinPool.commonPool());
+    }
+
+    private static class TestContext implements AutoCloseable {
+        final CloseableExecutorService executorService;
+        final Storage storage;
+        final MemoryOperationLog memoryLog;
+        final Cache cache;
+        final UpdateableContainerMetadata metadata;
+        final ReadIndex readIndex;
+        final MemoryLogUpdater logUpdater;
+
+        TestContext() {
+            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+            this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
+            this.storage = new InMemoryStorage(this.executorService.get());
+            this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
+            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfig(100, 1024);
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.executorService.get());
+            this.memoryLog = new MemoryOperationLog();
+            this.logUpdater = new MemoryLogUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
+        }
+
+        @Override
+        public void close() {
+            this.readIndex.close();
+            this.storage.close();
+            this.cache.close();
+            this.executorService.close();
+        }
     }
 }

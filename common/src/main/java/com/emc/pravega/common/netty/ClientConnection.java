@@ -14,6 +14,9 @@
  */
 package com.emc.pravega.common.netty;
 
+/**
+ * A connection object. Represents the TCP connection in the client process that connects to the server.
+ */
 public interface ClientConnection extends AutoCloseable {
 
     /**

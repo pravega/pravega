@@ -110,7 +110,7 @@ public class RecoveryBenchmark extends Benchmark {
     //region Actual benchmark implementation
 
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
-        final String containerId = "0";
+        final int containerId = 0;
         log("Running %s", testInput);
 
         serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
@@ -188,7 +188,7 @@ public class RecoveryBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.input.totalAppendLength / ONE_MB / (this.totalDurationNanos / 1000000000));
+            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.input.totalAppendLength / ONE_MB , (this.totalDurationNanos / 1000000000));
         }
 
         @Override

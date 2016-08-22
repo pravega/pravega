@@ -29,7 +29,7 @@ public interface ContainerHandle {
      *
      * @return
      */
-    String getContainerId();
+    int getContainerId();
 
     /**
      * Registers the given callback which will be invoked when the container stopped processing unexpectedly (that is,
@@ -37,5 +37,5 @@ public interface ContainerHandle {
      *
      * @param handler The callback to invoke. The argument to this callback is the Id of the container.
      */
-    void setContainerStoppedListener(Consumer<String> handler);
+    void setContainerStoppedListener(Consumer<Integer> handler);
 }

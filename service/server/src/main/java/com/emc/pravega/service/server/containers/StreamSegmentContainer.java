@@ -35,11 +35,14 @@ import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.logs.CacheUpdater;
 import com.emc.pravega.service.server.logs.OperationLog;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -67,6 +70,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final UpdateableContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
+    private final Cache cache;
     private final Storage storage;
     private final PendingAppendsCollection pendingAppendsCollection;
     private final StreamSegmentMapper segmentMapper;
@@ -85,22 +89,23 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param durableLogFactory        The DurableLogFactory to use to create DurableLogs.
      * @param readIndexFactory         The ReadIndexFactory to use to create Read Indices.
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
+     * @param cacheFactory             The CacheFactory to use to create Caches.
      * @param executor                 An Executor that can be used to run async tasks.
      */
-    public StreamSegmentContainer(String streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, Executor executor) {
-        Exceptions.checkNotNullOrEmpty(streamSegmentContainerId, "streamSegmentContainerId");
+    public StreamSegmentContainer(int streamSegmentContainerId, MetadataRepository metadataRepository, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.traceObjectId = String.format("SegmentContainer[%s]", streamSegmentContainerId);
+        this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
         this.storage = storageFactory.getStorageAdapter();
         this.metadata = metadataRepository.getMetadata(streamSegmentContainerId);
-        this.readIndex = readIndexFactory.createReadIndex(this.metadata);
+        this.cache = cacheFactory.getCache(String.format("Container_%d", streamSegmentContainerId));
+        this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.cache);
         this.executor = executor;
-        this.durableLog = durableLogFactory.createDurableLog(metadata, readIndex);
+        this.durableLog = durableLogFactory.createDurableLog(metadata, new CacheUpdater(this.cache, this.readIndex));
         this.durableLog.addListener(new ServiceShutdownListener(this::durableLogStoppedHandler, this::durableLogFailedHandler), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, executor);
@@ -118,6 +123,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.pendingAppendsCollection.close();
             this.durableLog.close();
             this.readIndex.close();
+            this.cache.close();
             this.closed = true;
         }
     }
@@ -153,7 +159,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Container Implementation
 
     @Override
-    public String getId() {
+    public int getId() {
         return this.metadata.getContainerId();
     }
 

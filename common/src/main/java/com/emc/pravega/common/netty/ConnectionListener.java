@@ -17,6 +17,9 @@
  */
 package com.emc.pravega.common.netty;
 
+/**
+ * A listener for incoming connections. (Used on the server)
+ */
 public interface ConnectionListener extends AutoCloseable {
 
     void startListening();

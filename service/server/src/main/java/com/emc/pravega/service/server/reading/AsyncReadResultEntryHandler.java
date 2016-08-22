@@ -24,7 +24,7 @@ import com.emc.pravega.service.contracts.ReadResultEntryType;
 import java.time.Duration;
 
 /**
- * Created by andrei on 8/1/16.
+ * Defines an Entry Handler for an AsyncReadResultProcessor.
  */
 public interface AsyncReadResultEntryHandler {
     /**
@@ -54,15 +54,15 @@ public interface AsyncReadResultEntryHandler {
      * rather just a notification that an exception occurred. After this is called, the generating AsyncReadResultProcessor
      * will auto-close.
      *
-     * @param entry
-     * @param cause
+     * @param entry The entry that caused the processing error (this may be null, depending on when the error occurred).
+     * @param cause The error that triggered this.
      */
     void processError(ReadResultEntry entry, Throwable cause);
 
     /**
      * Gets a value indicating the timeout for requesting content.
      *
-     * @return
+     * @return The timeout.
      */
     Duration getRequestContentTimeout();
 }
