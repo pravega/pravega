@@ -21,7 +21,6 @@ package com.emc.pravega.cluster.zkutils.vnest;
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 /**
   * Created by kandha on 8/8/16.
@@ -41,18 +40,18 @@ public class Vnest extends CommonConfigSyncManager {
      */
     @Override
     public void createEntry(String path, byte[] value) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void deleteEntry(String path) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
 
     }
 
     @Override
     public void refreshCluster() {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
 
     }
 

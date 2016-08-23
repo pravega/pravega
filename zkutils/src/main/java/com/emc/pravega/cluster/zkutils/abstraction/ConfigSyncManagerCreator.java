@@ -1,27 +1,24 @@
 package com.emc.pravega.cluster.zkutils.abstraction;
 
-;import com.emc.pravega.cluster.zkutils.dummy.DummyZK;
+import com.emc.pravega.cluster.zkutils.dummy.DummyZK;
 import com.emc.pravega.cluster.zkutils.vnest.Vnest;
 import com.emc.pravega.cluster.zkutils.zkimplementation.ZookeeperClient;
 
-import java.io.IOException;
+;
 
 public final class ConfigSyncManagerCreator {
     public ConfigSyncManager createManager(ConfigSyncManagerType type, String connectionString, int timeoutms,
-                                           ConfigChangeListener listener) throws IOException {
+                                           ConfigChangeListener listener) throws Exception {
         switch(type) {
             case DUMMY:
                 return new DummyZK(connectionString, timeoutms, listener);
             case ZK:
-                try {
                     return new ZookeeperClient(connectionString,timeoutms, listener);
-                } catch (Exception e) {
-                    return null;
-                }
             case VNEST:
                 return new Vnest(connectionString,timeoutms, listener);
+            default:
+                throw new UnsupportedOperationException();
 
         }
-        return null;
     }
 }
