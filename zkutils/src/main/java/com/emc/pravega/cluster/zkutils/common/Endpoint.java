@@ -16,7 +16,7 @@
   * limitations under the License.
   */
 
-package com.emc.pravega.cluster;
+package com.emc.pravega.cluster.zkutils.common;
 
 import com.google.common.base.Preconditions;
 
@@ -40,6 +40,27 @@ public final class Endpoint {
       this.port     = port;
       hashCode      = (hostName + ":" + port).hashCode();
   }
+
+    /**
+     * Construct from a string which contains <hostname>:<part> form of string
+     * @param identifierString
+     */
+  Endpoint(String identifierString) {
+      String[] parts = identifierString.split(":");
+      Preconditions.checkArgument(parts.length == 2);
+      this.hostName  = parts[0];
+      this.port      = Integer.parseInt(parts[1]);
+      hashCode      = (hostName + ":" + port).hashCode();
+  }
+
+  public static Endpoint constructFrom(String fullPath) {
+      Preconditions.checkNotNull(fullPath);
+
+      String[] parts = fullPath.split("/");
+      String lastPart = parts[parts.length -1];
+      return new Endpoint(lastPart);
+  }
+
     /**
     * Override hash code so that it can be used as a parameter of a hashmap etc
     * @return the hashcode

@@ -18,6 +18,7 @@
 
 package com.emc.pravega.cluster;
 
+import com.emc.pravega.cluster.zkutils.common.Endpoint;
 import com.google.common.base.Preconditions;
 
 /**

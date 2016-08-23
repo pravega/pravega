@@ -19,6 +19,8 @@ package com.emc.pravega.cluster.zkutils.zkimplementation;
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
+import com.emc.pravega.cluster.zkutils.common.Endpoint;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -92,28 +94,16 @@ public class ZookeeperClient extends CommonConfigSyncManager
         switch(event.getType()) {
             case CHILD_ADDED:
                 if(event.getData().getPath().startsWith(this.controllerInfoRoot)) {
-                    String path = event.getData().getPath();
-                    path = path.substring((this.controllerInfoRoot+"/").length());
-                    String[] parts = path.split(":");
-                    listener.controllerAddedNotification(parts[0], Integer.valueOf(parts[1]));
+                    listener.controllerAddedNotification(Endpoint.constructFrom(event.getData().getPath()));
                 } else if (event.getData().getPath().startsWith(this.nodeInfoRoot)){
-                    String path = event.getData().getPath();
-                    path = path.substring((this.controllerInfoRoot+"/").length());
-                    String[] parts = path.split(":");
-                    listener.nodeAddedNotification(parts[0], Integer.valueOf(parts[1]));
+                    listener.nodeAddedNotification(Endpoint.constructFrom(event.getData().getPath()));
                 }
                 break;
             case CHILD_REMOVED:
                 if(event.getData().getPath().startsWith(this.controllerInfoRoot)) {
-                    String path = event.getData().getPath();
-                    path = path.substring((this.controllerInfoRoot+"/").length());
-                    String[] parts = path.split(":");
-                    listener.controllerRemovedNotification(parts[0], Integer.valueOf(parts[1]));
+                    listener.controllerRemovedNotification(Endpoint.constructFrom(event.getData().getPath()));
                 } else if (event.getData().getPath().startsWith(this.nodeInfoRoot)){
-                    String path = event.getData().getPath();
-                    path = path.substring((this.controllerInfoRoot+"/").length());
-                    String[] parts = path.split(":");
-                    listener.nodeRemovedNotification(parts[0], Integer.valueOf(parts[1]));
+                    listener.nodeRemovedNotification(Endpoint.constructFrom(event.getData().getPath()));
                 }
                 break;
         }

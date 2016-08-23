@@ -22,6 +22,7 @@ import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerCreator;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
+import com.emc.pravega.cluster.zkutils.common.Endpoint;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -239,49 +240,37 @@ public final class Cluster implements ConfigChangeListener {
 
     /**
      * Notification from the config manager abstraction to notify a node is added
-     * @param host
-     * @param port
+     * @param ep
      */
     @Override
-    public void nodeAddedNotification(String host, int port) {
-        Preconditions.checkNotNull(host);
-        Endpoint ep = new Endpoint(host, port);
+    public void nodeAddedNotification(Endpoint ep) {
         addNode(new PravegaNode(ep), ep);
     }
 
     /**
      * Notification from config manager abstraction to notify a controller is added
-     * @param host
-     * @param port
+     * @param ep
      */
     @Override
-    public void controllerAddedNotification(String host, int port) {
-        Preconditions.checkNotNull(host);
-        Endpoint ep = new Endpoint(host, port);
+    public void controllerAddedNotification(Endpoint ep) {
         addController(new PravegaController(ep), ep);
     }
 
     /**
      * Notification from the config manager abstraction to notify a node is removed
-     * @param host
-     * @param port
+     * @param ep
      */
     @Override
-    public void nodeRemovedNotification(String host, int port) {
-        Preconditions.checkNotNull(host);
-        Endpoint ep = new Endpoint(host, port);
+    public void nodeRemovedNotification(Endpoint ep) {
         removeNode(ep);
     }
 
     /**
      * Notification from config manager abstraction to notify a controller is removed
-     * @param host
-     * @param port
+     * @param ep
      */
     @Override
-    public void controllerRemovedNotification(String host, int port) {
-        Preconditions.checkNotNull(host);
-        Endpoint ep = new Endpoint(host, port);
+    public void controllerRemovedNotification(Endpoint ep) {
         removeController(ep);
     }
 

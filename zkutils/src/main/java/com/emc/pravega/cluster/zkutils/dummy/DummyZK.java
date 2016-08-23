@@ -21,6 +21,7 @@ package com.emc.pravega.cluster.zkutils.dummy;
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
+import com.emc.pravega.cluster.zkutils.common.Endpoint;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,11 +50,21 @@ public class DummyZK extends CommonConfigSyncManager {
         Preconditions.checkNotNull(path);
         Preconditions.checkNotNull(value);
         valueMap.put(path,value);
+        if( path.startsWith(nodeInfoRoot)) {
+            listener.nodeAddedNotification(Endpoint.constructFrom(path));
+        } else if (path.startsWith(controllerInfoRoot)){
+            listener.controllerAddedNotification(Endpoint.constructFrom(path));
+        }
     }
 
     @Override
     public void deleteEntry(String path) {
         valueMap.remove(path);
+        if( path.startsWith(nodeInfoRoot)) {
+            listener.nodeRemovedNotification(Endpoint.constructFrom(path));
+        } else if (path.startsWith(controllerInfoRoot)){
+            listener.controllerRemovedNotification(Endpoint.constructFrom(path));
+        }
 
     }
 
