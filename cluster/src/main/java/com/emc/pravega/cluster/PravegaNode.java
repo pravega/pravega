@@ -18,12 +18,15 @@
 
 package com.emc.pravega.cluster;
 
+import com.google.common.base.Preconditions;
+
 /**
   * Created by kandha on 8/4/16.
   */
 public final class PravegaNode {
-    private Endpoint ep;
+    private final Endpoint ep;
     public PravegaNode(Endpoint  endpoint) {
+        Preconditions.checkNotNull(endpoint);
         this.ep = endpoint;
     }
 

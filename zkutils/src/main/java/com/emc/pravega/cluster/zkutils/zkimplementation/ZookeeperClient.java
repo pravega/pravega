@@ -41,10 +41,10 @@ public class ZookeeperClient
     private final PathChildrenCache nodeCache;
 
 
-    public ZookeeperClient(String connectString, int sessionTimeout, ConfigChangeListener listener) throws Exception {
+    public ZookeeperClient(String connectString, int sessionTimeoutMS, ConfigChangeListener listener) throws Exception {
         curatorFramework = CuratorFrameworkFactory.builder()
                 .connectString(connectString)
-                .sessionTimeoutMs(sessionTimeout)
+                .sessionTimeoutMs(sessionTimeoutMS)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 3))
                 .build();
         curatorFramework.start();

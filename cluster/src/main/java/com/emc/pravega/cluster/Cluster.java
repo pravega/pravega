@@ -201,6 +201,7 @@ public final class Cluster implements ConfigChangeListener {
      * @param port
      */
     public void unregisterPravegaController(String host, int port) throws Exception {
+        Preconditions.checkNotNull(host);
         manager.unregisterPravegaController(host, port);
     }
 
@@ -210,6 +211,7 @@ public final class Cluster implements ConfigChangeListener {
      * @param port
      */
     public void unregisterPravegaNode(String host, int port) throws Exception {
+        Preconditions.checkNotNull(host);
         manager.unregisterPravegaNode(host, port);
     }
 
@@ -231,6 +233,7 @@ public final class Cluster implements ConfigChangeListener {
      * @param clusterListener
      */
     public void unregisterListener(ClusterListener clusterListener) {
+        Preconditions.checkNotNull(clusterListener);
             listeners.remove(clusterListener);
     }
 
@@ -241,6 +244,7 @@ public final class Cluster implements ConfigChangeListener {
      */
     @Override
     public void nodeAddedNotification(String host, int port) {
+        Preconditions.checkNotNull(host);
         Endpoint ep = new Endpoint(host, port);
         addNode(new PravegaNode(ep), ep);
     }
@@ -252,6 +256,7 @@ public final class Cluster implements ConfigChangeListener {
      */
     @Override
     public void controllerAddedNotification(String host, int port) {
+        Preconditions.checkNotNull(host);
         Endpoint ep = new Endpoint(host, port);
         addController(new PravegaController(ep), ep);
     }
@@ -263,6 +268,7 @@ public final class Cluster implements ConfigChangeListener {
      */
     @Override
     public void nodeRemovedNotification(String host, int port) {
+        Preconditions.checkNotNull(host);
         Endpoint ep = new Endpoint(host, port);
         removeNode(ep);
     }
@@ -274,6 +280,7 @@ public final class Cluster implements ConfigChangeListener {
      */
     @Override
     public void controllerRemovedNotification(String host, int port) {
+        Preconditions.checkNotNull(host);
         Endpoint ep = new Endpoint(host, port);
         removeController(ep);
     }

@@ -129,7 +129,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
     }
 
     /**
-     * Creates or gets a Cluster instance used throughout
+     * Creates or gets a Cluster instance used throughout this servicebuilder
      * @return
      */
     public Cluster getCluster() {

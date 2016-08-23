@@ -18,13 +18,16 @@
 
 package com.emc.pravega.cluster;
 
+import com.google.common.base.Preconditions;
+
 /**
   * Created by kandha on 8/4/16.
-  * This class represents and access point for node and controllers
+  * This class represents an access point for node and controllers
   */
 public final class Endpoint {
-    private String hostName;
-    private int port;
+    private final String hostName;
+    private final int port;
+    private final int hashCode;
 
     /**
      * Constructor
@@ -32,8 +35,10 @@ public final class Endpoint {
      * @param port port associated with the node
      */
   Endpoint(String hostname, int port) {
+      Preconditions.checkNotNull(hostname);
       this.hostName = hostname;
       this.port     = port;
+      hashCode      = (hostName + ":" + port).hashCode();
   }
     /**
     * Override hash code so that it can be used as a parameter of a hashmap etc
@@ -41,7 +46,7 @@ public final class Endpoint {
     */
   @Override
   public int hashCode() {
-      return (hostName + ":" + port).hashCode();
+      return hashCode;
   }
 
   @Override

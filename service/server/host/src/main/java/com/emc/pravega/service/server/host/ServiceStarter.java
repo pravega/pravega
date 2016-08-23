@@ -67,8 +67,8 @@ public final class ServiceStarter {
 
         try {
             cluster.initializeCluster(ConfigSyncManagerType.DUMMY, this.serviceConfig.getServiceConfig().getZKConnectString(),
-                    this.serviceConfig.getServiceConfig().getZKClusterTimeout());
-            cluster.registerPravegaNode(this.serviceConfig.getServiceConfig().getListeningIP(), this.serviceConfig.getServiceConfig().getListeningPort(), "");
+                    this.serviceConfig.getServiceConfig().getZKClusterTimeoutMS());
+            cluster.registerPravegaNode(this.serviceConfig.getServiceConfig().getListeningHost(), this.serviceConfig.getServiceConfig().getListeningPort(), "");
         } catch (Exception e) {
             System.err.println("Zookeeper setup failed. Continuing with standalone existence.");
         }

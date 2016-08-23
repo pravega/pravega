@@ -66,7 +66,7 @@ class clustertest extends WordSpec {
             val clust: Cluster = new Cluster()
             clust.initializeCluster(ConfigSyncManagerType.DUMMY, "dummy", 0)
             clust.registerPravegaController("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaController("localhost", 7000)
+            clust.unregisterPravegaController("localhost", 7000)
             assert(clust.getPravegaControllers.iterator().hasNext == false)
           }
 
@@ -76,7 +76,7 @@ class clustertest extends WordSpec {
             val clusterListner:DummyListener = new DummyListener
             clust.registerListener("my",clusterListner)
             clust.registerPravegaController("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaController("localhost", 7000)
+            clust.unregisterPravegaController("localhost", 7000)
             assert(clusterListner.numControllers ==0)
 
           }
@@ -86,7 +86,7 @@ class clustertest extends WordSpec {
             val clust: Cluster = new Cluster()
             clust.initializeCluster(ConfigSyncManagerType.DUMMY, "dummy", 0)
             clust.registerPravegaNode("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaNode("localhost", 7000)
+            clust.unregisterPravegaNode("localhost", 7000)
             assert(clust.getPravegaNodes.iterator().hasNext == false)
           }
           "callback the listener" in {
@@ -95,7 +95,7 @@ class clustertest extends WordSpec {
             val clusterListner:DummyListener = new DummyListener
             clust.registerListener("my",clusterListner)
             clust.registerPravegaNode("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaNode("localhost", 7000)
+            clust.unregisterPravegaNode("localhost", 7000)
             assert(clusterListner.numNodes == 0)
           }
 
@@ -126,7 +126,7 @@ class clustertest extends WordSpec {
             clust.registerPravegaController("localhost", 7000, "{\"metadata\":asd}")
             Thread.sleep(5000)
             assert(clust.getPravegaControllers.iterator().hasNext == true)
-            clust.deregisterPravegaController("localhost",7000)
+            clust.unregisterPravegaController("localhost",7000)
 
           }
           "call back the registered listener" ignore {
@@ -137,7 +137,7 @@ class clustertest extends WordSpec {
             clust.registerPravegaController("localhost", 7000, "{\"metadata\":asd}")
             Thread.sleep(5000)
             assert(clusterListner.numControllers ==1)
-            clust.deregisterPravegaController("localhost",7000)
+            clust.unregisterPravegaController("localhost",7000)
           }
         }
         "after inserting a node" should {
@@ -163,7 +163,7 @@ class clustertest extends WordSpec {
             val clust: Cluster = new Cluster()
             clust.initializeCluster(ConfigSyncManagerType.ZK, "zk1:2181", 15000)
             clust.registerPravegaController("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaController("localhost", 7000)
+            clust.unregisterPravegaController("localhost", 7000)
             Thread.sleep(5000)
             assert(clust.getPravegaControllers.iterator().hasNext == false)
           }
@@ -174,7 +174,7 @@ class clustertest extends WordSpec {
             val clusterListner:DummyListener = new DummyListener
             clust.registerListener("my",clusterListner)
             clust.registerPravegaController("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaController("localhost", 7000)
+            clust.unregisterPravegaController("localhost", 7000)
             Thread.sleep(5000)
             assert(clusterListner.numControllers ==0)
 
@@ -185,7 +185,7 @@ class clustertest extends WordSpec {
             val clust: Cluster = new Cluster()
             clust.initializeCluster(ConfigSyncManagerType.ZK, "zk1:2181", 15000)
             clust.registerPravegaNode("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaNode("localhost", 7000)
+            clust.unregisterPravegaNode("localhost", 7000)
             assert(clust.getPravegaNodes.iterator().hasNext == false)
           }
           "callback the listener" in {
@@ -194,7 +194,7 @@ class clustertest extends WordSpec {
             val clusterListner:DummyListener = new DummyListener
             clust.registerListener("my",clusterListner)
             clust.registerPravegaNode("localhost", 7000, "{\"metadata\":asd}")
-            clust.deregisterPravegaNode("localhost", 7000)
+            clust.unregisterPravegaNode("localhost", 7000)
             assert(clusterListner.numNodes == 0)
           }
 
