@@ -30,12 +30,12 @@ public class PositionImpl implements Position {
     private final Map<SegmentId, Long> ownedLogs;
     private final Map<SegmentId, Long> futureOwnedLogs;
 
-    PositionImpl(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
+    public PositionImpl(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
         this.ownedLogs = ownedLogs;
         this.futureOwnedLogs = futureOwnedLogs;
     }
 
-    Set<SegmentId> getOwnedSegments() {
+    public Set<SegmentId> getOwnedSegments() {
         return Collections.unmodifiableSet(ownedLogs.keySet());
     }
 

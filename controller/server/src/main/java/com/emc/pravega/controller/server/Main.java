@@ -43,7 +43,7 @@ public class Main {
         Api.Admin adminApi = new AdminImpl(store, null);
 
         //2.2) initialize implementation of Api.Consumer
-        Api.Consumer consumerApi = new ConsumerImpl();
+        Api.Consumer consumerApi = new ConsumerImpl(store, null);
 
         //2.3) initialize implementation of Api.Producer
         Api.Producer producerApi = new ProducerImpl();

@@ -39,13 +39,16 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
     public List<Position> getPositions(String stream, long timestamp, int count) throws TException {
         //invoke Api.Consumer.getPositions(...)
         consumerApi.getPositions(stream, timestamp, count);
+        // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
         return null;
     }
 
     @Override
     public List<Position> updatePositions(List<Position> positions) throws TException {
         //invoke Api.Consumer.updatePositions(...)
+        // convert pravega.controller.stream.api.v1.Position to pravega.stream.Position before invoking method on server
         consumerApi.updatePositions(null);
+        // convert pravega.stream.Position back to pravega.controller.stream.api.v1.Position before sending it over wire
         return null;
     }
 }
