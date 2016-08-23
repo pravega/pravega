@@ -22,6 +22,7 @@ import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.CachePolicy;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.writer.WriterConfig;
 
 import java.time.Duration;
 import java.util.Properties;
@@ -78,5 +79,20 @@ public class ConfigHelpers {
         ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_GENERATION_TIME, Integer.toString(generationDuration));
 
         return new ReadIndexConfig(p);
+    }
+
+    /**
+     * Creates a new instance of the WriterConfig class with given arguments.
+     *
+     * @param flushThresholdBytes
+     * @param flushThresholdMillis
+     * @return
+     */
+    public static WriterConfig createWriterConfig(int flushThresholdBytes, long flushThresholdMillis) {
+        Properties p = new Properties();
+        ServiceBuilderConfig.set(p, WriterConfig.COMPONENT_CODE, WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, Integer.toString(flushThresholdBytes));
+        ServiceBuilderConfig.set(p, WriterConfig.COMPONENT_CODE, WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, Long.toString(flushThresholdMillis));
+
+        return new WriterConfig(p);
     }
 }

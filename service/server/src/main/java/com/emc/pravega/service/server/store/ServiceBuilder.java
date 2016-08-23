@@ -26,12 +26,15 @@ import com.emc.pravega.service.server.SegmentContainerFactory;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.emc.pravega.service.server.SegmentToContainerMapper;
+import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.writer.StorageWriterFactory;
+import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
@@ -60,6 +63,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
     private SegmentContainerManager containerManager;
     private MetadataRepository metadataRepository;
     private CacheFactory cacheFactory;
+    private WriterFactory writerFactory;
 
     //endregion
 
@@ -154,6 +158,12 @@ public abstract class ServiceBuilder implements AutoCloseable {
         return new InMemoryCacheFactory();
     }
 
+    protected WriterFactory createWriterFactory() {
+        StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
+        WriterConfig writerConfig = this.serviceBuilderConfig.getWriterConfig();
+        return new StorageWriterFactory(writerConfig, storageFactory, this.executorService);
+    }
+
     protected ReadIndexFactory createReadIndexFactory() {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getReadIndexConfig();
@@ -166,7 +176,8 @@ public abstract class ServiceBuilder implements AutoCloseable {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this::createStorageFactory, sf -> this.storageFactory = sf);
         OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory, olf -> this.operationLogFactory = olf);
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this::createCacheFactory, cf -> this.cacheFactory = cf);
-        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, storageFactory, cacheFactory, this.executorService);
+        WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory, wf -> this.writerFactory = wf);
+        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

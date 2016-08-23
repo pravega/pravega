@@ -36,6 +36,7 @@ class MemoryLogUpdater {
 
     private final CacheUpdater cacheUpdater;
     private final MemoryOperationLog inMemoryOperationLog;
+    private final Runnable flushCallback;
 
     //endregion
 
@@ -48,11 +49,23 @@ class MemoryLogUpdater {
      * @param cacheUpdater         Cache Updater.
      */
     MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater) {
+        this(inMemoryOperationLog, cacheUpdater, null);
+    }
+
+    /**
+     * Creates a new instance of the MemoryLogUpdater class.
+     *
+     * @param inMemoryOperationLog InMemory Operation Log.
+     * @param cacheUpdater         Cache Updater.
+     * @param flushCallback        (Optional) A callback to be invoked whenever flush() is invoked.
+     */
+    MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
         Preconditions.checkNotNull(cacheUpdater, "cacheUpdater");
         Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
 
         this.inMemoryOperationLog = inMemoryOperationLog;
         this.cacheUpdater = cacheUpdater;
+        this.flushCallback = flushCallback;
     }
 
     //endregion
@@ -98,6 +111,9 @@ class MemoryLogUpdater {
      */
     void flush() {
         this.cacheUpdater.flush();
+        if (this.flushCallback != null) {
+            this.flushCallback.run();
+        }
     }
 
     /**

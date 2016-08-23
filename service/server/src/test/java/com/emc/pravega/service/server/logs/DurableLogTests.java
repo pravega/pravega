@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -56,6 +57,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -69,8 +71,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -403,6 +407,84 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // There is no point in performing any other checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
+    }
+
+    /**
+     * Tests the ability to block reads if the read is at the tail and no more data is available (for now).
+     */
+    @Test
+    public void testTailReads() throws Exception {
+        final int operationCount = 10;
+        final long segmentId = 1;
+        final String segmentName = Long.toString(segmentId);
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup();
+        @Cleanup
+        DurableLog durableLog = setup.createDurableLog();
+        durableLog.startAsync().awaitRunning();
+
+        // Create a segment, which will be used for testing later.
+        setup.metadata.mapStreamSegmentId(segmentName, segmentId);
+        setup.metadata.getStreamSegmentMetadata(segmentId).setDurableLogLength(0);
+
+        // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
+        ArrayList<CompletableFuture<Iterator<Operation>>> readFutures = new ArrayList<>();
+        for (int i = 0; i < operationCount; i++) {
+            long afterSeqNo = i + 1;
+            CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(afterSeqNo, operationCount, TIMEOUT);
+            Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = " + afterSeqNo + ").", readFuture.isDone());
+            readFutures.add(readFuture);
+        }
+
+        // Add one operation at at time, and each time, verify that the correct Read got activated.
+        OperationComparer operationComparer = new OperationComparer(true, setup.cache);
+        for (int appendId = 0; appendId < operationCount; appendId++) {
+            Operation operation = new StreamSegmentAppendOperation(segmentId, ("foo" + Integer.toString(appendId)).getBytes(), new AppendContext(UUID.randomUUID(), appendId));
+            durableLog.add(operation, TIMEOUT).join();
+            for (int readId = 0; readId < readFutures.size(); readId++) {
+                val readFuture = readFutures.get(readId);
+                boolean expectedComplete = readId <= appendId;
+                if (expectedComplete) {
+                    // The internal callback happens asynchronously, so wait for this future to complete in a bit.
+                    readFuture.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
+
+                Assert.assertEquals(
+                        String.format("Unexpected read completion status for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
+                        expectedComplete,
+                        readFutures.get(readId).isDone());
+
+                if (appendId == readId) {
+                    // Verify that the read result matches the operation.
+                    Iterator<Operation> readResult = readFuture.join();
+
+                    // Verify that we actually have a non-empty read result.
+                    Assert.assertTrue(
+                            String.format("Empty read result read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
+                            readResult.hasNext());
+
+                    // Verify the read result.
+                    Operation readOp = readResult.next();
+                    operationComparer.assertEquals(
+                            String.format("Unexpected result operation for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
+                            operation,
+                            readOp);
+
+                    // Verify that we don't have more than one read result.
+                    Assert.assertFalse(
+                            String.format("Not expecting more than one result for read after seqNo %d after adding op with seqNo %d", readId + 1, operation.getSequenceNumber()),
+                            readResult.hasNext());
+                }
+            }
+        }
+
+        // Verify that such reads are cancelled when the DurableLog is closed.
+        CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(operationCount + 2, operationCount, TIMEOUT);
+        Assert.assertFalse("read() returned a completed future when there is no data available (afterSeqNo = MAX).", readFuture.isDone());
+        durableLog.stopAsync().awaitTerminated();
+        Assert.assertTrue("A tail read was not cancelled when the DurableLog was stopped.", readFuture.isCompletedExceptionally());
     }
 
     /**
