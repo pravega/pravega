@@ -22,6 +22,7 @@ import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerCreator;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -86,14 +87,12 @@ public final class Cluster implements ConfigChangeListener {
      * @param connectionString       String used to connect to the config manager
      * @param sessionTimeout         Session timeout for the connection
      */
-    public void  initializeCluster(ConfigSyncManagerType syncType, String connectionString,
+    public synchronized void  initializeCluster(ConfigSyncManagerType syncType, String connectionString,
                                    int sessionTimeout) throws Exception {
-        synchronized (this) {
             if (manager == null)
                 manager = new ConfigSyncManagerCreator().createManager(syncType, connectionString,
                         sessionTimeout, this);
             refreshCluster();
-        }
     }
 
     /**
@@ -116,7 +115,11 @@ public final class Cluster implements ConfigChangeListener {
         nodes.put(endpoint, node);
         listeners.forEach(
                 (name, listener) -> {
-                    listener.nodeAdded(node);
+                    try {
+                        listener.nodeAdded(node);
+                    }catch (Exception e) {
+                        log.warn("Listener" + name + "threw an exception while handling add node :" + e.getMessage());
+                    }
                 });
     }
 
@@ -130,7 +133,11 @@ public final class Cluster implements ConfigChangeListener {
         controllers.put(endpoint, controller);
         listeners.forEach(
                 (name, listener) -> {
-                    listener.controllerAdded(controller);
+                    try {
+                        listener.controllerAdded(controller);
+                    }catch (Exception e) {
+                        log.warn("Listener" + name + "threw an exception while handling add controller :" + e.getMessage());
+                    }
                 });
     }
 
@@ -143,7 +150,11 @@ public final class Cluster implements ConfigChangeListener {
         PravegaController controller = controllers.remove(endpoint);
         listeners.forEach(
                 (name, listener) -> {
-                    listener.controllerRemoved(controller);
+                    try {
+                        listener.controllerRemoved(controller);
+                    } catch (Exception e) {
+                        log.warn("Listener" + name + "threw an exception while handling remove controller :" + e.getMessage());
+                    }
                 });
     }
 
@@ -155,7 +166,12 @@ public final class Cluster implements ConfigChangeListener {
         PravegaNode node = nodes.remove(endpoint);
         listeners.forEach(
                 (name, listener) -> {
-                    listener.nodeRemoved(node);
+                    try {
+                        listener.nodeRemoved(node);
+                    }catch (Exception e) {
+                        log.warn("Listener " + name + "threw an exception while handling remove node :" + e.getMessage());
+
+                    }
                 });
     }
 
@@ -184,8 +200,8 @@ public final class Cluster implements ConfigChangeListener {
      * @param host
      * @param port
      */
-    public void deregisterPravegaController(String host, int port) throws Exception {
-        manager.deregisterPravegaController(host, port);
+    public void unregisterPravegaController(String host, int port) throws Exception {
+        manager.unregisterPravegaController(host, port);
     }
 
     /**
@@ -193,8 +209,8 @@ public final class Cluster implements ConfigChangeListener {
      * @param host
      * @param port
      */
-    public void deregisterPravegaNode(String host, int port) {
-        manager.deregisterPravegaNode(host, port);
+    public void unregisterPravegaNode(String host, int port) throws Exception {
+        manager.unregisterPravegaNode(host, port);
     }
 
     /**
@@ -202,7 +218,10 @@ public final class Cluster implements ConfigChangeListener {
      * Registers a new listener
      * @param clusterListener
      */
-    public synchronized void registerListener(String name, ClusterListener clusterListener) {
+    public void registerListener(String name, ClusterListener clusterListener) {
+        Preconditions.checkNotNull(name);
+        Preconditions.checkNotNull(clusterListener);
+
         listeners.put(name, clusterListener);
     }
 
@@ -211,8 +230,8 @@ public final class Cluster implements ConfigChangeListener {
      * Removes a registered listener
      * @param clusterListener
      */
-    public void deRegisterListener(ClusterListener clusterListener) {
-        if (listeners.contains(clusterListener)) listeners.remove(clusterListener);
+    public void unregisterListener(ClusterListener clusterListener) {
+            listeners.remove(clusterListener);
     }
 
     /**

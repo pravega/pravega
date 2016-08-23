@@ -61,12 +61,12 @@ public class Vnest implements ConfigSyncManager {
     }
 
     @Override
-    public void deregisterPravegaController(String host, int port) {
+    public void unregisterPravegaController(String host, int port) {
 
     }
 
     @Override
-    public void deregisterPravegaNode(String host, int port) {
+    public void unregisterPravegaNode(String host, int port) {
 
     }
 }

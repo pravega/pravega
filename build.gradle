@@ -47,9 +47,6 @@ allprojects {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
         compile group: 'ch.qos.logback', name: 'logback-core', version: '1.1.7'
 
-        // https://mvnrepository.com/artifact/com.101tec/zkclient
-        compile group: 'com.101tec', name: 'zkclient', version: '0.3'
-
 
         // Declare the dependency for your favourite test framework you want to use in your tests.
         // TestNG is also supported by the Gradle Test task. Just change the

@@ -90,13 +90,13 @@ public class DummyZK implements ConfigSyncManager {
     }
 
     @Override
-    public void deregisterPravegaController(String host, int port) {
+    public void unregisterPravegaController(String host, int port) {
         this.deleteEntry(controllerInfoRoot + "/" + host + ":" + port);
         listener.controllerRemovedNotification(host, port);
     }
 
     @Override
-    public void deregisterPravegaNode(String host, int port) {
+    public void unregisterPravegaNode(String host, int port) {
         this.deleteEntry(nodeInfoRoot + "/" + host + ":" + port);
         listener.nodeRemovedNotification(host, port);
     }

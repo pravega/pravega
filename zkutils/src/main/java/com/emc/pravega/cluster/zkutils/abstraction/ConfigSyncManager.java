@@ -35,7 +35,7 @@ public interface ConfigSyncManager {
   void  refreshCluster() throws Exception;
   void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception;
   void registerPravegaController(String host, int port, String jsonMetadata) throws Exception;
-  void deregisterPravegaController(String host, int port) throws Exception;
-  void deregisterPravegaNode(String host, int port);
+  void unregisterPravegaController(String host, int port) throws Exception;
+  void unregisterPravegaNode(String host, int port) throws Exception;
 }
 

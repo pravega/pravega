@@ -111,12 +111,13 @@ public class ZookeeperClient
     }
 
     @Override
-    public void deregisterPravegaController(String host, int port) throws Exception {
+    public void unregisterPravegaController(String host, int port) throws Exception {
         deleteEntry(controllerInfoRoot + "/" + host + ":" + port);
     }
 
     @Override
-    public void deregisterPravegaNode(String host, int port) {
+    public void unregisterPravegaNode(String host, int port) throws Exception {
+        deleteEntry(nodeInfoRoot + "/" + host + ":" + port);
 
     }
 
