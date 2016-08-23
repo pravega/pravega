@@ -36,6 +36,9 @@ import java.util.Map;
 public class ZookeeperClient
         implements ConfigSyncManager, PathChildrenCacheListener, AutoCloseable{
 
+    private static final String HOST_STRING = "\"host\"";
+    private static final String PORT_STRING = "\"port\"";
+    private static final String METADATA_STRING = "\"metadata\"";
     private final ConfigChangeListener listener;
     private final CuratorFramework curatorFramework;
     private final PathChildrenCache controllerCache;
@@ -94,9 +97,9 @@ public class ZookeeperClient
     @Override
     public void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception {
         Map jsonMap = new HashMap<String,Object>();
-        jsonMap.put ("host" ,host);
-        jsonMap.put ("port" , port);
-        jsonMap.put ("metadata", jsonMetadata);
+        jsonMap.put (HOST_STRING, host);
+        jsonMap.put (PORT_STRING, port);
+        jsonMap.put (METADATA_STRING, jsonMetadata);
 
         createEntry(nodeInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
     }
@@ -104,9 +107,9 @@ public class ZookeeperClient
     @Override
     public void registerPravegaController(String host, int port, String jsonMetadata) throws Exception {
         Map jsonMap = new HashMap<String,Object>();
-        jsonMap.put ("host" ,host);
-        jsonMap.put ("port" , port);
-        jsonMap.put ("metadata", jsonMetadata);
+        jsonMap.put (HOST_STRING ,host);
+        jsonMap.put (PORT_STRING , port);
+        jsonMap.put (METADATA_STRING, jsonMetadata);
 
         createEntry(controllerInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
     }
