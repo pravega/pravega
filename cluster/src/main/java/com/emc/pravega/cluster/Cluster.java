@@ -117,7 +117,7 @@ public final class Cluster implements ConfigChangeListener {
                 (name, listener) -> {
                     try {
                         listener.nodeAdded(node);
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         log.warn("Listener" + name + "threw an exception while handling add node :" + e.getMessage());
                     }
                 });
@@ -135,7 +135,7 @@ public final class Cluster implements ConfigChangeListener {
                 (name, listener) -> {
                     try {
                         listener.controllerAdded(controller);
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         log.warn("Listener" + name + "threw an exception while handling add controller :" + e.getMessage());
                     }
                 });
@@ -168,7 +168,7 @@ public final class Cluster implements ConfigChangeListener {
                 (name, listener) -> {
                     try {
                         listener.nodeRemoved(node);
-                    }catch (Exception e) {
+                    } catch (Exception e) {
                         log.warn("Listener " + name + "threw an exception while handling remove node :" + e.getMessage());
 
                     }

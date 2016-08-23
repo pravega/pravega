@@ -18,7 +18,7 @@
 package com.emc.pravega.cluster.zkutils.zkimplementation;
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
+import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -29,23 +29,18 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 
 import java.io.Closeable;
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
-public class ZookeeperClient
-        implements ConfigSyncManager, PathChildrenCacheListener, AutoCloseable{
+public class ZookeeperClient extends CommonConfigSyncManager
+        implements PathChildrenCacheListener, AutoCloseable{
 
-    private static final String HOST_STRING = "\"host\"";
-    private static final String PORT_STRING = "\"port\"";
-    private static final String METADATA_STRING = "\"metadata\"";
-    private final ConfigChangeListener listener;
     private final CuratorFramework curatorFramework;
     private final PathChildrenCache controllerCache;
     private final PathChildrenCache nodeCache;
 
 
     public ZookeeperClient(String connectString, int sessionTimeoutMS, ConfigChangeListener listener) throws Exception {
+        super(listener);
         curatorFramework = CuratorFrameworkFactory.builder()
                 .connectString(connectString)
                 .sessionTimeoutMs(sessionTimeoutMS)
@@ -61,16 +56,7 @@ public class ZookeeperClient
 
         controllerCache.start();
         nodeCache.start();
-
-        this.listener = listener;
     }
-
-    /**
-     * Place in the configuration manager where the data about live nodes is stored.
-     *
-     */
-    final static private String nodeInfoRoot = "/pravega/nodes";
-    final static private String controllerInfoRoot = "/pravega/controllers";
 
     /**
      * Sample configuration/synchronization methods. Will add more as implementation progresses
@@ -93,68 +79,6 @@ public class ZookeeperClient
         this.nodeCache.clearAndRefresh();
         this.controllerCache.clearAndRefresh();
     }
-
-    @Override
-    public void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception {
-        Map jsonMap = new HashMap<String,Object>();
-        jsonMap.put (HOST_STRING, host);
-        jsonMap.put (PORT_STRING, port);
-        jsonMap.put (METADATA_STRING, jsonMetadata);
-
-        createEntry(nodeInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
-    }
-
-    @Override
-    public void registerPravegaController(String host, int port, String jsonMetadata) throws Exception {
-        Map jsonMap = new HashMap<String,Object>();
-        jsonMap.put (HOST_STRING ,host);
-        jsonMap.put (PORT_STRING , port);
-        jsonMap.put (METADATA_STRING, jsonMetadata);
-
-        createEntry(controllerInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
-    }
-
-    @Override
-    public void unregisterPravegaController(String host, int port) throws Exception {
-        deleteEntry(controllerInfoRoot + "/" + host + ":" + port);
-    }
-
-    @Override
-    public void unregisterPravegaNode(String host, int port) throws Exception {
-        deleteEntry(nodeInfoRoot + "/" + host + ":" + port);
-
-    }
-
-    String jsonEncode(Object obj ) {
-        final String retVal ="";
-
-        if (obj instanceof Map) {
-            retVal.concat("{");
-            ((Map)obj).forEach((k,v) -> {
-                retVal.concat(jsonEncode(k)+ ":" + jsonEncode(v));
-            });
-            retVal.concat("}");
-        } else if (obj instanceof String) {
-            retVal.concat("\"" + obj + "\"");
-        } else {
-            retVal.concat(obj.toString());
-        }
-
-        return retVal;
-    }
-
-    /**
-     * Called when a background task has completed or a watch has triggered
-     *
-     * @param client client
-     * @param event  the event
-     * @throws Exception any errors
-    @Override
-    public void eventReceived(CuratorFramework client, CuratorEvent event) throws Exception {
-        //TODO: Handle events
-
-    }
-     */
 
     /**
      * Called when a change has occurred

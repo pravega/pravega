@@ -20,32 +20,23 @@ package com.emc.pravega.cluster.zkutils.dummy;
 
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
+import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
 import com.google.common.base.Preconditions;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
   * Created by kandha on 8/8/16.
   */
-public class DummyZK implements ConfigSyncManager {
-    private final ConfigChangeListener listener;
-    /**
-     * Place in the configuration manager where the data about live nodes is stored.
-     * TBD: Read this from config
-     */
-    private final static String nodeInfoRoot = "/pravega/nodes/";
-    private final static String controllerInfoRoot = "/pravega/controllers";
+public class DummyZK extends CommonConfigSyncManager {
 
     ConcurrentHashMap<String,byte[]> valueMap;
 
     public DummyZK(String connectString, int sessionTimeout, ConfigChangeListener listener) {
+        super(listener);
         Preconditions.checkNotNull(listener);
 
         valueMap = new ConcurrentHashMap<>();
-        this.listener = listener;
     }
 
     /**
@@ -70,64 +61,6 @@ public class DummyZK implements ConfigSyncManager {
     public void refreshCluster() {
 
     }
-
-    @Override
-    public void registerPravegaNode(String host, int port, String jsonMetadata) {
-        Preconditions.checkNotNull(host);
-        Preconditions.checkNotNull(jsonMetadata);
-
-        Map jsonMap = new HashMap<String,Object>();
-        jsonMap.put ("host" ,host);
-        jsonMap.put ("port" , port);
-        jsonMap.put ("metadata", jsonMetadata);
-
-        createEntry(nodeInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
-        listener.nodeAddedNotification(host,port);
-
-    }
-
-    @Override
-    public void registerPravegaController(String host, int port, String jsonMetadata) {
-        Map jsonMap = new HashMap<String,Object>();
-        jsonMap.put ("host" ,host);
-        jsonMap.put ("port" , port);
-        jsonMap.put ("metadata", jsonMetadata);
-
-        createEntry(controllerInfoRoot + "/" + host + ":" + port, jsonEncode(jsonMap).getBytes());
-        listener.controllerAddedNotification(host,port);
-    }
-
-    @Override
-    public void unregisterPravegaController(String host, int port) {
-        this.deleteEntry(controllerInfoRoot + "/" + host + ":" + port);
-        listener.controllerRemovedNotification(host, port);
-    }
-
-    @Override
-    public void unregisterPravegaNode(String host, int port) {
-        this.deleteEntry(nodeInfoRoot + "/" + host + ":" + port);
-        listener.nodeRemovedNotification(host, port);
-    }
-
-    String jsonEncode(Object obj ) {
-        final String retVal ="";
-
-        if (obj instanceof Map) {
-            retVal.concat("{");
-            ((Map)obj).forEach((k,v) -> {
-                retVal.concat(jsonEncode(k)+ ":" + jsonEncode(v));
-            });
-            retVal.concat("}");
-        } else if (obj instanceof String) {
-            retVal.concat("\"" + obj + "\"");
-        } else {
-            retVal.concat(obj.toString());
-        }
-
-        return retVal;
-    }
-
-
 
 }
 

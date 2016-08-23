@@ -20,14 +20,16 @@
 package com.emc.pravega.cluster.zkutils.vnest;
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
+import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 /**
   * Created by kandha on 8/8/16.
  * TODO: Only skeleton methods here. Need to integrate it with VNest.
   */
-public class Vnest implements ConfigSyncManager {
+public class Vnest extends CommonConfigSyncManager {
     public Vnest(String connectString, int sessionTimeoutMS, ConfigChangeListener listener) {
+        super(listener);
 
     }
 
@@ -39,35 +41,20 @@ public class Vnest implements ConfigSyncManager {
      */
     @Override
     public void createEntry(String path, byte[] value) {
+        throw new NotImplementedException();
     }
 
     @Override
     public void deleteEntry(String path) {
+        throw new NotImplementedException();
 
     }
 
     @Override
     public void refreshCluster() {
+        throw new NotImplementedException();
 
     }
 
-    @Override
-    public void registerPravegaNode(String host, int port, String jsonMetadata) {
 
-    }
-
-    @Override
-    public void registerPravegaController(String host, int port, String jsonMetadata) {
-
-    }
-
-    @Override
-    public void unregisterPravegaController(String host, int port) {
-
-    }
-
-    @Override
-    public void unregisterPravegaNode(String host, int port) {
-
-    }
 }
