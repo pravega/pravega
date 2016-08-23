@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.controller.store;
+package com.emc.pravega.controller.store.stream;
 
 /**
  * Exception thrown when an attempt is made to create stream with duplicate name.

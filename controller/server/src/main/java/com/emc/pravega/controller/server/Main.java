@@ -22,15 +22,11 @@ import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ProducerServiceImpl;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
-
-import java.net.URI;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import com.emc.pravega.controller.server.v1.Api.AdminImpl;
+import com.emc.pravega.controller.server.v1.Api.ConsumerImpl;
+import com.emc.pravega.controller.server.v1.Api.ProducerImpl;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 
 /**
  * Entry point of controller server.
@@ -39,49 +35,21 @@ public class Main {
 
     public static void main(String[] args) {
         //1) LOAD configuration.
+        // TODO: read store type and construct store configuration based on configuration file
+        StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
         //2) initialize implementation objects, with right parameters/configuration.
-
         //2.1) initialize implementation of Api.Admin
-        Api.Admin adminApi = new Api.Admin() { //sample implementation
-            @Override
-            public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-                return null;
-            }
+        Api.Admin adminApi = new AdminImpl(store);
 
-            @Override
-            public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-                return null;
-            }
-        };
         //2.2) initialize implementation of Api.Consumer
-        Api.Consumer consumerApi = new Api.Consumer() { //sample implementation
-            @Override
-            public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
-                return null;
-            }
+        Api.Consumer consumerApi = new ConsumerImpl();
 
-            @Override
-            public CompletableFuture<List<Position>> updatePositions(List<Position> positions) {
-                return null;
-            }
-        };
         //2.3) initialize implementation of Api.Producer
-        Api.Producer producerApi = new Api.Producer() { //sample implementation
-            @Override
-            public CompletableFuture<List<StreamSegments>> getCurrentSegments(String stream) {
-                return null;
-            }
-
-            @Override
-            public CompletableFuture<URI> getURI(SegmentId id) {
-                return null;
-            }
-        };
+        Api.Producer producerApi = new ProducerImpl();
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.
         RPCServer.start(new AdminServiceImpl(adminApi), new ConsumerServiceImpl(consumerApi), new ProducerServiceImpl(producerApi));
-
     }
 }

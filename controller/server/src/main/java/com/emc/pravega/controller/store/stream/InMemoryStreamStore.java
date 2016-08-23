@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store;
+package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
 
@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * In-memory stream store.
  */
-public class StreamStore implements StreamMetadataStore {
+public class InMemoryStreamStore implements StreamMetadataStore {
 
     Map<String, Stream> streams = new HashMap<>();
 
