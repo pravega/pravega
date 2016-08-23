@@ -21,6 +21,7 @@ package com.emc.pravega.cluster.zkutils.dummy;
 
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
+import com.google.common.base.Preconditions;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,14 +34,16 @@ public class DummyZK implements ConfigSyncManager {
     private final ConfigChangeListener listener;
     /**
      * Place in the configuration manager where the data about live nodes is stored.
-     *
+     * TBD: Read this from config
      */
-    String nodeInfoRoot = "/pravega/nodes/";
-    String controllerInfoRoot = "/pravega/controllers";
+    private final static String nodeInfoRoot = "/pravega/nodes/";
+    private final static String controllerInfoRoot = "/pravega/controllers";
 
     ConcurrentHashMap<String,byte[]> valueMap;
 
     public DummyZK(String connectString, int sessionTimeout, ConfigChangeListener listener) {
+        Preconditions.checkNotNull(listener);
+
         valueMap = new ConcurrentHashMap<>();
         this.listener = listener;
     }
@@ -52,6 +55,8 @@ public class DummyZK implements ConfigSyncManager {
      */
     @Override
     public void createEntry(String path, byte[] value) {
+        Preconditions.checkNotNull(path);
+        Preconditions.checkNotNull(value);
         valueMap.put(path,value);
     }
 
@@ -68,6 +73,9 @@ public class DummyZK implements ConfigSyncManager {
 
     @Override
     public void registerPravegaNode(String host, int port, String jsonMetadata) {
+        Preconditions.checkNotNull(host);
+        Preconditions.checkNotNull(jsonMetadata);
+
         Map jsonMap = new HashMap<String,Object>();
         jsonMap.put ("host" ,host);
         jsonMap.put ("port" , port);

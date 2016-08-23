@@ -24,6 +24,7 @@ import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
 
 /**
   * Created by kandha on 8/8/16.
+ * TODO: Only skeleton methods here. Need to integrate it with VNest.
   */
 public class Vnest implements ConfigSyncManager {
     public Vnest(String connectString, int sessionTimeoutMS, ConfigChangeListener listener) {

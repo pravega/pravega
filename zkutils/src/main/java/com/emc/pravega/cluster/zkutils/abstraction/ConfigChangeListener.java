@@ -22,9 +22,32 @@ package com.emc.pravega.cluster.zkutils.abstraction;
   * Callback interface for the configuration change events
   */
 public interface ConfigChangeListener {
+    /**
+     * Notification for addition of a node
+     * @param host
+     * @param port
+     */
   void nodeAddedNotification(String host, int port);
+
+    /**
+     * Notification for addition of a controller
+     * @param host
+     * @param port
+     */
   void  controllerAddedNotification(String host, int port);
+
+    /**
+     * Notification for removal of a node
+     * @param host
+     * @param port
+     */
   void nodeRemovedNotification(String host, int port);
+
+    /**
+     * Notification for removal of a controller
+     * @param host
+     * @param port
+     */
   void controllerRemovedNotification(String host, int port);
 
 }
