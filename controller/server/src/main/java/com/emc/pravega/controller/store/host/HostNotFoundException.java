@@ -1,3 +1,5 @@
+package com.emc.pravega.controller.store.host;
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -15,14 +17,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
 
-import lombok.Data;
-import lombok.ToString;
-
-@Data
-@ToString(includeFieldNames = true)
-public class Host {
-    private String ipAddr;
-    private int port;
+public class HostNotFoundException extends HostControllerException {
+    public HostNotFoundException(Host host) {
+        super(String.format("Host %s not found.", host.getIpAddr()));
+    }
 }

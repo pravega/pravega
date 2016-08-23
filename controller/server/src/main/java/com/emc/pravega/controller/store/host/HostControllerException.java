@@ -17,12 +17,8 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import lombok.Data;
-import lombok.ToString;
-
-@Data
-@ToString(includeFieldNames = true)
-public class Host {
-    private String ipAddr;
-    private int port;
+public class HostControllerException extends RuntimeException {
+    public HostControllerException(String message) {
+        super(message);
+    }
 }

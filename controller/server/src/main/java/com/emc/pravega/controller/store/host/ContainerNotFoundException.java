@@ -15,14 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.emc.pravega.controller.store.host;
 
-import lombok.Data;
-import lombok.ToString;
 
-@Data
-@ToString(includeFieldNames = true)
-public class Host {
-    private String ipAddr;
-    private int port;
+public class ContainerNotFoundException extends HostControllerException {
+    private static final long serialVersionUID = 1L;
+
+    public ContainerNotFoundException(int containerId) {
+        super(String.format("Container %d not found.", containerId));
+    }
 }

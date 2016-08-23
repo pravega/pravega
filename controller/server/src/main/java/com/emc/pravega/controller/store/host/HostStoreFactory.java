@@ -17,12 +17,24 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import lombok.Data;
-import lombok.ToString;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.commons.lang.NotImplementedException;
 
-@Data
-@ToString(includeFieldNames = true)
-public class Host {
-    private String ipAddr;
-    private int port;
+public class HostStoreFactory {
+    public enum StoreType {
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3
+    }
+
+    public static HostControllerStore createStore(StoreType type, StoreConfiguration config){
+        switch(type){
+            case InMemory: return new InMemoryHostStore(((InMemoryHostControllerStoreConfig)config).getHostContainerMap());
+            case Zookeeper:
+            case ECS:
+            case S3:
+            default: throw new NotImplementedException();
+        }
+    }
 }

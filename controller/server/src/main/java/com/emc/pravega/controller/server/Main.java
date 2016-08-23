@@ -25,8 +25,19 @@ import com.emc.pravega.controller.server.rpc.v1.ProducerServiceImpl;
 import com.emc.pravega.controller.server.v1.Api.AdminImpl;
 import com.emc.pravega.controller.server.v1.Api.ConsumerImpl;
 import com.emc.pravega.controller.server.v1.Api.ProducerImpl;
+import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.google.common.collect.Lists;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Collectors;
 
 /**
  * Entry point of controller server.
@@ -34,13 +45,18 @@ import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 public class Main {
 
     public static void main(String[] args) {
+
+        Map<Host, List<Integer>> hostContainerMap = new HashMap<>();
+
         //1) LOAD configuration.
         // TODO: read store type and construct store configuration based on configuration file
-        StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
+                new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
         //2.1) initialize implementation of Api.Admin
-        Api.Admin adminApi = new AdminImpl(store, null);
+        Api.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
         //2.2) initialize implementation of Api.Consumer
         Api.Consumer consumerApi = new ConsumerImpl();

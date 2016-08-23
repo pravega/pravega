@@ -17,12 +17,23 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import lombok.Data;
-import lombok.ToString;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 
-@Data
-@ToString(includeFieldNames = true)
-public class Host {
-    private String ipAddr;
-    private int port;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public class InMemoryHostControllerStoreConfig implements StoreConfiguration {
+    // TODO: read from configuration
+    private final int numOfContainers = 64;
+
+    private Map<Host, List<Integer>> hostContainerMap;
+
+    public InMemoryHostControllerStoreConfig setHostContainers(Map<Host, List<Integer>> hostContainerMap){
+        this.hostContainerMap = hostContainerMap;
+        return this;
+    }
+
+    public Map<Host, List<Integer>> getHostContainerMap(){return Collections.unmodifiableMap(hostContainerMap);}
+    public int getNumOfContainers(){return numOfContainers;}
 }
