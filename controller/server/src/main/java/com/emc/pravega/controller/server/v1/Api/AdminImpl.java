@@ -19,14 +19,16 @@ package com.emc.pravega.controller.server.v1.Api;
 
 import com.emc.pravega.common.hash.ConsistentHash;
 import com.emc.pravega.common.netty.*;
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.model.SegmentId;
-import com.emc.pravega.model.StreamConfiguration;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.concurrent.CompletableFuture;
@@ -69,14 +71,13 @@ public class AdminImpl implements Api.Admin {
     public void createSegment(String stream, int segmentNumber) {
         Segment segment = new Segment(segmentNumber, 0, Long.MAX_VALUE, 0.0, 0.0);
         streamStore.addActiveSegment(stream, segment);
-        int container = ConsistentHash.hash(stream + segment.getNumber(), hostStore.getContainerCount());
-        Host host = hostStore.getHostForContainer(container);
 
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, host.getPort());
-        SegmentManagerImpl segmentManager = new SegmentManagerImpl(host.getIpAddr(), clientCF);
+        SegmentId segmentId = SegmentHelper.getSegmentId(stream, segment, hostStore);
+
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, segmentId.getPort());
+        SegmentManagerImpl segmentManager = new SegmentManagerImpl(segmentId.getEndpoint(), clientCF);
 
         // what is previous segment id? There could be multiple previous in case of merge
-        SegmentId segmentId = new SegmentId(stream, stream + segmentNumber, segmentNumber, 0);
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails

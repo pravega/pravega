@@ -1,16 +1,16 @@
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
-import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.stream.Api;
+import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.model.StreamSegments;
+import com.emc.pravega.stream.StreamSegments;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.net.URI;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 public class ProducerImpl implements Api.Producer{
     private StreamMetadataStore streamStore;
@@ -22,10 +22,13 @@ public class ProducerImpl implements Api.Producer{
     }
 
     @Override
-    public CompletableFuture<List<StreamSegments>> getCurrentSegments(String stream) {
+    public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
         // fetch active segments from segment store
         return CompletableFuture.supplyAsync(() -> streamStore.getActiveSegments(stream))
-                .thenApply(result -> result.getCurrent().forEach(x -> convert(streamStore.getSegment(stream, x))));
+                .thenApply(
+                        result -> new StreamSegments(result.getCurrent().stream()
+                        .map(x -> SegmentHelper.getSegmentId(stream, streamStore.getSegment(stream, x.intValue()), hostStore))
+                        .collect(Collectors.toList()), System.currentTimeMillis()));
     }
 
     @Override

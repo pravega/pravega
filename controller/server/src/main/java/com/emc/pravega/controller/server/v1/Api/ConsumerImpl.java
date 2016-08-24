@@ -1,7 +1,7 @@
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
-import com.emc.pravega.model.Position;
+import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.Position;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.List;

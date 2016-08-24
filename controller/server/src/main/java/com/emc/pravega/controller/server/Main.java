@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
@@ -54,13 +54,13 @@ public class Main {
                 new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
-        //2.1) initialize implementation of Api.Admin
+        //2.1) initialize implementation of Api.ApiAdmin
         Api.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
-        //2.2) initialize implementation of Api.Consumer
+        //2.2) initialize implementation of Api.ApiConsumer
         Api.Consumer consumerApi = new ConsumerImpl();
 
-        //2.3) initialize implementation of Api.Producer
+        //2.3) initialize implementation of Api.ApiProducer
         Api.Producer producerApi = new ProducerImpl(streamStore, hostStore);
 
         //3) start the Server implementations.

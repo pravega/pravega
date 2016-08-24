@@ -15,44 +15,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.stream.impl;
 
-package com.emc.pravega.controller.contract.v1.api;
-
+import com.emc.pravega.stream.Api;
+import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
+import org.apache.thrift.TException;
 
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Stream Controller APIs.
+ * RPC based implementation of Stream Controller ApiProducer V1 API
  */
-public final class Api {
+public class ApiProducer implements Api.Producer {
 
-    public static interface Admin {
-        CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
-
-        CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
+    @Override
+    public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
+        //Use RPC client to invoke getCurrentSeqments
+        ProducerService.Client client = new ProducerService.Client(null);
+        try {
+            client.getCurrentSegments(null);
+        } catch (TException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
-    public static interface Producer {
-        CompletableFuture<List<StreamSegments>> getCurrentSegments(String stream);
-
-        CompletableFuture<URI> getURI(SegmentId id);
-    }
-
-    public static interface Consumer {
-        CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count);
-
-        CompletableFuture<List<Position>> updatePositions(List<Position> positions);
-    }
-
-    //Note: this is not a public interface TODO: Set appropriate scope
-    static interface Host {
-        //Placeholder for APIs that pravega host shall call into
+    @Override
+    public CompletableFuture<URI> getURI(SegmentId id) {
+        //Use RPC client to invoke getURI
+        ProducerService.Client client = new ProducerService.Client(null);
+        try {
+            client.getURI(null);
+        } catch (TException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }

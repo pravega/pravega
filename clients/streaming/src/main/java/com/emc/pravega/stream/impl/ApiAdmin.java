@@ -15,9 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.client.rpc.v1;
+package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -26,9 +26,9 @@ import org.apache.thrift.TException;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * RPC based implementation of Stream Controller Admin V1 API
+ * RPC based implementation of Stream Controller ApiAdmin V1 API
  */
-public class Admin implements Api.Admin {
+public class ApiAdmin implements Api.Admin {
     @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         //Use RPC client to invoke createStream
