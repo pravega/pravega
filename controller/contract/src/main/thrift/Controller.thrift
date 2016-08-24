@@ -30,6 +30,12 @@ struct SegmentId {
   4: required i32 previous
 }
 
+struct SegmentUri {
+  1: required SegmentId segment;
+  3: required string endpoint;
+  4: required i32 port;
+}
+
 struct Position {
   1: required map<SegmentId, i64> ownedLogs,
   2: required map<SegmentId, i64> futureOwnedLogs
@@ -47,8 +53,8 @@ service AdminService {
  * Producer APIs supported by Stream Controller service
  */
 service ProducerService {
-    list<string> getCurrentSegments(1:string stream)
-    string getURI(1:SegmentId id)
+    list<SegmentUri> getCurrentSegments(1:string stream)
+    SegmentUri getURI(1:SegmentId id)
 }
 
 /*
