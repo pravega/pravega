@@ -22,15 +22,22 @@ import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ProducerServiceImpl;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.controller.server.v1.Api.AdminImpl;
+import com.emc.pravega.controller.server.v1.Api.ConsumerImpl;
+import com.emc.pravega.controller.server.v1.Api.ProducerImpl;
+import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.google.common.collect.Lists;
 
-import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Collectors;
 
 /**
  * Entry point of controller server.
@@ -38,50 +45,27 @@ import java.util.concurrent.CompletableFuture;
 public class Main {
 
     public static void main(String[] args) {
+
+        Map<Host, List<Integer>> hostContainerMap = new HashMap<>();
+
         //1) LOAD configuration.
+        // TODO: read store type and construct store configuration based on configuration file
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
+                new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
-
         //2.1) initialize implementation of Api.Admin
-        Api.Admin adminApi = new Api.Admin() { //sample implementation
-            @Override
-            public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-                return null;
-            }
+        Api.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
-            @Override
-            public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-                return null;
-            }
-        };
         //2.2) initialize implementation of Api.Consumer
-        Api.Consumer consumerApi = new Api.Consumer() { //sample implementation
-            @Override
-            public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
-                return null;
-            }
+        Api.Consumer consumerApi = new ConsumerImpl();
 
-            @Override
-            public CompletableFuture<List<Position>> updatePositions(List<Position> positions) {
-                return null;
-            }
-        };
         //2.3) initialize implementation of Api.Producer
-        Api.Producer producerApi = new Api.Producer() { //sample implementation
-            @Override
-            public CompletableFuture<List<StreamSegments>> getCurrentSegments(String stream) {
-                return null;
-            }
-
-            @Override
-            public CompletableFuture<URI> getURI(SegmentId id) {
-                return null;
-            }
-        };
+        Api.Producer producerApi = new ProducerImpl();
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.
         RPCServer.start(new AdminServiceImpl(adminApi), new ConsumerServiceImpl(consumerApi), new ProducerServiceImpl(producerApi));
-
     }
 }

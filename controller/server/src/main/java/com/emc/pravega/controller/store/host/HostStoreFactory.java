@@ -15,28 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store;
+package com.emc.pravega.controller.store.host;
 
-import lombok.Data;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.commons.lang.NotImplementedException;
 
-import java.util.List;
-import java.util.Map;
+public class HostStoreFactory {
+    public enum StoreType {
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3
+    }
 
-/**
- * List of segments from where a consumer can start reading, or a producer can start producing to.
- * For each segment, SegmentFutures also lists all the segments that can be read from (produced to) after
- * that segment is completely read (sealed).
- */
-@Data
-public class SegmentFutures {
-    // current segments to read from or write to
-    private List<Integer> current;
-
-    // future segments to read from or write to when curent segment is completely read (consumer) or sealed (producer)
-    private Map<Integer, Integer> futures;
-
-    SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
-        this.current = current;
-        this.futures = futures;
+    public static HostControllerStore createStore(StoreType type, StoreConfiguration config){
+        switch(type){
+            case InMemory: return new InMemoryHostStore(((InMemoryHostControllerStoreConfig)config).getHostContainerMap());
+            case Zookeeper:
+            case ECS:
+            case S3:
+            default: throw new NotImplementedException();
+        }
     }
 }

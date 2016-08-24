@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.controller.store;
+package com.emc.pravega.controller.store.stream;
 
 /**
  * Exception thrown when a stream with a given name is not found in the metadata
