@@ -138,7 +138,52 @@ class Stream {
     List<SegmentFutures> getNextSegments(List<Integer> completedSegments, List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
-        throw new UnsupportedOperationException("Not implemented, yet");
+        java.util.stream.Stream<Integer> successors = completedSegments.stream().flatMap(x -> segments.get(x).getSuccessors().stream());
+
+        // a successor that has all its predecessors completed, shall become current and be added to some position
+        java.util.stream.Stream<Integer> newCurrents = successors.filter(x -> completedSegments.contains(x));
+        Map<Integer, List<Integer>> newFutures = new HashMap<>();
+        successors.forEach(
+                x -> {
+                    // if x is not completed
+                    if (!completedSegments.contains(x)) {
+                        // number of predecessors not completed == 1
+                        java.util.stream.Stream<Integer> filtered = segments.get(x).getPredecessors().stream().filter(y -> !completedSegments.contains(y));
+                        if (filtered.count() == 1) {
+                            Integer pendingPredecessor = filtered.findFirst().get();
+                            if (newFutures.containsKey(pendingPredecessor)) {
+                                newFutures.get(pendingPredecessor).add(x);
+                            } else {
+                                List<Integer> list = new ArrayList<Integer>();
+                                list.add(x);
+                                newFutures.put(pendingPredecessor, list);
+                            }
+                        }
+                    }
+                }
+        );
+
+        int quotient = (int)newCurrents.count() / positions.size();
+        int remainder = (int)newCurrents.count() % positions.size();
+        int counter = 0;
+        List<Integer> newCurrentsList = newCurrents.collect(Collectors.toList());
+        for (int i = 0; i < positions.size(); i++) {
+            SegmentFutures position = positions.get(i);
+            // add the new current segments
+            int portion = (i < remainder) ? quotient + 1 : quotient;
+            for (int j=0; j < portion; j++, counter++) {
+                position.getCurrent().add(newCurrentsList.get(counter));
+            }
+            // add new futures if any
+            position.getCurrent().forEach(
+                current -> {
+                    if (newFutures.containsKey(current)) {
+                        newFutures.get(current).stream().forEach(x -> position.getFutures().put(x, current));
+                    }
+                }
+            );
+        }
+        return positions;
     }
 
     /**
