@@ -22,16 +22,22 @@ package com.emc.pravega.controller.server.rpc;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TMultiplexedProcessor;
+import org.apache.thrift.protocol.TJSONProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TServer.Args;
 import org.apache.thrift.server.TSimpleServer;
+import org.apache.thrift.server.TThreadedSelectorServer;
+import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
+import org.apache.thrift.transport.TTransportException;
 
 /**
  * Thrift based RPC server implementation. (Initial version)
  */
+@Slf4j
 public class RPCServer {
 
     public static void start(AdminService.Iface adminService, ConsumerService.Iface consumerService, ProducerService.Iface producerService) {
@@ -41,25 +47,43 @@ public class RPCServer {
             processor.registerProcessor("consumerService", new ConsumerService.Processor(consumerService));
             processor.registerProcessor("producerService", new ProducerService.Processor(producerService));
 
-            Runnable simple = () -> {
-                simple(processor);
+            Runnable server = () -> {
+                simpleServer(processor);
             };
 
-            new Thread(simple).start();
+            new Thread(server).start();
         } catch (Exception x) {
-            x.printStackTrace(); //TODO: enable logging
+            log.error("Exception during start of RPC server", x);
         }
     }
 
-    private static void simple(final TMultiplexedProcessor processor) {
+    private static void simpleServer(final TMultiplexedProcessor processor) {
         try {
             TServerTransport serverTransport = new TServerSocket(9090);
             TServer server = new TSimpleServer(new Args(serverTransport).processor(processor));
 
-            System.out.println("Starting the simple server...");
+            log.info("Starting the simple server...");
             server.serve();
         } catch (Exception e) {
-            e.printStackTrace(); //TODO: enable logging
+            log.error("Exception during start of Simple RPC server", e);
+        }
+    }
+
+    private static void threadedServer(final TMultiplexedProcessor processor) {
+        try {
+            TNonblockingServerSocket socket = new TNonblockingServerSocket(9090);
+
+            TThreadedSelectorServer.Args config = new TThreadedSelectorServer.Args(socket);
+            config.processor(processor)
+                    .protocolFactory(new TJSONProtocol.Factory())
+                    .workerThreads(10)
+                    .selectorThreads(3);
+
+            TServer server = new TThreadedSelectorServer(config);
+            log.info("Starting Threaded Selector Server");
+
+        } catch (TTransportException e) {
+            log.error("Exception during start of Threaded Selector Server", e);
         }
     }
 }
