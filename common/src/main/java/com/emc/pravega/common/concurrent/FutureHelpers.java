@@ -20,15 +20,44 @@ package com.emc.pravega.common.concurrent;
 
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 
 /**
  * Extensions to Future and CompletableFuture.
  */
 public final class FutureHelpers {
+    
+    /**
+     * Returns true if the future is done and successful
+     */
+    public static <T> boolean isSuccessful(CompletableFuture<T> f) {
+        return f.isDone() && !f.isCompletedExceptionally() && !f.isCancelled();
+    }
+    
+    /**
+     * Calls get on the provided future, handling interrupted, and transforming the executionException into an exception
+     * of the type whose constructor is provided
+     * 
+     * @param future The future whose result is wanted
+     * @param exceptionConstructor The constructor for the exception to be thrown IE: RuntimeException::new
+     * @return The result of calling future.get()
+     */
+    public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
+            Function<Throwable, ExceptionT> exceptionConstructor) throws ExceptionT {
+        try {
+            return Exceptions.handleInterupted(() -> future.get());
+        } catch (ExecutionException e) {
+            throw exceptionConstructor.apply(e.getCause());
+        }
+    }
+    
     /**
      * Creates a new CompletableFuture that is failed with the given exception.
      *

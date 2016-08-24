@@ -17,13 +17,15 @@
  */
 package com.emc.pravega.common.netty;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * A factory that establishes connections to Prevaga servers.
  * The underlying implementation may or may not implement connection pooling.
  */
 public interface ConnectionFactory extends AutoCloseable {
 
-    ClientConnection establishConnection(String endpoint, ReplyProcessor rp);
+    CompletableFuture<ClientConnection> establishConnection(String endpoint, ReplyProcessor rp);
 
     @Override
     void close();

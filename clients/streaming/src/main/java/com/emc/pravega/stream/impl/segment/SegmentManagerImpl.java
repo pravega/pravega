@@ -17,6 +17,15 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import org.apache.commons.lang.NotImplementedException;
+
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -25,17 +34,14 @@ import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.common.util.RetriesExaustedException;
 import com.emc.pravega.stream.Transaction.Status;
 import com.emc.pravega.stream.TxFailedException;
 import com.google.common.annotations.VisibleForTesting;
+
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
-
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -49,7 +55,7 @@ public class SegmentManagerImpl implements SegmentManager {
     @Synchronized
     public boolean createSegment(String name) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        ClientConnection connection = connectionFactory.establishConnection(endpoint, new FailingReplyProcessor() {
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
             @Override
             public void wrongHost(WrongHost wrongHost) {
                 result.completeExceptionally(new NotImplementedException());
@@ -64,34 +70,37 @@ public class SegmentManagerImpl implements SegmentManager {
             public void segmentCreated(SegmentCreated segmentCreated) {
                 result.complete(true);
             }
-        });
+        };
+        ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(endpoint, replyProcessor),
+                                                             RuntimeException::new);
         try {
             connection.send(new CreateSegment(name));
-            return result.get();
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e.getCause());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
         } catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }
+        return getAndHandleExceptions(result, RuntimeException::new);
     }
 
     @Override
-    public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) {
+    public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) throws SegmentSealedException {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
         try {
-            result.connect();
-        } catch (ConnectionFailedException e) {
+            result.getConnection();
+        } catch (RetriesExaustedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
-        }
+        } 
         return result;
     }
 
     @Override
     public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
-        return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name), 0);
+        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name);
+        try {
+            Exceptions.handleInterupted(()->result.getConnection().get());
+        } catch (ExecutionException e) {
+            log.warn("Initial connection attempt failure. Suppressing.", e);
+        } 
+        return new SegmentInputStreamImpl(result, 0);
     }
 
     @Override

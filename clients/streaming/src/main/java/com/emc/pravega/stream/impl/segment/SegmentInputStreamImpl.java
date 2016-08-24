@@ -28,6 +28,7 @@ import java.util.concurrent.Future;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
@@ -120,10 +121,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     private void handleRequest() {
         SegmentRead segmentRead;
         try {
-            segmentRead = outstandingRequest.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            segmentRead = Exceptions.handleInterupted(()->outstandingRequest.get());
         } catch (ExecutionException e) {
             throw new RuntimeException(e.getCause());
         }

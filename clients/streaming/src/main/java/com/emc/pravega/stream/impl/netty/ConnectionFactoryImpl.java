@@ -20,6 +20,9 @@ package com.emc.pravega.stream.impl.netty;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.SSLException;
 
@@ -33,6 +36,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -69,7 +74,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public ClientConnection establishConnection(String host, ReplyProcessor rp) {
+    public CompletableFuture<ClientConnection> establishConnection(String host, ReplyProcessor rp) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(host));
         final SslContext sslCtx;
         if (ssl) {
@@ -106,13 +111,24 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
             });
 
         // Start the client.
-        try {
-            b.connect(host, port).sync();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
-        return handler;
+        CompletableFuture<ClientConnection> result = new CompletableFuture<>();
+        b.connect(host, port).addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future){
+                try {
+                    future.get();
+                    result.complete(handler);
+                } catch (CancellationException e) {
+                    result.completeExceptionally(e);
+                } catch (ExecutionException e) {
+                    result.completeExceptionally(e.getCause());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    result.completeExceptionally(e);
+                }
+            }
+        });
+        return result;
     }
 
     @Override

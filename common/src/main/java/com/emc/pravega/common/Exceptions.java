@@ -20,10 +20,44 @@ package com.emc.pravega.common;
 
 import com.google.common.base.Preconditions;
 
+import lombok.SneakyThrows;
+
 /**
  * Helper methods that perform various checks and throw exceptions if certain conditions are met.
  */
 public final class Exceptions {
+    
+    @FunctionalInterface
+    public static interface InteruptableRunable<ExceptionT extends Exception> {
+        void run() throws ExceptionT, InterruptedException;
+    }
+    
+    @FunctionalInterface
+    public static interface InteruptableCallable<ExceptionT extends Exception, ResultT> {
+        ResultT call() throws ExceptionT, InterruptedException;
+    }
+    
+    @SneakyThrows(InterruptedException.class)
+    public static <ExceptionT extends Exception> void handleInterupted(InteruptableRunable<ExceptionT> run) throws ExceptionT {
+        try {
+            run.run();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+    
+    @SneakyThrows(InterruptedException.class)
+    public static <ExceptionT extends Exception, ResultT> ResultT handleInterupted(
+            InteruptableCallable<ExceptionT, ResultT> call) throws ExceptionT {
+        try {
+            return call.call();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+    
     /**
      * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the String arg
      * argument has a length of zero.
