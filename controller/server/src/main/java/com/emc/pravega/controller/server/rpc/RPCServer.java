@@ -24,8 +24,6 @@ import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import org.apache.thrift.TMultiplexedProcessor;
 import org.apache.thrift.server.TServer;
-import org.apache.thrift.server.TServer.Args;
-import org.apache.thrift.server.TSimpleServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;

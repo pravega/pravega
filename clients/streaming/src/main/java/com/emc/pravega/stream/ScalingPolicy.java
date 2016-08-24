@@ -24,7 +24,7 @@ import lombok.Data;
  */
 @Data
 public class ScalingPolicy {
-    enum Type {
+    public enum Type {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
