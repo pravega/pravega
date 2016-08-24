@@ -24,7 +24,6 @@ import com.google.common.util.concurrent.Service;
  * Defines a writer.
  */
 public interface Writer extends Service, AutoCloseable {
-
     @Override
     void close();
 }

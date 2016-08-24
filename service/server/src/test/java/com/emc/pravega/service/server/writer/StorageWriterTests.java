@@ -48,16 +48,19 @@ public class StorageWriterTests {
 
     @Test
     public void testMisc() throws Exception {
-        final int operationCount = 10;
+        final int operationCount = 100;
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Start the writer.
+        context.writer.startAsync();
+        Thread.sleep(500);
         for (int i = 0; i < operationCount; i++) {
             Operation o = new StreamSegmentAppendOperation(1, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i));
             context.operationLog.add(o, TIMEOUT).join();
-            System.out.println(String.format("Queued: %s", o));
         }
 
-        context.writer.startAsync();
+        Thread.sleep(1000);
     }
 
     private static class TestContext implements AutoCloseable {
@@ -68,12 +71,12 @@ public class StorageWriterTests {
         final Cache cache;
         final StorageWriter writer;
 
-        public TestContext(WriterConfig config) {
+        TestContext(WriterConfig config) {
             this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage(this.executor.get());
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
-            this.operationLog = new TestOperationLog(this.metadata, this.executor.get());
+            this.operationLog = new LightWeightDurableLog(this.metadata, this.executor.get());
             this.writer = new StorageWriter(config, this.metadata, this.operationLog, this.storage, this.cache, this.executor.get());
         }
 

@@ -31,6 +31,7 @@ import java.util.Properties;
  */
 public class WriterConfig extends ComponentConfig {
     //region Members
+
     public final static String COMPONENT_CODE = "writer";
     public static final String PROPERTY_FLUSH_THRESHOLD_BYTES = "flushThresholdBytes";
     public static final String PROPERTY_FLUSH_THRESHOLD_MILLIS = "flushThresholdMillis";

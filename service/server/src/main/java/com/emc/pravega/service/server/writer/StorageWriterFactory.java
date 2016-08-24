@@ -47,6 +47,7 @@ public class StorageWriterFactory implements WriterFactory {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
+
         this.config = config;
         this.storageFactory = storageFactory;
         this.executor = executor;

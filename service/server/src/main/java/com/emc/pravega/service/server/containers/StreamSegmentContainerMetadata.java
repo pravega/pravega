@@ -23,20 +23,20 @@ import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
+import com.emc.pravega.service.server.logs.operations.Operation;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Metadata for a Stream Segment Container.
@@ -54,9 +54,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
     @GuardedBy("lock")
-    private final AbstractMap<Long, Long> truncationMarkers;
+    private final TreeMap<Long, Long> truncationMarkers;
     @GuardedBy("lock")
-    private final HashSet<Long> truncationPoints;
+    private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
 
     //endregion
@@ -72,8 +72,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
         this.segmentMetadata = new HashMap<>();
-        this.truncationMarkers = new ConcurrentHashMap<>();
-        this.truncationPoints = new HashSet<>();
+        this.truncationMarkers = new TreeMap<>();
+        this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
     }
 
@@ -265,49 +265,24 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         ArrayList<Long> toRemove = new ArrayList<>();
         synchronized (this.truncationMarkers) {
             // Remove Truncation Markers.
-            this.truncationMarkers.keySet().forEach(key -> {
-                if (key <= upToOperationSequenceNumber) {
-                    toRemove.add(key);
-                }
-            });
-
+            toRemove.addAll(this.truncationMarkers.headMap(upToOperationSequenceNumber, true).keySet());
             toRemove.forEach(this.truncationMarkers::remove);
 
             // Remove Truncation points
             toRemove.clear();
-            this.truncationPoints.forEach(key -> {
-                if (key <= upToOperationSequenceNumber) {
-                    toRemove.add(key);
-                }
-            });
-
+            toRemove.addAll(this.truncationPoints.headSet(upToOperationSequenceNumber, true));
             toRemove.forEach(this.truncationPoints::remove);
         }
     }
 
     @Override
     public long getClosestTruncationMarker(long operationSequenceNumber) {
-        //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
-        Map.Entry<Long, Long> result = null;
+        Map.Entry<Long, Long> result;
         synchronized (this.truncationMarkers) {
-            for (Map.Entry<Long, Long> tm : this.truncationMarkers.entrySet()) {
-                long seqNo = tm.getKey();
-                if (seqNo == operationSequenceNumber) {
-                    // Found the best result.
-                    return tm.getValue();
-                } else if (seqNo < operationSequenceNumber) {
-                    if (result == null || (result.getKey() < seqNo)) {
-                        // We found a better result.
-                        result = tm;
-                    }
-                }
-            }
+            result = this.truncationMarkers.floorEntry(operationSequenceNumber);
         }
-        if (result == null) {
-            return -1;
-        } else {
-            return result.getValue();
-        }
+
+        return result == null ? -1 : result.getValue();
     }
 
     @Override
@@ -320,7 +295,19 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public boolean isValidTruncationPoint(long sequenceNumber) {
-        return this.truncationPoints.contains(sequenceNumber);
+        synchronized (this.truncationMarkers) {
+            return this.truncationPoints.contains(sequenceNumber);
+        }
+    }
+
+    @Override
+    public long getClosestValidTruncationPoint(long sequenceNumber) {
+        Long result;
+        synchronized (this.truncationMarkers) {
+            result = this.truncationPoints.floor(sequenceNumber);
+        }
+
+        return result == null ? Operation.NO_SEQUENCE_NUMBER : result;
     }
 
     //endregion
