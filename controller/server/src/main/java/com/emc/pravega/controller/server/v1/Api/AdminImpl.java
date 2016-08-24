@@ -18,16 +18,19 @@
 package com.emc.pravega.controller.server.v1.Api;
 
 import com.emc.pravega.common.hash.ConsistentHash;
+import com.emc.pravega.common.netty.*;
 import com.emc.pravega.controller.contract.v1.api.Api;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.model.SegmentId;
+import com.emc.pravega.model.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
 
 public class AdminImpl implements Api.Admin {
     private StreamMetadataStore streamStore;
@@ -36,6 +39,7 @@ public class AdminImpl implements Api.Admin {
     public AdminImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
+
     }
 
     @Override
@@ -49,15 +53,9 @@ public class AdminImpl implements Api.Admin {
         return CompletableFuture.supplyAsync(() -> streamStore.createStream(stream, streamConfig))
                 .thenApply(result -> {
                     if (result) {
-                        for (int i = 0; i < streamConfig.getScalingingPolicy().getMinNumSegments(); i++) {
-                            // create segments, compute their hashes
-                            // TODO: Figure out how to define key ranges
-                            Segment segment = new Segment(i, 0, Long.MAX_VALUE, 0.0, 0.0);
-                            streamStore.addActiveSegment(stream, segment);
-                            int container = ConsistentHash.hash(stream + segment.getNumber(), hostStore.getContainerCount());
-                            Host host = hostStore.getHostForContainer(container);
-                            // TODO: make asynchronous and non blocking call into host to inform it about new segment ownership.
-                        }
+                        IntStream.range(0, streamConfig.getScalingingPolicy().getMinNumSegments()).
+                                parallel().
+                                forEach(i -> createSegment(stream, i));
                         return Status.SUCCESS;
                     } else return Status.FAILURE;
                 });
@@ -66,5 +64,22 @@ public class AdminImpl implements Api.Admin {
     @Override
     public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
         throw new NotImplementedException();
+    }
+
+    public void createSegment(String stream, int segmentNumber) {
+        Segment segment = new Segment(segmentNumber, 0, Long.MAX_VALUE, 0.0, 0.0);
+        streamStore.addActiveSegment(stream, segment);
+        int container = ConsistentHash.hash(stream + segment.getNumber(), hostStore.getContainerCount());
+        Host host = hostStore.getHostForContainer(container);
+
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, host.getPort());
+        SegmentManagerImpl segmentManager = new SegmentManagerImpl(host.getIpAddr(), clientCF);
+
+        // what is previous segment id? There could be multiple previous in case of merge
+        SegmentId segmentId = new SegmentId(stream, stream + segmentNumber, segmentNumber, 0);
+
+        // async call, dont wait for its completion or success. Host will contact controller if it does not know
+        // about some segment even if this call fails
+        CompletableFuture.runAsync(() -> segmentManager.createSegment(segmentId.getQualifiedName()));
     }
 }

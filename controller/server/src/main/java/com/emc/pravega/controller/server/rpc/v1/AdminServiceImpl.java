@@ -21,7 +21,12 @@ import com.emc.pravega.controller.contract.v1.api.Api;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
+import com.emc.pravega.model.ScalingPolicy;
+import com.emc.pravega.model.StreamConfiguration;
+import com.emc.pravega.model.impl.StreamConfigurationImpl;
 import org.apache.thrift.TException;
+
+import java.util.concurrent.ExecutionException;
 
 /**
  * Stream Controller Admin API server implementation.
@@ -36,9 +41,17 @@ public class AdminServiceImpl implements AdminService.Iface {
 
     @Override
     public Status createStream(StreamConfig streamConfig) throws TException {
-        //invoke Api.Admin.createStream(...)
-        adminApi.createStream(null);
-        return null;
+        try {
+            StreamConfiguration streamConfiguration = new StreamConfigurationImpl(streamConfig.getName(),
+                    new ScalingPolicy(ScalingPolicy.Type.valueOf(streamConfig.getPolicy().getType().name()),
+                            streamConfig.getPolicy().getTargetRate(),
+                            streamConfig.getPolicy().getScaleFactor(),
+                            streamConfig.getPolicy().getMinNumSegments()));
+            return adminApi.createStream(streamConfiguration).get();
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

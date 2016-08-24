@@ -20,20 +20,20 @@ package com.emc.pravega.controller.store.host;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class InMemoryHostControllerStoreConfig implements StoreConfiguration {
     // TODO: read from configuration
     private final int numOfContainers = 64;
 
-    private Map<Host, List<Integer>> hostContainerMap;
+    private Map<Host, Set<Integer>> hostContainerMap;
 
-    public InMemoryHostControllerStoreConfig setHostContainers(Map<Host, List<Integer>> hostContainerMap){
+    public InMemoryHostControllerStoreConfig setHostContainers(Map<Host, Set<Integer>> hostContainerMap){
         this.hostContainerMap = hostContainerMap;
         return this;
     }
 
-    public Map<Host, List<Integer>> getHostContainerMap(){return Collections.unmodifiableMap(hostContainerMap);}
+    public Map<Host, Set<Integer>> getHostContainerMap(){return Collections.unmodifiableMap(hostContainerMap);}
     public int getNumOfContainers(){return numOfContainers;}
 }
