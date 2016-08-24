@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.contract.v1.model;
+package com.emc.pravega.stream.impl.model;
 
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -36,7 +36,7 @@ public final class ModelHelper {
 
     public static final SegmentId encode(final com.emc.pravega.controller.stream.api.v1.SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new SegmentId(segment.getScope(), segment.getName(), segment.getNumber(), segment.getPrevious());
+        return new SegmentId(segment.getScope(), segment.getName(), segment.getNumber(), segment.getPrevious(), "", 0);
     }
 
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {

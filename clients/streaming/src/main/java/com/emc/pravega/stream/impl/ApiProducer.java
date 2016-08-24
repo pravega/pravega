@@ -21,11 +21,13 @@ import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * RPC based implementation of Stream Controller ApiProducer V1 API
@@ -34,14 +36,16 @@ public class ApiProducer implements Api.Producer {
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
-        //Use RPC client to invoke getCurrentSeqments
         ProducerService.Client client = new ProducerService.Client(null);
-        try {
-            client.getCurrentSegments(null);
-        } catch (TException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return new StreamSegments(client.getCurrentSegments(stream).
+                        parallelStream().map(ModelHelper::encode).collect(Collectors.toList()),
+                        System.currentTimeMillis());
+            } catch (TException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

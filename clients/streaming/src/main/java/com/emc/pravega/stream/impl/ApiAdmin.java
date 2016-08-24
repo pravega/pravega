@@ -21,6 +21,7 @@ import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.util.concurrent.CompletableFuture;
@@ -33,17 +34,18 @@ public class ApiAdmin implements Api.Admin {
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         //Use RPC client to invoke createStream
         AdminService.Client client = new AdminService.Client(null);
-        try {
-            client.createStream(null);
-        } catch (TException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return client.createStream(ModelHelper.decode(streamConfig));
+            } catch (TException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override
     public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-       //Use RPC client to invoke alterStream
+        //Use RPC client to invoke alterStream
         AdminService.Client client = new AdminService.Client(null);
         try {
             client.alterStream(null);

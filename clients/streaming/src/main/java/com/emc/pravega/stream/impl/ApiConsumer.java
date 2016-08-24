@@ -20,10 +20,12 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * RPC based implementation of Stream Controller ApiConsumer V1 API
@@ -33,12 +35,15 @@ public class ApiConsumer implements Api.Consumer {
     public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
         //Use RPC client to invoke getPositions
         ConsumerService.Client client = new ConsumerService.Client(null);
-        try {
-            client.getPositions(stream, timestamp, count);
-        } catch (TException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return CompletableFuture.supplyAsync( () -> {
+            try {
+                return client.getPositions(stream, timestamp, count)
+                        .parallelStream().map(ModelHelper::encode)
+                        .collect(Collectors.toList());
+            } catch (TException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

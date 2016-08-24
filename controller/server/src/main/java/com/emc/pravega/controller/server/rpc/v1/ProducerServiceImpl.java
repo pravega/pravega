@@ -21,9 +21,12 @@ import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentUri;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 /**
  * Stream Controller ApiProducer API server implementation.
@@ -37,10 +40,13 @@ public class ProducerServiceImpl implements ProducerService.Iface {
     }
 
     @Override
-    public List<SegmentUri> getCurrentSegments(String stream) throws TException {
-        //invoke Api.ApiProducer.getCurrentSegments(...)
-        producerApi.getCurrentSegments(null);
-        return null;
+    public List<SegmentId> getCurrentSegments(String stream) throws TException {
+        try {
+            return producerApi.getCurrentSegments(stream).get().getSegments().parallelStream()
+                    .map(ModelHelper::decode).collect(Collectors.toList());
+        } catch (InterruptedException |ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
