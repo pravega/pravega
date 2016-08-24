@@ -30,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * RPC based implementation of Stream Controller ApiProducer V1 API
+ * RPC based implementation of Stream Controller Producer V1 API
  */
 public class ApiProducer implements Api.Producer {
 

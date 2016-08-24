@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * RPC based implementation of Stream Controller ApiConsumer V1 API
+ * RPC based implementation of Stream Controller Consumer V1 API
  */
 public class ApiConsumer implements Api.Consumer {
     @Override

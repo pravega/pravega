@@ -22,7 +22,7 @@ import java.util.List;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
 /**
- * This is the mirror of ApiProducer but that only deals with one segment.
+ * This is the mirror of Producer but that only deals with one segment.
  */
 public interface SegmentProducer<Type> extends AutoCloseable {
     void publish(Event<Type> m) throws SegmentSealedException;

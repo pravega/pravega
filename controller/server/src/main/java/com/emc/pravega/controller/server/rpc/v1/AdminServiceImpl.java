@@ -27,7 +27,7 @@ import org.apache.thrift.TException;
 import java.util.concurrent.ExecutionException;
 
 /**
- * Stream Controller ApiAdmin API server implementation.
+ * Stream Controller Admin API server implementation.
  */
 public class AdminServiceImpl implements AdminService.Iface {
 

@@ -27,7 +27,7 @@ import org.apache.thrift.TException;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * RPC based implementation of Stream Controller ApiAdmin V1 API
+ * RPC based implementation of Stream Controller Admin V1 API
  */
 public class ApiAdmin implements Api.Admin {
     @Override

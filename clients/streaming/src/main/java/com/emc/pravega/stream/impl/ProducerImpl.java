@@ -71,7 +71,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         synchronized (lock) {
             List<Event<Type>> list = setupSegmentProducers();
             if (!list.isEmpty()) {
-                throw new IllegalStateException("ApiProducer initialized with unsent messages?!");
+                throw new IllegalStateException("Producer initialized with unsent messages?!");
             }
         }
     }

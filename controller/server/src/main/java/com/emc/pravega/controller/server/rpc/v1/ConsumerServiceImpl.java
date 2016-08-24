@@ -25,7 +25,7 @@ import org.apache.thrift.TException;
 import java.util.List;
 
 /**
- * Stream Controller ApiConsumer API server implementation.
+ * Stream Controller Consumer API server implementation.
  */
 public class ConsumerServiceImpl implements ConsumerService.Iface {
 

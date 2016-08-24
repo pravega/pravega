@@ -29,7 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
- * Stream Controller ApiProducer API server implementation.
+ * Stream Controller Producer API server implementation.
  */
 public class ProducerServiceImpl implements ProducerService.Iface {
 
