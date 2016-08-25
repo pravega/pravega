@@ -17,12 +17,16 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.stream.api.v1.SegmentUri;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 /**
  * Stream Controller Producer API server implementation.
@@ -36,15 +40,18 @@ public class ProducerServiceImpl implements ProducerService.Iface {
     }
 
     @Override
-    public List<String> getCurrentSegments(String stream) throws TException {
-        //invoke Api.Producer.getCurrentSegments(...)
-        producerApi.getCurrentSegments(null);
-        return null;
+    public List<SegmentId> getCurrentSegments(String stream) throws TException {
+        try {
+            return producerApi.getCurrentSegments(stream).get().getSegments().parallelStream()
+                    .map(ModelHelper::decode).collect(Collectors.toList());
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
-    public String getURI(SegmentId id) throws TException {
-        //invoke Api.Producer.getURI(...)
+    public SegmentUri getURI(SegmentId id) throws TException {
+        //invoke Api.ApiProducer.getURI(...)
         producerApi.getURI(id);
         return null;
     }

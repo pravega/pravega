@@ -71,7 +71,7 @@ public class SingleSegmentStreamImpl implements Stream {
         this.name = name;
         this.config = config;
         this.segmentManager = segmentManager;
-        this.segmentId = new SegmentId(scope, name, 1, 0);
+        this.segmentId = new SegmentId(scope, name, 1, 0, "", 0);
     }
 
     @Override

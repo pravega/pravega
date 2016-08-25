@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
@@ -25,8 +25,16 @@ import com.emc.pravega.controller.server.rpc.v1.ProducerServiceImpl;
 import com.emc.pravega.controller.server.v1.Api.AdminImpl;
 import com.emc.pravega.controller.server.v1.Api.ConsumerImpl;
 import com.emc.pravega.controller.server.v1.Api.ProducerImpl;
+import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Entry point of controller server.
@@ -34,19 +42,26 @@ import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 public class Main {
 
     public static void main(String[] args) {
+
+        // TODO: Will use hard-coded host to container mapping for this sprint
+        // Read from a config file. This same information will be present on pravega hosts
+        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+
         //1) LOAD configuration.
         // TODO: read store type and construct store configuration based on configuration file
-        StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
+                new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
-        //2.1) initialize implementation of Api.Admin
-        Api.Admin adminApi = new AdminImpl(store, null);
+        //2.1) initialize implementation of Api.ApiAdmin
+        Api.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
         //2.2) initialize implementation of Api.Consumer
-        Api.Consumer consumerApi = new ConsumerImpl(store, null);
+        Api.Consumer consumerApi = new ConsumerImpl(streamStore, hostStore);
 
-        //2.3) initialize implementation of Api.Producer
-        Api.Producer producerApi = new ProducerImpl();
+        //2.3) initialize implementation of Api.ApiProducer
+        Api.Producer producerApi = new ProducerImpl(streamStore, hostStore);
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.

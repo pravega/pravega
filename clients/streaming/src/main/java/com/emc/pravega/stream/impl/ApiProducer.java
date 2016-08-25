@@ -15,33 +15,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.client.rpc.v1;
+package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.net.URI;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * RPC based implementation of Stream Controller Producer V1 API
  */
-public class Producer implements Api.Producer {
+public class ApiProducer implements Api.Producer {
 
     @Override
-    public CompletableFuture<List<StreamSegments>> getCurrentSegments(String stream) {
-        //Use RPC client to invoke getCurrentSeqments
+    public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
         ProducerService.Client client = new ProducerService.Client(null);
-        try {
-            client.getCurrentSegments(null);
-        } catch (TException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return new StreamSegments(client.getCurrentSegments(stream).
+                        parallelStream().map(ModelHelper::encode).collect(Collectors.toList()),
+                        System.currentTimeMillis());
+            } catch (TException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

@@ -15,29 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.hash;
+package com.emc.pravega.controller.store.host;
 
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.commons.lang.NotImplementedException;
 
-public class ConsistentHash {
-
-    static final String MD_5 = "MD5";
-    private static MessageDigest md;
-
-    {
-        try {
-            md = MessageDigest.getInstance(MD_5);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
+public class HostStoreFactory {
+    public enum StoreType {
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3
     }
 
-    public static int hash(String str, int numOfPoints) {
-            byte[] data = str.getBytes();
-            md.update(data, 0, data.length);
-            BigInteger i = new BigInteger(1, md.digest());
-            return i.intValue() % numOfPoints;
+    public static HostControllerStore createStore(StoreType type, StoreConfiguration config) {
+        switch (type) {
+            case InMemory:
+                return new InMemoryHostStore(((InMemoryHostControllerStoreConfig) config).getHostContainerMap());
+            case Zookeeper:
+            case ECS:
+            case S3:
+            default:
+                throw new NotImplementedException();
+        }
     }
 }

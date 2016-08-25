@@ -17,24 +17,30 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
+import com.emc.pravega.stream.*;
+import com.emc.pravega.stream.impl.*;
 
 import lombok.Cleanup;
 
+import java.util.concurrent.ExecutionException;
+
 public class StartProducer {
 
-    public static void main(String[] args) {
-        String endpoint = "localhost";
-        int port = 12345;
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+//        String endpoint = "localhost";
+//        int port = 12345;
         String scope = "Scope1";
         String streamName = "Stream1";
         String testString = "Hello world: ";
+        ApiAdmin admin = new ApiAdmin();
+        admin.createStream(new StreamConfigurationImpl(streamName,
+                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,0,0,1))).get();
+
+        ApiProducer apiProducer = new ApiProducer();
+        StreamSegments segments = apiProducer.getCurrentSegments(streamName).get();
+        SegmentId singleSegment = segments.getSegments().get(0);
         @Cleanup
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, scope);
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(singleSegment.getEndpoint(), singleSegment.getPort(), scope);
         Stream stream = streamManager.createStream(streamName, null);
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));

@@ -17,12 +17,12 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.SegmentId;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.SegmentId;
 
 public class PositionImpl implements Position {
 
@@ -50,6 +50,10 @@ public class PositionImpl implements Position {
 
     public Map<SegmentId, Long> getFutureOwnedLogs() {
         return Collections.unmodifiableMap(futureOwnedLogs);
+    }
+
+    public Map<SegmentId, Long> getOwnedLogs() {
+        return Collections.unmodifiableMap(ownedLogs);
     }
 
 }

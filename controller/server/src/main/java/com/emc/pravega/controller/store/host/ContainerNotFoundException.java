@@ -15,29 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.hash;
 
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+package com.emc.pravega.controller.store.host;
 
-public class ConsistentHash {
 
-    static final String MD_5 = "MD5";
-    private static MessageDigest md;
+public class ContainerNotFoundException extends HostControllerException {
+    private static final long serialVersionUID = 1L;
 
-    {
-        try {
-            md = MessageDigest.getInstance(MD_5);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static int hash(String str, int numOfPoints) {
-            byte[] data = str.getBytes();
-            md.update(data, 0, data.length);
-            BigInteger i = new BigInteger(1, md.digest());
-            return i.intValue() % numOfPoints;
+    public ContainerNotFoundException(int containerId) {
+        super(String.format("Container %d not found.", containerId));
     }
 }
