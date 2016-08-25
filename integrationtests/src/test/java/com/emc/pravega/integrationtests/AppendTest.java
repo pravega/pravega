@@ -65,6 +65,7 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -123,8 +124,8 @@ public class AppendTest {
         assertEquals(uuid, setup.getConnectionId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                                                      decoder,
-                                                      new Append(segment, uuid, data.readableBytes(), data));
+                decoder,
+                new Append(segment, uuid, data.readableBytes(), data));
         assertEquals(uuid, ack.getConnectionId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
@@ -192,6 +193,11 @@ public class AppendTest {
         @Cleanup
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
         Stream stream = streamManager.createStream(streamName, null);
+
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
+        SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
+        segmentManager.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
+
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         producer.publish("RoutingKey", testString);

@@ -44,11 +44,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 
     @Override
     public Stream createStream(String streamName, StreamConfiguration config) {
-        boolean existed = created.containsKey(streamName);
         Stream stream = createStreamHelper(streamName, config);
-        if (!existed) {
-            segmentManager.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
-        }
         return stream;
     }
 

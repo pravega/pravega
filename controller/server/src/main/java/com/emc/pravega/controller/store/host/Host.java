@@ -17,12 +17,14 @@
  */
 package com.emc.pravega.controller.store.host;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.ToString;
 
+@AllArgsConstructor
 @Data
 @ToString(includeFieldNames = true)
 public class Host {
-    private String ipAddr;
-    private int port;
+    private final String ipAddr;
+    private final int port;
 }
