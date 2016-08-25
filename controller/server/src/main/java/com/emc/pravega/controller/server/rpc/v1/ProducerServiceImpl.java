@@ -44,7 +44,7 @@ public class ProducerServiceImpl implements ProducerService.Iface {
         try {
             return producerApi.getCurrentSegments(stream).get().getSegments().parallelStream()
                     .map(ModelHelper::decode).collect(Collectors.toList());
-        } catch (InterruptedException |ExecutionException e) {
+        } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
     }

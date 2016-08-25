@@ -17,10 +17,8 @@
  */
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.common.hash.ConsistentHash;
-import com.emc.pravega.common.netty.*;
+import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.stream.Api;
-import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;

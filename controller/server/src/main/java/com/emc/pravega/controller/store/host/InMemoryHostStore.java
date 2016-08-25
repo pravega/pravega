@@ -18,9 +18,12 @@
 package com.emc.pravega.controller.store.host;
 
 import com.google.common.collect.Maps;
-import java.util.stream.Collectors;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class InMemoryHostStore implements HostControllerStore {
     private Map<Host, Set<Integer>> hostContainerMap;
@@ -36,7 +39,7 @@ public class InMemoryHostStore implements HostControllerStore {
     }
 
     @Override
-    public Set<Integer> getContainersForHost(Host host)  {
+    public Set<Integer> getContainersForHost(Host host) {
         if (hostContainerMap.containsKey(host))
             return Collections.unmodifiableSet(hostContainerMap.get(host));
         else throw new HostNotFoundException(host);

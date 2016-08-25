@@ -35,7 +35,7 @@ public class ApiConsumer implements Api.Consumer {
     public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
         //Use RPC client to invoke getPositions
         ConsumerService.Client client = new ConsumerService.Client(null);
-        return CompletableFuture.supplyAsync( () -> {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.getPositions(stream, timestamp, count)
                         .parallelStream().map(ModelHelper::encode)

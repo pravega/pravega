@@ -29,11 +29,16 @@ public class InMemoryHostControllerStoreConfig implements StoreConfiguration {
 
     private Map<Host, Set<Integer>> hostContainerMap;
 
-    public InMemoryHostControllerStoreConfig setHostContainers(Map<Host, Set<Integer>> hostContainerMap){
+    public InMemoryHostControllerStoreConfig setHostContainers(Map<Host, Set<Integer>> hostContainerMap) {
         this.hostContainerMap = hostContainerMap;
         return this;
     }
 
-    public Map<Host, Set<Integer>> getHostContainerMap(){return Collections.unmodifiableMap(hostContainerMap);}
-    public int getNumOfContainers(){return numOfContainers;}
+    public Map<Host, Set<Integer>> getHostContainerMap() {
+        return Collections.unmodifiableMap(hostContainerMap);
+    }
+
+    public int getNumOfContainers() {
+        return numOfContainers;
+    }
 }

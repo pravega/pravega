@@ -20,9 +20,6 @@ package com.emc.pravega.stream;
 
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.Position;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 
 import java.net.URI;
 import java.util.List;

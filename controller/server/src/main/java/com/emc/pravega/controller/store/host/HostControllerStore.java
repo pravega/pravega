@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import java.util.List;
 import java.util.Set;
 
 public interface HostControllerStore {
