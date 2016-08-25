@@ -18,14 +18,13 @@
 
 package com.emc.pravega.common.io;
 
-import com.emc.pravega.common.io.FixedByteArrayOutputStream;
-import com.emc.pravega.testcommon.AssertExtensions;
+import java.io.IOException;
+import java.util.Arrays;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.Arrays;
+import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Unit tests for FixedByteArrayOutputStream class.

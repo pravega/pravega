@@ -43,6 +43,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
+import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
@@ -56,7 +57,7 @@ import com.google.common.base.Preconditions;
  * 
  * (Types below that are grouped into pairs where there is a corresponding request and reply.)
  */
-enum WireCommandType {
+public enum WireCommandType {
     PADDING(-1, Padding::readFrom),
 
     PARTIAL_EVENT(-2, PartialEvent::readFrom),
@@ -73,7 +74,7 @@ enum WireCommandType {
     DATA_APPENDED(5, DataAppended::readFrom),
 
     READ_SEGMENT(6, ReadSegment::readFrom),
-    SEGMENT_READ(7, null), // Is read manually.
+    SEGMENT_READ(7, SegmentRead::readFrom),
 
     GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom),
     STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),

@@ -18,12 +18,14 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import com.emc.pravega.testcommon.AssertExtensions;
+
 
 /**
  * Unit tests for TruncateableList class.
