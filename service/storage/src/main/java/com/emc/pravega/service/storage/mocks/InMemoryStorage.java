@@ -284,6 +284,11 @@ public class InMemoryStorage implements Storage {
                 throw new CompletionException(exception);
             }
         }
+
+        @Override
+        public String toString(){
+            return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
+        }
     }
 
     //endregion

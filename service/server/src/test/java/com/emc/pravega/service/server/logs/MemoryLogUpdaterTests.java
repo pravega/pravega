@@ -30,7 +30,6 @@ import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
-import com.emc.pravega.service.server.logs.operations.OperationComparer;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -79,22 +78,20 @@ public class MemoryLogUpdaterTests {
         Iterator<Operation> logIterator = opLog.read(op -> true, opLog.size());
         int currentIndex = -1;
         int currentReadIndex = -1;
-        OperationComparer comparer = new OperationComparer(true, cache); // Need an Op Comparer that uses a cache to compare data.
         while (logIterator.hasNext()) {
             currentIndex++;
             Operation expected = operations.get(currentIndex);
             Operation actual = logIterator.next();
-            comparer.assertEquals(expected, actual);
             if (expected instanceof StorageOperation) {
                 currentReadIndex++;
                 TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
                 if (expected instanceof StreamSegmentAppendOperation) {
                     Assert.assertTrue("StreamSegmentAppendOperation was not added as a CachedStreamSegmentAppendOperation to the Memory Log.", actual instanceof CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
-                    CacheKey expectedKey = new CacheKey(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset());
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", expectedKey, invokedMethod.args.get("key"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData().length, invokedMethod.args.get("length"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
                 } else if (expected instanceof MergeBatchOperation) {
                     MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
@@ -246,10 +243,12 @@ public class MemoryLogUpdaterTests {
         }
 
         @Override
-        public void append(CacheKey key, int length) {
+        public CacheKey append(long segmentId, long offset, byte[] data) {
             invoke(new MethodInvocation(APPEND)
-                    .withArg("key", key)
-                    .withArg("length", length));
+                    .withArg("streamSegmentId", segmentId)
+                    .withArg("offset", offset)
+                    .withArg("data", data));
+            return new CacheKey(segmentId, offset);
         }
 
         @Override

@@ -16,26 +16,24 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.service.server.reading;
 
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Wrapper around an ExecutorService that auto-shuts it down.
+ * Exposes the applyCachePolicy method in the CacheManager.
  */
-public class CloseableExecutorService implements AutoCloseable {
-    private final ScheduledExecutorService executorService;
-
-    public CloseableExecutorService(ScheduledExecutorService executorService) {
-        this.executorService = executorService;
+class TestCacheManager extends CacheManager {
+    TestCacheManager(CachePolicy policy) {
+        this(policy, null);
     }
 
-    public ScheduledExecutorService get() {
-        return this.executorService;
+    TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
+        super(policy, executorService);
     }
 
     @Override
-    public void close() {
-        this.executorService.shutdown();
+    public void applyCachePolicy() {
+        super.applyCachePolicy();
     }
 }

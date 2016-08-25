@@ -50,11 +50,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for ContainerReadIndex class.
@@ -192,7 +195,7 @@ public class ContainerReadIndexTests {
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 long offset = segmentMetadata.getDurableLogLength();
                 segmentMetadata.setDurableLogLength(offset + data.length);
-                appendToReadIndex(context, segmentId, offset, data);
+                context.readIndex.append(segmentId, offset, data);
                 recordAppend(segmentId, data, segmentContents);
                 triggerFutureReadsCallback.run();
             }
@@ -226,7 +229,7 @@ public class ContainerReadIndexTests {
 
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
             byte[] actualData = readContents.get(segmentId).toByteArray();
-            int expectedLength = isSealed ? (int) expectedData.length : nonSealReadLimit;
+            int expectedLength = isSealed ? expectedData.length : nonSealReadLimit;
             Assert.assertEquals("Unexpected read length for segment " + expectedData.length, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + expectedData, expectedData, 0, actualData, 0, actualData.length);
         }
@@ -259,28 +262,28 @@ public class ContainerReadIndexTests {
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
         long segmentOffset = segmentMetadata.getDurableLogLength();
         segmentMetadata.setDurableLogLength(segmentOffset + appendData.length);
-        appendToReadIndex(context, segmentId, segmentOffset, appendData);
+        context.readIndex.append(segmentId, segmentOffset, appendData);
 
         UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
         long batchOffset = batchMetadata.getDurableLogLength();
         batchMetadata.setDurableLogLength(batchOffset + appendData.length);
-        appendToReadIndex(context, batchId, batchOffset, appendData);
+        context.readIndex.append(batchId, batchOffset, appendData);
 
         // 1. Appends at wrong offsets.
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with an offset beyond the Segment's DurableLogOffset.",
-                () -> appendToReadIndex(context, segmentId, Integer.MAX_VALUE, "foo".getBytes()),
+                () -> context.readIndex.append(segmentId, Integer.MAX_VALUE, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with invalid offset.",
-                () -> appendToReadIndex(context, segmentId, 0, "foo".getBytes()),
+                () -> context.readIndex.append(segmentId, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         // 2. Appends or reads with wrong SegmentIds
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with invalid SegmentId.",
-                () -> appendToReadIndex(context, batchId + 1, 0, "foo".getBytes()),
+                () -> context.readIndex.append(batchId + 1, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
@@ -321,7 +324,7 @@ public class ContainerReadIndexTests {
         context.readIndex.beginMerge(segmentId, mergeOffset, batchId);
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when called on a Batch that was already sealed.",
-                () -> appendToReadIndex(context, batchId, batchMetadata.getLength(), "foo".getBytes()),
+                () -> context.readIndex.append(batchId, batchMetadata.getLength(), "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -434,23 +437,194 @@ public class ContainerReadIndexTests {
         checkReadIndex("PostAppend", segmentContents, context);
     }
 
+    /**
+     * Tests the ability to evict entries from the ReadIndex under various conditions:
+     * * If an entry is aged out
+     * * If an entry is pushed out because of cache space pressure.
+     * <p>
+     * This also verifies that certain entries, such as RedirectReadIndexEntries and entries after the Storage Offset are
+     * not removed.
+     * <p>
+     * The way this test goes is as follows (it's pretty subtle, because there aren't many ways to hook into the ReadIndex and see what it's doing)
+     * 1. It creates a bunch of segments, and populates them in storage (each) up to offset N/2-1 (this is called pre-storage)
+     * 2. It populates the ReadIndex for each of those segments from offset N/2 to offset N-1 (this is called post-storage)
+     * 3. It loads all the data from Storage into the ReadIndex, in entries of size equal to those already loaded in step #2.
+     * 3a. At this point, all the entries added in step #2 have Generations 0..A/4-1, and step #3 have generations A/4..A-1
+     * 4. Append more data at the end. This forces the generation to increase to 1.25A.
+     * 4a. Nothing should be evicted from the cache now, since the earliest items are all post-storage.
+     * 5. We 'touch' (read) the first 1/3 of pre-storage entries (offsets 0..N/4).
+     * 5a. At this point, those entries (offsets 0..N/6) will have the newest generations (1.25A..1.5A)
+     * 6. We append more data (equivalent to the data we touched)
+     * 6a. Nothing should be evicted, since those generations that were just eligible for removal were touched and bumped up.
+     * 7. We forcefully increase the current generation by 1 (without touching the ReadIndex)
+     * 7a. At this point, we expect all the pre-storage items, except the touched ones, to be evicted. This is generations 0.25A-0.75A.
+     * 8. Update the metadata and indicate that all the post-storage entries are now pre-storage and bump the generation by 0.75A.
+     * 8a. At this point, we expect all former post-storage items and pre-storage items to be evicted (in this order).
+     * <p>
+     * The final order of eviction (in terms of offsets, for each segment), is:
+     * * 0.25N-0.75N, 0.75N..N, N..1.25N, 0..0.25N, 1.25N..1.5N (remember that we added quite a bunch of items after the initial run).
+     */
+    @Test
+    public void testCacheEviction() throws Exception {
+        // Create a CachePolicy with a set number of generations and a known max size.
+        // Each generation contains exactly one entry, so the number of generations is also the number of entries.
+        final int appendSize = 100;
+        final int entriesPerSegment = 100; // This also doubles as number of generations (each generation, we add one append for each segment).
+        final int cacheMaxSize = SEGMENT_COUNT * entriesPerSegment * appendSize;
+        final int postStorageEntryCount = entriesPerSegment / 4; // 25% of the entries are beyond the StorageOffset
+        final int preStorageEntryCount = entriesPerSegment - postStorageEntryCount; // 75% of the entries are before the StorageOffset.
+        CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
+        ReadIndexConfig config = ConfigHelpers.createReadIndexConfig(appendSize, appendSize); // To properly test this, we want predictable storage reads.
+
+        ArrayList<CacheKey> removedKeys = new ArrayList<>();
+        @Cleanup
+        TestContext context = new TestContext(config, cachePolicy);
+        context.cache.removeCallback = removedKeys::add; // Record every cache removal.
+
+        // Create the segments (metadata + storage).
+        ArrayList<Long> segmentIds = createSegments(context);
+        createSegmentsInStorage(context);
+
+        // Populate the Storage with appropriate data.
+        byte[] preStorageData = new byte[preStorageEntryCount * appendSize];
+        for (long segmentId : segmentIds) {
+            UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
+            context.storage.write(sm.getName(), 0, new ByteArrayInputStream(preStorageData), preStorageData.length, TIMEOUT).join();
+            sm.setStorageLength(preStorageData.length);
+            sm.setDurableLogLength(preStorageData.length);
+        }
+
+        // Callback that appends one entry at the end of the given segment id.
+        Consumer<Long> appendOneEntry = segmentId -> {
+            UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
+            byte[] data = new byte[appendSize];
+            long offset = sm.getDurableLogLength();
+            sm.setDurableLogLength(offset + data.length);
+            context.readIndex.append(segmentId, offset, data);
+        };
+
+        // Populate the ReadIndex with the Append entries (post-StorageOffset)
+        for (int i = 0; i < postStorageEntryCount; i++) {
+            segmentIds.forEach(appendOneEntry);
+
+            // Each time we make a round of appends (one per segment), we increment the generation in the CacheManager.
+            context.cacheManager.applyCachePolicy();
+        }
+
+        // Read all the data from Storage, making sure we carefully associate them with the proper generation.
+        for (int i = 0; i < preStorageEntryCount; i++) {
+            long offset = i * appendSize;
+            for (long segmentId : segmentIds) {
+                @Cleanup
+                ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
+                ReadResultEntry resultEntry = result.next();
+                Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the ReadIndex Cache.", ReadResultEntryType.Storage, resultEntry.getType());
+                resultEntry.requestContent(TIMEOUT);
+                ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
+                Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex Cache.", appendSize, contents.getLength());
+            }
+
+            context.cacheManager.applyCachePolicy();
+        }
+
+        Assert.assertEquals("Not expecting any removed Cache entries at this point (cache is not full).", 0, removedKeys.size());
+
+        // Append more data (equivalent to all post-storage entries), and verify that NO entries are being evicted (we cannot evict post-storage entries).
+        for (int i = 0; i < postStorageEntryCount; i++) {
+            segmentIds.forEach(appendOneEntry);
+            context.cacheManager.applyCachePolicy();
+        }
+
+        Assert.assertEquals("Not expecting any removed Cache entries at this point (only eligible entries were post-storage).", 0, removedKeys.size());
+
+        // 'Touch' the first few entries read from storage. This should move them to the back of the queue (they won't be the first ones to be evicted).
+        int touchCount = preStorageEntryCount / 3;
+        for (int i = 0; i < touchCount; i++) {
+            long offset = i * appendSize;
+            for (long segmentId : segmentIds) {
+                @Cleanup
+                ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
+                ReadResultEntry resultEntry = result.next();
+                Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the ReadIndex Cache.", ReadResultEntryType.Cache, resultEntry.getType());
+            }
+        }
+
+        // Append more data (equivalent to the amount of data we 'touched'), and verify that the entries we just touched are not being removed..
+        for (int i = 0; i < touchCount; i++) {
+            segmentIds.forEach(appendOneEntry);
+            context.cacheManager.applyCachePolicy();
+        }
+
+        Assert.assertEquals("Not expecting any removed Cache entries at this point (we touched old entries and they now have the newest generation).", 0, removedKeys.size());
+
+        // Increment the generations so that we are caught up to just before the generation where the "touched" items now live.
+        context.cacheManager.applyCachePolicy();
+
+        // We expect all but the 'touchCount' pre-Storage entries to be removed.
+        int expectedRemovalCount = (preStorageEntryCount - touchCount) * SEGMENT_COUNT;
+        Assert.assertEquals("Unexpected number of removed entries after having forced out all pre-storage entries.", expectedRemovalCount, removedKeys.size());
+
+        // Now update the metadata and indicate that all the post-storage data has been moved to storage.
+        segmentIds.forEach(segmentId -> {
+            UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
+            sm.setStorageLength(sm.getDurableLogLength());
+        });
+
+        // We add one artificial entry, which we'll be touching forever and ever; this forces the CacheManager to
+        // update its current generation every time. We will be ignoring this entry for our test.
+        SegmentMetadata readSegment = context.metadata.getStreamSegmentMetadata(segmentIds.get(0));
+        appendOneEntry.accept(readSegment.getId());
+
+        // Now evict everything (whether by size of by aging out).
+        for (int i = 0; i < cachePolicy.getMaxGenerations(); i++) {
+            @Cleanup
+            ReadResult result = context.readIndex.read(readSegment.getId(), readSegment.getDurableLogLength() - appendSize, appendSize, TIMEOUT);
+            result.next();
+            context.cacheManager.applyCachePolicy();
+        }
+
+        int expectedRemovalCountPerSegment = entriesPerSegment + touchCount + postStorageEntryCount;
+        int expectedTotalRemovalCount = SEGMENT_COUNT * expectedRemovalCountPerSegment;
+        Assert.assertEquals("Unexpected number of removed entries after having forced out all the entries.", expectedTotalRemovalCount, removedKeys.size());
+
+        // Finally, verify that the evicted items are in the correct order (for each segment). See this test's description for details.
+        for (long segmentId : segmentIds) {
+            List<CacheKey> segmentRemovedKeys = removedKeys.stream().filter(key -> key.getStreamSegmentId() == segmentId).collect(Collectors.toList());
+            Assert.assertEquals("Unexpected number of removed entries for segment " + segmentId, expectedRemovalCountPerSegment, segmentRemovedKeys.size());
+
+            // The correct order of eviction (N=entriesPerSegment) is: 0.25N-0.75N, 0.75N..N, N..1.25N, 0..0.25N, 1.25N..1.5N.
+            // This is equivalent to the following tests
+            // 0.25N-1.25N
+            checkOffsets(segmentRemovedKeys, segmentId, 0, entriesPerSegment, entriesPerSegment * appendSize / 4, appendSize);
+
+            // 0..0.25N
+            checkOffsets(segmentRemovedKeys, segmentId, entriesPerSegment, entriesPerSegment / 4, 0, appendSize);
+
+            //1.25N..1.5N
+            checkOffsets(segmentRemovedKeys, segmentId, entriesPerSegment + entriesPerSegment / 4, entriesPerSegment / 4, (int) (entriesPerSegment * appendSize * 1.25), appendSize);
+        }
+    }
+
     //region Helpers
+
+    private void checkOffsets(List<CacheKey> removedKeys, long segmentId, int startIndex, int count, int startOffset, int stepIncrease) {
+        int expectedStartOffset = startOffset;
+        for (int i = 0; i < count; i++) {
+            int listIndex = startIndex + i;
+            CacheKey currentKey = removedKeys.get(startIndex + i);
+            Assert.assertEquals(
+                    String.format("Unexpected CacheKey.SegmentOffset at index %d for SegmentId %d.", listIndex, segmentId),
+                    expectedStartOffset,
+                    currentKey.getOffset());
+            expectedStartOffset += stepIncrease;
+        }
+    }
 
     private void createSegmentsInStorage(TestContext context) {
         for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
             SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
             context.storage.create(sm.getName(), TIMEOUT).join();
-        }
-    }
-
-    private void appendToReadIndex(TestContext context, long segmentId, long offset, byte[] data) {
-        CacheKey key = new CacheKey(segmentId, offset);
-        context.cache.insert(key, data);
-        try {
-            context.readIndex.append(key, data.length);
-        } catch (Throwable ex) {
-            context.cache.remove(key);
-            throw ex;
         }
     }
 
@@ -469,7 +643,7 @@ public class ContainerReadIndexTests {
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 long offset = segmentMetadata.getDurableLogLength();
                 segmentMetadata.setDurableLogLength(offset + data.length);
-                appendToReadIndex(context, segmentId, offset, data);
+                context.readIndex.append(segmentId, offset, data);
                 recordAppend(segmentId, data, segmentContents);
                 if (callback != null) {
                     callback.run();
@@ -644,15 +818,21 @@ public class ContainerReadIndexTests {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
         final CloseableExecutorService executorService;
-        final Cache cache;
+        final TestCacheManager cacheManager;
+        final TestCache cache;
         final Storage storage;
 
         TestContext() {
+            this(DEFAULT_CONFIG, DEFAULT_CONFIG.getCachePolicy());
+        }
+
+        TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
             this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
-            this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
+            this.cache = new TestCache(Integer.toString(CONTAINER_ID));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage();
-            this.readIndex = new ContainerReadIndex(DEFAULT_CONFIG, this.metadata, this.cache, this.storage, this.executorService.get());
+            this.cacheManager = new TestCacheManager(cachePolicy, this.executorService.get());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
         }
 
         @Override
@@ -660,6 +840,7 @@ public class ContainerReadIndexTests {
             this.readIndex.close();
             this.cache.close();
             this.storage.close();
+            this.cacheManager.close();
             this.executorService.close();
         }
     }
@@ -707,4 +888,22 @@ public class ContainerReadIndexTests {
     }
 
     //endregion
+
+    private static class TestCache extends InMemoryCache {
+        Consumer<CacheKey> removeCallback;
+
+        TestCache(String id) {
+            super(id);
+        }
+
+        @Override
+        public boolean remove(Cache.Key key) {
+            Consumer<CacheKey> callback = this.removeCallback;
+            if (callback != null) {
+                callback.accept((CacheKey) key);
+            }
+
+            return super.remove(key);
+        }
+    }
 }
