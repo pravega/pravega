@@ -77,7 +77,7 @@ public class ConsumerImpl implements Api.Consumer {
                         List<SegmentId> current = new ArrayList<>(j);
                         for (int k = 0; k < j; k++, counter++) {
                             Integer number = segmentFutures.getCurrent().get(counter);
-                            SegmentId segmentId = new SegmentId(stream, stream+number, number, 0, "", 0);
+                            SegmentId segmentId = SegmentHelper.getSegmentId(stream, number, 0, hostStore);
                             current.add(segmentId);
                         }
                         Map<SegmentId, Long> currentSegments = new HashMap<>();
@@ -92,7 +92,7 @@ public class ConsumerImpl implements Api.Consumer {
                                         inverse.get(previous).stream().forEach(
                                             y ->
                                                 {
-                                                    SegmentId segmentId = new SegmentId(stream, stream+y, y, previous, "", 0);
+                                                    SegmentId segmentId = SegmentHelper.getSegmentId(stream, y, previous, hostStore);
                                                     futureSegments.put(segmentId, 0L);
                                                 }
                                         );

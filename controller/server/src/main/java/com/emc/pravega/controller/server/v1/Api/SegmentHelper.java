@@ -29,6 +29,11 @@ public class SegmentHelper {
         int container = ConsistentHash.hash(stream + segment.getNumber(), hostStore.getContainerCount());
         Host host = hostStore.getHostForContainer(container);
         return new SegmentId(stream, stream + segment.getNumber(), segment.getNumber(), 0, host.getIpAddr(), host.getPort());
+    }
 
+    public static SegmentId getSegmentId(String stream, int segmentNumber, int previous, HostControllerStore hostStore) {
+        int container = ConsistentHash.hash(stream + segmentNumber, hostStore.getContainerCount());
+        Host host = hostStore.getHostForContainer(container);
+        return new SegmentId(stream, stream + segmentNumber, segmentNumber, previous, host.getIpAddr(), host.getPort());
     }
 }
