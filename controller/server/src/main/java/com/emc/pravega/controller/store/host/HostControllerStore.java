@@ -17,13 +17,12 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import java.util.List;
 import java.util.Set;
 
 public interface HostControllerStore {
     Set<Host> getHosts();
 
-    List<Integer> getContainersForHost(Host host);
+    Set<Integer> getContainersForHost(Host host);
 
     Host getHostForContainer(int containerId);
 

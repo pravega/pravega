@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.controller.contract.v1.api.Api;
+import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
@@ -31,13 +31,10 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.google.common.collect.Lists;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  * Entry point of controller server.
@@ -46,7 +43,9 @@ public class Main {
 
     public static void main(String[] args) {
 
-        Map<Host, List<Integer>> hostContainerMap = new HashMap<>();
+        // TODO: Will use hard-coded host to container mapping for this sprint
+        // Read from a config file. This same information will be present on pravega hosts
+        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
         //1) LOAD configuration.
         // TODO: read store type and construct store configuration based on configuration file
@@ -55,14 +54,14 @@ public class Main {
                 new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
-        //2.1) initialize implementation of Api.Admin
+        //2.1) initialize implementation of Api.ApiAdmin
         Api.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
-        //2.2) initialize implementation of Api.Consumer
+        //2.2) initialize implementation of Api.ApiConsumer
         Api.Consumer consumerApi = new ConsumerImpl();
 
-        //2.3) initialize implementation of Api.Producer
-        Api.Producer producerApi = new ProducerImpl();
+        //2.3) initialize implementation of Api.ApiProducer
+        Api.Producer producerApi = new ProducerImpl(streamStore, hostStore);
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.

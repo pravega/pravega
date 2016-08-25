@@ -27,7 +27,14 @@ struct SegmentId {
   1: required string scope,
   2: required string name,
   3: required i32 number,
-  4: required i32 previous
+  4: required i32 previous,
+  5: required string endpoint;
+  6: required i32 port;
+}
+
+struct SegmentUri {
+  1: required string endpoint;
+  2: required i32 port;
 }
 
 struct Position {
@@ -47,8 +54,8 @@ service AdminService {
  * Producer APIs supported by Stream Controller service
  */
 service ProducerService {
-    list<string> getCurrentSegments(1:string stream)
-    string getURI(1:SegmentId id)
+    list<SegmentId> getCurrentSegments(1:string stream)
+    SegmentUri getURI(1:SegmentId id)
 }
 
 /*

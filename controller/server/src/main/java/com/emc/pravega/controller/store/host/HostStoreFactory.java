@@ -28,13 +28,15 @@ public class HostStoreFactory {
         S3
     }
 
-    public static HostControllerStore createStore(StoreType type, StoreConfiguration config){
-        switch(type){
-            case InMemory: return new InMemoryHostStore(((InMemoryHostControllerStoreConfig)config).getHostContainerMap());
+    public static HostControllerStore createStore(StoreType type, StoreConfiguration config) {
+        switch (type) {
+            case InMemory:
+                return new InMemoryHostStore(((InMemoryHostControllerStoreConfig) config).getHostContainerMap());
             case Zookeeper:
             case ECS:
             case S3:
-            default: throw new NotImplementedException();
+            default:
+                throw new NotImplementedException();
         }
     }
 }

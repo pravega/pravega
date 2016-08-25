@@ -33,9 +33,14 @@ public class SegmentId {
     private final int number;
     private final int previous;
 
-    public SegmentId(String scope, String name, int number, int previous) {
+    private final String endpoint;
+    private final int port;
+
+    public SegmentId(String scope, String name, int number, int previous, String endpoint, int port) {
         super();
         this.scope = scope;
+        this.endpoint = endpoint;
+        this.port = port;
         Preconditions.checkNotNull(name);
         Preconditions.checkArgument(name.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
         this.name = name;

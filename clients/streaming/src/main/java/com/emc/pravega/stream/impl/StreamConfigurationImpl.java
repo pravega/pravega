@@ -15,29 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.hash;
+package com.emc.pravega.stream.impl;
 
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
-public class ConsistentHash {
+@AllArgsConstructor
+@Data
+public class StreamConfigurationImpl implements StreamConfiguration {
 
-    static final String MD_5 = "MD5";
-    private static MessageDigest md;
+    private final String name;
+    private final ScalingPolicy scalingPolicy;
 
-    {
-        try {
-            md = MessageDigest.getInstance(MD_5);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
+    @Override
+    public String getName() {
+        return name;
     }
 
-    public static int hash(String str, int numOfPoints) {
-            byte[] data = str.getBytes();
-            md.update(data, 0, data.length);
-            BigInteger i = new BigInteger(1, md.digest());
-            return i.intValue() % numOfPoints;
+    @Override
+    public ScalingPolicy getScalingingPolicy() {
+        return scalingPolicy;
     }
 }

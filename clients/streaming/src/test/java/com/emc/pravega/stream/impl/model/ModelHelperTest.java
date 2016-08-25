@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.contract.v1.model;
+package com.emc.pravega.stream.impl.model;
 
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -24,6 +24,7 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -34,7 +35,7 @@ import static org.junit.Assert.assertEquals;
 public class ModelHelperTest {
 
     private static SegmentId createSegmentId(String name) {
-        return new SegmentId("scope", name, 2, 1);
+        return new SegmentId("scope", name, 2, 1, "", 0);
     }
 
     private static ScalingPolicy createScalingPolicy() {

@@ -26,11 +26,11 @@ allprojects {
     apply plugin: 'eclipse'
     apply plugin: 'maven'
     apply plugin: 'signing'
-//    apply plugin: 'checkstyle'
+    apply plugin: 'checkstyle'
 
-//    checkstyle {
-//        toolVersion = "7.1"
-//    }
+    checkstyle {
+        toolVersion = "7.1"
+    }
 
     repositories {
         // Use 'jcenter' for resolving your dependencies.
@@ -46,14 +46,10 @@ allprojects {
         }
     }
 
-//    checkstyle {
-//        toolVersion = "7.1"
-//    }
-//
-//    checkstyle {
-//        configFile = new File(rootDir, "checkstyle/checkstyle.xml")
-//        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
-//    }
+    checkstyle {
+        configFile = new File(rootDir, "checkstyle/checkstyle.xml")
+        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+    }
 
     dependencies {
         // The production code uses the SLF4J logging API at compile time
@@ -85,6 +81,7 @@ project('common') {
 project('clients:streaming') {
     dependencies {
         compile project(':common')
+        compile project(":controller:contract")
         testCompile project(':testcommon')
     }
 }
@@ -178,7 +175,6 @@ project('integrationtests') {
     }
 }
 
-
 project('benchmark') {
     dependencies {
         compile project(':common')
@@ -236,13 +232,6 @@ project('controller:contract') {
     dependencies {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
-        compile project(":clients:streaming") //TODO: All the model components used should be moved to seperate library.
-    }
-}
-
-project('controller:client') {
-    dependencies {
-        compile project(":controller:contract")
     }
 }
 
@@ -254,5 +243,6 @@ project('controller:server') {
     dependencies {
         compile project(':common')
         compile project(":controller:contract")
+        compile project(":clients:streaming")
     }
 }
