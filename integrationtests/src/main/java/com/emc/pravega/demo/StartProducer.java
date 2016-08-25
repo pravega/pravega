@@ -42,6 +42,9 @@ public class StartProducer {
         @Cleanup
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(singleSegment.getEndpoint(), singleSegment.getPort(), scope);
         Stream stream = streamManager.createStream(streamName, null);
+        // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
+        Thread.sleep(1000);
+        
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         for (int i = 0; i < 10000; i++) {
