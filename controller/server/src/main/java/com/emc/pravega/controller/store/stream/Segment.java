@@ -20,9 +20,11 @@ package com.emc.pravega.controller.store.stream;
 /**
  * In-memory representation of a stream segment.
  */
+import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.ToString;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -50,9 +52,13 @@ public class Segment {
         this.end = end;
         this.keyStart = keyStart;
         this.keyEnd = keyEnd;
+        successors = new ArrayList<>();
+        predecessors = new ArrayList<>();
     }
 
     public Segment(int number, long start, long end, double keyStart, double keyEnd, List<Integer> successors, List<Integer> predecessors) {
+        Preconditions.checkNotNull(successors);
+        Preconditions.checkNotNull(predecessors);
         this.number = number;
         this.start = start;
         this.end = end;
@@ -60,5 +66,21 @@ public class Segment {
         this.keyEnd = keyEnd;
         this.successors = successors;
         this.predecessors = predecessors;
+    }
+
+    public boolean overlaps(Segment segment) {
+        return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
+    }
+
+    public void addSuccesor(int successor) {
+        if (!successors.contains(successor)) {
+            successors.add(successor);
+        }
+    }
+
+    public void addPredecessor(int predecessor) {
+        if (!predecessors.contains(predecessor)) {
+            predecessors.add(predecessor);
+        }
     }
 }

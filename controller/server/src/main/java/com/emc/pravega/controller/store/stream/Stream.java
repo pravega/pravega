@@ -76,8 +76,9 @@ class Stream {
      */
     Segment addActiveSegment(long start, double keyStart, double keyEnd, List<Integer> predecessors) {
         int number = segments.size();
+        Preconditions.checkNotNull(predecessors);
         predecessors.stream().forEach(x -> Preconditions.checkArgument(0 <= x && x <= number - 1));
-        Segment segment = new Segment(number, start, Long.MAX_VALUE, keyStart, keyEnd, predecessors, null);
+        Segment segment = new Segment(number, start, Long.MAX_VALUE, keyStart, keyEnd, predecessors, new ArrayList<>());
         currentSegments.add(segment.getNumber());
         segments.add(segment);
         return segment;
@@ -91,7 +92,7 @@ class Stream {
         Preconditions.checkNotNull(segment);
         Preconditions.checkState(segment.getEnd() == Long.MAX_VALUE);
         segment.setNumber(segments.size());
-        segment.setSuccessors(null);
+        segment.setSuccessors(new ArrayList<>());
         currentSegments.add(segment.getNumber());
         segments.add(segment);
         return segment;
@@ -101,7 +102,7 @@ class Stream {
      * @return the list of currently active segments
      */
     SegmentFutures getActiveSegments() {
-        return new SegmentFutures(Collections.unmodifiableList(currentSegments), null);
+        return new SegmentFutures(Collections.unmodifiableList(currentSegments), Collections.EMPTY_MAP);
     }
 
     /**
@@ -194,14 +195,41 @@ class Stream {
      * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new segments.
      * @return the list of new segments.
      */
-    List<Segment> scale(List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
+    List<Segment> scale(List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(newSegments);
         Preconditions.checkArgument(sealedSegments.size() > 0);
         Preconditions.checkArgument(newSegments.size() > 0);
-        // TODO: assign status, end times, and successors to sealed segments.
-        // TODO: assign predecessors, start times, numbers to new segments. Add them to segments list and current list.
-        throw new UnsupportedOperationException("Not implemented, yet");
+
+        // assign start times, numbers to new segments. Add them to segments list and current list.
+        for (Segment segment: newSegments) {
+            segment.setStart(scaleTimestamp);
+            segment.setEnd(Long.MAX_VALUE);
+            int number = segments.size();
+            segment.setNumber(number);
+            segments.add(segment);
+            currentSegments.add(number);
+        }
+
+        // assign status, end times, and successors to sealed segments.
+        // assign predecessors to new segments
+        for (Integer sealed: sealedSegments) {
+            Segment segment = segments.get(sealed);
+            segment.setStatus(Segment.Status.Sealed);
+            segment.setEnd(scaleTimestamp);
+
+            newSegments.forEach(
+                    newSegment -> {
+                        if (newSegment.overlaps(segment)) {
+                            segment.addSuccesor(newSegment.getNumber());
+                            newSegment.addPredecessor(sealed);
+                        }
+                    }
+            );
+            currentSegments.remove(sealed);
+        }
+
+        return newSegments;
     }
 
     public String toString() {

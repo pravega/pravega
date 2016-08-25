@@ -105,7 +105,7 @@ public class InMemoryStreamStore implements StreamMetadataStore {
     }
 
     @Override
-    public List<Segment> scale(String name, List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
+    public List<Segment> scale(String name, List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
         Stream stream = getStream(name);
         return stream.scale(sealedSegments, newSegments, scaleTimestamp);
     }

@@ -110,5 +110,5 @@ public interface StreamMetadataStore {
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    List<Segment> scale(String name, List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp);
+    List<Segment> scale(String name, List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp);
 }
