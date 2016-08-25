@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * RPC based implementation of Stream Controller Producer V1 API
  */
 @Slf4j
-public class ApiProducer extends BaseClient implements Api.Producer {
+public class ApiProducer extends BaseClient implements ControllerApi.Producer {
     public static final String PRODUCER_SERVICE = "producerService";
 
     private final ProducerService.Client client;

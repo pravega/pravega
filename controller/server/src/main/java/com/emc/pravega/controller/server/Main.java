@@ -30,8 +30,8 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.stream.ControllerApi;
 import com.google.common.collect.Sets;
-import com.emc.pravega.stream.Api;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,14 +57,14 @@ public class Main {
                 new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
-        //2.1) initialize implementation of Api.ApiAdmin
-        Api.Admin adminApi = new AdminImpl(streamStore, hostStore);
+        //2.1) initialize implementation of ControllerApi.ApiAdmin
+        ControllerApi.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
-        //2.2) initialize implementation of Api.ApiConsumer
-        Api.Consumer consumerApi = new ConsumerImpl();
+        //2.2) initialize implementation of ControllerApi.ApiConsumer
+        ControllerApi.Consumer consumerApi = new ConsumerImpl();
 
-        //2.3) initialize implementation of Api.ApiProducer
-        Api.Producer producerApi = new ProducerImpl(streamStore, hostStore);
+        //2.3) initialize implementation of ControllerApi.ApiProducer
+        ControllerApi.Producer producerApi = new ProducerImpl(streamStore, hostStore);
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import org.apache.thrift.TException;
@@ -29,22 +29,22 @@ import java.util.List;
  */
 public class ConsumerServiceImpl implements ConsumerService.Iface {
 
-    private Api.Consumer consumerApi;
+    private ControllerApi.Consumer consumerApi;
 
-    public ConsumerServiceImpl(Api.Consumer consumerApi) {
+    public ConsumerServiceImpl(ControllerApi.Consumer consumerApi) {
         this.consumerApi = consumerApi;
     }
 
     @Override
     public List<Position> getPositions(String stream, long timestamp, int count) throws TException {
-        //invoke Api.ApiConsumer.getPositions(...)
+        //invoke ControllerApi.ApiConsumer.getPositions(...)
         consumerApi.getPositions(stream, timestamp, count);
         return null;
     }
 
     @Override
     public List<Position> updatePositions(List<Position> positions) throws TException {
-        //invoke Api.ApiConsumer.updatePositions(...)
+        //invoke ControllerApi.ApiConsumer.updatePositions(...)
         consumerApi.updatePositions(null);
         return null;
     }

@@ -18,14 +18,14 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Position;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-public class ConsumerImpl implements Api.Consumer {
+public class ConsumerImpl implements ControllerApi.Consumer {
     @Override
     public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
         throw new NotImplementedException();

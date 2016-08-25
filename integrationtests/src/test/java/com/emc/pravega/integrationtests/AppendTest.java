@@ -31,6 +31,7 @@ import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.controller.stream.api.v1.*;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
 import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
@@ -39,15 +40,17 @@ import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandle
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.*;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.impl.ApiAdmin;
+import com.emc.pravega.stream.impl.ApiProducer;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 
+import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -61,6 +64,7 @@ import org.junit.Test;
 
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
@@ -190,13 +194,42 @@ public class AppendTest {
         @Cleanup
         LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
-        Stream stream = streamManager.createStream(streamName, null);
 
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
-        segmentManager.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
+        ControllerApi.Admin apiAdmin = new ControllerApi.Admin() {
+            @Override
+            public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
+                ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
+                SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
+                SegmentId segmentId = new SegmentId(streamName, streamName, 0, 0, endpoint, port);
+
+                segmentManager.createSegment(segmentId.getQualifiedName());
+
+                return CompletableFuture.completedFuture(Status.SUCCESS);
+            }
+
+            @Override
+            public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
+                return null;
+            }
+        };
+
+        ControllerApi.Producer apiProducer = new ControllerApi.Producer() {
+            @Override
+            public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
+                return CompletableFuture.completedFuture(new StreamSegments(
+                        Lists.newArrayList(new SegmentId(stream, stream, 0, 0, endpoint, port)),
+                        System.currentTimeMillis()));
+            }
+
+            @Override
+            public CompletableFuture<URI> getURI(com.emc.pravega.controller.stream.api.v1.SegmentId id) {
+                return null;
+            }
+        };
+
+        @Cleanup
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, "Scope");
+        Stream stream = streamManager.createStream(streamName, null);
 
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));

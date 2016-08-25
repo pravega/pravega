@@ -32,7 +32,9 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
@@ -65,13 +67,12 @@ public class SingleSegmentStreamImpl implements Stream {
     };
 
     public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config,
-            SegmentManager segmentManager) {
-        Preconditions.checkNotNull(segmentManager);
+                                   SegmentId segmentId) {
         this.scope = scope;
         this.name = name;
         this.config = config;
-        this.segmentManager = segmentManager;
-        this.segmentId = new SegmentId(scope, name, 1, 0, "", 0);
+        this.segmentId = segmentId;
+        this.segmentManager = new SegmentManagerImpl(segmentId.getEndpoint(), new ConnectionFactoryImpl(false, segmentId.getPort()));
     }
 
     @Override
@@ -99,6 +100,11 @@ public class SingleSegmentStreamImpl implements Stream {
                 new SingleStreamOrderer<T>(),
                 l,
                 config);
+    }
+
+    @Override
+    public void close() {
+        segmentManager.close();
     }
 
 }
