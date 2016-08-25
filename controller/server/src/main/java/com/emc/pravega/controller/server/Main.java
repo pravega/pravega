@@ -31,6 +31,7 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.google.common.collect.Sets;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +46,9 @@ public class Main {
 
         // TODO: Will use hard-coded host to container mapping for this sprint
         // Read from a config file. This same information will be present on pravega hosts
+        // TODO: remove temporary hard coding for the cluster and segment
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+        hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
         //1) LOAD configuration.
         // TODO: read store type and construct store configuration based on configuration file
