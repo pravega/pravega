@@ -22,6 +22,7 @@ package com.emc.pravega.controller.server.rpc;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TMultiplexedProcessor;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -31,6 +32,7 @@ import org.apache.thrift.transport.TServerTransport;
 /**
  * Thrift based RPC server implementation. (Initial version)
  */
+@Slf4j
 public class RPCServer {
 
     public static void start(AdminService.Iface adminService, ConsumerService.Iface consumerService, ProducerService.Iface producerService) {
@@ -46,19 +48,20 @@ public class RPCServer {
             };
 
             new Thread(simple).start();
-        } catch (Exception x) {
-            x.printStackTrace(); //TODO: enable logging
+        } catch (Exception ex) {
+            log.error("Exception", ex);
         }
     }
 
     private static void simple(final TMultiplexedProcessor processor) {
         try {
+            log.info("Listening on port 9090");
             TServerTransport serverTransport = new TServerSocket(9090);
             TServer server = new TThreadPoolServer(new TThreadPoolServer.Args(serverTransport).processor(processor));
 
             server.serve();
-        } catch (Exception e) {
-            e.printStackTrace(); //TODO: enable logging
+        } catch (Exception ex) {
+            log.error("Exception", ex);
         }
     }
 }

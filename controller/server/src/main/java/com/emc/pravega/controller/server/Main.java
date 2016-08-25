@@ -31,6 +31,7 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +40,7 @@ import java.util.Set;
 /**
  * Entry point of controller server.
  */
+@Slf4j
 public class Main {
 
     public static void main(String[] args) {
@@ -49,7 +51,9 @@ public class Main {
 
         //1) LOAD configuration.
         // TODO: read store type and construct store configuration based on configuration file
+        log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
                 new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
@@ -65,6 +69,7 @@ public class Main {
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.
+        log.info("Starting RPC server");
         RPCServer.start(new AdminServiceImpl(adminApi), new ConsumerServiceImpl(consumerApi), new ProducerServiceImpl(producerApi));
     }
 }
