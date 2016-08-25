@@ -24,6 +24,7 @@ import java.security.cert.CertificateException;
 
 import javax.net.ssl.SSLException;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionListener;
@@ -125,13 +126,10 @@ public final class PravegaConnectionListener implements ConnectionListener {
     @Override
     public void close() {
         // Wait until the server socket is closed.
-        try {
+        Exceptions.handleInterupted(() -> {
             serverChannel.close();
             serverChannel.closeFuture().sync();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
+        });
         // Shut down all event loops to terminate all threads.
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();

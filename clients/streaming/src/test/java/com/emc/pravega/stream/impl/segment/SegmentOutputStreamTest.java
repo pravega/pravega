@@ -89,7 +89,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.getConnection();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
@@ -104,7 +104,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.getConnection();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
@@ -128,7 +128,7 @@ public class SegmentOutputStreamTest {
         cf.provideConnection("endpoint", connection);
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.getConnection();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -199,7 +199,7 @@ public class SegmentOutputStreamTest {
         cf.provideConnection("endpoint", connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.getConnection();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
 

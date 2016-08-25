@@ -49,6 +49,7 @@ import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.ReusableLatch;
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -292,21 +293,28 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     /**
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */
+    @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
         return Retry.withExpBackoff(1, 10, 5)
             .retryingOn(ConnectionFailedException.class)
             .throwingOn(SegmentSealedException.class)
             .run(() -> {
-                if (state.getConnection() == null) {
-                    ClientConnection connection = getAndHandleExceptions(connectionFactory
-                        .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
-                    state.newConnection(connection);
-                    SetupAppend cmd = new SetupAppend(connectionId, segment);
-                    connection.send(cmd);
-                }
+                setupConnection();
                 return state.waitForConnection();
         });
+    }
+
+    @Synchronized
+    @VisibleForTesting
+    void setupConnection() throws ConnectionFailedException {
+        if (state.getConnection() == null) {
+            ClientConnection connection = getAndHandleExceptions(connectionFactory
+                .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
+            state.newConnection(connection);
+            SetupAppend cmd = new SetupAppend(connectionId, segment);
+            connection.send(cmd);
+        }
     }
 
     /**

@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -82,13 +83,14 @@ public class SegmentManagerImpl implements SegmentManager {
     }
 
     @Override
-    public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) throws SegmentSealedException {
+    public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config)
+            throws SegmentSealedException {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
         try {
             result.getConnection();
         } catch (RetriesExaustedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
-        } 
+        }
         return result;
     }
 
@@ -96,10 +98,10 @@ public class SegmentManagerImpl implements SegmentManager {
     public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
         AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name);
         try {
-            Exceptions.handleInterupted(()->result.getConnection().get());
+            Exceptions.handleInterupted(() -> result.getConnection().get()/*, ExecutionException.class*/);
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
-        } 
+        }
         return new SegmentInputStreamImpl(result, 0);
     }
 

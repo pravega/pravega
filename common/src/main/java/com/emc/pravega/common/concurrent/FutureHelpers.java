@@ -22,12 +22,16 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+
+import lombok.SneakyThrows;
 
 /**
  * Extensions to Future and CompletableFuture.
@@ -46,7 +50,9 @@ public final class FutureHelpers {
      * of the type whose constructor is provided
      * 
      * @param future The future whose result is wanted
-     * @param exceptionConstructor The constructor for the exception to be thrown IE: RuntimeException::new
+     * @param exceptionConstructor This can be any function that either transforms an exception
+     *            IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *            If null is returned from the function no exception will be thrown.
      * @return The result of calling future.get()
      */
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
@@ -54,7 +60,34 @@ public final class FutureHelpers {
         try {
             return Exceptions.handleInterupted(() -> future.get());
         } catch (ExecutionException e) {
-            throw exceptionConstructor.apply(e.getCause());
+             ExceptionT result = exceptionConstructor.apply(e.getCause());
+             if (result == null) {
+                 return null;
+             } else {
+                 throw result;
+             }
+        }
+    }
+    
+    /**
+     * Same as {@link #getAndHandleExceptions(Future, Function)} but with a timeout on get().
+     * @param timeoutMillis the timeout expressed in milliseconds before throwing {@link TimeoutException}
+     */
+    @SneakyThrows(InterruptedException.class)
+    public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
+            Function<Throwable, ExceptionT> exceptionConstructor, long timeoutMillis) throws TimeoutException, ExceptionT {
+        try {
+            return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException e) {
+            ExceptionT result = exceptionConstructor.apply(e.getCause());
+            if (result == null) {
+                return null;
+            } else {
+                throw result;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         }
     }
     
@@ -107,4 +140,5 @@ public final class FutureHelpers {
     public static <T> CompletableFuture<Void> allOf(Collection<CompletableFuture<T>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
     }
+
 }
