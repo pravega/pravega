@@ -17,9 +17,9 @@
  */
 package com.emc.pravega.demo;
 
+
 import com.emc.pravega.stream.*;
 import com.emc.pravega.stream.impl.*;
-
 import lombok.Cleanup;
 
 import java.util.concurrent.ExecutionException;
@@ -32,11 +32,11 @@ public class StartProducer {
         String scope = "Scope1";
         String streamName = "Stream1";
         String testString = "Hello world: ";
-        ApiAdmin admin = new ApiAdmin();
+        ApiAdmin admin = new ApiAdmin("localhost", 9090);
         admin.createStream(new StreamConfigurationImpl(streamName,
-                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS,0,0,1))).get();
+                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))).get();
 
-        ApiProducer apiProducer = new ApiProducer();
+        ApiProducer apiProducer = new ApiProducer("localhost", 9090);
         StreamSegments segments = apiProducer.getCurrentSegments(streamName).get();
         SegmentId singleSegment = segments.getSegments().get(0);
         @Cleanup
