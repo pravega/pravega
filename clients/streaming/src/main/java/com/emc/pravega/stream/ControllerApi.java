@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Stream Controller APIs.
  */
-public final class Api {
+public final class ControllerApi {
 
     public static interface Admin {
         CompletableFuture<Status> createStream(StreamConfiguration streamConfig);

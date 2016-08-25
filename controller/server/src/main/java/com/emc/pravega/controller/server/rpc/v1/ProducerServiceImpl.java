@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentUri;
@@ -33,9 +33,9 @@ import java.util.stream.Collectors;
  */
 public class ProducerServiceImpl implements ProducerService.Iface {
 
-    private Api.Producer producerApi;
+    private ControllerApi.Producer producerApi;
 
-    public ProducerServiceImpl(Api.Producer producerApi) {
+    public ProducerServiceImpl(ControllerApi.Producer producerApi) {
         this.producerApi = producerApi;
     }
 
@@ -51,7 +51,7 @@ public class ProducerServiceImpl implements ProducerService.Iface {
 
     @Override
     public SegmentUri getURI(SegmentId id) throws TException {
-        //invoke Api.ApiProducer.getURI(...)
+        //invoke ControllerApi.ApiProducer.getURI(...)
         producerApi.getURI(id);
         return null;
     }

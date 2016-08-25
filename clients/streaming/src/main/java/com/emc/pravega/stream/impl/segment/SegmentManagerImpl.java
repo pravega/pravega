@@ -94,6 +94,11 @@ public class SegmentManagerImpl implements SegmentManager {
 	}
 
 	@Override
+	public void close() {
+		connectionFactory.close();
+	}
+
+	@Override
 	public SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId) {
 		throw new NotImplementedException();
 	}

@@ -27,20 +27,16 @@ import java.util.concurrent.ExecutionException;
 public class StartProducer {
 
     public static void main(String[] args) throws ExecutionException, InterruptedException {
-//        String endpoint = "localhost";
-//        int port = 12345;
+        String endpoint = "localhost";
+        int port = 9090;
         String scope = "Scope1";
         String streamName = "Stream1";
         String testString = "Hello world: ";
-        ApiAdmin admin = new ApiAdmin("localhost", 9090);
-        admin.createStream(new StreamConfigurationImpl(streamName,
-                new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))).get();
 
-        ApiProducer apiProducer = new ApiProducer("localhost", 9090);
-        StreamSegments segments = apiProducer.getCurrentSegments(streamName).get();
-        SegmentId singleSegment = segments.getSegments().get(0);
+        ApiAdmin apiAdmin = new ApiAdmin(endpoint, port);
+        ApiProducer apiProducer = new ApiProducer(endpoint, port);
         @Cleanup
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(singleSegment.getEndpoint(), singleSegment.getPort(), scope);
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, scope);
         Stream stream = streamManager.createStream(streamName, null);
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
         Thread.sleep(1000);

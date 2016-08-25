@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
  * RPC based implementation of Stream Controller Admin V1 API
  */
 @Slf4j
-public class ApiAdmin extends BaseClient implements Api.Admin {
+public class ApiAdmin extends BaseClient implements ControllerApi.Admin {
     public static final String ADMIN_SERVICE = "adminService";
 
     private final AdminService.Client client;

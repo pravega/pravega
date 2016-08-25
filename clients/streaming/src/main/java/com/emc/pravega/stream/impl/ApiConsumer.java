@@ -18,7 +18,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * RPC based implementation of Stream Controller Consumer V1 API
  */
 @Slf4j
-public class ApiConsumer extends BaseClient implements Api.Consumer {
+public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
     public static final String CONSUMER_SERVICE = "consumerService";
 
     private final ConsumerService.Client client;

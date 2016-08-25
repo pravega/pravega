@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -29,7 +29,7 @@ import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-public class ProducerImpl implements Api.Producer {
+public class ProducerImpl implements ControllerApi.Producer {
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 
