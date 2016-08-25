@@ -123,6 +123,7 @@ public class ContainerReadIndexTests {
      * * Batch merging.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = APPENDS_PER_SEGMENT * 25; // About 40-50% of the entire segment length.
         final int triggerFutureReadsEvery = 3; // How many appends to trigger Future reads.

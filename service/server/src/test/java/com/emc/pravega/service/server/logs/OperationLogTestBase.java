@@ -18,6 +18,18 @@
 
 package com.emc.pravega.service.server.logs;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+
+import org.junit.Assert;
+
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -28,17 +40,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperati
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import lombok.Cleanup;
-import org.junit.Assert;
-
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.time.Duration;
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 
 /**
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).

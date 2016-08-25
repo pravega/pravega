@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -42,61 +42,62 @@ import java.util.concurrent.ExecutionException;
 @VisibleForTesting
 public class SegmentManagerImpl implements SegmentManager {
 
-	private final String endpoint;
-	private final ConnectionFactory connectionFactory;
-	
-	@Override
-	@Synchronized
-	public boolean createSegment(String name) {
-	    CompletableFuture<Boolean> result = new CompletableFuture<>();
-		ClientConnection connection = connectionFactory.establishConnection(endpoint, new FailingReplyProcessor() {
-			@Override
-			public void wrongHost(WrongHost wrongHost) {
-				result.completeExceptionally(new NotImplementedException());
-			}
-			@Override
-			public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
-				result.complete(false);
-			}
-			
-			@Override
-			public void segmentCreated(SegmentCreated segmentCreated) {
-				result.complete(true);
-			}
-		});
-		try {
-		    connection.send(new CreateSegment(name));
-			return result.get();
-		} catch (ExecutionException e) {
-			throw new RuntimeException(e.getCause());
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new RuntimeException(e);
-		} catch (ConnectionFailedException e) {
+    private final String endpoint;
+    private final ConnectionFactory connectionFactory;
+
+    @Override
+    @Synchronized
+    public boolean createSegment(String name) {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        ClientConnection connection = connectionFactory.establishConnection(endpoint, new FailingReplyProcessor() {
+            @Override
+            public void wrongHost(WrongHost wrongHost) {
+                result.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void segmentAlreadyExists(SegmentAlreadyExists segmentAlreadyExists) {
+                result.complete(false);
+            }
+
+            @Override
+            public void segmentCreated(SegmentCreated segmentCreated) {
+                result.complete(true);
+            }
+        });
+        try {
+            connection.send(new CreateSegment(name));
+            return result.get();
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }
-	}
+    }
 
-	@Override
-	public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) {
-	    SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
-	    try {
+    @Override
+    public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) {
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
+        try {
             result.connect();
         } catch (ConnectionFailedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-		return result;
-	}
+        return result;
+    }
 
-	@Override
-	public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
-		return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name));
-	}
+    @Override
+    public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
+        return new SegmentInputStreamImpl(new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name), 0);
+    }
 
-	@Override
-	public SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId) {
-		throw new NotImplementedException();
-	}
+    @Override
+    public SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId) {
+        throw new NotImplementedException();
+    }
 
     @Override
     public void createTransaction(String segmentName, UUID txId, long timeout) {

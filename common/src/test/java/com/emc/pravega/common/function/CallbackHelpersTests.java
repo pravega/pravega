@@ -18,14 +18,12 @@
 
 package com.emc.pravega.common.function;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.emc.pravega.common.function.CallbackHelpers;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for CallbackHelpers class.

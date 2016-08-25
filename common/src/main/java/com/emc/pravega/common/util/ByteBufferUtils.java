@@ -15,48 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl.segment;
+package com.emc.pravega.common.util;
 
-import static org.junit.Assert.*;
+import java.nio.ByteBuffer;
 
-import org.junit.Ignore;
-import org.junit.Test;
+public class ByteBufferUtils {
 
-@Ignore
-public class TransactionTest {
-
-    @Test
-    public void testTimeoutDropsTxn() {
-        fail();
+    public static ByteBuffer slice(ByteBuffer orig, int begin, int length) {
+        int pos = orig.position();
+        int limit = orig.limit();
+        orig.limit(begin + length);
+        orig.position(begin);
+        ByteBuffer result = orig.slice();
+        orig.limit(limit);
+        orig.position(pos);
+        return result;
     }
-
-    @Test
-    public void testCommitTwice() {
-        fail();
-    }
-
-    @Test
-    public void testDropThenCommit() {
-        fail();
-    }
-
-    @Test
-    public void testDropTwice() {
-        fail();
-    }
-
-    @Test
-    public void testCommitThenDrop() {
-        fail();
-    }
-
-    @Test
-    public void testGetTxStatus() {
-        fail();
-    }
-
-    @Test
-    public void testLogCloses() {
-        fail();
-    }
+    
+    
 }

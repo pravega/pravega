@@ -33,9 +33,6 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStreamImpl;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
 import static org.junit.Assert.*;
 
@@ -113,8 +110,8 @@ public class SegmentOutputStreamTest {
         verifyNoMoreInteractions(connection);
     }
 
-    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, ByteBuffer data,
-            int num) throws SegmentSealedException, ConnectionFailedException {
+    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, ByteBuffer data, int num)
+            throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(data, acked);
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data)));
@@ -141,10 +138,10 @@ public class SegmentOutputStreamTest {
         final AtomicReference<Exception> ex = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                output.close(); //should block
+                output.close(); // should block
             } catch (Exception e) {
                 ex.set(e);
-            } 
+            }
         });
         t.start();
         t.join(1000);
@@ -161,7 +158,7 @@ public class SegmentOutputStreamTest {
         verify(connection).close();
         verifyNoMoreInteractions(connection);
     }
-    
+
     @Test
     @Ignore
     public void testConnectionFailure() {
@@ -206,11 +203,11 @@ public class SegmentOutputStreamTest {
 
         ByteBuffer data = ByteBuffer.allocate(SegmentOutputStream.MAX_WRITE_SIZE + 1);
         CompletableFuture<Void> acked = new CompletableFuture<>();
-        try {            
+        try {
             output.write(data, acked);
             fail("Did not throw");
-        } catch (IllegalArgumentException e){
-            //expected
+        } catch (IllegalArgumentException e) {
+            // expected
         }
         assertEquals(false, acked.isDone());
         verifyNoMoreInteractions(connection);
