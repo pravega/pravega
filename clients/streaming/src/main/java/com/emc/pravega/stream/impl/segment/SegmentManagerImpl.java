@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;

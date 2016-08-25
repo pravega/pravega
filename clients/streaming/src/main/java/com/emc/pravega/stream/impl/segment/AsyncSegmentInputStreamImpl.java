@@ -79,7 +79,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         this.segment = segment;
     }
 
-
     @Override
     public void close() {
         closeConnection();
@@ -90,7 +89,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         CompletableFuture<SegmentRead> future = new CompletableFuture<>();
         outstandingRequests.put(offset, future);
-        getConnection().thenApply( (ClientConnection c) -> {
+        getConnection().thenApply((ClientConnection c) -> {
             try {
                 c.send(new ReadSegment(segment, offset, length));
             } catch (ConnectionFailedException e) {
@@ -108,27 +107,27 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             try {
                 connection.getNow(null).close();
             } catch (Exception e) {
-                log.warn("Exception tearing down connection: ",e);
+                log.warn("Exception tearing down connection: ", e);
             }
             connection = null;
         }
     }
-    
-    @Synchronized 
+
+    @Synchronized
     CompletableFuture<ClientConnection> getConnection() {
         if (connection == null) {
             connection = connectionFactory.establishConnection(endpoint, responseProcessor);
         }
         return connection;
     }
-    
+
     private void nackInflight(Exception e) {
-        for (Iterator<Entry<Long, CompletableFuture<SegmentRead>>> iterator = outstandingRequests.entrySet()
-                .iterator(); iterator.hasNext();) {
+        for (Iterator<Entry<Long, CompletableFuture<SegmentRead>>> iterator = outstandingRequests.entrySet().iterator(); iterator
+            .hasNext();) {
             Entry<Long, CompletableFuture<SegmentRead>> read = iterator.next();
             read.getValue().completeExceptionally(e);
             iterator.remove();
         }
     }
-    
+
 }

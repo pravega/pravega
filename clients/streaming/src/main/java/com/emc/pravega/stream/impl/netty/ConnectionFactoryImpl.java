@@ -114,7 +114,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         CompletableFuture<ClientConnection> result = new CompletableFuture<>();
         b.connect(host, port).addListener(new ChannelFutureListener() {
             @Override
-            public void operationComplete(ChannelFuture future){
+            public void operationComplete(ChannelFuture future) {
                 try {
                     future.get();
                     result.complete(handler);
