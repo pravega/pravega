@@ -27,14 +27,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.emc.pravega.common.netty.CommandDecoder;
-import com.emc.pravega.common.netty.CommandEncoder;
-import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;

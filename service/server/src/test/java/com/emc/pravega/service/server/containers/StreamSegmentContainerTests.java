@@ -410,6 +410,7 @@ public class StreamSegmentContainerTests {
      * * Batch merging.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = 100;
         @Cleanup

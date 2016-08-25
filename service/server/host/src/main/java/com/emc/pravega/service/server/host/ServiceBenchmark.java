@@ -41,7 +41,7 @@ public class ServiceBenchmark {
         context.reset();
 
         ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
-        Supplier<ServiceBuilder> serviceBuilderProvider = ()-> new DistributedLogServiceBuilder(config);
+        Supplier<ServiceBuilder> serviceBuilderProvider = () -> new DistributedLogServiceBuilder(config);
        // Supplier<ServiceBuilder> serviceBuilderProvider = () -> new InMemoryServiceBuilder(config);
 
         // WARNING: The benchmark does not work too well with DistributedLogServiceBuilder. In order to function

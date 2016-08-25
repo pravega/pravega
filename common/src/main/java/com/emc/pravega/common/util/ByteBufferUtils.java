@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -15,16 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common;
+package com.emc.pravega.common.util;
 
-public class MathHelpers {
+import java.nio.ByteBuffer;
 
-    public static int abs(int in) {
-        return in & Integer.MAX_VALUE;
+public class ByteBufferUtils {
+
+    public static ByteBuffer slice(ByteBuffer orig, int begin, int length) {
+        int pos = orig.position();
+        int limit = orig.limit();
+        orig.limit(begin + length);
+        orig.position(begin);
+        ByteBuffer result = orig.slice();
+        orig.limit(limit);
+        orig.position(pos);
+        return result;
     }
     
-    public static long abs(long in) {
-        return in & Long.MAX_VALUE;
-    }
     
 }

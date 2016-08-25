@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -51,79 +51,79 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
-	private final boolean ssl;
-	private final int port;
-	private EventLoopGroup group;
-	private boolean nio = false;
+    private final boolean ssl;
+    private final int port;
+    private EventLoopGroup group;
+    private boolean nio = false;
 
-	public ConnectionFactoryImpl(boolean ssl, int port) {
-		this.ssl = ssl;
-		this.port = port;
-		try {
-			this.group = new EpollEventLoopGroup();
-		} catch (ExceptionInInitializerError|NoClassDefFoundError e) {
-		    log.warn("Epoll not available. Falling back on NIO.");
-			nio = true;
-			this.group = new NioEventLoopGroup();
-		}
-	}
+    public ConnectionFactoryImpl(boolean ssl, int port) {
+        this.ssl = ssl;
+        this.port = port;
+        try {
+            this.group = new EpollEventLoopGroup();
+        } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+            log.warn("Epoll not available. Falling back on NIO.");
+            nio = true;
+            this.group = new NioEventLoopGroup();
+        }
+    }
 
-	@Override
-	public ClientConnection establishConnection(String host, ReplyProcessor rp) {
-	    Preconditions.checkArgument(!Strings.isNullOrEmpty(host));
-		final SslContext sslCtx;
-		if (ssl) {
-			try {
-				sslCtx = SslContextBuilder.forClient()
-					.trustManager(FingerprintTrustManagerFactory
-						.getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
-					.build();
-			} catch (SSLException | NoSuchAlgorithmException e) {
-				throw new RuntimeException(e);
-			}
-		} else {
-			sslCtx = null;
-		}
-		ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(host, rp);
-		Bootstrap b = new Bootstrap();
-		b.group(group)
-			.channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
-			.option(ChannelOption.TCP_NODELAY, true)
-			.handler(new ChannelInitializer<SocketChannel>() {
-				@Override
-				public void initChannel(SocketChannel ch) throws Exception {
-					ChannelPipeline p = ch.pipeline();
-					if (sslCtx != null) {
-						p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
-					}
-					// p.addLast(new LoggingHandler(LogLevel.INFO));
-					p.addLast(	new ExceptionLoggingHandler(host),
-								new CommandEncoder(),
-								new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-								new CommandDecoder(),
-								handler);
-				}
-			});
+    @Override
+    public ClientConnection establishConnection(String host, ReplyProcessor rp) {
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(host));
+        final SslContext sslCtx;
+        if (ssl) {
+            try {
+                sslCtx = SslContextBuilder.forClient()
+                    .trustManager(FingerprintTrustManagerFactory
+                        .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
+                    .build();
+            } catch (SSLException | NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            sslCtx = null;
+        }
+        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(host, rp);
+        Bootstrap b = new Bootstrap();
+        b.group(group)
+            .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
+            .option(ChannelOption.TCP_NODELAY, true)
+            .handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                public void initChannel(SocketChannel ch) throws Exception {
+                    ChannelPipeline p = ch.pipeline();
+                    if (sslCtx != null) {
+                        p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                    }
+                    // p.addLast(new LoggingHandler(LogLevel.INFO));
+                    p.addLast(new ExceptionLoggingHandler(host),
+                              new CommandEncoder(),
+                              new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                              new CommandDecoder(),
+                              handler);
+                }
+            });
 
-		// Start the client.
-		try {
-			b.connect(host, port).sync();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new RuntimeException(e);
-		}
-		return handler;
-	}
+        // Start the client.
+        try {
+            b.connect(host, port).sync();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        return handler;
+    }
 
-	@Override
-	public void close() {
-		// Shut down the event loop to terminate all threads.
-		group.shutdownGracefully();
-	}
-	
-	@Override
+    @Override
+    public void close() {
+        // Shut down the event loop to terminate all threads.
+        group.shutdownGracefully();
+    }
+
+    @Override
     protected void finalize() {
-		group.shutdownGracefully();
-	}
+        group.shutdownGracefully();
+    }
 
 }
