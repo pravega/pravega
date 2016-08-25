@@ -36,7 +36,7 @@ public final class ModelHelper {
 
     public static final SegmentId encode(final com.emc.pravega.controller.stream.api.v1.SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new SegmentId(segment.getScope(), segment.getName(), segment.getNumber(), segment.getPrevious(), "", 0);
+        return new SegmentId(segment.getScope(), segment.getName(), segment.getNumber(), segment.getPrevious(), segment.getEndpoint(), segment.getPort());
     }
 
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
@@ -68,6 +68,7 @@ public final class ModelHelper {
     public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
         return new com.emc.pravega.controller.stream.api.v1.SegmentId().setScope(segment.getScope()).setName(segment.getName())
+                .setEndpoint(segment.getEndpoint()).setPort(segment.getPort())
                 .setNumber(segment.getNumber()).setPrevious(segment.getPrevious());
 
     }
