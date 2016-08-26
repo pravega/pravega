@@ -35,16 +35,18 @@ import com.google.common.base.Preconditions;
  * </pre>
  * 
  * The above will retry the code in the block up to 5 times if it throws FooException. If it throws
- * a RuntimeException or returns successfully it will throw or return immediately. The delay following each of the
- * filed attempts would be 1, 10, 100, 1000, and 10000ms respectively.
+ * a RuntimeException or returns successfully it will throw or return immediately. The delay
+ * following each of the filed attempts would be 1, 10, 100, 1000, and 10000ms respectively. If all
+ * retries fail {@link RetriesExaustedException} will be thrown.
  * 
  * Note that the class is not a builder object, so the methods in the chain must be invoked in
- * order. The intermediate objects in the chain are reusable and threadsafe, so they can be shared between
+ * order. The intermediate objects in the chain are reusable and threadsafe, so they can be shared
+ * between
  * invocations.
  * 
  * In the event that the exception passed to retryingOn() and throwingOn() are related. IE: In the
- * above example if FooException were to extend RuntimeException. Then the more specific exception is given preference.
- * (In the above case FooException would be retried).
+ * above example if FooException were to extend RuntimeException. Then the more specific exception
+ * is given preference. (In the above case FooException would be retried).
  */
 public final class Retry {
 
