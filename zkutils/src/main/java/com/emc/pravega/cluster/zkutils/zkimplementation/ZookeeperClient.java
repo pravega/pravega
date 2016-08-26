@@ -34,7 +34,7 @@ import java.io.Closeable;
 
 @Slf4j
 public class ZookeeperClient extends CommonConfigSyncManager
-        implements PathChildrenCacheListener, AutoCloseable{
+        implements PathChildrenCacheListener, AutoCloseable {
 
     private final CuratorFramework curatorFramework;
     private final PathChildrenCache controllerCache;
@@ -50,8 +50,8 @@ public class ZookeeperClient extends CommonConfigSyncManager
                 .build();
         curatorFramework.start();
 
-        controllerCache = new PathChildrenCache(curatorFramework, this.controllerInfoRoot, true);
-        nodeCache = new PathChildrenCache(curatorFramework, this.nodeInfoRoot, true);
+        controllerCache = new PathChildrenCache(curatorFramework, this.CONTROLLER_INFO_ROOT, true);
+        nodeCache = new PathChildrenCache(curatorFramework, this.NODE_INFO_ROOT, true);
 
         controllerCache.getListenable().addListener(this);
         nodeCache.getListenable().addListener(this);
@@ -91,18 +91,18 @@ public class ZookeeperClient extends CommonConfigSyncManager
      */
     @Override
     public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
-        switch(event.getType()) {
+        switch (event.getType()) {
             case CHILD_ADDED:
-                if(event.getData().getPath().startsWith(this.controllerInfoRoot)) {
+                if (event.getData().getPath().startsWith(this.CONTROLLER_INFO_ROOT)) {
                     listener.controllerAddedNotification(Endpoint.constructFrom(event.getData().getPath()));
-                } else if (event.getData().getPath().startsWith(this.nodeInfoRoot)){
+                } else if (event.getData().getPath().startsWith(this.NODE_INFO_ROOT)) {
                     listener.nodeAddedNotification(Endpoint.constructFrom(event.getData().getPath()));
                 }
                 break;
             case CHILD_REMOVED:
-                if(event.getData().getPath().startsWith(this.controllerInfoRoot)) {
+                if (event.getData().getPath().startsWith(this.CONTROLLER_INFO_ROOT)) {
                     listener.controllerRemovedNotification(Endpoint.constructFrom(event.getData().getPath()));
-                } else if (event.getData().getPath().startsWith(this.nodeInfoRoot)){
+                } else if (event.getData().getPath().startsWith(this.NODE_INFO_ROOT)) {
                     listener.nodeRemovedNotification(Endpoint.constructFrom(event.getData().getPath()));
                 }
                 break;
@@ -157,7 +157,7 @@ public class ZookeeperClient extends CommonConfigSyncManager
      */
     @Override
     public void close() throws Exception {
-        if(this.curatorFramework != null) {
+        if (this.curatorFramework != null) {
             this.curatorFramework.close();
         }
     }

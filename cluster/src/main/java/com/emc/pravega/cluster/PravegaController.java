@@ -27,7 +27,7 @@ import com.google.common.base.Preconditions;
 public final class PravegaController {
     private final Endpoint ep;
     public PravegaController(Endpoint endpoint) {
-        Preconditions.checkNotNull(endpoint);
+        Preconditions.checkNotNull(endpoint, "endpoint");
         this.ep = endpoint;
     }
 

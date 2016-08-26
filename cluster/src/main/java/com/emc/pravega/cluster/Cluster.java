@@ -18,261 +18,107 @@
 
 package com.emc.pravega.cluster;
 
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManager;
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerCreator;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
-import com.emc.pravega.cluster.zkutils.common.Endpoint;
-import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class represents a pravega cluster.
  * A pravega cluster contains a number of pravega nodes and controller nodes.
  * Each node instance is uniquely identified by an Endpoint class.
- *
+ * <p>
  * An Endpoint class represents a server IP and port on which either the
  * pravega node Or the controller listens
  */
-@Slf4j
-public final class Cluster implements ConfigChangeListener {
-    private ConcurrentHashMap<Endpoint, PravegaNode> nodes;
-    private ConcurrentHashMap<Endpoint, PravegaController> controllers;
-    private ConcurrentHashMap<String, ClusterListener> listeners;
-    private ConfigSyncManager manager;
-
-    public Cluster() {
-        nodes        = new ConcurrentHashMap<>();
-        controllers  = new ConcurrentHashMap<>();
-        listeners    = new ConcurrentHashMap<>();
-        manager      = null;
-    }
-
-    public Cluster(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws Exception {
-        this();
-        initializeCluster(syncType, connectionString, sessionTimeout);
-
-    }
+public interface Cluster {
 
 
     /**
      * Gets a list of nodes with the cluster class right now.
+     *
      * @return
      */
-    public Iterable<PravegaNode> getPravegaNodes() {
-        return nodes.values();
-    }
+    Iterable<PravegaNode> getPravegaNodes();
 
     /**
-     * Returns list of controllers available with the cluster class right now.
+     * Returns list of controllers available with the cluster at this point in time.
+     * Users of this API can register a listener to be notified about updates to this data.
+     *
      * @return
      */
-    public Iterable<PravegaController> getPravegaControllers() {
-        return controllers.values();
-    }
+    Iterable<PravegaController> getPravegaControllers();
 
     /**
-     * Returns list of listeners available with the cluster class right now.
+     * Returns list of listeners available with the cluster at this point in time.
+     * Users of this API can register a listener to be notified about updates to this data.
+     *
      * @return
      */
-    public Iterable<ClusterListener> getListeners() {
-        log.warn("Returning listeners size = " + listeners.size());
-        return listeners.values();
-    }
+    Iterable<ClusterListener> getListeners();
 
     /**
      * Initializes the cluster with a given config manager type
-     * @param syncType               Type of the config manager
-     * @param connectionString       String used to connect to the config manager
-     * @param sessionTimeout         Session timeout for the connection
+     *
+     * @param syncType         Type of the config manager
+     * @param connectionString String used to connect to the config manager
+     * @param sessionTimeout   Session timeout for the connection
      */
-    public synchronized void  initializeCluster(ConfigSyncManagerType syncType, String connectionString,
-                                   int sessionTimeout) throws Exception {
-            if (manager == null)
-                manager = new ConfigSyncManagerCreator().createManager(syncType, connectionString,
-                        sessionTimeout, this);
-            refreshCluster();
-    }
+    void initializeCluster(ConfigSyncManagerType syncType, String connectionString,
+                                               int sessionTimeout) throws Exception;
 
     /**
-     * Reads the complete cluster from the store and updates the existing data
+     * Reads the complete cluster from the store and updates the existing data.
+     * This can cause a flurry of notifications for the listener.
      **/
-    public void refreshCluster() throws Exception {
-        nodes.clear();
-        controllers.clear();
-        manager.refreshCluster();
-    }
+    void refreshCluster() throws Exception;
 
-
-
-    /**
-     * Private method to add a node and notify all listeners
-     * @param node
-     * @param endpoint
-     */
-    private void addNode(PravegaNode node, Endpoint endpoint) {
-        nodes.put(endpoint, node);
-        listeners.forEach(
-                (name, listener) -> {
-                    try {
-                        listener.nodeAdded(node);
-                    } catch (Exception e) {
-                        log.warn("Listener" + name + "threw an exception while handling add node :" + e.getMessage());
-                    }
-                });
-    }
-
-
-    /**
-     * Private method to add a controller and notify all listeners
-     * @param controller
-     * @param endpoint
-     */
-    private void addController(PravegaController controller, Endpoint endpoint) {
-        controllers.put(endpoint, controller);
-        listeners.forEach(
-                (name, listener) -> {
-                    try {
-                        listener.controllerAdded(controller);
-                    } catch (Exception e) {
-                        log.warn("Listener" + name + "threw an exception while handling add controller :" + e.getMessage());
-                    }
-                });
-    }
-
-
-    /**
-     * Private method to remove a controller and notify all the listeners
-     * @param endpoint
-     */
-    private void removeController(Endpoint endpoint) {
-        PravegaController controller = controllers.remove(endpoint);
-        listeners.forEach(
-                (name, listener) -> {
-                    try {
-                        listener.controllerRemoved(controller);
-                    } catch (Exception e) {
-                        log.warn("Listener" + name + "threw an exception while handling remove controller :" + e.getMessage());
-                    }
-                });
-    }
-
-    /**
-     * Private method to remove a node and notify all the listeners
-     * @param endpoint
-     */
-    private void removeNode(Endpoint endpoint) {
-        PravegaNode node = nodes.remove(endpoint);
-        listeners.forEach(
-                (name, listener) -> {
-                    try {
-                        listener.nodeRemoved(node);
-                    } catch (Exception e) {
-                        log.warn("Listener " + name + "threw an exception while handling remove node :" + e.getMessage());
-
-                    }
-                });
-    }
 
     /**
      * Registers the current pravega node with a specific hostname and port with the config store
+     *
      * @param host
      * @param port
      * @param jsonMetadata
      */
-    public void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception {
-        manager.registerPravegaNode(host, port, jsonMetadata);
-    }
+    void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception;
 
     /**
      * Registers the current pravega controller with a specific hostname and port with the config store
+     *
      * @param host
      * @param port
      * @param jsonMetadata
      */
-    public void registerPravegaController(String host, int port,  String jsonMetadata) throws Exception {
-        manager.registerPravegaController(host, port, jsonMetadata);
-    }
+    void registerPravegaController(String host, int port, String jsonMetadata) throws Exception;
 
     /**
      * Unregisters the current pravega controller with a specific hostname and port with the config store
+     *
      * @param host
      * @param port
      */
-    public void unregisterPravegaController(String host, int port) throws Exception {
-        Preconditions.checkNotNull(host);
-        manager.unregisterPravegaController(host, port);
-    }
+    void unregisterPravegaController(String host, int port) throws Exception;
 
     /**
      * Unregisters the current pravega node with a specific hostname and port with the config store
+     *
      * @param host
      * @param port
      */
-    public void unregisterPravegaNode(String host, int port) throws Exception {
-        Preconditions.checkNotNull(host);
-        manager.unregisterPravegaNode(host, port);
-    }
+    void unregisterPravegaNode(String host, int port) throws Exception;
 
     /**
      * Listener specific functions:
      * Registers a new listener
+     *
      * @param clusterListener
      */
-    public void registerListener(String name, ClusterListener clusterListener) {
-        Preconditions.checkNotNull(name);
-        Preconditions.checkNotNull(clusterListener);
-
-        listeners.put(name, clusterListener);
-    }
+    void registerListener(String name, ClusterListener clusterListener);
 
     /**
      * Listener specific functions:
      * Removes a registered listener
+     *
      * @param clusterListener
      */
-    public void unregisterListener(ClusterListener clusterListener) {
-        Preconditions.checkNotNull(clusterListener);
-            listeners.remove(clusterListener);
-    }
-
-    /**
-     * Notification from the config manager abstraction to notify a node is added
-     * @param ep
-     */
-    @Override
-    public void nodeAddedNotification(Endpoint ep) {
-        addNode(new PravegaNode(ep), ep);
-    }
-
-    /**
-     * Notification from config manager abstraction to notify a controller is added
-     * @param ep
-     */
-    @Override
-    public void controllerAddedNotification(Endpoint ep) {
-        addController(new PravegaController(ep), ep);
-    }
-
-    /**
-     * Notification from the config manager abstraction to notify a node is removed
-     * @param ep
-     */
-    @Override
-    public void nodeRemovedNotification(Endpoint ep) {
-        removeNode(ep);
-    }
-
-    /**
-     * Notification from config manager abstraction to notify a controller is removed
-     * @param ep
-     */
-    @Override
-    public void controllerRemovedNotification(Endpoint ep) {
-        removeController(ep);
-    }
-
+    void unregisterListener(ClusterListener clusterListener);
 
 }

@@ -63,6 +63,8 @@ allprojects {
         compile group: 'org.apache.curator', name: 'curator-framework', version: '2.7.0'
         // https://mvnrepository.com/artifact/org.apache.curator/curator-recipes
         compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.2.0-incubating'
+        // https://mvnrepository.com/artifact/com.google.code.gson/gson
+        compile group: 'com.google.code.gson', name: 'gson', version: '2.3.1'
 
 
         testCompile "org.mockito:mockito-core:2.+"
