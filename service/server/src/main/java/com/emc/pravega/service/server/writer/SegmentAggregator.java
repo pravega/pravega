@@ -89,6 +89,16 @@ class SegmentAggregator implements AutoCloseable {
     //region Properties
 
     /**
+     * Gets the SequenceNumber of the first operation that is not fully committed to Storage.
+     *
+     * @return The result.
+     */
+    long getLowestUncommittedSequenceNumber() {
+        Operation firstOp = this.operations.getFirst();
+        return firstOp == null ? Operation.NO_SEQUENCE_NUMBER : firstOp.getSequenceNumber();
+    }
+
+    /**
      * Gets a value representing the total length of the outstanding data in this SegmentAggregator, counting ONLY
      * StreamSegmentAppendOperations and CachedStreamSegmentAppendOperations.
      * All other operations (StreamSegmentSealOperations or MergeBatchOperations) are not counted here.
@@ -134,7 +144,7 @@ class SegmentAggregator implements AutoCloseable {
      *
      * @return The result.
      */
-    boolean mustSeal() {
+    private boolean mustSeal() {
         Operation lastOp = this.operations.getLast();
         return lastOp != null
                 && (lastOp instanceof StreamSegmentSealOperation || lastOp instanceof MergeBatchOperation);

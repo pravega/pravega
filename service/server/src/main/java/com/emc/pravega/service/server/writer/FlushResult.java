@@ -18,8 +18,30 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.google.common.base.Preconditions;
+
 /**
  * Represents the result of a Storage Flush Operation.
  */
-public class FlushResult {
+class FlushResult {
+    private final int length;
+
+    FlushResult(int length) {
+        Preconditions.checkArgument(length >= 0, "length must be a positive integer");
+        this.length = length;
+    }
+
+    /**
+     * Gets a value indicating the total amount of data flushed, in bytes.
+     *
+     * @return The result
+     */
+    public int getLength() {
+        return this.length;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Length = %d", this.length);
+    }
 }

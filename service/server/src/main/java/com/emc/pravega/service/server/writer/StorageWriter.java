@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
@@ -39,6 +40,7 @@ import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.concurrent.CancellationException;
@@ -55,6 +57,7 @@ class StorageWriter extends AbstractService implements Writer {
     //region Members
 
     private static final Duration GENERAL_TIMEOUT = Duration.ofSeconds(30); //TODO: break down into specific timeouts, or something smarter.
+    private static final Duration FLUSH_TIMEOUT = GENERAL_TIMEOUT;
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private final String traceObjectId;
     private final WriterConfig config;
@@ -293,6 +296,20 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private CompletableFuture<FlushResult> flush() {
         checkRunning();
+
+        ArrayList<CompletableFuture<FlushResult>> flushFutures = new ArrayList<>();
+        for (SegmentAggregator a : this.aggregators.values()) {
+            if (a.mustFlush()) {
+                // We have a Segment that is ripe for flushing.
+                flushFutures.add(a.flush(this.storage, FLUSH_TIMEOUT));
+            }
+
+            // TODO: think how to do merges properly. Care must be taken to properly sync the parents and their batches and to make sure one doesn't block the other too much.
+        }
+
+        FutureHelpers.allOfWithResults(flushFutures);
+
+        //
         return CompletableFuture.completedFuture(null);
     }
 
@@ -307,6 +324,22 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private void acknowledge(FlushResult flushResult) {
         checkRunning();
+        // The Sequence Number we acknowledge has the property that all operations up to, and including it, have been
+        // committed to Storage.
+
+        // This can only be calculated by looking at all the active SegmentAggregators and picking the smallest
+
+        long lowestUncommittedSeqNo = this.state.getLastReadSequenceNumber();
+        for (SegmentAggregator a : this.aggregators.values()) {
+            long firstSeqNo = a.getLowestUncommittedSequenceNumber();
+            if (firstSeqNo >= 0) {
+                lowestUncommittedSeqNo = Math.min(lowestUncommittedSeqNo, firstSeqNo);
+            }
+        }
+
+        this.state.setLowestUncommitedSequenceNumber(lowestUncommittedSeqNo);
+
+        // TODO: issue truncate
     }
 
     /**

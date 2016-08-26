@@ -28,7 +28,7 @@ class WriterState {
     //region Members
 
     private long lastReadSequenceNumber;
-    private long highestCommittedSequenceNumber;
+    private long lowestUncommitedSequenceNumber;
 
     //endregion
 
@@ -39,7 +39,7 @@ class WriterState {
      */
     WriterState() {
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-        this.highestCommittedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
+        this.lowestUncommitedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
     }
 
     //endregion
@@ -66,29 +66,29 @@ class WriterState {
     }
 
     /**
-     * Gets a value indicating the Sequence Number of the last Operation that was committed to Storage, having the
-     * property that all Operations prior to it have also been successfully committed.
+     * Gets a value indicating the Sequence Number of the first Operation that has at least 1 byte not committed to Storage.
+     * By definition, all Operations with Sequence Numbers less than this value are fully committed to Storage.
      *
      * @return The result.
      */
-    long getHighestCommittedSequenceNumber() {
-        return this.highestCommittedSequenceNumber;
+    long getLowestUncommittedSequenceNumber() {
+        return this.lowestUncommitedSequenceNumber;
     }
 
     /**
-     * Sets the Sequence Number of the last Operation committed to Storage (with all prior Operations also committed).
+     * Sets the Sequence Number of the first Operation that has at least 1 byte uncommitted to Storage (with all prior Operations also committed).
      *
      * @param value The Sequence Number to set.
      */
-    void setHighestCommittedSequenceNumber(long value) {
-        Preconditions.checkArgument(value >= this.highestCommittedSequenceNumber, "New highestCommittedSequenceNumber cannot be smaller than the previous one.");
-        Preconditions.checkArgument(value <= this.lastReadSequenceNumber, "New highestCommittedSequenceNumber cannot be larger than lastReadSequenceNumber.");
-        this.highestCommittedSequenceNumber = value;
+    void setLowestUncommitedSequenceNumber(long value) {
+        Preconditions.checkArgument(value >= this.lowestUncommitedSequenceNumber, "New lowestUncommitedSequenceNumber cannot be smaller than the previous one.");
+        Preconditions.checkArgument(value <= this.lastReadSequenceNumber, "New lowestUncommitedSequenceNumber cannot be larger than lastReadSequenceNumber.");
+        this.lowestUncommitedSequenceNumber = value;
     }
 
     @Override
     public String toString() {
-        return String.format("LastRead = %d, HighestCommitted = %d", this.lastReadSequenceNumber, this.highestCommittedSequenceNumber);
+        return String.format("LastRead = %d, HighestCommitted = %d", this.lastReadSequenceNumber, this.lowestUncommitedSequenceNumber);
     }
 
     //endregion
