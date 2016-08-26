@@ -56,12 +56,12 @@ public final class Retry {
        return withExpBackoff(initialMillis, multiplier, attempts, Long.MAX_VALUE);
     }
     
-    public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts, long maxDealy) {
+    public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
         Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
         Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
         Preconditions.checkArgument(attempts >= 1, "attempts must be a positive integer.");
-        Preconditions.checkArgument(maxDealy >= 1, "maxDealy must be a positive integer.");
-        return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDealy);
+        Preconditions.checkArgument(maxDelay >= 1, "maxDelay must be a positive integer.");
+        return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDelay);
         
     }
     

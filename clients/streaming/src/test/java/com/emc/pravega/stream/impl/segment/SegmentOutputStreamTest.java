@@ -33,6 +33,7 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.google.common.base.Preconditions;
 
 import static org.junit.Assert.*;
 
@@ -54,13 +55,9 @@ public class SegmentOutputStreamTest {
         @Synchronized
         public CompletableFuture<ClientConnection> establishConnection(String endpoint, ReplyProcessor rp) {
             ClientConnection connection = connections.get(endpoint);
-            if (connection == null) {
-                throw new IllegalStateException("Unexpected Endpoint");
-            }
+            Preconditions.checkState(connection != null, "Unexpected Endpoint");
             processors.put(endpoint, rp);
-            CompletableFuture<ClientConnection> result = new CompletableFuture<>();
-            result.complete(connection);
-            return result;
+            return CompletableFuture.completedFuture(connection);
         }
 
         @Synchronized
