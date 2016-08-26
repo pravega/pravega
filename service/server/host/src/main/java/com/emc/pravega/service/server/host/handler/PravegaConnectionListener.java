@@ -126,7 +126,7 @@ public final class PravegaConnectionListener implements ConnectionListener {
     @Override
     public void close() {
         // Wait until the server socket is closed.
-        Exceptions.handleInterupted(() -> {
+        Exceptions.handleInterrupted(() -> {
             serverChannel.close();
             serverChannel.closeFuture().sync();
         });

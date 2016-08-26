@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import static com.emc.pravega.common.Exceptions.handleInterupted;
+import static com.emc.pravega.common.Exceptions.handleInterrupted;
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -48,6 +48,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -65,6 +66,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
+    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     private final ConnectionFactory connectionFactory;
     private final String endpoint;
     private final UUID connectionId;
@@ -96,7 +98,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
          * Blocks until there are no more messages inflight. (No locking required)
          */
         private void waitForEmptyInflight() {
-            handleInterupted(() -> inflightEmpty.await());
+            handleInterrupted(() -> inflightEmpty.await());
         }
 
         private void connectionSetupComplete(long ackLevel) {
@@ -148,7 +150,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
          */
         private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
             try {
-                Exceptions.handleInterupted(() -> connectionSetup.await());
+                Exceptions.handleInterrupted(() -> connectionSetup.await());
                 synchronized (lock) {
                     if (exception != null) {
                         throw exception;
@@ -296,12 +298,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
-        return Retry.withExpBackoff(1, 10, 5)
-            .retryingOn(ConnectionFailedException.class)
-            .throwingOn(SegmentSealedException.class)
-            .run(() -> {
-                setupConnection();
-                return state.waitForConnection();
+        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
+            setupConnection();
+            return state.waitForConnection();
         });
     }
 

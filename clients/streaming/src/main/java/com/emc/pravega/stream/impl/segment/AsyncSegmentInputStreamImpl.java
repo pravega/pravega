@@ -52,13 +52,13 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void wrongHost(WrongHost wrongHost) {
             closeConnection();
-            nackInflight(new ConnectionFailedException(wrongHost.toString()));
+            failAllInflight(new ConnectionFailedException(wrongHost.toString()));
         }
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             closeConnection();
-            nackInflight(new IllegalArgumentException(noSuchSegment.toString()));
+            failAllInflight(new IllegalArgumentException(noSuchSegment.toString()));
         }
 
         @Override
@@ -82,7 +82,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public void close() {
         closeConnection();
-        nackInflight(new ConnectionClosedException());
+        failAllInflight(new ConnectionClosedException());
     }
 
     @Override
@@ -94,7 +94,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 c.send(new ReadSegment(segment, offset, length));
             } catch (ConnectionFailedException e) {
                 closeConnection();
-                nackInflight(e);
+                failAllInflight(e);
             }
             return null;
         });
@@ -121,10 +121,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return connection;
     }
 
-    private void nackInflight(Exception e) {
+    private void failAllInflight(Exception e) {
+        Entry<Long, CompletableFuture<SegmentRead>> read;
         for (Iterator<Entry<Long, CompletableFuture<SegmentRead>>> iterator = outstandingRequests.entrySet().iterator(); iterator
             .hasNext();) {
-            Entry<Long, CompletableFuture<SegmentRead>> read = iterator.next();
+            read = iterator.next();
             read.getValue().completeExceptionally(e);
             iterator.remove();
         }

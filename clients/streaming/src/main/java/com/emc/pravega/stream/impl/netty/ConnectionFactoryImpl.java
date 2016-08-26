@@ -26,6 +26,8 @@ import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.SSLException;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
@@ -75,7 +77,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     public CompletableFuture<ClientConnection> establishConnection(String host, ReplyProcessor rp) {
-        Preconditions.checkArgument(!Strings.isNullOrEmpty(host));
+        Exceptions.checkNotNullOrEmpty(host, "host");
         final SslContext sslCtx;
         if (ssl) {
             try {
@@ -115,16 +117,10 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         b.connect(host, port).addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) {
-                try {
-                    future.get();
+                if (future.isSuccess()) {
                     result.complete(handler);
-                } catch (CancellationException e) {
-                    result.completeExceptionally(e);
-                } catch (ExecutionException e) {
-                    result.completeExceptionally(e.getCause());
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    result.completeExceptionally(e);
+                } else {
+                    result.completeExceptionally(future.cause());
                 }
             }
         });

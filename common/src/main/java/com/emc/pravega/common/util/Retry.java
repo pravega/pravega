@@ -20,44 +20,88 @@ package com.emc.pravega.common.util;
 import com.emc.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 
+/**
+ * A Utility class to support retrying something that can fail with exponential backoff.
+ * The class is designed to have a declarative interface for ease of use. It can be used as follows:
+ * 
+ * <pre>
+ * <code>
+ * Retry.withExpBackoff(1, 10, 5)
+            .retryingOn(FooException.class)
+            .throwingOn(RuntimeException.class).run(() -> {
+                //Do stuff here.
+             }
+ * </code>
+ * </pre>
+ * 
+ * The above will retry the code in the block up to 5 times if it throws FooException. If it throws
+ * a RuntimeException or returns successfully it will throw or return immediately. The delay following each of the
+ * filed attempts would be 1, 10, 100, 1000, and 10000ms respectively.
+ * 
+ * Note that the class is not a builder object, so the methods in the chain must be invoked in
+ * order. The intermediate objects in the chain are reusable and threadsafe, so they can be shared between
+ * invocations.
+ * 
+ * In the event that the exception passed to retryingOn() and throwingOn() are related. IE: In the
+ * above example if FooException were to extend RuntimeException. Then the more specific exception is given preference.
+ * (In the above case FooException would be retried).
+ */
 public final class Retry {
 
     private Retry() {}
     
-    public static RetryWithBackoff withExpBackoff(long initialMillies, int multiplier, int attempts) {
-        return new RetryWithBackoff(initialMillies, multiplier, attempts);
+    public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts) {
+       return withExpBackoff(initialMillis, multiplier, attempts, Long.MAX_VALUE);
     }
     
+    public static RetryWithBackoff withExpBackoff(long initialMillis, int multiplier, int attempts, long maxDealy) {
+        Preconditions.checkArgument(initialMillis >= 1, "InitialMillis must be a positive integer.");
+        Preconditions.checkArgument(multiplier >= 1, "multiplier must be a positive integer.");
+        Preconditions.checkArgument(attempts >= 1, "attempts must be a positive integer.");
+        Preconditions.checkArgument(maxDealy >= 1, "maxDealy must be a positive integer.");
+        return new RetryWithBackoff(initialMillis, multiplier, attempts, maxDealy);
+        
+    }
+    
+    /**
+     * Returned by {@link Retry#withExpBackoff(long, int, int)} to set the retry schedule.
+     * Used to invoke {@link #retryingOn(Class)}. Note this object is reusable so this can be done more than once.
+     */
     public static final class RetryWithBackoff {
-        private final long initialMillies;
+        private final long initialMillis;
         private final int multiplier;
         private final int attempts;
+        private final long maxDelay;
 
-        private RetryWithBackoff(long initialMillies, int multiplier, int attempts) {
-            Preconditions.checkArgument(initialMillies >= 1);
-            Preconditions.checkArgument(multiplier >= 1);
-            Preconditions.checkArgument(attempts >= 1);
-            this.initialMillies = initialMillies;
+        private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
+            this.initialMillis = initialMillis;
             this.multiplier = multiplier;
             this.attempts = attempts;
+            this.maxDelay = maxDelay;
         }
         
         public <RetryT extends Exception> RetringOnException<RetryT> retryingOn(Class<RetryT> retryType) {
+            Preconditions.checkNotNull(retryType);
             return new RetringOnException<>(retryType, this);
         }
         
     }
     
+    /**
+     * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
+     * Any subtype of this exception will be retried unless the subtype is passed to {@link #throwingOn()}.
+     */
     public static final class RetringOnException<RetryT extends Exception> {
         private final Class<RetryT> retryType;
         private final RetryWithBackoff params;
 
-        RetringOnException(Class<RetryT> retryType, RetryWithBackoff params) {
+        private RetringOnException(Class<RetryT> retryType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.params = params;
         }
         
         public <ThrowsT extends Exception> ThrowingOnException<RetryT, ThrowsT> throwingOn(Class<ThrowsT> throwType) {
+            Preconditions.checkNotNull(throwType);
             return new ThrowingOnException<>(retryType, throwType, params);
         }
     }
@@ -67,12 +111,17 @@ public final class Retry {
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
     
+    /**
+     * Returned by {@link RetringOnException#throwingOn(Class)} to add the type of exception that should cause the
+     * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
+     * that subtype was passed as the RetryType to {@link RetryWithBackoff#retryingOn(Class)}
+     */
     public static final class ThrowingOnException<RetryT extends Exception, ThrowsT extends Exception> {
         private final Class<RetryT> retryType;
         private final Class<ThrowsT> throwType;
         private final RetryWithBackoff params;
         
-        ThrowingOnException(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
+        private ThrowingOnException(Class<RetryT> retryType, Class<ThrowsT> throwType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.throwType = throwType;
             this.params = params;
@@ -80,13 +129,17 @@ public final class Retry {
         
         @SuppressWarnings("unchecked")
         public <ReturnT> ReturnT run(Retryable<ReturnT, RetryT, ThrowsT> r) throws ThrowsT {
-            long delay = params.initialMillies;
+            Preconditions.checkNotNull(r);
+            long delay = params.initialMillis;
             Exception last = null;
             for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 try {
                     return r.attempt();
                 } catch (Exception e) {
                     Class<? extends Exception> type = e.getClass();
+                    if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
+                        throw (ThrowsT) e;
+                    }
                     if (retryType.isAssignableFrom(type)) {
                         last = e;
                     } else if (e instanceof RuntimeException) {
@@ -97,19 +150,12 @@ public final class Retry {
                 }
                 
                 final long sleepFor = delay;
-                Exceptions.handleInterupted(() -> Thread.sleep(sleepFor));
+                Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
  
-                delay *= params.multiplier;
+                delay = Math.min(params.maxDelay, params.multiplier * delay);
             }
             throw new RetriesExaustedException(last);
         }
     }
     
-    
-    
-    
-
-
-
-
 }

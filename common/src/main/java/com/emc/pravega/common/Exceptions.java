@@ -46,7 +46,7 @@ public final class Exceptions {
      * @param run A method that should be run handling interrupts automatically
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception> void handleInterupted(InterruptableRun<ExceptionT> run)
+    public static <ExceptionT extends Exception> void handleInterrupted(InterruptableRun<ExceptionT> run)
             throws ExceptionT {
         try {
             run.run();
@@ -65,7 +65,7 @@ public final class Exceptions {
      * @param run A method that should be run handling interrupts automatically
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception, ResultT> ResultT handleInterupted(InterruptableCall<ExceptionT, ResultT> call)
+    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptableCall<ExceptionT, ResultT> call)
             throws ExceptionT {
         try {
             return call.call();

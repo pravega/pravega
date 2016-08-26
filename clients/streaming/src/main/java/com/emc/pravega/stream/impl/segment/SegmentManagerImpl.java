@@ -97,7 +97,7 @@ public class SegmentManagerImpl implements SegmentManager {
     public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
         AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name);
         try {
-            Exceptions.handleInterupted(() -> result.getConnection().get()/*, ExecutionException.class*/);
+            Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }

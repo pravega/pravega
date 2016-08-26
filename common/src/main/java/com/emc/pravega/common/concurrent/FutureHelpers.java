@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.google.common.base.Preconditions;
 
 import lombok.SneakyThrows;
 
@@ -57,8 +58,9 @@ public final class FutureHelpers {
      */
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
             Function<Throwable, ExceptionT> exceptionConstructor) throws ExceptionT {
+        Preconditions.checkNotNull(exceptionConstructor);
         try {
-            return Exceptions.handleInterupted(() -> future.get());
+            return Exceptions.handleInterrupted(() -> future.get());
         } catch (ExecutionException e) {
              ExceptionT result = exceptionConstructor.apply(e.getCause());
              if (result == null) {
