@@ -73,7 +73,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Tests for StreamSegmentContainer class.
  * These are not really unit tests. They are more like integration/end-to-end tests, since they test a real StreamSegmentContainer
- * using a real DurableLog, real ReadIndex and real LogSynchronizer(TBD) - but all against in-memory mocks of Storage and
+ * using a real DurableLog, real ReadIndex and real StorageWriter - but all against in-memory mocks of Storage and
  * DurableDataLog.
  */
 public class StreamSegmentContainerTests {

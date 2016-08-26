@@ -123,20 +123,24 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region UpdateableContainerMetadata
 
     @Override
-    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
+    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
+        UpdateableSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId()));
+            this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
 
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
+        return segmentMetadata;
     }
 
     @Override
-    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+        UpdateableSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
@@ -145,11 +149,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
             Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
 
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId()));
+            this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
 
         log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        return segmentMetadata;
     }
 
     @Override

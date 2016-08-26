@@ -55,11 +55,25 @@ public abstract class StorageOperation extends Operation {
     /**
      * Gets a value indicating the Id of the StreamSegment this operation relates to.
      *
-     * @return
+     * @return The result.
      */
     public long getStreamSegmentId() {
         return this.streamSegmentId;
     }
+
+    /**
+     * Gets a value indicating the Offset within the StreamSegment where this operation applies.
+     *
+     * @return The result.
+     */
+    public abstract long getStreamSegmentOffset();
+
+    /**
+     * Gets a value indicating the Length of this StorageOperation.
+     *
+     * @return The result.
+     */
+    public abstract long getLength();
 
     /**
      * Sets the Id of the StreamSegment.

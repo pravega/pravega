@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -26,6 +27,7 @@ import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.OperationLog;
+import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -37,10 +39,8 @@ import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -65,7 +65,8 @@ class StorageWriter extends AbstractService implements Writer {
     private final Executor executor;
     private final HashMap<Long, SegmentAggregator> aggregators;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
-    private final State state;
+    private final WriterState state;
+    private final AutoStopwatch stopwatch;
     private CompletableFuture<Void> currentIteration;
     private long iterationId;
     private boolean closed;
@@ -90,7 +91,8 @@ class StorageWriter extends AbstractService implements Writer {
         this.cache = cache;
         this.executor = executor;
         this.aggregators = new HashMap<>();
-        this.state = new State();
+        this.state = new WriterState();
+        this.stopwatch = new AutoStopwatch();
     }
 
     //endregion
@@ -119,7 +121,6 @@ class StorageWriter extends AbstractService implements Writer {
             runOneIteration();
             notifyStarted();
             log.info("{} Started.", this.traceObjectId);
-            System.out.println(this.traceObjectId + " Started");
         });
     }
 
@@ -127,7 +128,6 @@ class StorageWriter extends AbstractService implements Writer {
     protected void doStop() {
         Exceptions.checkNotClosed(this.closed, this);
         log.info("{} Stopping ...", this.traceObjectId);
-        System.out.println(this.traceObjectId + " Stopping ...");
 
         this.executor.execute(() -> {
             Throwable cause = this.stopException.get();
@@ -156,7 +156,6 @@ class StorageWriter extends AbstractService implements Writer {
             }
 
             log.info("{} Stopped.", this.traceObjectId);
-            System.out.println(this.traceObjectId + " Stopped.");
         });
     }
 
@@ -182,10 +181,10 @@ class StorageWriter extends AbstractService implements Writer {
     /**
      * Called when an iteration is complete, whether successfully or not.
      *
-     * @param result
-     * @param ex
+     * @param ignored Not used.
+     * @param ex      (Optional) An exception that was thrown during the execution of the iteration.
      */
-    private void endOfIteration(Void result, Throwable ex) {
+    private void endOfIteration(Void ignored, Throwable ex) {
         assert this.currentIteration != null : "No iteration is in progress";
         this.currentIteration = null;
         if (ex != null) {
@@ -196,6 +195,7 @@ class StorageWriter extends AbstractService implements Writer {
             }
 
             System.err.println("Iteration[" + this.iterationId + "].Error: " + ex);
+            ExceptionHelpers.getRealException(ex).printStackTrace(System.err);
             log.error("{}: Iteration[{}].Error. {}", this.traceObjectId, this.iterationId, ex);
             if (isCriticalError(ex)) {
                 this.stopException.set(ex);
@@ -219,65 +219,48 @@ class StorageWriter extends AbstractService implements Writer {
      *
      * @return A CompletableFuture that, when complete, will indicate that the read has been performed in its entirety.
      */
-    private CompletableFuture<OperationReadResult> readData() {
-        // Calculate the timeout for the operation.
+    private CompletableFuture<Iterator<Operation>> readData() {
         Duration readTimeout = getReadTimeout();
-
-        // Initiate a Read from the OperationLog, then load it up into a concrete object, and return that.
-        return this.operationLog
-                .read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout)
-                .thenApplyAsync(this::processReadResult, this.executor);
+        return this.operationLog.read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout);
     }
 
     /**
-     * Loads up all the Operations from the given iterator (readResult) into an OperationReadResult.
+     * Processes all the operations in the given ReadResult.
      *
-     * @param readResult The readResult iterator to read from.
-     * @return The result.
+     * @param readResult The read result to process.
      */
-    private OperationReadResult processReadResult(Iterator<Operation> readResult) {
-        OperationReadResult result = new OperationReadResult(this.state);
+    private void processReadResult(Iterator<Operation> readResult) {
+        int count = 0;
         try {
             while (readResult.hasNext()) {
                 checkRunning();
-                result.include(readResult.next());
+                Operation op = readResult.next();
+
+                // Verify that the Operation we got is in the correct order (check Sequence Number).
+                if (op.getSequenceNumber() <= this.state.getLastReadSequenceNumber()) {
+                    throw new DataCorruptionException(String.format("Operation '%s' has a sequence number that is lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber()));
+                }
+
+                if (op instanceof MetadataOperation) {
+                    processMetadataOperation((MetadataOperation) op);
+                } else if (op instanceof StorageOperation) {
+                    processStorageOperation((StorageOperation) op);
+                } else {
+                    // Unknown operation. Better throw an error rather than skipping over what could be important data.
+                    throw new DataCorruptionException(String.format("Unsupported operation %s.", op));
+                }
+
+                // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
+                // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
+                this.state.setLastReadSequenceNumber(op.getSequenceNumber());
+                count++;
             }
         } catch (DataCorruptionException ex) {
             throw new RuntimeStreamingException(ex);
         }
 
-        return result;
-    }
-
-    /**
-     * Processes all the operations in the given OperationReadResult.
-     *
-     * @param readResult
-     */
-    private void processReadResult(OperationReadResult readResult) {
-        log.info("{}: Iteration[{}].ReadResult ({})", this.traceObjectId, this.iterationId, readResult);
-        System.out.println(String.format("Iteration[%d].ReadResult: %s", this.iterationId, readResult));
-
-        if (readResult.getItems().size() > 0) {
-            try {
-                for (Operation op : readResult.getItems()) {
-                    checkRunning();
-                    if (op instanceof MetadataOperation) {
-                        processMetadataOperation((MetadataOperation) op);
-                    } else if (op instanceof StorageOperation) {
-                        processStorageOperation((StorageOperation) op);
-                    } else {
-                        throw new DataCorruptionException(String.format("Unsupported operation %s.", op));
-                    }
-                }
-            } catch (DataCorruptionException ex) {
-                throw new RuntimeStreamingException(ex);
-            }
-
-            // We have now internalized all operations from this batch; and even if subsequent operations in this iteration
-            // fail, we no longer need to re-read these operations, so update the state with the last read SeqNo.
-            this.state.setLastReadSequenceNumber(readResult.getLastSequenceNumber());
-        }
+        log.info("{}: Iteration[{}].ReadResult (Count = {}, LastSN = {})", this.traceObjectId, this.iterationId, count, this.state.getLastReadSequenceNumber());
+        System.out.println(String.format("Iteration[%d].ReadResult (Count = %d, LastSN = %d)", this.iterationId, count, this.state.getLastReadSequenceNumber()));
     }
 
     private void processMetadataOperation(MetadataOperation op) throws DataCorruptionException {
@@ -291,8 +274,14 @@ class StorageWriter extends AbstractService implements Writer {
     }
 
     private void processStorageOperation(StorageOperation op) throws DataCorruptionException {
-        SegmentAggregator aggregator = getSegmentAggregator(op);
-        // TODO: finish this: add validation (here or in the aggregator, etc).
+        // Add the operation to the appropriate Aggregator.
+        SegmentAggregator aggregator = getSegmentAggregator(op.getStreamSegmentId());
+        aggregator.add(op);
+        if (op instanceof MergeBatchOperation) {
+            // If a Batch, it needs to be added both to the Parent StreamSegment and to the batch StreamSegment.
+            aggregator = getSegmentAggregator(((MergeBatchOperation) op).getBatchStreamSegmentId());
+            aggregator.add(op);
+        }
     }
 
     //endregion
@@ -304,7 +293,7 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private CompletableFuture<FlushResult> flush() {
         checkRunning();
-        return null;
+        return CompletableFuture.completedFuture(null);
     }
 
     private void merge() {
@@ -314,7 +303,7 @@ class StorageWriter extends AbstractService implements Writer {
     /**
      * Acknowledges operations that were flushed to storage
      *
-     * @param flushResult
+     * @param flushResult The FlushResult returned from the flush() method.
      */
     private void acknowledge(FlushResult flushResult) {
         checkRunning();
@@ -323,25 +312,25 @@ class StorageWriter extends AbstractService implements Writer {
     /**
      * Gets, or creates, a SegmentAggregator for the given StorageOperation.
      *
-     * @param operation The Operation to get the Aggregator for.
+     * @param streamSegmentId The Id of the StreamSegment to get the aggregator for.
      * @return The result.
      * @throws DataCorruptionException If the Operation refers to a StreamSegmentId that does not exist in Metadata.
      */
-    private SegmentAggregator getSegmentAggregator(StorageOperation operation) throws DataCorruptionException {
+    private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {
         SegmentAggregator result;
         boolean needsInitialization = false;
         synchronized (this.aggregators) {
-            result = this.aggregators.getOrDefault(operation.getStreamSegmentId(), null);
+            result = this.aggregators.getOrDefault(streamSegmentId, null);
             if (result == null) {
                 // We do not yet have this aggregator. First, get its metadata.
-                UpdateableSegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(operation.getStreamSegmentId());
-                if (sm == null) {
-                    throw new DataCorruptionException(String.format("Operation '%s' refers to a StreamSegment that is not registered in the metadata.", operation));
+                UpdateableSegmentMetadata segmentMetadata = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+                if (segmentMetadata == null) {
+                    throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId));
                 }
 
                 // Then create the aggregator.
-                result = new SegmentAggregator(sm);
-                this.aggregators.put(operation.getStreamSegmentId(), result);
+                result = new SegmentAggregator(segmentMetadata, this.config, this.stopwatch);
+                this.aggregators.put(streamSegmentId, result);
                 needsInitialization = true;
             }
         }
@@ -368,113 +357,4 @@ class StorageWriter extends AbstractService implements Writer {
             throw new CancellationException("StorageWriter has been stopped.");
         }
     }
-
-    //region OperationReadResult
-
-    private static class OperationReadResult {
-        private final ArrayList<Operation> operations;
-        private long firstSequenceNumber;
-        private long lastSequenceNumber;
-
-        OperationReadResult(State currentState) {
-            this.operations = new ArrayList<>();
-            this.firstSequenceNumber = currentState.getLastReadSequenceNumber();
-            this.lastSequenceNumber = currentState.getLastReadSequenceNumber();
-        }
-
-        void include(Operation operation) throws DataCorruptionException {
-            if (operation.getSequenceNumber() <= this.lastSequenceNumber) {
-                throw new DataCorruptionException(String.format("Operation '%s' has a sequence number that is lower than the previous one (%d).", operation, this.lastSequenceNumber));
-            }
-
-            if (this.operations.size() == 0) {
-                this.firstSequenceNumber = operation.getSequenceNumber();
-            }
-
-            this.operations.add(operation);
-            this.lastSequenceNumber = operation.getSequenceNumber();
-        }
-
-        long getFirstSequenceNumber() {
-            return this.firstSequenceNumber;
-        }
-
-        long getLastSequenceNumber() {
-            return this.lastSequenceNumber;
-        }
-
-        public List<Operation> getItems() {
-            return this.operations;
-        }
-
-        @Override
-        public String toString() {
-            if (this.operations.size() == 0) {
-                return "Count = 0";
-            } else {
-                return String.format("Count = %d, FirstSN = %d, LastSN = %d", this.operations.size(), this.firstSequenceNumber, this.lastSequenceNumber);
-            }
-        }
-    }
-
-    //endregion
-
-    //region State
-
-    private static class State {
-        private long lastReadSequenceNumber;
-        private long highestCommittedSequenceNumber;
-
-        State() {
-            this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-            this.highestCommittedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-        }
-
-        /**
-         * Gets a value indicating the Sequence Number of the last read Operation (from the Operation Log).
-         *
-         * @return The result.
-         */
-        long getLastReadSequenceNumber() {
-            return this.lastReadSequenceNumber;
-        }
-
-        /**
-         * Sets the Sequence Number of the last read Operation.
-         *
-         * @param value The Sequence Number to set.
-         */
-        void setLastReadSequenceNumber(long value) {
-            Preconditions.checkArgument(value >= this.lastReadSequenceNumber, "New LastReadSequenceNumber cannot be smaller than the previous one.");
-            this.lastReadSequenceNumber = value;
-        }
-
-        /**
-         * Gets a value indicating the Sequence Number of the last Operation that was committed to Storage, having the
-         * property that all Operations prior to it have also been successfully committed.
-         *
-         * @return The result.
-         */
-        long getHighestCommittedSequenceNumber() {
-            return this.highestCommittedSequenceNumber;
-        }
-
-        /**
-         * Sets the Sequence Number of the last Operation committed to Storage (with all prior Operations also committed).
-         *
-         * @param value The Sequence Number to set.
-         */
-        void setHighestCommittedSequenceNumber(long value) {
-            Preconditions.checkArgument(value >= this.highestCommittedSequenceNumber, "New highestCommittedSequenceNumber cannot be smaller than the previous one.");
-            Preconditions.checkArgument(value <= this.lastReadSequenceNumber, "New highestCommittedSequenceNumber cannot be larger than lastReadSequenceNumber.");
-            this.highestCommittedSequenceNumber = value;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("LastRead = %d, HighestCommitted = %d", this.lastReadSequenceNumber, this.highestCommittedSequenceNumber);
-        }
-    }
-
-    //endregion
 }

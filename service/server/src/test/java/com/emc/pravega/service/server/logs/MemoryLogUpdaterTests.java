@@ -97,7 +97,7 @@ public class MemoryLogUpdaterTests {
                     MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTargetStreamSegmentOffset(), invokedMethod.args.get("offset"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
                 }
             }

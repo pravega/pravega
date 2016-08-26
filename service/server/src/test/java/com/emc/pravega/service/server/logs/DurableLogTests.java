@@ -34,6 +34,7 @@ import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.TestDurableDataLog;
 import com.emc.pravega.service.server.TestDurableDataLogFactory;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -426,8 +427,8 @@ public class DurableLogTests extends OperationLogTestBase {
         durableLog.startAsync().awaitRunning();
 
         // Create a segment, which will be used for testing later.
-        setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        setup.metadata.getStreamSegmentMetadata(segmentId).setDurableLogLength(0);
+        UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
+        segmentMetadata.setDurableLogLength(0);
 
         // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
         ArrayList<CompletableFuture<Iterator<Operation>>> readFutures = new ArrayList<>();

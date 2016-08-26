@@ -256,7 +256,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         // metadata.deleteStreamSegment will delete the given StreamSegment and all batches associated with it.
         // It returns a collection of names of StreamSegments that were deleted.
         // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
-        // or ignore the segments altogether (such as LogSynchronizer).
+        // or ignore the segments altogether (such as StorageWriter).
         Collection<String> streamSegmentsToDelete = this.metadata.deleteStreamSegment(streamSegmentName);
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
@@ -302,7 +302,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     operation.set(new StreamSegmentSealOperation(streamSegmentId));
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
-                .thenApply(seqNo -> operation.get().getStreamSegmentLength());
+                .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
     }
 
     @Override

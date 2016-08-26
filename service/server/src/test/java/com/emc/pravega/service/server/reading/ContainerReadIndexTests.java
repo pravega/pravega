@@ -45,6 +45,7 @@ import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -628,11 +629,11 @@ public class ContainerReadIndexTests {
         }
     }
 
-    private void appendData(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
+    private void appendData(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         appendData(segmentIds, segmentContents, context, null);
     }
 
-    private void appendData(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context, Runnable callback) throws Exception {
+    private void appendData(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context, Runnable callback) {
         int writeId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : segmentIds) {
@@ -652,7 +653,7 @@ public class ContainerReadIndexTests {
         }
     }
 
-    private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) throws Exception {
+    private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) {
         int writeId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
@@ -757,14 +758,18 @@ public class ContainerReadIndexTests {
         }
     }
 
-    private <T> void recordAppend(T segmentIdentifier, byte[] data, HashMap<T, ByteArrayOutputStream> segmentContents) throws Exception {
+    private <T> void recordAppend(T segmentIdentifier, byte[] data, HashMap<T, ByteArrayOutputStream> segmentContents) {
         ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentIdentifier, null);
         if (contents == null) {
             contents = new ByteArrayOutputStream();
             segmentContents.put(segmentIdentifier, contents);
         }
 
-        contents.write(data);
+        try {
+            contents.write(data);
+        } catch (IOException ex) {
+            Assert.fail(ex.toString());
+        }
     }
 
     private ArrayList<Long> createSegments(TestContext context) {

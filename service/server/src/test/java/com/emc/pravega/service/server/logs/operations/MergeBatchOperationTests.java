@@ -35,16 +35,16 @@ public class MergeBatchOperationTests extends OperationTestsBase<MergeBatchOpera
 
     @Override
     protected boolean isPreSerializationConfigRequired(MergeBatchOperation operation) {
-        return operation.getBatchStreamSegmentLength() < 0
-                || operation.getTargetStreamSegmentOffset() < 0;
+        return operation.getLength() < 0
+                || operation.getStreamSegmentOffset() < 0;
     }
 
     @Override
     protected void configurePreSerialization(MergeBatchOperation operation, Random random) {
-        if (operation.getBatchStreamSegmentLength() < 0) {
-            operation.setBatchStreamSegmentLength(MathHelpers.abs(random.nextLong()));
-        } else if (operation.getTargetStreamSegmentOffset() < 0) {
-            operation.setTargetStreamSegmentOffset(Math.abs(random.nextLong()));
+        if (operation.getLength() < 0) {
+            operation.setLength(MathHelpers.abs(random.nextLong()));
+        } else if (operation.getStreamSegmentOffset() < 0) {
+            operation.setStreamSegmentOffset(Math.abs(random.nextLong()));
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }

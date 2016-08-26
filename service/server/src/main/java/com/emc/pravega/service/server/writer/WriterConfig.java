@@ -71,7 +71,7 @@ public class WriterConfig extends ComponentConfig {
      *
      * @return The result.
      */
-    public int getDefaultFlushThresholdBytes() {
+    public int getFlushThresholdBytes() {
         return this.flushThresholdBytes;
     }
 

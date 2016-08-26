@@ -20,6 +20,8 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.service.contracts.RuntimeStreamingException;
+import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.MemoryOperationLog;
 import com.emc.pravega.service.server.logs.OperationLog;
@@ -40,7 +42,7 @@ import java.util.function.Consumer;
  * Light-weight version of the DurableLog that only stores operations in memory and does not depend on any other component,
  * unlike the real DurableLog that requires a lot more components to process.
  * <p>
- * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except recording truncation markers).
+ * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except recording truncation markers & Sequence Numbers).
  * All other changes (Segment-based) must be done externally.
  */
 class LightWeightDurableLog extends AbstractIdleService implements OperationLog {
@@ -48,9 +50,9 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryOperationLog log;
-    private final AtomicLong sequenceNumber;
     private Consumer<TruncationArgs> truncationCallback;
     private final Executor executor;
+    private final boolean autoAssignSequenceNumbers;
     private CompletableFuture<Void> addProcessed;
     private boolean closed;
 
@@ -59,12 +61,16 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
     //region Constructor
 
     LightWeightDurableLog(UpdateableContainerMetadata metadata, Executor executor) {
+        this(metadata, executor, true);
+    }
+
+    LightWeightDurableLog(UpdateableContainerMetadata metadata, Executor executor, boolean autoAssignSequenceNumbers) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(executor, "executor");
         this.metadata = metadata;
         this.executor = executor;
+        this.autoAssignSequenceNumbers = autoAssignSequenceNumbers;
         this.log = new MemoryOperationLog();
-        this.sequenceNumber = new AtomicLong();
     }
 
     //endregion
@@ -112,15 +118,25 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
     public CompletableFuture<Long> add(Operation operation, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture.supplyAsync(() -> {
-            long seqNo = sequenceNumber.incrementAndGet();
-            operation.setSequenceNumber(seqNo);
-            this.log.add(operation);
+            AtomicLong seqNo = new AtomicLong(operation.getSequenceNumber());
+            if (this.autoAssignSequenceNumbers) {
+                Preconditions.checkArgument(seqNo.get() < 0, "Cannot auto-assign sequence numbers if the operation already has one.");
+                seqNo.set(this.metadata.nextOperationSequenceNumber());
+                operation.setSequenceNumber(seqNo.get());
+            } else {
+                Preconditions.checkArgument(seqNo.get() >= 0, "Given operation has no sequence number and auto-assign is not enabled.");
+            }
+
+            if (!this.log.addIf(operation, previous -> previous.getSequenceNumber() < seqNo.get())) {
+                throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
+            }
+
             if (operation instanceof MetadataCheckpointOperation) {
-                this.metadata.recordTruncationMarker(seqNo, seqNo);
+                this.metadata.recordTruncationMarker(seqNo.get(), seqNo.get());
             }
 
             notifyAddProcessed();
-            return seqNo;
+            return seqNo.get();
         }, this.executor);
     }
 
