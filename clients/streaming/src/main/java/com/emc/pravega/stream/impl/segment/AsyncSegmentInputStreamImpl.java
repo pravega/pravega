@@ -18,8 +18,10 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 
+import javax.annotation.concurrent.GuardedBy;
+
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -28,8 +30,10 @@ import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.stream.ConnectionClosedException;
 import com.google.common.base.Preconditions;
 
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -38,7 +42,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ConnectionFactory connectionFactory;
     private final String endpoint;
     private final String segment;
-    private final AtomicReference<ClientConnection> connection = new AtomicReference<>();
+    @GuardedBy("$lock")
+    private CompletableFuture<ClientConnection> connection = null;
     private final ConcurrentHashMap<Long, CompletableFuture<SegmentRead>> outstandingRequests = new ConcurrentHashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -46,12 +51,14 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            reconnect(new ConnectionFailedException(wrongHost.toString()));
+            closeConnection();
+            failAllInflight(new ConnectionFailedException(wrongHost.toString()));
         }
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            reconnect(new IllegalArgumentException(noSuchSegment.toString()));
+            closeConnection();
+            failAllInflight(new IllegalArgumentException(noSuchSegment.toString()));
         }
 
         @Override
@@ -70,46 +77,58 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         this.connectionFactory = connectionFactory;
         this.endpoint = endpoint;
         this.segment = segment;
-        reconnect(null);
-    }
-
-    private void reconnect(Exception e) {
-        log.warn("Connection failure. Will Reconnect.", e);
-        ClientConnection newConnection = connectionFactory.establishConnection(endpoint, responseProcessor);
-        ClientConnection oldConnection = connection.getAndSet(newConnection);
-        if (oldConnection != null) {
-            oldConnection.close();
-        }
-        for (Iterator<Entry<Long, CompletableFuture<SegmentRead>>> iterator = outstandingRequests.entrySet()
-            .iterator(); iterator.hasNext();) {
-            Entry<Long, CompletableFuture<SegmentRead>> read = iterator.next();
-            read.getValue().completeExceptionally(e);
-            iterator.remove();
-        }
     }
 
     @Override
     public void close() {
-        ClientConnection c = connection.getAndSet(null);
-        if (c != null) {
-            c.close();
-        }
+        closeConnection();
+        failAllInflight(new ConnectionClosedException());
     }
 
     @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
-        ClientConnection c = connection.get();
-        Preconditions.checkState(c != null, "Not Connected");
         CompletableFuture<SegmentRead> future = new CompletableFuture<>();
         outstandingRequests.put(offset, future);
-        try {
-            c.send(new ReadSegment(segment, offset, length));
-        } catch (ConnectionFailedException e) {
-            reconnect(e);
-            // While this does not provide backoff, it waits for the next read call to send the
-            // request again.
-        }
+        getConnection().thenApply((ClientConnection c) -> {
+            try {
+                c.send(new ReadSegment(segment, offset, length));
+            } catch (ConnectionFailedException e) {
+                closeConnection();
+                failAllInflight(e);
+            }
+            return null;
+        });
         return future;
+    }
+
+    @Synchronized
+    private void closeConnection() {
+        if (connection != null && FutureHelpers.isSuccessful(connection)) {
+            try {
+                connection.getNow(null).close();
+            } catch (Exception e) {
+                log.warn("Exception tearing down connection: ", e);
+            }
+            connection = null;
+        }
+    }
+
+    @Synchronized
+    CompletableFuture<ClientConnection> getConnection() {
+        if (connection == null) {
+            connection = connectionFactory.establishConnection(endpoint, responseProcessor);
+        }
+        return connection;
+    }
+
+    private void failAllInflight(Exception e) {
+        Entry<Long, CompletableFuture<SegmentRead>> read;
+        for (Iterator<Entry<Long, CompletableFuture<SegmentRead>>> iterator = outstandingRequests.entrySet().iterator(); iterator
+            .hasNext();) {
+            read = iterator.next();
+            read.getValue().completeExceptionally(e);
+            iterator.remove();
+        }
     }
 
 }

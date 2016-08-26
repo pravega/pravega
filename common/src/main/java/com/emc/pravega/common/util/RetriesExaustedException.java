@@ -15,19 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.netty;
-
-import java.util.concurrent.CompletableFuture;
+package com.emc.pravega.common.util;
 
 /**
- * A factory that establishes connections to Prevaga servers.
- * The underlying implementation may or may not implement connection pooling.
+ * Exception thrown by {@link Retry} utility class when all of the configured number of attempts have failed.
+ * The cause for this exception will be set to the final failure.
  */
-public interface ConnectionFactory extends AutoCloseable {
+public class RetriesExaustedException extends RuntimeException {
 
-    CompletableFuture<ClientConnection> establishConnection(String endpoint, ReplyProcessor rp);
+    private static final long serialVersionUID = 1L;
 
-    @Override
-    void close();
-
+    public RetriesExaustedException(Exception last) {
+        super(last);
+    }
 }

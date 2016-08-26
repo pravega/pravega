@@ -17,13 +17,13 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static com.emc.pravega.common.netty.WireCommandType.APPEND;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.stream.impl.segment.SegmentOutputStream.MAX_WRITE_SIZE;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -118,15 +118,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     }
 
     private void handleRequest() {
-        SegmentRead segmentRead;
-        try {
-            segmentRead = outstandingRequest.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e.getCause());
-        }
+        SegmentRead segmentRead = getAndHandleExceptions(outstandingRequest, RuntimeException::new);
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
         }

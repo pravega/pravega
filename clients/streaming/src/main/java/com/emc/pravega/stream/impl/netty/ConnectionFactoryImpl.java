@@ -20,9 +20,14 @@ package com.emc.pravega.stream.impl.netty;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.SSLException;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
@@ -33,6 +38,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -69,8 +76,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public ClientConnection establishConnection(String host, ReplyProcessor rp) {
-        Preconditions.checkArgument(!Strings.isNullOrEmpty(host));
+    public CompletableFuture<ClientConnection> establishConnection(String host, ReplyProcessor rp) {
+        Exceptions.checkNotNullOrEmpty(host, "host");
         final SslContext sslCtx;
         if (ssl) {
             try {
@@ -106,13 +113,18 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
             });
 
         // Start the client.
-        try {
-            b.connect(host, port).sync();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
-        return handler;
+        CompletableFuture<ClientConnection> result = new CompletableFuture<>();
+        b.connect(host, port).addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) {
+                if (future.isSuccess()) {
+                    result.complete(handler);
+                } else {
+                    result.completeExceptionally(future.cause());
+                }
+            }
+        });
+        return result;
     }
 
     @Override

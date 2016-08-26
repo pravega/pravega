@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import static com.emc.pravega.common.Exceptions.handleInterrupted;
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
@@ -28,10 +30,10 @@ import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
@@ -45,7 +47,10 @@ import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
+import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.Unpooled;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +66,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
+    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     private final ConnectionFactory connectionFactory;
     private final String endpoint;
     private final UUID connectionId;
@@ -91,12 +97,15 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         /**
          * Blocks until there are no more messages inflight. (No locking required)
          */
-        private void waitForEmptyInflight() throws InterruptedException {
-            inflightEmpty.await();
+        private void waitForEmptyInflight() {
+            handleInterrupted(() -> inflightEmpty.await());
         }
 
-        private void connectionSetupComplete() {
-            connectionSetup.release();
+        private void connectionSetupComplete(long ackLevel) {
+            synchronized (lock) {
+                eventNumber = ackLevel;
+                connectionSetup.release();
+            }
         }
 
         /**
@@ -132,7 +141,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
                 oldConnection = connection;
                 connection = null;
             }
-            connectionSetupComplete();
+            connectionSetupComplete(0);
             oldConnection.close();
         }
 
@@ -141,19 +150,14 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
          */
         private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
             try {
-                connectionSetup.await();
+                Exceptions.handleInterrupted(() -> connectionSetup.await());
                 synchronized (lock) {
                     if (exception != null) {
                         throw exception;
                     }
                     return connection;
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            } catch (ExecutionException e) {
-                throw new ConnectionFailedException(e.getCause());
-            } catch (IllegalArgumentException | SegmentSealedException e) {
+            } catch (ConnectionFailedException | IllegalArgumentException | SegmentSealedException e) {
                 throw e;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -249,7 +253,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             ackUpTo(ackLevel);
             try {
                 retransmitInflight();
-                state.connectionSetupComplete();
+                state.connectionSetupComplete(ackLevel);
             } catch (ConnectionFailedException e) {
                 state.failConnection(e);
             }
@@ -269,18 +273,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             }
         }
     }
-
-    @Synchronized
-    void connect() throws ConnectionFailedException {
-        checkState(!state.isClosed(), "LogOutputStream was already closed");
-        if (state.getConnection() == null) {
-            ClientConnection connection = connectionFactory.establishConnection(endpoint, responseProcessor);
-            state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(connectionId, segment);
-            connection.send(cmd);
-        }
-    }
-
+    
     /**
      * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer,
      *      java.util.concurrent.CompletableFuture)
@@ -289,38 +282,38 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Synchronized
     public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
         checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff.remaining());
-        ClientConnection connection = connection();
+        ClientConnection connection = getConnection();
         Append append = state.createNewInflightAppend(connectionId, segment, buff, callback);
         try {
             connection.send(append);
         } catch (ConnectionFailedException e) {
             log.warn("Connection failed due to: ", e);
-            connection(); // As the messages is inflight, this will perform the retransmition.
+            getConnection(); // As the messages is inflight, this will perform the retransmition.
         }
     }
 
     /**
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */
-    private ClientConnection connection() throws SegmentSealedException {
-        long delay = 1;
-        for (int attempt = 0; attempt < 5; attempt++) {
-            try {
-                connect();
-                return state.waitForConnection();
-            } catch (ConnectionFailedException e) {
-                state.failConnection(e);
-                log.warn("Connection failed due to: ", e);
-                try {
-                    Thread.sleep(delay);
-                } catch (InterruptedException e1) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                delay *= 10;
-            }
+    @Synchronized
+    ClientConnection getConnection() throws SegmentSealedException {
+        checkState(!state.isClosed(), "LogOutputStream was already closed");
+        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
+            setupConnection();
+            return state.waitForConnection();
+        });
+    }
+
+    @Synchronized
+    @VisibleForTesting
+    void setupConnection() throws ConnectionFailedException {
+        if (state.getConnection() == null) {
+            ClientConnection connection = getAndHandleExceptions(connectionFactory
+                .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
+            state.newConnection(connection);
+            SetupAppend cmd = new SetupAppend(connectionId, segment);
+            connection.send(cmd);
         }
-        throw new RuntimeException("Unable to connect to" + endpoint + ". Giving up.");
     }
 
     /**
@@ -347,12 +340,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Synchronized
     public void flush() throws SegmentSealedException {
         try {
-            ClientConnection connection = connection();
+            ClientConnection connection = getConnection();
             connection.send(new KeepAlive());
             state.waitForEmptyInflight();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
         } catch (ConnectionFailedException e) {
             state.failConnection(e);
         }
