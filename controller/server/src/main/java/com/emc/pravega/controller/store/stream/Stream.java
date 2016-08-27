@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -102,7 +103,7 @@ class Stream {
      * @return the list of currently active segments
      */
     SegmentFutures getActiveSegments() {
-        return new SegmentFutures(Collections.unmodifiableList(currentSegments), Collections.EMPTY_MAP);
+        return new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP);
     }
 
     /**
@@ -139,19 +140,36 @@ class Stream {
     List<SegmentFutures> getNextSegments(List<Integer> completedSegments, List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
-        java.util.stream.Stream<Integer> successors = completedSegments.stream().flatMap(x -> segments.get(x).getSuccessors().stream());
 
-        // a successor that has all its predecessors completed, shall become current and be added to some position
-        java.util.stream.Stream<Integer> newCurrents = successors.filter(x -> completedSegments.contains(x));
+        List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
+        // successors of completed segments are interesting, which means
+        // some of them may become current, and
+        // some of them may become future
+        Set<Integer> successors = completedSegments.stream().flatMap(x -> segments.get(x).getSuccessors().stream()).collect(Collectors.toSet());
+
+        // a successor that has
+        // 1. all its predecessors completed, and
+        // 2. it is not completed yet, and
+        // 3. it is not current in any of the positions,
+        // shall become current and be added to some position
+        List<Integer> newCurrents = successors.stream().filter(x ->
+                // 1. all its predecessors completed, and
+                segments.get(x).getPredecessors().stream().allMatch(y -> completedSegments.contains(y))
+                // 2. it is not completed yet, and
+                && !completedSegments.contains(x)
+                // 3. it is not current in any of the positions
+                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
+        ).collect(Collectors.toList());
+
         Map<Integer, List<Integer>> newFutures = new HashMap<>();
-        successors.forEach(
+        successors.stream().forEach(
                 x -> {
                     // if x is not completed
                     if (!completedSegments.contains(x)) {
                         // number of predecessors not completed == 1
-                        java.util.stream.Stream<Integer> filtered = segments.get(x).getPredecessors().stream().filter(y -> !completedSegments.contains(y));
-                        if (filtered.count() == 1) {
-                            Integer pendingPredecessor = filtered.findFirst().get();
+                        List<Integer> filtered = segments.get(x).getPredecessors().stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList());
+                        if (filtered.size() == 1) {
+                            Integer pendingPredecessor = filtered.get(0);
                             if (newFutures.containsKey(pendingPredecessor)) {
                                 newFutures.get(pendingPredecessor).add(x);
                             } else {
@@ -164,27 +182,30 @@ class Stream {
                 }
         );
 
-        int quotient = (int)newCurrents.count() / positions.size();
-        int remainder = (int)newCurrents.count() % positions.size();
+        int quotient = (int)newCurrents.size() / positions.size();
+        int remainder = (int)newCurrents.size() % positions.size();
         int counter = 0;
-        List<Integer> newCurrentsList = newCurrents.collect(Collectors.toList());
         for (int i = 0; i < positions.size(); i++) {
             SegmentFutures position = positions.get(i);
+
             // add the new current segments
+            List<Integer> newCurrent = new ArrayList<>(position.getCurrent());
             int portion = (i < remainder) ? quotient + 1 : quotient;
             for (int j=0; j < portion; j++, counter++) {
-                position.getCurrent().add(newCurrentsList.get(counter));
+                newCurrent.add(newCurrents.get(counter));
             }
+            Map<Integer, Integer> newFuture = new HashMap<>(position.getFutures());
             // add new futures if any
             position.getCurrent().forEach(
-                current -> {
-                    if (newFutures.containsKey(current)) {
-                        newFutures.get(current).stream().forEach(x -> position.getFutures().put(x, current));
+                    current -> {
+                        if (newFutures.containsKey(current)) {
+                            newFutures.get(current).stream().forEach(x -> newFuture.put(x, current));
+                        }
                     }
-                }
             );
+            newPositions.add(new SegmentFutures(newCurrent, newFuture));
         }
-        return positions;
+        return newPositions;
     }
 
     /**

@@ -26,6 +26,8 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Stream metadata test
@@ -89,7 +91,7 @@ public class StreamMetadataStoreTest {
         // region scaleSegments
         Segment segment1 = new Segment(2, 20, 30, 0.5, 0.75);
         Segment segment2 = new Segment(3, 20, 40, 0.75, 1.0);
-        store.scale(stream1, Arrays.asList(new Integer(1)), Arrays.asList(segment1, segment2), 20);
+        store.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
 
         segmentFutures = store.getActiveSegments(stream1);
         Assert.assertEquals(3, segmentFutures.getCurrent().size());
@@ -104,7 +106,9 @@ public class StreamMetadataStoreTest {
         Assert.assertEquals(2, segmentFutures.getFutures().size());
 
         Segment segment3 = new Segment(4, 20, 40, 0.0, 0.5);
-        store.scale(stream2, Arrays.asList(new Integer(1), new Integer(2)), Arrays.asList(segment1, segment2, segment3), 20);
+        Segment segment4 = new Segment(2, 20, 30, 0.5, 0.75);
+        Segment segment5 = new Segment(3, 20, 40, 0.75, 1.0);
+        store.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
 
         segmentFutures = store.getActiveSegments(stream1);
         Assert.assertEquals(3, segmentFutures.getCurrent().size());
@@ -113,6 +117,29 @@ public class StreamMetadataStoreTest {
         segmentFutures = store.getActiveSegments(stream2, 10);
         Assert.assertEquals(3, segmentFutures.getCurrent().size());
         Assert.assertEquals(1, segmentFutures.getFutures().size());
+
+        // endregion
+
+        // region getNextPosition
+
+        SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.EMPTY_MAP);
+        List<SegmentFutures> futuresList = store.getNextSegments(stream2, Arrays.asList(1, 2), Collections.singletonList(updatedPosition));
+        Assert.assertEquals(1, futuresList.size());
+        Assert.assertEquals(3, futuresList.get(0).getCurrent().size());
+        Assert.assertEquals(1, futuresList.get(0).getFutures().size());
+        Assert.assertTrue(futuresList.get(0).getCurrent().contains(4));
+
+        updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.EMPTY_MAP);
+        futuresList = store.getNextSegments(stream2, Collections.singletonList(2), Collections.singletonList(updatedPosition));
+        Assert.assertEquals(1, futuresList.size());
+        Assert.assertEquals(3, futuresList.get(0).getCurrent().size());
+        Assert.assertEquals(1, futuresList.get(0).getFutures().size());
+
+        updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.EMPTY_MAP);
+        futuresList = store.getNextSegments(stream2, Collections.singletonList(1), Collections.singletonList(updatedPosition));
+        Assert.assertEquals(1, futuresList.size());
+        Assert.assertEquals(3, futuresList.get(0).getCurrent().size());
+        Assert.assertEquals(1, futuresList.get(0).getFutures().size());
 
         // endregion
     }
