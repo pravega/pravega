@@ -19,10 +19,12 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.SegmentId;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class PositionImpl implements Position {
 
@@ -37,6 +39,36 @@ public class PositionImpl implements Position {
 
     public Set<SegmentId> getOwnedSegments() {
         return Collections.unmodifiableSet(ownedLogs.keySet());
+    }
+
+    @Override
+    public Map<SegmentId, Long> getOwnedSegmentsWithOffsets() {
+        return Collections.unmodifiableMap(ownedLogs);
+    }
+
+    @Override
+    public Set<SegmentId> getCompletedSegments() {
+        return ownedLogs.entrySet().stream().filter(x -> x.getValue() < 0).map(y -> y.getKey()).collect(Collectors.toSet());
+    }
+
+    @Override
+    public Long getOffsetForOwnedSegment(SegmentId segmentId) {
+        return ownedLogs.get(segmentId);
+    }
+
+    @Override
+    public Set<SegmentId> getFutureOwnedSegments() {
+        return Collections.unmodifiableSet(futureOwnedLogs.keySet());
+    }
+
+    @Override
+    public Position add(Position position) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public Position subtract(Position position) {
+        throw new NotImplementedException();
     }
 
     Long getOffsetForOwnedLog(SegmentId log) {

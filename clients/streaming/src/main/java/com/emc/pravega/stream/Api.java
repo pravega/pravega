@@ -45,7 +45,7 @@ public final class Api {
     public static interface Consumer {
         CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count);
 
-        CompletableFuture<List<Position>> updatePositions(List<Position> positions);
+        CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions);
     }
 
     //Note: this is not a public interface TODO: Set appropriate scope

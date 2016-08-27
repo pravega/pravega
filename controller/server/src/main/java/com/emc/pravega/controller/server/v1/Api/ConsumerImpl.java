@@ -18,6 +18,7 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
@@ -25,13 +26,14 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.PositionImpl;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ConsumerImpl implements Api.Consumer {
 
@@ -85,7 +87,7 @@ public class ConsumerImpl implements Api.Consumer {
                         }
                         Map<SegmentId, Long> currentSegments = new HashMap<>();
                         Map<SegmentId, Long> futureSegments = new HashMap<>();
-                        current.forEach(
+                        current.stream().forEach(
                             x ->
                                 {
                                     // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
@@ -111,7 +113,49 @@ public class ConsumerImpl implements Api.Consumer {
     }
 
     @Override
-    public CompletableFuture<List<Position>> updatePositions(List<Position> positions) {
-        throw new NotImplementedException();
+    public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
+        return CompletableFuture.supplyAsync(
+                () ->
+                {
+                    Set<Integer> completedSegments = positions.stream().flatMap(x -> x.getCompletedSegments().stream().map(y -> y.getNumber())).collect(Collectors.toSet());
+                    Map<Integer, Long> segmentOffsets = new HashMap<>();
+                    List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
+                    for (Position position: positions) {
+                        List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
+                        Map<Integer, Integer> futures = new HashMap<>();
+                        position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
+                                x -> {
+                                    int number = x.getKey().getNumber();
+                                    current.add(number);
+                                    Segment segment = streamStore.getSegment(stream, number);
+                                    segment.getPredecessors().stream().forEach(y -> completedSegments.add(y));
+                                    segmentOffsets.put(number, x.getValue());
+                                }
+                        );
+                        position.getFutureOwnedSegments().stream().forEach(
+                                x -> {
+                                    futures.put(x.getNumber(), x.getPrevious());
+                                }
+                        );
+                        segmentFutures.add(new SegmentFutures(current, futures));
+                    }
+                    List<Position> resultPositions = new ArrayList<>(positions.size());
+                    List<SegmentFutures> result = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
+                    result.stream().forEach(
+                            x -> {
+                                Map<SegmentId, Long> currentSegments = new HashMap<>();
+                                Map<SegmentId, Long> futureSegments = new HashMap<>();
+                                x.getCurrent().stream().forEach(
+                                        y -> currentSegments.put(SegmentHelper.getSegmentId(stream, y, 0, hostStore), segmentOffsets.get(y))
+                                );
+                                x.getFutures().entrySet().stream().forEach(
+                                        y -> futureSegments.put(SegmentHelper.getSegmentId(stream, y.getKey(), y.getValue(), hostStore), 0L)
+                                );
+                                resultPositions.add(new PositionImpl(currentSegments, futureSegments));
+                            }
+                    );
+                    return resultPositions;
+                }
+        );
     }
 }

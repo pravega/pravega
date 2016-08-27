@@ -26,6 +26,7 @@ public class ConsistentHash {
     static final String MD_5 = "MD5";
     private static MessageDigest md;
 
+    static
     {
         try {
             md = MessageDigest.getInstance(MD_5);

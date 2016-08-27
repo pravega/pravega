@@ -47,11 +47,11 @@ public class ApiConsumer implements Api.Consumer {
     }
 
     @Override
-    public CompletableFuture<List<Position>> updatePositions(List<Position> positions) {
+    public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
         //Use RPC client to invoke updatePositions
         ConsumerService.Client client = new ConsumerService.Client(null);
         try {
-            client.updatePositions(null);
+            client.updatePositions(stream, positions.stream().map(ModelHelper::decode).collect(Collectors.toList()));
         } catch (TException e) {
             e.printStackTrace();
         }

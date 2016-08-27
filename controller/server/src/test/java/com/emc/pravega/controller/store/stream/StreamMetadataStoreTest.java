@@ -27,6 +27,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -123,20 +124,20 @@ public class StreamMetadataStoreTest {
         // region getNextPosition
 
         SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.EMPTY_MAP);
-        List<SegmentFutures> futuresList = store.getNextSegments(stream2, Arrays.asList(1, 2), Collections.singletonList(updatedPosition));
+        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)), Collections.singletonList(updatedPosition));
         Assert.assertEquals(1, futuresList.size());
         Assert.assertEquals(3, futuresList.get(0).getCurrent().size());
         Assert.assertEquals(1, futuresList.get(0).getFutures().size());
         Assert.assertTrue(futuresList.get(0).getCurrent().contains(4));
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.EMPTY_MAP);
-        futuresList = store.getNextSegments(stream2, Collections.singletonList(2), Collections.singletonList(updatedPosition));
+        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)), Collections.singletonList(updatedPosition));
         Assert.assertEquals(1, futuresList.size());
         Assert.assertEquals(3, futuresList.get(0).getCurrent().size());
         Assert.assertEquals(1, futuresList.get(0).getFutures().size());
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.EMPTY_MAP);
-        futuresList = store.getNextSegments(stream2, Collections.singletonList(1), Collections.singletonList(updatedPosition));
+        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)), Collections.singletonList(updatedPosition));
         Assert.assertEquals(1, futuresList.size());
         Assert.assertEquals(3, futuresList.get(0).getCurrent().size());
         Assert.assertEquals(1, futuresList.get(0).getFutures().size());

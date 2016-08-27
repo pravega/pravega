@@ -18,6 +18,8 @@
 package com.emc.pravega.stream;
 
 import java.io.Serializable;
+import java.util.Map;
+import java.util.Set;
 
 import com.emc.pravega.stream.impl.PositionImpl;
 
@@ -31,4 +33,19 @@ public interface Position extends Serializable {
      * Used internally. Do not call.
      */
     PositionImpl asImpl();
+
+    Set<SegmentId> getOwnedSegments();
+
+    Map<SegmentId, Long> getOwnedSegmentsWithOffsets();
+
+    Set<SegmentId> getCompletedSegments();
+
+    Long getOffsetForOwnedSegment(SegmentId segmentId);
+
+    Set<SegmentId> getFutureOwnedSegments();
+
+    Position add(Position position);
+
+    Position subtract(Position position);
+
 }

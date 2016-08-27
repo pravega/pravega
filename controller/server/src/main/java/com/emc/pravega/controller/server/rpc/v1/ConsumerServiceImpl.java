@@ -20,9 +20,12 @@ package com.emc.pravega.controller.server.rpc.v1;
 import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 /**
  * Stream Controller Consumer API server implementation.
@@ -38,17 +41,37 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
     @Override
     public List<Position> getPositions(String stream, long timestamp, int count) throws TException {
         //invoke Api.ApiConsumer.getPositions(...)
-        consumerApi.getPositions(stream, timestamp, count);
-        // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
-        return null;
+
+        try {
+            // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
+            return consumerApi.getPositions(stream, timestamp, count).get()
+                    .stream()
+                    .map(x -> ModelHelper.decode(x))
+                    .collect(Collectors.toList());
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+
     }
 
     @Override
-    public List<Position> updatePositions(List<Position> positions) throws TException {
-        //invoke Api.Consumer.updatePositions(...)
-        // convert pravega.controller.stream.api.v1.Position to pravega.stream.Position before invoking method on server
-        consumerApi.updatePositions(null);
-        // convert pravega.stream.Position back to pravega.controller.stream.api.v1.Position before sending it over wire
-        return null;
+    public List<Position> updatePositions(String stream, List<Position> positions) throws TException {
+
+        try {
+            //invoke Api.Consumer.updatePositions(...)
+            // convert pravega.controller.stream.api.v1.Position to pravega.stream.Position before invoking method on server
+
+            return consumerApi
+                    .updatePositions(stream, positions.stream().map(x -> ModelHelper.encode(x)).collect(Collectors.toList()))
+                    // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
+                    .get()
+                    .stream()
+                    .map(x -> ModelHelper.decode(x))
+                    .collect(Collectors.toList());
+        } catch (ExecutionException | InterruptedException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 }

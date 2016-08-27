@@ -137,7 +137,7 @@ class Stream {
      * @param positions current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    List<SegmentFutures> getNextSegments(List<Integer> completedSegments, List<SegmentFutures> positions) {
+    List<SegmentFutures> getNextSegments(Set<Integer> completedSegments, List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 

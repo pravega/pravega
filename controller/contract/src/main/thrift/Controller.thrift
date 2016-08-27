@@ -63,7 +63,7 @@ service ProducerService {
  */
 service ConsumerService {
     list<Position> getPositions(1:string stream, 2:i64 timestamp, 3:i32 count)
-    list<Position> updatePositions(1:list<Position> positions)
+    list<Position> updatePositions(1:string stream, 2:list<Position> positions)
 }
 
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.
