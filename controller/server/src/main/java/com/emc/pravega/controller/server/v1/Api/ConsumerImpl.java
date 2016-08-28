@@ -40,6 +40,11 @@ public class ConsumerImpl implements Api.Consumer {
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 
+    /**
+     * invert a map
+     * @param map input
+     * @return the inverted map with keys and values inverted
+     */
     private Map<Integer, List<Integer>> invertMap(Map<Integer, Integer> map) {
         Map<Integer, List<Integer>> inverse = new HashMap<>();
         map.entrySet().stream().forEach(
@@ -61,12 +66,22 @@ public class ConsumerImpl implements Api.Consumer {
         this.hostStore = hostStore;
     }
 
+    /**
+     *
+     * @param stream input stream
+     * @param timestamp timestamp at which the active position is sought
+     * @param n maximum number of positions to be returned
+     * @return at most n positions at specified timestamp from the specified stream
+     */
     @Override
     public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int n) {
         return CompletableFuture.supplyAsync(
             () ->
                 {
+                    // fetch the segments active at timestamp from specified stream
                     SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
+
+                    // divide the active segments equally into at most n partitions
                     int currentCount = segmentFutures.getCurrent().size();
                     int quotient = currentCount / n;
                     int remainder = currentCount % n;
@@ -112,14 +127,26 @@ public class ConsumerImpl implements Api.Consumer {
         );
     }
 
+    /**
+     * Given a list of position objects of a stream, return the updated list of position objects taking into account
+     * completely read segments whose successors can possibly become current, or
+     * completely read segments whose successors can possibly be added to futures in some positions, or
+     * current segments whose successors can possibly be added to futures in their respective position.
+     * @param stream input stream
+     * @param positions input list of position objects
+     * @return the updated list of position objects
+     */
     @Override
     public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
         return CompletableFuture.supplyAsync(
                 () ->
                 {
+                    // collect the completed segments from list of position objects
                     Set<Integer> completedSegments = positions.stream().flatMap(x -> x.getCompletedSegments().stream().map(y -> y.getNumber())).collect(Collectors.toSet());
                     Map<Integer, Long> segmentOffsets = new HashMap<>();
                     List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
+
+                    // construct SegmentFutures for each position object.
                     for (Position position: positions) {
                         List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
                         Map<Integer, Integer> futures = new HashMap<>();
@@ -128,6 +155,7 @@ public class ConsumerImpl implements Api.Consumer {
                                     int number = x.getKey().getNumber();
                                     current.add(number);
                                     Segment segment = streamStore.getSegment(stream, number);
+                                    // update completed segments set with implicitly completed segments
                                     segment.getPredecessors().stream().forEach(y -> completedSegments.add(y));
                                     segmentOffsets.put(number, x.getValue());
                                 }
@@ -140,7 +168,11 @@ public class ConsumerImpl implements Api.Consumer {
                         segmentFutures.add(new SegmentFutures(current, futures));
                     }
                     List<Position> resultPositions = new ArrayList<>(positions.size());
+
+                    // fetch updated SegmentFutures from stream metadata
                     List<SegmentFutures> result = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
+
+                    // finally convert SegmentFutures back to position objects
                     result.stream().forEach(
                             x -> {
                                 Map<SegmentId, Long> currentSegments = new HashMap<>();
