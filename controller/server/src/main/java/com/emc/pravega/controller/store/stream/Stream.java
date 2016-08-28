@@ -107,6 +107,18 @@ class Stream {
     }
 
     /**
+     * Finds all successors of a given segment, that have exactly one predecessor,
+     * and hence can be included in the futures of the given segment.
+     * @param segment for which default futures are sought.
+     * @return the list of successors of specified segment who have only one predecessor.
+     */
+    private List<Integer> getDefaultFutures(Segment segment) {
+        return segment.getSuccessors().stream()
+                .filter(x -> segments.get(x).getPredecessors().size() == 1)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * @return the list of segments active at a given timestamp.
      * GetActiveSegments runs in O(n), where n is the total number of segments.
      * It can be improved to O(k + logn), where k is the number of active segments at specified timestamp,
@@ -120,12 +132,10 @@ class Stream {
         while (i < segments.size() && timestamp >= segments.get(i).getStart()) {
             if (segments.get(i).getEnd() >= timestamp) {
                 Segment segment = segments.get(i);
-                // futures is set to all the successors of segment that have this segment as the only predecessor
-                List<Integer> futures = segment.getSuccessors().stream()
-                        .filter(x -> segments.get(x).getPredecessors().size() == 1)
-                        .collect(Collectors.toList());
                 currentSegments.add(segment.getNumber());
-                futures.forEach(x -> futureSegments.put(x, segment.getNumber()));
+                // futures is set to all the successors of segment that have this segment as the only predecessor
+                getDefaultFutures(segment).stream()
+                        .forEach(x -> futureSegments.put(x, segment.getNumber()));
             }
             i++;
         }
@@ -203,6 +213,17 @@ class Stream {
                         }
                     }
             );
+            // add futures for new and old current segments, if any
+            newCurrent.stream().forEach(
+                    x -> getDefaultFutures(segments.get(x)).stream()
+                            .forEach(
+                                    y -> {
+                                        if (!newFuture.containsKey(y)) {
+                                            newFuture.put(y, x);
+                                        }
+                                    }
+                            )
+            );
             newPositions.add(new SegmentFutures(newCurrent, newFuture));
         }
         return newPositions;
@@ -239,14 +260,12 @@ class Stream {
             segment.setStatus(Segment.Status.Sealed);
             segment.setEnd(scaleTimestamp);
 
-            newSegments.forEach(
-                    newSegment -> {
-                        if (newSegment.overlaps(segment)) {
-                            segment.addSuccesor(newSegment.getNumber());
-                            newSegment.addPredecessor(sealed);
-                        }
-                    }
-            );
+            for (Segment newSegment: newSegments) {
+                if (newSegment.overlaps(segment)) {
+                    segment.addSuccesor(newSegment.getNumber());
+                    newSegment.addPredecessor(sealed);
+                }
+            }
             currentSegments.remove(sealed);
         }
 
