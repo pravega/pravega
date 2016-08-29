@@ -15,25 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl.segment;
 
-import static org.junit.Assert.fail;
+package com.emc.pravega.service.server.reading;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import java.util.concurrent.ScheduledExecutorService;
 
-@Ignore
-public class LogClientTest {
-	@Test
-	public void testTimeouts() {
-		fail();
-	}
-	@Test
-	public void testCreateLog() {
-		fail();
-	}
-	@Test
-	public void testLogExists() {
-		fail();
-	}
+/**
+ * Exposes the applyCachePolicy method in the CacheManager.
+ */
+class TestCacheManager extends CacheManager {
+    TestCacheManager(CachePolicy policy) {
+        this(policy, null);
+    }
+
+    TestCacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
+        super(policy, executorService);
+    }
+
+    @Override
+    public void applyCachePolicy() {
+        super.applyCachePolicy();
+    }
 }

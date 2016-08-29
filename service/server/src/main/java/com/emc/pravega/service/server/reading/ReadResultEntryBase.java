@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.reading;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import java.time.Duration;
@@ -30,7 +31,8 @@ import java.util.function.Consumer;
 /**
  * Base implementation of ReadResultEntry.
  */
-abstract class ReadResultEntryBase implements ReadResultEntry {
+@VisibleForTesting
+public abstract class ReadResultEntryBase implements ReadResultEntry {
     //region Members
 
     private final CompletableFuture<ReadResultEntryContents> contents;
@@ -51,7 +53,7 @@ abstract class ReadResultEntryBase implements ReadResultEntry {
      * @param requestedReadLength The maximum number of bytes requested for read.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    ReadResultEntryBase(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
+    protected ReadResultEntryBase(ReadResultEntryType type, long streamSegmentOffset, int requestedReadLength) {
         Preconditions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
         Preconditions.checkArgument(requestedReadLength > 0, "requestedReadLength must be a positive integer.");
 
@@ -121,7 +123,7 @@ abstract class ReadResultEntryBase implements ReadResultEntry {
      *
      * @param readResultEntryContents The content to set.
      */
-    void complete(ReadResultEntryContents readResultEntryContents) {
+    protected void complete(ReadResultEntryContents readResultEntryContents) {
         Preconditions.checkState(!this.contents.isDone(), "ReadResultEntry has already had its result set.");
         CompletionConsumer callback = this.completionCallback;
         if (callback != null) {
@@ -136,7 +138,7 @@ abstract class ReadResultEntryBase implements ReadResultEntry {
      *
      * @param exception The exception to set.
      */
-    void fail(Throwable exception) {
+    protected void fail(Throwable exception) {
         Preconditions.checkState(!this.contents.isDone(), "ReadResultEntry has already had its result set.");
         this.contents.completeExceptionally(exception);
     }

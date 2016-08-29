@@ -18,17 +18,15 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.common.util.ComponentConfig;
-import com.emc.pravega.common.util.MissingPropertyException;
-import com.emc.pravega.testcommon.AssertExtensions;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Unit tests for the ComponentConfig class.

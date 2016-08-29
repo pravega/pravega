@@ -28,6 +28,7 @@ abstract class ReadIndexEntry {
 
     private final long streamSegmentOffset;
     private final long length;
+    private int generation;
 
     //endregion
 
@@ -51,6 +52,24 @@ abstract class ReadIndexEntry {
     //endregion
 
     //region Properties
+
+    /**
+     * Gets the value of the generation for this ReadIndexEntry.
+     *
+     * @return The entry's generation.
+     */
+    int getGeneration() {
+        return this.generation;
+    }
+
+    /**
+     * Sets the current generation of this ReadIndexEntry.
+     *
+     * @param generation The current generation.
+     */
+    void setGeneration(int generation) {
+        this.generation = generation;
+    }
 
     /**
      * Gets a value indicating the StreamSegment offset for this entry.
@@ -81,7 +100,7 @@ abstract class ReadIndexEntry {
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, Length = %d", getStreamSegmentOffset(), getLength());
+        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length, this.generation);
     }
 
     //endregion

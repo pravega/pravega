@@ -18,19 +18,19 @@
 
 package com.emc.pravega.service.server;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Wrapper around an ExecutorService that auto-shuts it down.
  */
 public class CloseableExecutorService implements AutoCloseable {
-    private final ExecutorService executorService;
+    private final ScheduledExecutorService executorService;
 
-    public CloseableExecutorService(ExecutorService executorService) {
+    public CloseableExecutorService(ScheduledExecutorService executorService) {
         this.executorService = executorService;
     }
 
-    public ExecutorService get() {
+    public ScheduledExecutorService get() {
         return this.executorService;
     }
 

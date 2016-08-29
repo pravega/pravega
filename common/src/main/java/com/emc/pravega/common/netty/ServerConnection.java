@@ -23,8 +23,7 @@ package com.emc.pravega.common.netty;
 public interface ServerConnection extends AutoCloseable {
 
     /**
-     * Sends the provided command. This operation may block. (Though buffering is used to try to
-     * prevent it)
+     * Sends the provided command asynchronously. This operation is non-blocking.
      */
     void send(WireCommand cmd);
 
