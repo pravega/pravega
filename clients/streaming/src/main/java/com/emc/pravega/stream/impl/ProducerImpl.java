@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -83,15 +84,20 @@ public class ProducerImpl<Type> implements Producer<Type> {
      *         retransmitted.
      */
     private List<Event<Type>> setupSegmentProducers() {
-        StreamSegments segments = stream.getLatestSegments();
-
-        for (SegmentId segment : segments.getSegments()) {
-            if (!producers.containsKey(segment)) {
-                SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
-                                                                                 config.getSegmentConfig());
-                producers.put(segment, new SegmentProducerImpl<>(out, serializer));
-            }
-        }
+        StreamSegments segments = Retry.withExpBackoff(1, 10, 5)
+            .retryingOn(SegmentSealedException.class)
+            .throwingOn(RuntimeException.class)
+            .run(() -> {
+                StreamSegments s = stream.getLatestSegments();
+                for (SegmentId segment : s.getSegments()) {
+                    if (!producers.containsKey(segment)) {
+                        SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
+                                                                                         config.getSegmentConfig());
+                        producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+                    }
+                }
+                return s;
+            });
         List<Event<Type>> toResend = new ArrayList<>();
 
         Iterator<Entry<SegmentId, SegmentProducer<Type>>> iter = producers.entrySet().iterator();

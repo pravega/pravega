@@ -33,6 +33,7 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.google.common.base.Preconditions;
 
 import static org.junit.Assert.*;
 
@@ -52,13 +53,11 @@ public class SegmentOutputStreamTest {
 
         @Override
         @Synchronized
-        public ClientConnection establishConnection(String endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> establishConnection(String endpoint, ReplyProcessor rp) {
             ClientConnection connection = connections.get(endpoint);
-            if (connection == null) {
-                throw new IllegalStateException("Unexpected Endpoint");
-            }
+            Preconditions.checkState(connection != null, "Unexpected Endpoint");
             processors.put(endpoint, rp);
-            return connection;
+            return CompletableFuture.completedFuture(connection);
         }
 
         @Synchronized
@@ -87,7 +86,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.connect();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
@@ -102,7 +101,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.connect();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
@@ -126,7 +125,7 @@ public class SegmentOutputStreamTest {
         cf.provideConnection("endpoint", connection);
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.connect();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
@@ -197,7 +196,7 @@ public class SegmentOutputStreamTest {
         cf.provideConnection("endpoint", connection);
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, "endpoint", cid, SEGMENT);
-        output.connect();
+        output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
