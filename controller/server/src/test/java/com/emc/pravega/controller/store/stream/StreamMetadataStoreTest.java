@@ -37,7 +37,7 @@ public class StreamMetadataStoreTest {
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
-    private final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100l, 2, 3);
+    private final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy);
     private final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy);
 

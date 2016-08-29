@@ -40,6 +40,11 @@ public class ConsumerImpl implements Api.Consumer {
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 
+    public ConsumerImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
+        this.streamStore = streamStore;
+        this.hostStore = hostStore;
+    }
+
     /**
      * invert a map
      * @param map input
@@ -61,11 +66,6 @@ public class ConsumerImpl implements Api.Consumer {
         return inverse;
     }
 
-    public ConsumerImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
-        this.streamStore = streamStore;
-        this.hostStore = hostStore;
-    }
-
     /**
      *
      * @param stream input stream
@@ -76,8 +76,7 @@ public class ConsumerImpl implements Api.Consumer {
     @Override
     public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int n) {
         return CompletableFuture.supplyAsync(
-            () ->
-                {
+                () -> {
                     // fetch the segments active at timestamp from specified stream
                     SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
 
@@ -93,7 +92,7 @@ public class ConsumerImpl implements Api.Consumer {
 
                     int counter = 0;
                     for (int i = 0; i < size; i++) {
-                        int j = (i < remainder) ? quotient + 1: quotient;
+                        int j = (i < remainder) ? quotient + 1 : quotient;
                         List<SegmentId> current = new ArrayList<>(j);
                         for (int k = 0; k < j; k++, counter++) {
                             Integer number = segmentFutures.getCurrent().get(counter);
@@ -103,15 +102,13 @@ public class ConsumerImpl implements Api.Consumer {
                         Map<SegmentId, Long> currentSegments = new HashMap<>();
                         Map<SegmentId, Long> futureSegments = new HashMap<>();
                         current.stream().forEach(
-                            x ->
-                                {
+                                x -> {
                                     // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
                                     currentSegments.put(x, 0L);
                                     int previous = x.getNumber();
                                     if (inverse.containsKey(previous)) {
                                         inverse.get(previous).stream().forEach(
-                                            y ->
-                                                {
+                                                y -> {
                                                     SegmentId segmentId = SegmentHelper.getSegmentId(stream, y, previous, hostStore);
                                                     futureSegments.put(segmentId, 0L);
                                                 }
@@ -139,8 +136,7 @@ public class ConsumerImpl implements Api.Consumer {
     @Override
     public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
         return CompletableFuture.supplyAsync(
-                () ->
-                {
+                () -> {
                     // collect the completed segments from list of position objects
                     Set<Integer> completedSegments = positions.stream().flatMap(x -> x.getCompletedSegments().stream().map(y -> y.getNumber())).collect(Collectors.toSet());
                     Map<Integer, Long> segmentOffsets = new HashMap<>();

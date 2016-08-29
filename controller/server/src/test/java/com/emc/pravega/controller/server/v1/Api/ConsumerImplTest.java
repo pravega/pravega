@@ -35,10 +35,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * ConsumerImpl test
@@ -51,7 +56,7 @@ public class ConsumerImplTest {
     private final StreamMetadataStore streamStore =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
-    Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+    private Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
@@ -61,7 +66,7 @@ public class ConsumerImplTest {
     @Before
     public void prepareStreamStore() {
 
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100l, 2, 3);
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy);
 
@@ -126,7 +131,7 @@ public class ConsumerImplTest {
 
 
         Position newPosition = new PositionImpl(
-                Collections.singletonMap(new SegmentId(stream2, stream2+5, 5, 2, "localhost", 9090), 0L),
+                Collections.singletonMap(new SegmentId(stream2, stream2 + 5, 5, 2, "localhost", 9090), 0L),
                 Collections.EMPTY_MAP);
         positions.set(2, newPosition);
         positions = consumer.updatePositions(stream2, positions).get();

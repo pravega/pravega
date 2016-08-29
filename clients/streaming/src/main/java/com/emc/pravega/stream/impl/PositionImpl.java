@@ -37,6 +37,7 @@ public class PositionImpl implements Position {
         this.futureOwnedLogs = futureOwnedLogs;
     }
 
+    @Override
     public Set<SegmentId> getOwnedSegments() {
         return Collections.unmodifiableSet(ownedLogs.keySet());
     }
@@ -59,16 +60,6 @@ public class PositionImpl implements Position {
     @Override
     public Set<SegmentId> getFutureOwnedSegments() {
         return Collections.unmodifiableSet(futureOwnedLogs.keySet());
-    }
-
-    @Override
-    public Position add(Position position) {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public Position subtract(Position position) {
-        throw new NotImplementedException();
     }
 
     Long getOffsetForOwnedLog(SegmentId log) {

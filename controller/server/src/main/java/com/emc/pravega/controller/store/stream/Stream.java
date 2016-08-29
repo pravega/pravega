@@ -100,13 +100,6 @@ class Stream {
     }
 
     /**
-     * @return the list of currently active segments
-     */
-    SegmentFutures getActiveSegments() {
-        return new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP);
-    }
-
-    /**
      * Finds all successors of a given segment, that have exactly one predecessor,
      * and hence can be included in the futures of the given segment.
      * @param segment for which default futures are sought.
@@ -116,6 +109,13 @@ class Stream {
         return segment.getSuccessors().stream()
                 .filter(x -> segments.get(x).getPredecessors().size() == 1)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * @return the list of currently active segments
+     */
+    SegmentFutures getActiveSegments() {
+        return new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP);
     }
 
     /**
@@ -151,7 +151,6 @@ class Stream {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 
-        List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
         // successors of completed segments are interesting, which means
         // some of them may become current, and
         // some of them may become future
@@ -192,8 +191,14 @@ class Stream {
                 }
         );
 
-        int quotient = (int)newCurrents.size() / positions.size();
-        int remainder = (int)newCurrents.size() % positions.size();
+        return divideSegments(newCurrents, newFutures, positions);
+    }
+
+    private List<SegmentFutures> divideSegments(List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
+        List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
+
+        int quotient = (int) newCurrents.size() / positions.size();
+        int remainder = (int) newCurrents.size() % positions.size();
         int counter = 0;
         for (int i = 0; i < positions.size(); i++) {
             SegmentFutures position = positions.get(i);
@@ -201,7 +206,7 @@ class Stream {
             // add the new current segments
             List<Integer> newCurrent = new ArrayList<>(position.getCurrent());
             int portion = (i < remainder) ? quotient + 1 : quotient;
-            for (int j=0; j < portion; j++, counter++) {
+            for (int j = 0; j < portion; j++, counter++) {
                 newCurrent.add(newCurrents.get(counter));
             }
             Map<Integer, Integer> newFuture = new HashMap<>(position.getFutures());
@@ -213,7 +218,7 @@ class Stream {
                         }
                     }
             );
-            // add futures for new and old current segments, if any
+            // add default futures for new and old current segments, if any
             newCurrent.stream().forEach(
                     x -> getDefaultFutures(segments.get(x)).stream()
                             .forEach(
