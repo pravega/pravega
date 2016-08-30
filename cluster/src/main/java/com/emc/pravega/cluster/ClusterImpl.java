@@ -33,9 +33,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 public class ClusterImpl  implements Cluster, ConfigChangeListener {
-    private ConcurrentHashMap<Endpoint, PravegaNode> nodes;
-    private ConcurrentHashMap<Endpoint, PravegaController> controllers;
-    private ConcurrentHashMap<String, ClusterListener> listeners;
+    private final ConcurrentHashMap<Endpoint, PravegaNode> nodes;
+    private final ConcurrentHashMap<Endpoint, PravegaController> controllers;
+    private final ConcurrentHashMap<String, ClusterListener> listeners;
     private ConfigSyncManager manager;
 
     public ClusterImpl() {
@@ -77,7 +77,6 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
      */
     @Override
     public Iterable<ClusterListener> getListeners() {
-        log.info("Returning listeners size = " + listeners.size());
         return listeners.values();
     }
 
@@ -121,7 +120,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
                     try {
                         listener.nodeAdded(node);
                     } catch (Exception e) {
-                        log.warn("Listener" + name + "threw an exception while handling add node :" + e.getMessage());
+                        log.warn("Listener {} threw an exception while handling add node.", name, e);
                     }
                 });
     }
@@ -139,7 +138,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
                     try {
                         listener.controllerAdded(controller);
                     } catch (Exception e) {
-                        log.warn("Listener" + name + "threw an exception while handling add controller :" + e.getMessage());
+                        log.warn("Listener {} threw an exception while handling add controller.", name, e);
                     }
                 });
     }
@@ -156,7 +155,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
                     try {
                         listener.controllerRemoved(controller);
                     } catch (Exception e) {
-                        log.warn("Listener" + name + "threw an exception while handling remove controller :" + e.getMessage());
+                        log.warn("Listener {} threw an exception while handling remove controller.", name, e);
                     }
                 });
     }
@@ -173,13 +172,13 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
                     try {
                         listener.nodeRemoved(node);
                     } catch (Exception e) {
-                        log.warn("Listener " + name + "threw an exception while handling remove node :" + e.getMessage());
+                        log.warn("Listener {} threw an exception while handling remove node.", name, e);
                     }
                 });
     }
 
     /**
-     * Registers the current pravega node with a specific hostname and port with the config store
+     * Registers the current Pravega node with a specific hostname and port with the config store
      *
      * @param host
      * @param port
@@ -191,7 +190,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
     }
 
     /**
-     * Registers the current pravega controller with a specific hostname and port with the config store
+     * Registers the current Pravega controller with a specific hostname and port with the config store
      *
      * @param host
      * @param port
@@ -203,7 +202,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
     }
 
     /**
-     * Unregisters the current pravega controller with a specific hostname and port with the config store
+     * Unregisters the current Pravega controller with a specific hostname and port with the config store
      *
      * @param host
      * @param port
@@ -215,7 +214,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
     }
 
     /**
-     * Unregisters the current pravega node with a specific hostname and port with the config store
+     * Unregisters the current Pravega node with a specific hostname and port with the config store
      *
      * @param host
      * @param port

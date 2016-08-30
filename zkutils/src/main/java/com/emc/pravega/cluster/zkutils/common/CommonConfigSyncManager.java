@@ -55,7 +55,11 @@ public abstract class CommonConfigSyncManager implements ConfigSyncManager {
         jsonMap.put(METADATA_STRING, jsonMetadata);
         Gson gson = new Gson();
 
-        createEntry(NODE_INFO_ROOT + "/" + host + ":" + port, gson.toJson(jsonMap).getBytes());
+        createEntry(createNodeRootHostPortString(host, port),gson.toJson(jsonMap).getBytes());
+    }
+
+    private String createNodeRootHostPortString(String host, int port) {
+        return NODE_INFO_ROOT + "/" + host + ":" + port;
     }
 
     @Override
@@ -66,16 +70,20 @@ public abstract class CommonConfigSyncManager implements ConfigSyncManager {
         jsonMap.put(METADATA_STRING, jsonMetadata);
         Gson gson = new Gson();
 
-        createEntry(CONTROLLER_INFO_ROOT + "/" + host + ":" + port, gson.toJson(jsonMap).getBytes());
+        createEntry( createControllerRootHostPortString(host, port), gson.toJson(jsonMap).getBytes());
+    }
+
+    private String createControllerRootHostPortString(String host, int port) {
+        return CONTROLLER_INFO_ROOT + "/" + host + ":" + port;
     }
 
     @Override
     public void unregisterPravegaController(String host, int port) throws Exception {
-        deleteEntry(CONTROLLER_INFO_ROOT + "/" + host + ":" + port);
+        deleteEntry(createControllerRootHostPortString(host, port));
     }
 
     @Override
     public void unregisterPravegaNode(String host, int port) throws Exception {
-        deleteEntry(NODE_INFO_ROOT + "/" + host + ":" + port);
+        deleteEntry(createNodeRootHostPortString(host, port));
     }
 }

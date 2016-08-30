@@ -21,12 +21,12 @@ package com.emc.pravega.cluster;
 import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
 
 /**
- * This class represents a pravega cluster.
- * A pravega cluster contains a number of pravega nodes and controller nodes.
+ * This class represents a Pravega cluster.
+ * A Pravega cluster contains a number of Pravega nodes and controller nodes.
  * Each node instance is uniquely identified by an Endpoint class.
  * <p>
  * An Endpoint class represents a server IP and port on which either the
- * pravega node Or the controller listens
+ * Pravega node Or the controller listens
  */
 public interface Cluster {
 
@@ -72,7 +72,7 @@ public interface Cluster {
 
 
     /**
-     * Registers the current pravega node with a specific hostname and port with the config store
+     * Registers the current Pravega node with a specific hostname and port with the config store
      *
      * @param host
      * @param port
@@ -81,7 +81,7 @@ public interface Cluster {
     void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception;
 
     /**
-     * Registers the current pravega controller with a specific hostname and port with the config store
+     * Registers the current Pravega controller with a specific hostname and port with the config store
      *
      * @param host
      * @param port
@@ -90,7 +90,7 @@ public interface Cluster {
     void registerPravegaController(String host, int port, String jsonMetadata) throws Exception;
 
     /**
-     * Unregisters the current pravega controller with a specific hostname and port with the config store
+     * Unregisters the current Pravega controller with a specific hostname and port with the config store
      *
      * @param host
      * @param port
@@ -98,7 +98,7 @@ public interface Cluster {
     void unregisterPravegaController(String host, int port) throws Exception;
 
     /**
-     * Unregisters the current pravega node with a specific hostname and port with the config store
+     * Unregisters the current Pravega node with a specific hostname and port with the config store
      *
      * @param host
      * @param port

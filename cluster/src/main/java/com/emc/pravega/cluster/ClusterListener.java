@@ -29,7 +29,7 @@ public interface ClusterListener {
     void nodeAdded(PravegaNode node);
 
     /**
-     * Notification that a pravega node is removed from the cluster
+     * Notification that a Pravega node is removed from the cluster
      * @param node
      */
     void nodeRemoved(PravegaNode node);

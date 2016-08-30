@@ -58,7 +58,7 @@ public interface ConfigSyncManager {
   void  refreshCluster() throws Exception;
 
     /**
-     * Registers a pravega node
+     * Registers a Pravega node
      * @param host
      * @param port
      * @param jsonMetadata
@@ -67,7 +67,7 @@ public interface ConfigSyncManager {
   void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception;
 
     /**
-     * Registers a pravega controller
+     * Registers a Pravega controller
      * @param host
      * @param port
      * @param jsonMetadata
@@ -76,7 +76,7 @@ public interface ConfigSyncManager {
   void registerPravegaController(String host, int port, String jsonMetadata) throws Exception;
 
     /**
-     * Unregisters a pravega controller
+     * Unregisters a Pravega controller
      * @param host
      * @param port
      * @throws Exception
@@ -84,7 +84,7 @@ public interface ConfigSyncManager {
   void unregisterPravegaController(String host, int port) throws Exception;
 
     /**
-     * Unregisters a pravega node
+     * Unregisters a Pravega node
      * @param host
      * @param port
      * @throws Exception
