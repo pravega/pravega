@@ -9,7 +9,7 @@ import org.scalatest.junit.JUnitRunner
 class clustertest extends WordSpec {
   "A cluster" when {
     "created with dummy manager" should {
-      " after initializtion" should {
+      " after initialization" should {
         val clust: Cluster = new ClusterImpl()
         clust.initializeCluster(ConfigSyncManagerType.DUMMY, "dummy", 0)
         "return 0 nodes" in assert(clust.getPravegaNodes.iterator().hasNext == false)
@@ -20,8 +20,8 @@ class clustertest extends WordSpec {
         "return 1 listeners" in {
           val clust: Cluster = new ClusterImpl()
           clust.initializeCluster(ConfigSyncManagerType.DUMMY, "dummy", 0)
-          val clusterListner:DummyListener = new DummyListener
-          clust.registerListener("my",clusterListner)
+          val clusterListener:DummyListener = new DummyListener
+          clust.registerListener("my",clusterListener)
           assert(clust.getListeners().iterator().hasNext == true)
         }
         "after inserting a controller" should {
