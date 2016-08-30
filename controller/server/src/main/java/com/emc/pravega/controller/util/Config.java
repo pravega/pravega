@@ -20,8 +20,8 @@ package com.emc.pravega.controller.util;
 import com.typesafe.config.ConfigFactory;
 
 /**
- * This is a utility used to configuration. It can be configured to read different configuration
- * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=resource. By default
+ * This is a utility used to read configuration. It can be configured to read custom configuration
+ * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=< Resource Name>. By default
  * it reads application.conf if no system property is set. Reference: {@link ConfigFactory#defaultApplication()}
  */
 public final class Config {
