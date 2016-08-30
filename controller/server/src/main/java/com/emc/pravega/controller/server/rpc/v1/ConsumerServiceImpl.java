@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.stream.impl.model.ModelHelper;
@@ -32,9 +32,9 @@ import java.util.stream.Collectors;
  */
 public class ConsumerServiceImpl implements ConsumerService.Iface {
 
-    private Api.Consumer consumerApi;
+    private ControllerApi.Consumer consumerApi;
 
-    public ConsumerServiceImpl(Api.Consumer consumerApi) {
+    public ConsumerServiceImpl(ControllerApi.Consumer consumerApi) {
         this.consumerApi = consumerApi;
     }
 
@@ -46,7 +46,7 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
             // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
             return consumerApi.getPositions(stream, timestamp, count).get()
                     .stream()
-                    .map(x -> ModelHelper.decode(x))
+                    .map(ModelHelper::decode)
                     .collect(Collectors.toList());
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
@@ -63,11 +63,11 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
             // convert pravega.controller.stream.api.v1.Position to pravega.stream.Position before invoking method on server
 
             return consumerApi
-                    .updatePositions(stream, positions.stream().map(x -> ModelHelper.encode(x)).collect(Collectors.toList()))
+                    .updatePositions(stream, positions.stream().map(ModelHelper::encode).collect(Collectors.toList()))
                     // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
                     .get()
                     .stream()
-                    .map(x -> ModelHelper.decode(x))
+                    .map(ModelHelper::decode)
                     .collect(Collectors.toList());
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();

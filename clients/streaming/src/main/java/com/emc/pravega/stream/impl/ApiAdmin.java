@@ -17,11 +17,12 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
 
 import java.util.concurrent.CompletableFuture;
@@ -29,29 +30,55 @@ import java.util.concurrent.CompletableFuture;
 /**
  * RPC based implementation of Stream Controller Admin V1 API
  */
-public class ApiAdmin implements Api.Admin {
+@Slf4j
+public class ApiAdmin extends BaseClient implements ControllerApi.Admin {
+    public static final String ADMIN_SERVICE = "adminService";
+
+    private final AdminService.Client client;
+
+    public ApiAdmin(final String hostName, final int port) {
+        super(hostName, port, ADMIN_SERVICE);
+        client = new AdminService.Client(getTProtocol());
+    }
+
     @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         //Use RPC client to invoke createStream
-        AdminService.Client client = new AdminService.Client(null);
-        return CompletableFuture.supplyAsync(() -> {
+        log.info("Invoke AdminService.Client.createStream() with streamConfiguration: {}", streamConfig);
+
+        CompletableFuture<Status> resultFinal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
             try {
-                return client.createStream(ModelHelper.decode(streamConfig));
+                //invoke RPC client
+                Status status = client.createStream(ModelHelper.decode(streamConfig));
+
+                log.debug("Received the following status from the controller {}", status);
+                resultFinal.complete(status);
             } catch (TException e) {
-                throw new RuntimeException(e);
+                resultFinal.completeExceptionally(e);
             }
-        });
+        }, service);
+
+        return resultFinal;
     }
 
     @Override
     public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-        //Use RPC client to invoke alterStream
-        AdminService.Client client = new AdminService.Client(null);
-        try {
-            client.alterStream(null);
-        } catch (TException e) {
-            e.printStackTrace();
-        }
-        return null;
+        //Use RPC client to invoke getPositions
+        log.info("Invoke AdminService.Client.alterStream() with streamConfiguration: {}", streamConfig);
+
+        CompletableFuture<Status> resultFinal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                //invoke RPC client
+                Status status = client.alterStream(ModelHelper.decode(streamConfig));
+                log.debug("Received the following status from the controller {}", status);
+                resultFinal.complete(status);
+            } catch (TException e) {
+                resultFinal.completeExceptionally(e);
+            }
+        }, service);
+
+        return resultFinal;
     }
 }

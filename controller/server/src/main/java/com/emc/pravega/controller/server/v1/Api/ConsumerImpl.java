@@ -19,11 +19,11 @@
 package com.emc.pravega.controller.server.v1.Api;
 
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.stream.Api;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.PositionImpl;
 
@@ -35,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class ConsumerImpl implements Api.Consumer {
+public class ConsumerImpl implements ControllerApi.Consumer {
 
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;

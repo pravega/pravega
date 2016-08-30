@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.server.v1.Api;
 
 import com.emc.pravega.common.netty.ConnectionFactory;
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -32,7 +32,7 @@ import org.apache.commons.lang.NotImplementedException;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-public class AdminImpl implements Api.Admin {
+public class AdminImpl implements ControllerApi.Admin {
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 

@@ -44,24 +44,24 @@ public class RPCServer {
             processor.registerProcessor("producerService", new ProducerService.Processor(producerService));
 
             Runnable simple = () -> {
-                simple(processor);
+                simpleThreaded(processor);
             };
 
             new Thread(simple).start();
-        } catch (Exception ex) {
-            log.error("Exception", ex);
+        } catch (Exception x) {
+            log.error("Exception during start of RPC Server", x);
         }
     }
 
-    private static void simple(final TMultiplexedProcessor processor) {
+    private static void simpleThreaded(final TMultiplexedProcessor processor) {
         try {
             log.info("Listening on port 9090");
             TServerTransport serverTransport = new TServerSocket(9090);
             TServer server = new TThreadPoolServer(new TThreadPoolServer.Args(serverTransport).processor(processor));
-
+            log.info("Starting Controller Server (ThreadPool based)...");
             server.serve();
-        } catch (Exception ex) {
-            log.error("Exception", ex);
+        } catch (Exception e) {
+            log.error("Exception during start of ThreadPool based RPC server");
         }
     }
 }

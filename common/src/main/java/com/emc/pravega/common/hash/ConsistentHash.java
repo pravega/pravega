@@ -26,8 +26,7 @@ public class ConsistentHash {
     static final String MD_5 = "MD5";
     private static MessageDigest md;
 
-    static
-    {
+    static {
         try {
             md = MessageDigest.getInstance(MD_5);
         } catch (NoSuchAlgorithmException e) {

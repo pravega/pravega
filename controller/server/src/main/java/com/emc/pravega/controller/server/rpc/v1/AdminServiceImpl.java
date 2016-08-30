@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.stream.Api;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -31,9 +31,9 @@ import java.util.concurrent.ExecutionException;
  */
 public class AdminServiceImpl implements AdminService.Iface {
 
-    private Api.Admin adminApi;
+    private ControllerApi.Admin adminApi;
 
-    public AdminServiceImpl(Api.Admin adminApi) {
+    public AdminServiceImpl(ControllerApi.Admin adminApi) {
         this.adminApi = adminApi;
     }
 
@@ -49,7 +49,7 @@ public class AdminServiceImpl implements AdminService.Iface {
 
     @Override
     public Status alterStream(StreamConfig streamConfig) throws TException {
-        //invoke Api.ApiAdmin.alterStream(...)
+        //invoke ControllerApi.ApiAdmin.alterStream(...)
         adminApi.alterStream(null);
         return null;
     }
