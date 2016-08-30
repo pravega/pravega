@@ -163,27 +163,31 @@ public class ConsumerImpl implements Api.Consumer {
                         );
                         segmentFutures.add(new SegmentFutures(current, futures));
                     }
-                    List<Position> resultPositions = new ArrayList<>(positions.size());
 
                     // fetch updated SegmentFutures from stream metadata
                     List<SegmentFutures> result = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
 
                     // finally convert SegmentFutures back to position objects
-                    result.stream().forEach(
-                            x -> {
-                                Map<SegmentId, Long> currentSegments = new HashMap<>();
-                                Map<SegmentId, Long> futureSegments = new HashMap<>();
-                                x.getCurrent().stream().forEach(
-                                        y -> currentSegments.put(SegmentHelper.getSegmentId(stream, y, 0, hostStore), segmentOffsets.get(y))
-                                );
-                                x.getFutures().entrySet().stream().forEach(
-                                        y -> futureSegments.put(SegmentHelper.getSegmentId(stream, y.getKey(), y.getValue(), hostStore), 0L)
-                                );
-                                resultPositions.add(new PositionImpl(currentSegments, futureSegments));
-                            }
-                    );
-                    return resultPositions;
+                    return getNewPositions(stream, result, segmentOffsets);
                 }
         );
+    }
+
+    private List<Position> getNewPositions(String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
+        List<Position> resultPositions = new ArrayList<>(segmentFutures.size());
+        segmentFutures.stream().forEach(
+                x -> {
+                    Map<SegmentId, Long> currentSegments = new HashMap<>();
+                    Map<SegmentId, Long> futureSegments = new HashMap<>();
+                    x.getCurrent().stream().forEach(
+                            y -> currentSegments.put(SegmentHelper.getSegmentId(stream, y, 0, hostStore), segmentOffsets.get(y))
+                    );
+                    x.getFutures().entrySet().stream().forEach(
+                            y -> futureSegments.put(SegmentHelper.getSegmentId(stream, y.getKey(), y.getValue(), hostStore), 0L)
+                    );
+                    resultPositions.add(new PositionImpl(currentSegments, futureSegments));
+                }
+        );
+        return resultPositions;
     }
 }
