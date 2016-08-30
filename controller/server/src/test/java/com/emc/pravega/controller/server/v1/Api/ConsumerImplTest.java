@@ -98,9 +98,7 @@ public class ConsumerImplTest {
 
     @Before
     public void prepareHostStore() {
-        Host host = new Host();
-        host.setIpAddr("localhost");
-        host.setPort(9090);
+        Host host = new Host("localhost", 9090);
         hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
     }
 
