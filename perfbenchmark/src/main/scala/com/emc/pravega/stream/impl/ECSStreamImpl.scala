@@ -22,9 +22,6 @@ import java.util.Collections
 
 import com.emc.pravega.stream.{Consumer, ConsumerConfig, EventRouter, Position, Producer, ProducerConfig, RateChangeListener, SegmentId, Serializer, Stream, StreamConfiguration, StreamSegments}
 
-/**
-  * Created by kandha on 7/26/16.
-  */
 
 class ECSSingleSegmentStreamImpl(ipList: String, accessKey: String, secretKey: String,
                                  val scope: String, val name: String, val config: StreamConfiguration) extends Stream {

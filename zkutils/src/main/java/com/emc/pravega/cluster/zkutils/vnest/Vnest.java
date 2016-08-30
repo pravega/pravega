@@ -23,7 +23,6 @@ import com.emc.pravega.cluster.zkutils.abstraction.ConfigChangeListener;
 import com.emc.pravega.cluster.zkutils.common.CommonConfigSyncManager;
 
 /**
-  * Created by kandha on 8/8/16.
  * TODO: Only skeleton methods here. Need to integrate it with VNest.
   */
 public class Vnest extends CommonConfigSyncManager {

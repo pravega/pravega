@@ -20,9 +20,6 @@ package com.emc.pravega.stream.impl
 
 import com.emc.pravega.stream.{Stream, StreamConfiguration, StreamManager}
 
-/**
- * Created by kandha on 7/21/16.
- */
 class DirectToECSStreamManagerImpl(ipList: String, accessKey:String,secretKey:String,
                                    scope: String)  extends StreamManager {
 

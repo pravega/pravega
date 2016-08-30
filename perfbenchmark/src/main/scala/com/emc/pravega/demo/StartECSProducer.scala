@@ -21,9 +21,6 @@ package com.emc.pravega.demo
 import com.emc.pravega.stream.{Producer, ProducerConfig, Stream}
 import com.emc.pravega.stream.impl.{DirectToECSStreamManagerImpl, JavaSerializer}
 
-/**
- * Created by kandha on 7/21/16.
- */
 class StartECSProducer {
 
 }

@@ -28,9 +28,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{Duration, TimeUnit}
 import scala.concurrent.{Await, Future}
 
-/**
-  * Created by kandha on 7/23/16.
-  */
 class ECSProducerImpl[T](ipList: String, accessKey: String, secretKey: String,
                          impl: ECSSingleSegmentStreamImpl, router: EventRouter, s: Serializer[T],
                          config: ProducerConfig) extends Producer[T] {

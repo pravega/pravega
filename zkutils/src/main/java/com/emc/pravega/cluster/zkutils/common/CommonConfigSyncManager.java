@@ -24,9 +24,6 @@ import com.google.gson.Gson;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Created by kandha on 8/23/16.
- */
 public abstract class CommonConfigSyncManager implements ConfigSyncManager {
 
     /**

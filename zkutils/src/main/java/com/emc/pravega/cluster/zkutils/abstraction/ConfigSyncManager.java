@@ -20,9 +20,6 @@
 package com.emc.pravega.cluster.zkutils.abstraction;
 
 
-/**
-  * Created by kandha on 8/8/16.
-  */
 
 /**
  * Interface to abstract the configuration and synchronization component.

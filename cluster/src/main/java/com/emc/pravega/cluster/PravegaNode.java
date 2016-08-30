@@ -21,9 +21,6 @@ package com.emc.pravega.cluster;
 import com.emc.pravega.cluster.zkutils.common.Endpoint;
 import com.google.common.base.Preconditions;
 
-/**
-  * Created by kandha on 8/4/16.
-  */
 public final class PravegaNode {
     private final Endpoint ep;
     public PravegaNode(Endpoint  endpoint) {

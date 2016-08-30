@@ -18,9 +18,6 @@
 
 package com.emc.pravega.cluster;
 
-/**
- * Created by kandha on 8/5/16.
- */
 public interface ClusterListener {
     /**
      * Notification that a new Pravega node is added to the cluster
