@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.mocks;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 
 import java.util.HashMap;
@@ -81,6 +82,13 @@ public class InMemoryCache implements Cache {
             this.map.put(key, payload);
             key.markInCache(true);
         }
+    }
+
+    @Override
+    public void insert(Cache.Key key, ByteArraySegment data) {
+        byte[] buffer = new byte[data.getLength()];
+        data.copyTo(buffer, 0, buffer.length);
+        insert(key, buffer);
     }
 
     @Override

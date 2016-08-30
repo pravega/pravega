@@ -20,14 +20,17 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
+import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,6 +41,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * Read Index for a single StreamSegment. Integrates reading data from the following sources:
@@ -54,10 +59,12 @@ class StreamSegmentReadIndex implements AutoCloseable {
     //region Members
 
     private final String traceObjectId;
-    private final TreeMap<Long, ReadIndexEntry> entries; // Key = Last Offset of Entry, Value = Entry; TODO: we can implement a version of this that doesn't require Key
+    private final TreeMap<Long, ReadIndexEntry> indexEntries; // Key = Last Offset of Entry, Value = Entry.
+    private final ReadIndexConfig config;
     private final Cache cache;
     private final FutureReadResultEntryCollection futureReads;
     private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
+    private final StorageReader storageReader;
     private SegmentMetadata metadata;
     private long lastAppendedOffset;
     private boolean recoveryMode;
@@ -75,18 +82,21 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * @param metadata The StreamSegmentMetadata to use.
      * @throws NullPointerException If any of the arguments are null.
      */
-    StreamSegmentReadIndex(SegmentMetadata metadata, Cache cache, boolean recoveryMode) {
+    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, Cache cache, ReadOnlyStorage storage, Executor executor, boolean recoveryMode) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
 
         this.traceObjectId = String.format("ReadIndex[%d-%d]", metadata.getContainerId(), metadata.getId());
+        this.config = config;
         this.metadata = metadata;
         this.cache = cache;
         this.recoveryMode = recoveryMode;
-        this.entries = new TreeMap<>();
+        this.indexEntries = new TreeMap<>();
         this.futureReads = new FutureReadResultEntryCollection();
         this.mergeOffsets = new HashMap<>();
         this.lastAppendedOffset = -1;
+        this.storageReader = new StorageReader(metadata, storage, executor);
     }
 
     //endregion
@@ -97,6 +107,9 @@ class StreamSegmentReadIndex implements AutoCloseable {
     public void close() {
         if (!this.closed) {
             this.closed = true;
+
+            // Close storage reader (and thus cancel those reads).
+            this.storageReader.close();
 
             // Cancel future reads.
             this.futureReads.close();
@@ -255,7 +268,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
      * The ReadIndex entries of the two Streams are actually joined together.
      *
-     * @param sourceSegmentStreamId
+     * @param sourceSegmentStreamId The Id of the StreamSegment that was merged into this one.
      */
     public void completeMerge(long sourceSegmentStreamId) {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "completeMerge", sourceSegmentStreamId);
@@ -268,7 +281,7 @@ class StreamSegmentReadIndex implements AutoCloseable {
             endOffset = this.mergeOffsets.getOrDefault(sourceSegmentStreamId, -1L);
             Exceptions.checkArgument(endOffset >= 0, "sourceSegmentStreamId", "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
 
-            ReadIndexEntry treeEntry = this.entries.getOrDefault(endOffset, null);
+            ReadIndexEntry treeEntry = this.indexEntries.getOrDefault(endOffset, null);
             assert treeEntry != null && (treeEntry instanceof RedirectReadIndexEntry) : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceSegmentStreamId, endOffset, treeEntry);
             redirectEntry = (RedirectReadIndexEntry) treeEntry;
         }
@@ -283,12 +296,12 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
         synchronized (this.lock) {
             // Remove redirect entry.
-            this.entries.remove(endOffset);
+            this.indexEntries.remove(endOffset);
             this.mergeOffsets.remove(sourceSegmentStreamId);
 
             // TODO: Verify offsets are correct and that they do not exceed boundaries.
             for (CacheReadIndexEntry e : sourceEntries) {
-                this.entries.put(e.getLastStreamSegmentOffset(), e);
+                this.indexEntries.put(e.getLastStreamSegmentOffset(), e);
             }
         }
 
@@ -303,9 +316,28 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
             // Finally, append the entry.
             // Key is Offset + Length -1 = Last Offset Of Entry. Value is entry itself. This makes searching easier.
-            ReadIndexEntry oldEntry = this.entries.put(entry.getLastStreamSegmentOffset(), entry);
+            ReadIndexEntry oldEntry = this.indexEntries.put(entry.getLastStreamSegmentOffset(), entry);
             assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
             this.lastAppendedOffset = entry.getLastStreamSegmentOffset();
+        }
+    }
+
+    private void insert(long offset, ByteArraySegment data) {
+        log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
+
+        // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
+        // the StorageReader. Fixing it would be complicated, so let's see if it poses any problems.
+        CacheKey cacheKey = new CacheKey(this.metadata.getId(), offset);
+        this.cache.insert(cacheKey, data);
+        ReadIndexEntry entry = new CacheReadIndexEntry(cacheKey, data.getLength());
+        ReadIndexEntry oldEntry;
+        synchronized (this.lock) {
+            Exceptions.checkArgument(entry.getLastStreamSegmentOffset() < this.metadata.getStorageLength(), "entry", "The given range of bytes (%d-%d) does not correspond to the StreamSegment range that is in Storage (%d).", entry.getStreamSegmentOffset(), entry.getLastStreamSegmentOffset(), this.metadata.getStorageLength());
+            oldEntry = this.indexEntries.put(entry.getLastStreamSegmentOffset(), entry);
+        }
+
+        if (oldEntry != null) {
+            log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
         }
     }
 
@@ -322,13 +354,13 @@ class StreamSegmentReadIndex implements AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
 
-        if (this.entries.size() == 0) {
+        if (this.indexEntries.size() == 0) {
             // Nothing to do.
             return;
         }
 
         // Get all eligible Future Reads which wait for data prior to the end offset.
-        ReadIndexEntry lastEntry = this.entries.lastEntry().getValue(); // NOTE: this is O(log(n)), not O(1)
+        ReadIndexEntry lastEntry = this.indexEntries.lastEntry().getValue(); // NOTE: this is O(log(n)), not O(1)
         Collection<FutureReadResultEntry> futureReads;
         boolean sealed = this.metadata.isSealed();
         if (sealed) {
@@ -406,14 +438,14 @@ class StreamSegmentReadIndex implements AutoCloseable {
 
         ReadResultEntryBase result = null;
         synchronized (this.lock) {
-            if (this.entries.size() == 0) {
+            if (this.indexEntries.size() == 0) {
                 // We have no entries in the Read Index.
                 // Use the metadata to figure out whether to return a Storage or Future Read.
                 result = createDataNotAvailableRead(resultStartOffset, maxLength);
             } else {
                 // We have at least one entry.
                 // Find the first entry that has an End offset beyond equal to at least ResultStartOffset.
-                Map.Entry<Long, ReadIndexEntry> treeEntry = this.entries.ceilingEntry(resultStartOffset);
+                Map.Entry<Long, ReadIndexEntry> treeEntry = this.indexEntries.ceilingEntry(resultStartOffset);
                 if (treeEntry == null) {
                     // The ResultStartOffset is beyond the End Offset of the last entry in the index.
                     // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
@@ -439,12 +471,9 @@ class StreamSegmentReadIndex implements AutoCloseable {
             }
         }
 
-        if (result != null) {
-            return result;
-        } else {
-            // We should never get in here if we coded this correctly.
-            throw new AssertionError(String.format("Reached the end of getFirstReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength));
-        }
+        // Just before exiting, check we are returning something. We should always return something if we coded this correctly.
+        assert result != null : String.format("Reached the end of getFirstReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength);
+        return result;
     }
 
     private ReadResultEntryBase getRedirectedReadResultEntry(long streamSegmentOffset, int maxLength, RedirectReadIndexEntry entry) {
@@ -463,16 +492,19 @@ class StreamSegmentReadIndex implements AutoCloseable {
         }
 
         ReadResultEntryBase result = redirectedIndex.getFirstReadResultEntry(redirectOffset, maxLength);
-        result.adjustOffset(entry.getStreamSegmentOffset());
+        if (result != null) {
+            result.adjustOffset(entry.getStreamSegmentOffset());
+        }
+
         return result;
     }
 
     /**
      * Creates a ReadResultEntry that is a placeholder for data that is not currently available in memory.
      *
-     * @param streamSegmentOffset
-     * @param maxLength
-     * @return
+     * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
+     * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
+     * @return The result.
      */
     private ReadResultEntryBase createDataNotAvailableRead(long streamSegmentOffset, int maxLength) {
         long storageLength = this.metadata.getStorageLength();
@@ -493,10 +525,10 @@ class StreamSegmentReadIndex implements AutoCloseable {
     /**
      * Creates a ReadResultEntry for data that is readily available in memory.
      *
-     * @param entry
-     * @param streamSegmentOffset
-     * @param maxLength
-     * @return
+     * @param entry               The CacheReadIndexEntry to use.
+     * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
+     * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
+     * @return The result.
      */
     private ReadResultEntryBase createMemoryRead(CacheReadIndexEntry entry, long streamSegmentOffset, int maxLength) {
         assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
@@ -514,22 +546,57 @@ class StreamSegmentReadIndex implements AutoCloseable {
     /**
      * Creates a ReadResultEntry that is a placeholder for data that is not in memory, but exists in Storage.
      *
-     * @param streamSegmentOffset
-     * @param readLength
-     * @return
+     * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
+     * @param readLength          The maximum length of the Read, from the Offset of this ReadResultEntry.
+     * @return The result.
      */
     private ReadResultEntryBase createStorageRead(long streamSegmentOffset, int readLength) {
-        // TODO: implement Storage Reads.
-        return new StorageReadResultEntry(streamSegmentOffset, readLength, null);
+        return new StorageReadResultEntry(streamSegmentOffset, readLength, this::queueStorageRead);
+    }
+
+    private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
+        // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
+        Consumer<StorageReader.Result> doneCallback = result -> {
+            if (!result.isDerived()) {
+                // Only insert primary results into the cache. Derived results are always sub-portions of primaries
+                // and there is no need to insert them too, as they are already contained within.
+                insert(offset, result.getData());
+            }
+
+            ByteArraySegment data = result.getData();
+            successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
+        };
+
+        // Queue the request for async processing.
+        length = getReadAlignedLength(offset, length);
+        this.storageReader.execute(new StorageReader.Request(offset, length, doneCallback, failureCallback, timeout));
+    }
+
+    /**
+     * Returns an adjusted read length based on the given input, making sure the end of the Read Request is aligned with
+     * a multiple of STORAGE_READ_MAX_LEN.
+     *
+     * @param offset     The read offset.
+     * @param readLength The requested read length.
+     * @return The adjusted (aligned) read length.
+     */
+    private int getReadAlignedLength(long offset, int readLength) {
+        // Calculate how many bytes over the last alignment marker the offset is.
+        int lengthSinceLastMultiple = (int) (offset % this.config.getStorageReadMaxLength());
+
+        // Even though we were asked to read a number of bytes, in some cases we will return fewer bytes than requested
+        // in order to read-align the reads. Calculate the aligned read length, taking into account the Max and Min
+        // number of bytes we are allowed to read.
+        return Math.min(readLength, Math.max(this.config.getStorageReadMinLength(), this.config.getStorageReadMaxLength() - lengthSinceLastMultiple));
     }
 
     /**
      * Creates a ReadResultEntry that is a placeholder for data that is not in memory, or in storage, which has
      * a starting offset beyond the length of the StreamSegment.
      *
-     * @param streamSegmentOffset
-     * @param maxLength
-     * @return
+     * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
+     * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
+     * @return The result.
      */
     private ReadResultEntryBase createFutureRead(long streamSegmentOffset, int maxLength) {
         FutureReadResultEntry entry = new FutureReadResultEntry(streamSegmentOffset, maxLength);
@@ -542,14 +609,14 @@ class StreamSegmentReadIndex implements AutoCloseable {
      * entries have their offsets adjusted by the given amount.
      *
      * @param offsetAdjustment The amount to adjust the offset by.
-     * @return
+     * @return The result.
      */
     private List<CacheReadIndexEntry> getAllEntries(long offsetAdjustment) {
         Exceptions.checkArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");
 
         synchronized (this.lock) {
-            ArrayList<CacheReadIndexEntry> result = new ArrayList<>(this.entries.size());
-            for (ReadIndexEntry entry : this.entries.values()) {
+            ArrayList<CacheReadIndexEntry> result = new ArrayList<>(this.indexEntries.size());
+            for (ReadIndexEntry entry : this.indexEntries.values()) {
                 if (entry instanceof CacheReadIndexEntry) {
                     result.add(((CacheReadIndexEntry) entry).withAdjustedOffset(offsetAdjustment));
                 }

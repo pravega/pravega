@@ -26,6 +26,7 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import javax.annotation.concurrent.GuardedBy;
 
@@ -59,6 +61,9 @@ public class ContainerReadIndex implements ReadIndex {
     @GuardedBy("lock")
     private final Object lock = new Object();
     private final Cache cache;
+    private final ReadOnlyStorage storage;
+    private final Executor executor;
+    private final ReadIndexConfig config;
     private ContainerMetadata metadata;
     @GuardedBy("lock")
     private ContainerMetadata preRecoveryMetadata;
@@ -72,17 +77,27 @@ public class ContainerReadIndex implements ReadIndex {
     /**
      * Creates a new instance of the ContainerReadIndex class.
      *
+     * @param config   Configuration for the ReadIndex.
      * @param metadata The ContainerMetadata to attach to.
      * @param cache    The cache to store data into.
+     * @param storage  Storage to read data not in the ReadIndex from.
+     * @param executor An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ContainerMetadata metadata, Cache cache) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, Executor executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(cache, "storage");
+        Preconditions.checkNotNull(cache, "executor");
         Preconditions.checkArgument(!metadata.isRecoveryMode(), "Given ContainerMetadata is in Recovery Mode.");
+
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
+        this.config = config;
         this.cache = cache;
         this.metadata = metadata;
+        this.storage = storage;
+        this.executor = executor;
         this.preRecoveryMetadata = null;
     }
 
@@ -277,7 +292,7 @@ public class ContainerReadIndex implements ReadIndex {
             Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId", "StreamSegmentId {} does not exist in the metadata.", streamSegmentId);
             Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId", "StreamSegmentId {} exists in the metadata but is marked as deleted.", streamSegmentId);
 
-            index = new StreamSegmentReadIndex(segmentMetadata, this.cache, isRecoveryMode());
+            index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cache, this.storage, this.executor, isRecoveryMode());
             this.readIndices.put(streamSegmentId, index);
         }
 

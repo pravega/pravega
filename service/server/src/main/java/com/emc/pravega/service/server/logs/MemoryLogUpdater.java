@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
@@ -95,10 +96,12 @@ class MemoryLogUpdater {
             if (operation instanceof StorageOperation) {
                 this.cacheUpdater.addToReadIndex((StorageOperation) operation);
             }
-        } catch (Exception | Error ex) {
-            if (cacheKey != null) {
-                // Cleanup the cache after failing to process an operation that did process something to the cache.
-                this.cacheUpdater.removeFromCache(cacheKey);
+        } catch (Throwable ex) {
+            if (!ExceptionHelpers.mustRethrow(ex)) {
+                if (cacheKey != null) {
+                    // Cleanup the cache after failing to process an operation that did process something to the cache.
+                    this.cacheUpdater.removeFromCache(cacheKey);
+                }
             }
 
             throw ex;
@@ -138,8 +141,12 @@ class MemoryLogUpdater {
             assert operation instanceof StreamSegmentAppendOperation : "non-null CacheKey, but operation is not a StreamSegmentAppendOperation";
             try {
                 operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation, key);
-            } catch (Exception | Error ex) {
-                throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+            } catch (Throwable ex) {
+                if (ExceptionHelpers.mustRethrow(ex)) {
+                    throw ex;
+                } else {
+                    throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+                }
             }
         }
 
