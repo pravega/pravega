@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.mocks;
 
 import com.emc.pravega.cluster.Cluster;
 import com.emc.pravega.cluster.ClusterImpl;
+import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -59,7 +60,12 @@ public class InMemoryServiceBuilder extends ServiceBuilder {
 
     @Override
     protected Cluster createCluster() {
-        return new ClusterImpl();
+        try {
+            return new ClusterImpl(ConfigSyncManagerType.DUMMY, this.serviceBuilderConfig.getServiceConfig().getZKConnectString(),
+                    -                    this.serviceBuilderConfig.getServiceConfig().getZKClusterTimeoutMS());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
 }
