@@ -32,7 +32,7 @@ public class SegmentFutures {
     // current segments to read from or write to
     private List<Integer> current;
 
-    // future segments to read from or write to when curent segment is completely read (consumer) or sealed (producer)
+    // future segments to read from or write to when current segment is completely read (consumer) or sealed (producer)
     private Map<Integer, Integer> futures;
 
     SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
