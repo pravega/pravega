@@ -444,6 +444,7 @@ class SegmentAggregator implements AutoCloseable {
      * @throws IllegalArgumentException If the operation has an undefined Offset or Length (these are not considered data-
      *                                  corrupting issues).
      */
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private void checkOffset(StorageOperation operation, boolean isMergeBatchForThisSegment) throws DataCorruptionException {
         // Verify operation offset against the lastAddedOffset (whether the last Op in the list or StorageLength).
         long offset = operation.getStreamSegmentOffset();
@@ -480,6 +481,7 @@ class SegmentAggregator implements AutoCloseable {
             }
 
             requiresSealedSegment = true;
+
             // Even though not an offset, we should still verify that the metadata actually thinks this is a sealed segment.
             if (!this.metadata.isSealed()) {
                 throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
@@ -498,11 +500,9 @@ class SegmentAggregator implements AutoCloseable {
             requiresSealedSegment = true;
         }
 
-        if (requiresSealedSegment) {
+        if (requiresSealedSegment && !this.metadata.isSealed()) {
             // Even though not an offset, we should still verify that the metadata actually thinks this is a sealed segment.
-            if (!this.metadata.isSealed()) {
-                throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
-            }
+            throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
         }
     }
 

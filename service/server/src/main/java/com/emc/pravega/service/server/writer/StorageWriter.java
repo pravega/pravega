@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.MathHelpers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -325,6 +326,7 @@ class StorageWriter extends AbstractService implements Writer {
         checkRunning();
 
         ArrayList<CompletableFuture<FlushResult>> mergeResults = new ArrayList<>();
+        ArrayList<Long> mergedSegments = new ArrayList<>();
         for (SegmentAggregator aggregator : this.aggregators.values()) {
             if (aggregator.getMetadata().getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID || !aggregator.canMerge()) {
                 // Not a batch or a a batch that is not yet ready to merge.
@@ -340,13 +342,21 @@ class StorageWriter extends AbstractService implements Writer {
                         .mergeWith(aggregator, this.storage, MERGE_TIMEOUT)
                         .thenApplyAsync(result -> {
                             updateMetadataPostMerge(aggregator);
+
+                            // Close & remove the SegmentAggregator from our map.
+                            aggregator.close();
+                            synchronized (mergedSegments) {
+                                mergedSegments.add(aggregator.getMetadata().getId());
+                            }
+
                             return result;
                         }, this.executor);
                 mergeResults.add(mergeFuture);
             }
         }
 
-        return completeStage(mergeResults, "Merge");
+        return completeStage(mergeResults, "Merge")
+                .thenRun(() -> mergedSegments.forEach(this.aggregators::remove));
     }
 
     /**
@@ -365,12 +375,6 @@ class StorageWriter extends AbstractService implements Writer {
         assert batchSegmentMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID : "given batchSegmentAggregator does not refer to a batch Segment";
         assert batchSegmentMetadata.isMerged() : "given batchSegmentAggregator does not refer to a merged batch Segment";
         assert batchSegmentMetadata.isDeleted() : "given batchSegmentAggregator does not refer to a deleted Segment";
-
-        // Close & remove the SegmentAggregator from our map.
-        batchSegmentAggregator.close();
-        synchronized (this.aggregators) {
-            this.aggregators.remove(batchSegmentMetadata.getId());
-        }
 
         // Delete the batch StreamSegment from the metadata.
         this.containerMetadata.deleteStreamSegment(batchSegmentMetadata.getName());
@@ -431,24 +435,17 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {
         SegmentAggregator result;
-        boolean needsInitialization = false;
-        synchronized (this.aggregators) {
-            result = this.aggregators.getOrDefault(streamSegmentId, null);
-            if (result == null) {
-                // We do not yet have this aggregator. First, get its metadata.
-                UpdateableSegmentMetadata segmentMetadata = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
-                if (segmentMetadata == null) {
-                    throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId));
-                }
-
-                // Then create the aggregator.
-                result = new SegmentAggregator(segmentMetadata, this.config, this.stopwatch);
-                this.aggregators.put(streamSegmentId, result);
-                needsInitialization = true;
+        result = this.aggregators.getOrDefault(streamSegmentId, null);
+        if (result == null) {
+            // We do not yet have this aggregator. First, get its metadata.
+            UpdateableSegmentMetadata segmentMetadata = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+            if (segmentMetadata == null) {
+                throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the metadata.", streamSegmentId));
             }
-        }
 
-        if (needsInitialization) {
+            // Then create the aggregator.
+            result = new SegmentAggregator(segmentMetadata, this.config, this.stopwatch);
+            this.aggregators.put(streamSegmentId, result);
             result.initialize(this.storage, GENERAL_TIMEOUT).join();
         }
 
@@ -460,14 +457,39 @@ class StorageWriter extends AbstractService implements Writer {
                 || ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
     }
 
+    /**
+     * Calculates the amount of time until the first SegmentAggregator will expire (needs to flush). If no Aggregator
+     * is registered, a default (large) value is returned.
+     *
+     * @return The calculated value.
+     */
     private Duration getReadTimeout() {
-        //TODO: calculate the time until the first Aggregated Buffer expires (needs to flush), or, if no such thing, the default value (30 mins).
-        return this.config.getFlushThresholdTime();
+        // Find the minimum expiration time among all SegmentAggregators.
+        long timeMillis = this.config.getMaxReadTimeout().toMillis();
+        long minTimeMillis = this.config.getMinReadTimeout().toMillis();
+        for (SegmentAggregator a : this.aggregators.values()) {
+            if (a.mustFlush()) {
+                // We found a SegmentAggregator that needs to flush right away. No need to search anymore.
+                timeMillis = 0;
+                continue;
+            }
+
+            timeMillis = MathHelpers.minMax(this.config.getFlushThresholdTime().minus(a.getElapsedSinceLastFlush()).toMillis(), minTimeMillis, timeMillis);
+        }
+
+        return Duration.ofMillis(timeMillis);
     }
 
-    private CompletableFuture<Void> completeStage(Collection<CompletableFuture<FlushResult>> partialFlushes, String stageName) {
+    /**
+     * Waits for all the stage components to finish, aggregates their results, and logs the stage completion event in the log.
+     *
+     * @param stageComponents The stage components to wait for.
+     * @param stageName       The name of the stage (used for logging)
+     * @return A CompletableFuture that will complete (or fail) when all the stage components complete, or any fails.
+     */
+    private CompletableFuture<Void> completeStage(Collection<CompletableFuture<FlushResult>> stageComponents, String stageName) {
         return FutureHelpers
-                .allOfWithResults(partialFlushes)
+                .allOfWithResults(stageComponents)
                 .thenAccept(flushResults -> {
                     StageResult result = new StageResult();
                     flushResults.forEach(r -> result.addBytes(r.getLength()));
@@ -484,6 +506,8 @@ class StorageWriter extends AbstractService implements Writer {
             throw new CancellationException("StorageWriter has been stopped.");
         }
     }
+
+    //region StageResult
 
     private static class StageResult {
         int count;
@@ -503,7 +527,7 @@ class StorageWriter extends AbstractService implements Writer {
     private static class InputReadStageResult extends StageResult {
         private final WriterState state;
 
-        InputReadStageResult(WriterState state){
+        InputReadStageResult(WriterState state) {
             this.state = state;
         }
 
@@ -512,4 +536,6 @@ class StorageWriter extends AbstractService implements Writer {
             return String.format("%s, LastReadSN=%d", super.toString(), this.state.getLastReadSequenceNumber());
         }
     }
+
+    //endregion
 }

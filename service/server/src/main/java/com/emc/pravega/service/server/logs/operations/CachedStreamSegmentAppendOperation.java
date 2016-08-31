@@ -86,7 +86,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     //region Operation Implementation
 
     @Override
-    public long getStreamSegmentOffset(){
+    public long getStreamSegmentOffset() {
         return this.cacheKey.getOffset();
     }
 

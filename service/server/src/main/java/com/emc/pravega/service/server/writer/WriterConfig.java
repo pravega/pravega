@@ -36,14 +36,20 @@ public class WriterConfig extends ComponentConfig {
     public static final String PROPERTY_FLUSH_THRESHOLD_BYTES = "flushThresholdBytes";
     public static final String PROPERTY_FLUSH_THRESHOLD_MILLIS = "flushThresholdMillis";
     public static final String PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE = "maxItemsToReadAtOnce";
+    public static final String PROPERTY_MIN_READ_TIMEOUT_MILLIS = "minReadTimeoutMillis";
+    public static final String PROPERTY_MAX_READ_TIMEOUT_MILLIS = "maxReadTimeoutMillis";
 
     private static final int DEFAULT_FLUSH_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4MB
     private static final int DEFAULT_FLUSH_THRESHOLD_MILLIS = 30 * 1000; // 30s
     private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 100;
+    private static final int DEFAULT_MIN_READ_TIMEOUT_MILLIS = 2 * 1000; // 2s
+    private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 60s
 
     private int flushThresholdBytes;
     private Duration flushThresholdTime;
     private int maxItemsToReadAtOnce;
+    private Duration minReadTimeout;
+    private Duration maxReadTimeout;
 
     //endregion
 
@@ -93,6 +99,24 @@ public class WriterConfig extends ComponentConfig {
         return this.maxItemsToReadAtOnce;
     }
 
+    /**
+     * Gets a value indicating the minimum timeout to supply to the WriterDataSource.read() method.
+     *
+     * @return The result.
+     */
+    public Duration getMinReadTimeout() {
+        return this.minReadTimeout;
+    }
+
+    /**
+     * Gets a value indicating the maximum timeout to supply to the WriterDataSource.read() method.
+     *
+     * @return The result.
+     */
+    public Duration getMaxReadTimeout() {
+        return this.maxReadTimeout;
+    }
+
     //endregion
 
     //region ComponentConfig Implementation
@@ -111,6 +135,19 @@ public class WriterConfig extends ComponentConfig {
         if (this.maxItemsToReadAtOnce <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
         }
+
+        long minReadTimeoutMillis = getInt64Property(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
+        long maxReadTimeoutMillis = getInt64Property(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
+        if (minReadTimeoutMillis < 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
+        }
+
+        if (minReadTimeoutMillis > maxReadTimeoutMillis) {
+            throw new ConfigurationException(String.format("Property '%s' must be smaller than or equal to '%s'.", PROPERTY_MIN_READ_TIMEOUT_MILLIS, PROPERTY_MAX_READ_TIMEOUT_MILLIS));
+        }
+
+        this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
+        this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
     }
 
     //endregion
