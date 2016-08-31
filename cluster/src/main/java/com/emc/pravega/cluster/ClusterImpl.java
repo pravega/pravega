@@ -33,18 +33,19 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
     private final ConcurrentHashMap<Endpoint, PravegaNode> nodes;
     private final ConcurrentHashMap<Endpoint, PravegaController> controllers;
     private final ConcurrentHashMap<String, ClusterListener> listeners;
+    private final ConfigSyncManagerType syncType;
+    private final String connectionString;
+    private final int sessionTimeout;
     private ConfigSyncManager manager;
 
-    public ClusterImpl() {
+    public ClusterImpl(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws Exception {
         nodes = new ConcurrentHashMap<>();
         controllers = new ConcurrentHashMap<>();
         listeners = new ConcurrentHashMap<>();
-        manager = null;
-    }
-
-    public ClusterImpl(ConfigSyncManagerType syncType, String connectionString, int sessionTimeout) throws Exception {
-        this();
-        initializeCluster(syncType, connectionString, sessionTimeout);
+        this.syncType = syncType;
+        this.connectionString = connectionString;
+        this.sessionTimeout = sessionTimeout;
+        initializeCluster();
     }
 
     /**
@@ -80,13 +81,8 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
     /**
      * Initializes the cluster with a given config manager type
      *
-     * @param syncType         Type of the config manager
-     * @param connectionString String used to connect to the config manager
-     * @param sessionTimeout   Session timeout for the connection
      */
-    @Override
-    public synchronized void initializeCluster(ConfigSyncManagerType syncType, String connectionString,
-                                               int sessionTimeout) throws Exception {
+    private  synchronized void initializeCluster() throws Exception {
         if (manager == null) {
             manager = new ConfigSyncManagerFactory().createManager(syncType, connectionString,
                     sessionTimeout, this);

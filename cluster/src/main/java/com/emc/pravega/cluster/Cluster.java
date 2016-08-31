@@ -18,8 +18,6 @@
 
 package com.emc.pravega.cluster;
 
-import com.emc.pravega.cluster.zkutils.abstraction.ConfigSyncManagerType;
-
 /**
  * This class represents a Pravega cluster.
  * A Pravega cluster contains a number of Pravega nodes and controller nodes.
@@ -53,16 +51,6 @@ public interface Cluster {
      * @return
      */
     Iterable<ClusterListener> getListeners();
-
-    /**
-     * Initializes the cluster with a given config manager type
-     *
-     * @param syncType         Type of the config manager
-     * @param connectionString String used to connect to the config manager
-     * @param sessionTimeout   Session timeout for the connection
-     */
-    void initializeCluster(ConfigSyncManagerType syncType, String connectionString,
-                                               int sessionTimeout) throws Exception;
 
     /**
      * Reads the complete cluster from the store and updates the existing data.
