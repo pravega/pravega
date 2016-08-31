@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.logs;
+package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.service.server.Container;
+import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.logs.operations.Operation;
 
 import java.time.Duration;
@@ -26,31 +26,21 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines a Sequential Log made of Log Operations.
+ * Defines a Data Source for a StorageWriter
  */
-public interface OperationLog extends Container {
+public interface WriterDataSource {
     /**
-     * Adds a new Operation to the log.
+     * Acknowledges that all Operations with Sequence Numbers up to and including the given one have been successfully committed.
      *
-     * @param operation The Operation to append.
-     * @param timeout   Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the Sequence for the Operation. If the entry failed to
-     * be added, this Future will complete with the appropriate exception.
-     */
-    CompletableFuture<Long> add(Operation operation, Duration timeout);
-
-    /**
-     * Truncates the log up to the given sequence.
-     *
-     * @param upToSequence The Sequence up to where to truncate.
+     * @param upToSequence The Sequence up to where to acknowledge.
      * @param timeout      The timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the truncation completed. If the operation
+     * @return A CompletableFuture that, when completed, will indicate that the acknowledgment completed. If the operation
      * failed, this Future will complete with the appropriate exception.
      */
-    CompletableFuture<Void> truncate(long upToSequence, Duration timeout);
+    CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout);
 
     /**
-     * Reads a number of entries from the log.
+     * Reads a number of entries from the Data Source.
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.
      * @param maxCount      The maximum number of entries to read.
@@ -59,5 +49,20 @@ public interface OperationLog extends Container {
      * failed, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout);
-}
 
+    /**
+     * Indicates that the given sourceStreamSegmentId is merged into the given targetStreamSegmentId.
+     *
+     * @param targetStreamSegmentId The Id of the StreamSegment to merge into.
+     * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
+     */
+    void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId);
+
+    /**
+     * Gets the contents of a CacheKey from the cache.
+     *
+     * @param key The key to search by.
+     * @return The payload associated with the key, or null if no such entry exists.
+     */
+    byte[] get(CacheKey key);
+}

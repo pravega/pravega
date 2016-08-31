@@ -21,14 +21,14 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
+import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.MemoryOperationLog;
-import com.emc.pravega.service.server.logs.OperationLog;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.storage.Cache;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.val;
 
 import java.time.Duration;
@@ -36,21 +36,24 @@ import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Light-weight version of the DurableLog that only stores operations in memory and does not depend on any other component,
- * unlike the real DurableLog that requires a lot more components to process.
+ * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
+ * depends on a metadata and a cache as external dependencies.
  * <p>
  * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except recording truncation markers & Sequence Numbers).
  * All other changes (Segment-based) must be done externally.
  */
-class LightWeightDurableLog extends AbstractIdleService implements OperationLog {
+class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Members
 
     private final UpdateableContainerMetadata metadata;
     private final MemoryOperationLog log;
+    private final Cache cache;
     private Consumer<TruncationArgs> truncationCallback;
+    private BiConsumer<Long, Long> completeMergeCallback;
     private final Executor executor;
     private final boolean autoAssignSequenceNumbers;
     private CompletableFuture<Void> addProcessed;
@@ -60,14 +63,17 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
 
     //region Constructor
 
-    LightWeightDurableLog(UpdateableContainerMetadata metadata, Executor executor) {
-        this(metadata, executor, true);
+    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, Executor executor) {
+        this(metadata, cache, executor, true);
     }
 
-    LightWeightDurableLog(UpdateableContainerMetadata metadata, Executor executor, boolean autoAssignSequenceNumbers) {
+    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, Executor executor, boolean autoAssignSequenceNumbers) {
         Preconditions.checkNotNull(metadata, "metadata");
+        Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(executor, "executor");
+
         this.metadata = metadata;
+        this.cache = cache;
         this.executor = executor;
         this.autoAssignSequenceNumbers = autoAssignSequenceNumbers;
         this.log = new MemoryOperationLog();
@@ -75,26 +81,7 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
 
     //endregion
 
-    //region AbstractIdleService Implementation
-
-    @Override
-    protected void startUp() throws Exception {
-        // This method intentionally left blank.
-    }
-
-    @Override
-    protected void shutDown() throws Exception {
-        // This method intentionally left blank.
-    }
-
-    //endregion
-
-    //region OperationLog Implementation
-
-    @Override
-    public int getId() {
-        return this.metadata.getContainerId();
-    }
+    //region AutoCloseable Implementation
 
     @Override
     public void close() {
@@ -114,34 +101,35 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
         }
     }
 
-    @Override
-    public CompletableFuture<Long> add(Operation operation, Duration timeout) {
+    //endregion
+
+    //region WriterDataSource Implementation
+
+    public long add(Operation operation) {
         Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture.supplyAsync(() -> {
-            AtomicLong seqNo = new AtomicLong(operation.getSequenceNumber());
-            if (this.autoAssignSequenceNumbers) {
-                Preconditions.checkArgument(seqNo.get() < 0, "Cannot auto-assign sequence numbers if the operation already has one.");
-                seqNo.set(this.metadata.nextOperationSequenceNumber());
-                operation.setSequenceNumber(seqNo.get());
-            } else {
-                Preconditions.checkArgument(seqNo.get() >= 0, "Given operation has no sequence number and auto-assign is not enabled.");
-            }
+        AtomicLong seqNo = new AtomicLong(operation.getSequenceNumber());
+        if (this.autoAssignSequenceNumbers) {
+            Preconditions.checkArgument(seqNo.get() < 0, "Cannot auto-assign sequence numbers if the operation already has one.");
+            seqNo.set(this.metadata.nextOperationSequenceNumber());
+            operation.setSequenceNumber(seqNo.get());
+        } else {
+            Preconditions.checkArgument(seqNo.get() >= 0, "Given operation has no sequence number and auto-assign is not enabled.");
+        }
 
-            if (!this.log.addIf(operation, previous -> previous.getSequenceNumber() < seqNo.get())) {
-                throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
-            }
+        if (!this.log.addIf(operation, previous -> previous.getSequenceNumber() < seqNo.get())) {
+            throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
+        }
 
-            if (operation instanceof MetadataCheckpointOperation) {
-                this.metadata.recordTruncationMarker(seqNo.get(), seqNo.get());
-            }
+        if (operation instanceof MetadataCheckpointOperation) {
+            this.metadata.recordTruncationMarker(seqNo.get(), seqNo.get());
+        }
 
-            notifyAddProcessed();
-            return seqNo.get();
-        }, this.executor);
+        notifyAddProcessed();
+        return seqNo.get();
     }
 
     @Override
-    public CompletableFuture<Void> truncate(long upToSequenceNumber, Duration timeout) {
+    public CompletableFuture<Void> acknowledge(long upToSequenceNumber, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation Point. Must refer to a MetadataCheckpointOperation.");
 
@@ -169,8 +157,21 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
         } else {
             // Result is not yet available; wait for an add and then retry the read.
             return waitForAdd(afterSequenceNumber)
-                    .thenComposeAsync(v -> this.read(afterSequenceNumber, maxCount, timeout));
+                    .thenComposeAsync(v -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
         }
+    }
+
+    @Override
+    public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+        BiConsumer<Long, Long> callback = this.completeMergeCallback;
+        if (callback != null) {
+            callback.accept(targetStreamSegmentId, sourceStreamSegmentId);
+        }
+    }
+
+    @Override
+    public byte[] get(CacheKey key) {
+        return new byte[0];
     }
 
     //endregion
@@ -180,10 +181,19 @@ class LightWeightDurableLog extends AbstractIdleService implements OperationLog 
     /**
      * Sets a callback that will invoked on every call to truncate.
      *
-     * @param truncationCallback The callback to set.
+     * @param callback The callback to set.
      */
-    public void setTruncationCallback(Consumer<TruncationArgs> truncationCallback) {
-        this.truncationCallback = truncationCallback;
+    public void setTruncationCallback(Consumer<TruncationArgs> callback) {
+        this.truncationCallback = callback;
+    }
+
+    /**
+     * Sets a callback that will invoked on every call to completeMerge.
+     *
+     * @param callback The callback to set.
+     */
+    public void setCompleteMergeCallback(BiConsumer<Long, Long> callback) {
+        this.completeMergeCallback = callback;
     }
 
     //endregion

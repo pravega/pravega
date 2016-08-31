@@ -28,7 +28,8 @@ class WriterState {
     //region Members
 
     private long lastReadSequenceNumber;
-    private long lowestUncommitedSequenceNumber;
+    private long lowestUncommittedSequenceNumber;
+    private long lastTruncatedSequenceNumber;
 
     //endregion
 
@@ -39,12 +40,31 @@ class WriterState {
      */
     WriterState() {
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-        this.lowestUncommitedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
+        this.lowestUncommittedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
     }
 
     //endregion
 
     //region Properties
+
+    /**
+     * Gets a value indicating the Sequence Number of the last Truncated Operation.
+     *
+     * @return The result.
+     */
+    long getLastTruncatedSequenceNumber() {
+        return this.lastTruncatedSequenceNumber;
+    }
+
+    /**
+     * Sets the Sequence Number of the last Truncated Operation.
+     *
+     * @param value The Sequence Number to set.
+     */
+    void setLastTruncatedSequenceNumber(long value) {
+        Preconditions.checkArgument(value >= this.lastTruncatedSequenceNumber, "New LastTruncatedSequenceNumber cannot be smaller than the previous one.");
+        this.lastTruncatedSequenceNumber = value;
+    }
 
     /**
      * Gets a value indicating the Sequence Number of the last read Operation (from the Operation Log).
@@ -72,7 +92,7 @@ class WriterState {
      * @return The result.
      */
     long getLowestUncommittedSequenceNumber() {
-        return this.lowestUncommitedSequenceNumber;
+        return this.lowestUncommittedSequenceNumber;
     }
 
     /**
@@ -80,15 +100,15 @@ class WriterState {
      *
      * @param value The Sequence Number to set.
      */
-    void setLowestUncommitedSequenceNumber(long value) {
-        Preconditions.checkArgument(value >= this.lowestUncommitedSequenceNumber, "New lowestUncommitedSequenceNumber cannot be smaller than the previous one.");
-        Preconditions.checkArgument(value <= this.lastReadSequenceNumber, "New lowestUncommitedSequenceNumber cannot be larger than lastReadSequenceNumber.");
-        this.lowestUncommitedSequenceNumber = value;
+    void setLowestUncommittedSequenceNumber(long value) {
+        Preconditions.checkArgument(value >= this.lowestUncommittedSequenceNumber, "New lowestUncommittedSequenceNumber cannot be smaller than the previous one.");
+        Preconditions.checkArgument(value <= this.lastReadSequenceNumber, "New lowestUncommittedSequenceNumber cannot be larger than lastReadSequenceNumber.");
+        this.lowestUncommittedSequenceNumber = value;
     }
 
     @Override
     public String toString() {
-        return String.format("LastRead = %d, HighestCommitted = %d", this.lastReadSequenceNumber, this.lowestUncommitedSequenceNumber);
+        return String.format("LastRead = %d, HighestCommitted = %d", this.lastReadSequenceNumber, this.lowestUncommittedSequenceNumber);
     }
 
     //endregion

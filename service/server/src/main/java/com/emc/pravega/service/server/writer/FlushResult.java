@@ -24,10 +24,10 @@ import com.google.common.base.Preconditions;
  * Represents the result of a Storage Flush Operation.
  */
 class FlushResult {
-    private final int length;
+    private long length;
 
-    FlushResult(int length) {
-        Preconditions.checkArgument(length >= 0, "length must be a positive integer");
+    FlushResult(long length) {
+        Preconditions.checkArgument(length >= 0, "length must be a positive number.");
         this.length = length;
     }
 
@@ -36,8 +36,16 @@ class FlushResult {
      *
      * @return The result
      */
-    public int getLength() {
+    long getLength() {
         return this.length;
+    }
+
+    /**
+     * Adds the given FlushResult to this one.
+     * @param flushResult
+     */
+    void add(FlushResult flushResult) {
+        this.length += flushResult.length;
     }
 
     @Override

@@ -18,8 +18,6 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.service.server.logs.OperationLog;
-import com.emc.pravega.service.server.writer.Writer;
 import com.emc.pravega.service.storage.Cache;
 
 /**
@@ -34,5 +32,5 @@ public interface WriterFactory {
      * @param cache             The cache to use.
      * @return An instance of a class that implements the Writer interface.
      */
-    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, Cache cache);
+    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache);
 }

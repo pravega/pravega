@@ -27,7 +27,6 @@ import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
-import com.emc.pravega.service.server.logs.OperationLog;
 import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
@@ -58,8 +57,8 @@ public class StorageWriterTests {
     private static final int CONTAINER_ID = 1;
     private static final int SEGMENT_COUNT = 10;
     private static final int BATCHES_PER_SEGMENT = 2;
-    private static final int APPENDS_PER_SEGMENT = 5;
-    private static final int THREAD_POOL_SIZE = 50;
+    private static final int APPENDS_PER_SEGMENT = 1000;
+    private static final int THREAD_POOL_SIZE = 200;
     private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(1000, 1000);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -89,7 +88,7 @@ public class StorageWriterTests {
         // Seal the parents
         sealSegments(segmentIds, context);
 
-        Thread.sleep(2000);
+        Thread.sleep(5000);
     }
 
     private void mergeBatches(Iterable<Long> batchIds, TestContext context) {
@@ -111,7 +110,7 @@ public class StorageWriterTests {
             batchMetadata.markMerged();
 
             // Process the merge op
-            context.operationLog.add(op, TIMEOUT).join();
+            context.dataSource.add(op);
         }
     }
 
@@ -122,7 +121,7 @@ public class StorageWriterTests {
             StreamSegmentSealOperation sealOp = new StreamSegmentSealOperation(segmentId);
             sealOp.setStreamSegmentOffset(segmentMetadata.getDurableLogLength());
             sealOp.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
-            context.operationLog.add(sealOp, TIMEOUT).join();
+            context.dataSource.add(sealOp);
         }
     }
 
@@ -144,9 +143,9 @@ public class StorageWriterTests {
                 if (writeId % 2 == 0) {
                     CacheKey key = new CacheKey(segmentId, offset);
                     context.cache.insert(key, data);
-                    context.operationLog.add(new CachedStreamSegmentAppendOperation(op, key), TIMEOUT).join();
+                    context.dataSource.add(new CachedStreamSegmentAppendOperation(op, key));
                 } else {
-                    context.operationLog.add(op, TIMEOUT).join();
+                    context.dataSource.add(op);
                 }
 
                 recordAppend(segmentId, data, segmentContents);
@@ -179,7 +178,7 @@ public class StorageWriterTests {
             StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(name, TIMEOUT).join());
             mapOp.setStreamSegmentId((long) i);
             mapOp.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
-            context.operationLog.add(mapOp, TIMEOUT).join();
+            context.dataSource.add(mapOp);
         }
 
         return segmentIds;
@@ -203,7 +202,7 @@ public class StorageWriterTests {
                 BatchMapOperation mapOp = new BatchMapOperation(parentId, context.storage.getStreamSegmentInfo(batchName, TIMEOUT).join());
                 mapOp.setStreamSegmentId(batchId);
                 mapOp.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
-                context.operationLog.add(mapOp, TIMEOUT).join();
+                context.dataSource.add(mapOp);
 
                 batchId++;
             }
@@ -232,7 +231,7 @@ public class StorageWriterTests {
     private static class TestContext implements AutoCloseable {
         final CloseableExecutorService executor;
         final UpdateableContainerMetadata metadata;
-        final OperationLog operationLog;
+        final TestWriterDataSource dataSource;
         final Storage storage;
         final Cache cache;
         final StorageWriter writer;
@@ -242,14 +241,14 @@ public class StorageWriterTests {
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage(this.executor.get());
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
-            this.operationLog = new LightWeightDurableLog(this.metadata, this.executor.get(), false); // We assign sequence numbers manually.
-            this.writer = new StorageWriter(config, this.metadata, this.operationLog, this.storage, this.cache, this.executor.get());
+            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), false); // We assign sequence numbers manually.
+            this.writer = new StorageWriter(config, this.metadata, this.dataSource, this.storage, this.executor.get());
         }
 
         @Override
         public void close() {
             this.writer.close();
-            this.operationLog.close();
+            this.dataSource.close();
             this.cache.close();
             this.storage.close();
             this.executor.close();

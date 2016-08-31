@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.writer;
+package com.emc.pravega.service.server;
 
 import com.google.common.util.concurrent.Service;
 

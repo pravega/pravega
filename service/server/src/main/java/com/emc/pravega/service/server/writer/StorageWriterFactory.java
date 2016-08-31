@@ -18,14 +18,21 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.service.server.CacheKey;
+import com.emc.pravega.service.server.OperationLog;
+import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
-import com.emc.pravega.service.server.logs.OperationLog;
+import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 
+import java.time.Duration;
+import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
@@ -54,9 +61,51 @@ public class StorageWriterFactory implements WriterFactory {
     }
 
     @Override
-    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, Cache cache) {
+    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
         Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given containerMetadata and operationLog have different Container Ids.");
         Storage storage = this.storageFactory.getStorageAdapter();
-        return new StorageWriter(this.config, containerMetadata, operationLog, storage, cache, this.executor);
+        WriterDataSource dataSource = new StorageWriterDataSource(operationLog, readIndex, cache);
+        return new StorageWriter(this.config, containerMetadata, dataSource, storage, this.executor);
+    }
+
+    private static class StorageWriterDataSource implements WriterDataSource {
+        private final OperationLog operationLog;
+        private final Cache cache;
+        private final ReadIndex readIndex;
+
+        StorageWriterDataSource(OperationLog operationLog, ReadIndex readIndex, Cache cache) {
+            Preconditions.checkNotNull(operationLog, "operationLog");
+            Preconditions.checkNotNull(readIndex, "readIndex");
+            Preconditions.checkNotNull(cache, "cache");
+
+            this.operationLog = operationLog;
+            this.readIndex = readIndex;
+            this.cache = cache;
+        }
+
+        //region WriterDataSource Implementation
+
+        @Override
+        public CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout) {
+            return this.operationLog.truncate(upToSequence, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout) {
+            return this.operationLog.read(afterSequence, maxCount, timeout);
+        }
+
+        @Override
+        public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+            this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
+            this.readIndex.performGarbageCollection();
+        }
+
+        @Override
+        public byte[] get(CacheKey key) {
+            return this.cache.get(key);
+        }
+
+        //endregion
     }
 }
