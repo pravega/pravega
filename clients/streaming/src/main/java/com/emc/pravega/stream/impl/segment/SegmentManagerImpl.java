@@ -35,8 +35,10 @@ import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.RetriesExaustedException;
+import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Transaction.Status;
 import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.annotations.VisibleForTesting;
 
 import lombok.RequiredArgsConstructor;
@@ -46,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @VisibleForTesting
-public class SegmentManagerImpl implements SegmentManager {
+public class SegmentManagerImpl implements SegmentManager, StreamController {
 
     private final String endpoint;
     private final ConnectionFactory connectionFactory;
@@ -56,6 +58,11 @@ public class SegmentManagerImpl implements SegmentManager {
     public boolean createSegment(String name) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+            
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
             @Override
             public void wrongHost(WrongHost wrongHost) {
                 result.completeExceptionally(new NotImplementedException());
@@ -84,7 +91,7 @@ public class SegmentManagerImpl implements SegmentManager {
     @Override
     public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config)
             throws SegmentSealedException {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(connectionFactory, endpoint, UUID.randomUUID(), name);
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(this, connectionFactory, UUID.randomUUID(), name);
         try {
             result.getConnection();
         } catch (RetriesExaustedException e) {
@@ -95,7 +102,7 @@ public class SegmentManagerImpl implements SegmentManager {
 
     @Override
     public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(connectionFactory, endpoint, name);
+        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(this, connectionFactory, name);
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {
@@ -127,6 +134,11 @@ public class SegmentManagerImpl implements SegmentManager {
     @Override
     public Status checkTransactionStatus(UUID txId) {
         throw new NotImplementedException();
+    }
+
+    @Override
+    public String getEndpointForSegment(String segment) {
+        return endpoint;
     }
 
 }

@@ -113,4 +113,10 @@ public class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation");
     }
 
+    @Override
+    public void connectionDropped() {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
+
 }
