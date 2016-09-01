@@ -171,7 +171,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public byte[] get(CacheKey key) {
-        return new byte[0];
+        return this.cache.get(key);
     }
 
     //endregion

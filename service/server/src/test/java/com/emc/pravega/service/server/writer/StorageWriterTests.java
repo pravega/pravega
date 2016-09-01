@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 
 /**
@@ -55,8 +56,8 @@ import java.util.concurrent.Executors;
  */
 public class StorageWriterTests {
     private static final int CONTAINER_ID = 1;
-    private static final int SEGMENT_COUNT = 10;
-    private static final int BATCHES_PER_SEGMENT = 2;
+    private static final int SEGMENT_COUNT = 1;
+    private static final int BATCHES_PER_SEGMENT = 0;
     private static final int APPENDS_PER_SEGMENT = 1000;
     private static final int THREAD_POOL_SIZE = 200;
     private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(1000, 1000);
@@ -78,17 +79,19 @@ public class StorageWriterTests {
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         // Append data
-        appendData(segmentIds, segmentContents, context);
-        appendData(batchIds, segmentContents, context);
+        CompletableFuture.runAsync(() -> {
+            appendData(segmentIds, segmentContents, context);
+            appendData(batchIds, segmentContents, context);
 
-        // Merge batches
-        sealSegments(batchIds, context);
-        mergeBatches(batchIds, context);
+            // Merge batches
+            sealSegments(batchIds, context);
+            mergeBatches(batchIds, context);
 
-        // Seal the parents
-        sealSegments(segmentIds, context);
+            // Seal the parents
+            sealSegments(segmentIds, context);
+        }, context.executor.get()).join();
 
-        Thread.sleep(5000);
+        Thread.sleep(3000);
     }
 
     private void mergeBatches(Iterable<Long> batchIds, TestContext context) {

@@ -122,11 +122,9 @@ class StorageWriter extends AbstractService implements Writer {
     @Override
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed, this);
-        this.executor.execute(() -> {
-            runOneIteration();
-            notifyStarted();
-            log.info("{} Started.", this.traceObjectId);
-        });
+        notifyStarted();
+        this.executor.execute(this::runOneIteration);
+        log.info("{} Started.", this.traceObjectId);
     }
 
     @Override
@@ -174,7 +172,7 @@ class StorageWriter extends AbstractService implements Writer {
     private void runOneIteration() {
         assert this.currentIteration == null : "Another iteration is in progress";
         this.iterationId++;
-        log.debug("{}: Iteration[{}].Start.", this.traceObjectId, this.iterationId);
+        logStageEvent(null, "Start");
 
         // A Writer iteration is made of the following stages:
         // 1. Read data.
@@ -199,7 +197,6 @@ class StorageWriter extends AbstractService implements Writer {
      * @param ex      (Optional) An exception that was thrown during the execution of the iteration.
      */
     private void endOfIteration(Void ignored, Throwable ex) {
-        assert this.currentIteration != null : "No iteration is in progress";
         this.currentIteration = null;
         if (ex != null) {
             if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !isRunning()) {
@@ -208,17 +205,18 @@ class StorageWriter extends AbstractService implements Writer {
                 return;
             }
 
+            boolean critical = isCriticalError(ex);
             ExceptionHelpers.getRealException(ex).printStackTrace(System.err);
-            log.error("{}: Iteration[{}].Error. {}", this.traceObjectId, this.iterationId, ex);
-            System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.iterationId, ex));
-            if (isCriticalError(ex)) {
+            log.error("{}: Iteration[{}].Error[Critical={}]. {}", this.traceObjectId, this.iterationId, critical, ex);
+            System.out.println(String.format("%s: Iteration[%s].Error[Critical=%s]. %s", this.traceObjectId, this.iterationId, critical, ex));
+            if (critical) {
                 this.stopException.set(ex);
                 stopAsync();
                 return;
             }
         }
 
-        log.debug("{}: Iteration[{}].Finish.", this.traceObjectId, this.iterationId);
+        logStageEvent(null, "Finish");
         if (isRunning()) {
             runOneIteration();
         }
@@ -234,8 +232,13 @@ class StorageWriter extends AbstractService implements Writer {
      * @return A CompletableFuture that, when complete, will indicate that the read has been performed in its entirety.
      */
     private CompletableFuture<Iterator<Operation>> readData() {
-        Duration readTimeout = getReadTimeout();
-        return this.dataSource.read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout);
+        try {
+            Duration readTimeout = getReadTimeout();
+            return this.dataSource.read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout);
+        } catch (Throwable ex) {
+            // This is for synchronous exceptions; endOfIteration() will take care of this.
+            return FutureHelpers.failedFuture(ex);
+        }
     }
 
     /**
@@ -273,7 +276,7 @@ class StorageWriter extends AbstractService implements Writer {
             throw new RuntimeStreamingException(ex);
         }
 
-        logStageCompletion(result, "InputRead");
+        logStageEvent(result, "InputRead");
     }
 
     private void processMetadataOperation(MetadataOperation op) throws DataCorruptionException {
@@ -312,7 +315,7 @@ class StorageWriter extends AbstractService implements Writer {
         for (SegmentAggregator a : this.aggregators.values()) {
             if (a.mustFlush()) {
                 // We have a Segment that is ripe for flushing.
-                flushFutures.add(a.flush(this.storage, FLUSH_TIMEOUT));
+                flushFutures.add(a.flush(FLUSH_TIMEOUT, this.executor));
             }
         }
 
@@ -444,9 +447,9 @@ class StorageWriter extends AbstractService implements Writer {
             }
 
             // Then create the aggregator.
-            result = new SegmentAggregator(segmentMetadata, this.config, this.stopwatch);
+            result = new SegmentAggregator(segmentMetadata, this.storage, this.dataSource, this.config, this.stopwatch);
             this.aggregators.put(streamSegmentId, result);
-            result.initialize(this.storage, GENERAL_TIMEOUT).join();
+            result.initialize(GENERAL_TIMEOUT).join();
         }
 
         return result;
@@ -471,7 +474,7 @@ class StorageWriter extends AbstractService implements Writer {
             if (a.mustFlush()) {
                 // We found a SegmentAggregator that needs to flush right away. No need to search anymore.
                 timeMillis = 0;
-                continue;
+                break;
             }
 
             timeMillis = MathHelpers.minMax(this.config.getFlushThresholdTime().minus(a.getElapsedSinceLastFlush()).toMillis(), minTimeMillis, timeMillis);
@@ -493,12 +496,20 @@ class StorageWriter extends AbstractService implements Writer {
                 .thenAccept(flushResults -> {
                     StageResult result = new StageResult();
                     flushResults.forEach(r -> result.addBytes(r.getLength()));
-                    logStageCompletion(result, stageName);
+                    if (result.bytes + result.count > 0) {
+                        logStageEvent(result, stageName);
+                    }
                 });
     }
 
-    private void logStageCompletion(StageResult result, String stageName) {
-        log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.iterationId, stageName, result);
+    private void logStageEvent(StageResult result, String stageName) {
+        if (result == null) {
+            log.debug("{}: Iteration[{}].{}.", this.traceObjectId, this.iterationId, stageName);
+            System.out.println(String.format("%s: Iteration[%s].%s.", this.traceObjectId, this.iterationId, stageName));
+        } else {
+            log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.iterationId, stageName, result);
+            System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.iterationId, stageName, result));
+        }
     }
 
     private void checkRunning() {

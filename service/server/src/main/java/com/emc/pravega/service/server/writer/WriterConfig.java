@@ -35,18 +35,21 @@ public class WriterConfig extends ComponentConfig {
     public final static String COMPONENT_CODE = "writer";
     public static final String PROPERTY_FLUSH_THRESHOLD_BYTES = "flushThresholdBytes";
     public static final String PROPERTY_FLUSH_THRESHOLD_MILLIS = "flushThresholdMillis";
+    public static final String PROPERTY_MAX_FLUSH_SIZE_BYTES = "maxFlushSizeBytes";
     public static final String PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE = "maxItemsToReadAtOnce";
     public static final String PROPERTY_MIN_READ_TIMEOUT_MILLIS = "minReadTimeoutMillis";
     public static final String PROPERTY_MAX_READ_TIMEOUT_MILLIS = "maxReadTimeoutMillis";
 
     private static final int DEFAULT_FLUSH_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4MB
     private static final int DEFAULT_FLUSH_THRESHOLD_MILLIS = 30 * 1000; // 30s
+    private static final int DEFAULT_MAX_FLUSH_SIZE_BYTES = DEFAULT_FLUSH_THRESHOLD_BYTES;
     private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 100;
     private static final int DEFAULT_MIN_READ_TIMEOUT_MILLIS = 2 * 1000; // 2s
     private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 60s
 
     private int flushThresholdBytes;
     private Duration flushThresholdTime;
+    private int maxFlushSizeBytes;
     private int maxItemsToReadAtOnce;
     private Duration minReadTimeout;
     private Duration maxReadTimeout;
@@ -91,6 +94,15 @@ public class WriterConfig extends ComponentConfig {
     }
 
     /**
+     * Gets a value indicating the maximum number of bytes that can be flushed with a single write operation.
+     *
+     * @return The result.
+     */
+    public int getMaxFlushSizeBytes() {
+        return this.maxFlushSizeBytes;
+    }
+
+    /**
      * Gets a value indicating the maximum number of items to read every time a read is issued to the OperationLog.
      *
      * @return The result.
@@ -130,6 +142,8 @@ public class WriterConfig extends ComponentConfig {
 
         long flushMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
         this.flushThresholdTime = Duration.ofMillis(flushMillis);
+
+        this.maxFlushSizeBytes = getInt32Property(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
 
         this.maxItemsToReadAtOnce = getInt32Property(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
