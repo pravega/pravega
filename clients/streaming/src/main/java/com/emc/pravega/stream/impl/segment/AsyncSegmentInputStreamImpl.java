@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
@@ -59,21 +60,18 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void connectionDropped() {
-            closeConnection();
-            failAllInflight(new ConnectionFailedException());
+            closeConnection(new ConnectionFailedException());
         }
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            closeConnection();
-            failAllInflight(new ConnectionFailedException(wrongHost.toString()));
+            closeConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            closeConnection();
             //TODO: It's not clear how we should be handling this case. (It should be impossible...)
-            failAllInflight(new IllegalArgumentException(noSuchSegment.toString()));
+            closeConnection(new IllegalArgumentException(noSuchSegment.toString()));
         }
 
         @Override
@@ -86,10 +84,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     @Data
-    private class ReadFutureImpl implements ReadFuture {
+    private static class ReadFutureImpl implements ReadFuture {
         private final ReadSegment request;
         private final AtomicReference<CompletableFuture<SegmentRead>> result;
         ReadFutureImpl(ReadSegment request) {
+            Preconditions.checkNotNull(request);
             this.request = request;
             this.result = new AtomicReference<>(new CompletableFuture<>());
         }        
@@ -106,7 +105,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             result.get().completeExceptionally(e);
         }
         private void reset() {
-            result.set(new CompletableFuture<>());
+            CompletableFuture<SegmentRead> old = result.getAndSet(new CompletableFuture<>());
+            if (!old.isDone()) {
+                old.completeExceptionally(new RuntimeException("Retry alrady in progress"));
+            }
         }
         @Override
         public boolean isSuccess() {
@@ -126,34 +128,26 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            closeConnection();
-            failAllInflight(new ConnectionClosedException());
+            closeConnection(new ConnectionClosedException());
         }
     }
 
     @Override
     public ReadFuture read(long offset, int length) {        
-        Preconditions.checkState(!closed.get());
+        if(closed.get()) {
+            throw new ObjectClosedException(this);
+        }
         ReadSegment request = new ReadSegment(segment, offset, length);
         ReadFutureImpl read = new ReadFutureImpl(request);
+        outstandingRequests.put(read.request.getOffset(), read);
         getConnection().thenApply((ClientConnection c) -> {
-            sendReadRequest(read, c);
+            c.sendAsync(read.request);
             return null;
         });
         return read;
     }
 
-    private void sendReadRequest(ReadFutureImpl read, ClientConnection c) {
-        try {
-            outstandingRequests.put(read.request.getOffset(), read);
-            c.send(read.request);
-        } catch (ConnectionFailedException e) {
-            closeConnection();
-            failAllInflight(e);
-        }
-    }
-
-    private void closeConnection() {
+    private void closeConnection(Exception exceptionToInflightRequests) {
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
@@ -166,6 +160,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 log.warn("Exception tearing down connection: ", e);
             }
         }
+        failAllInflight(exceptionToInflightRequests);
     }
 
     CompletableFuture<ClientConnection> getConnection() {
@@ -195,11 +190,18 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public SegmentRead getResult(ReadFuture ongoingRead) {
         ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
         return backoffSchedule.retryingOn(ExecutionException.class).throwingOn(RuntimeException.class).run(() -> {
-            Preconditions.checkState(!closed.get());
+            if(closed.get()) {
+                throw new ObjectClosedException(this);
+            }
             if (!read.await()) {
                 log.debug("Retransmitting a read request {}", read.request);
                 read.reset();
-                sendReadRequest(read, Exceptions.handleInterrupted(() -> getConnection().get()));
+                ClientConnection c = Exceptions.handleInterrupted(() -> getConnection().get());
+                try {
+                    c.send(read.request);
+                } catch (ConnectionFailedException e) {
+                    closeConnection(e);
+                }
             }
             return Exceptions.handleInterrupted(() -> read.get());
         });

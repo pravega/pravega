@@ -40,7 +40,7 @@ import lombok.SneakyThrows;
 public final class FutureHelpers {
     
     /**
-     * Waits for the provided future to be complete, and returns if it was successful. (Not the actual value)
+     * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
      */
     public static <T> boolean await(CompletableFuture<T> f) {
         try {
