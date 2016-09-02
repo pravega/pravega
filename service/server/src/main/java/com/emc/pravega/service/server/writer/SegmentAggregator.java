@@ -44,7 +44,6 @@ import java.time.Duration;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -66,20 +65,32 @@ class SegmentAggregator implements AutoCloseable {
     private long outstandingLength;
     private long lastAddedOffset;
     private int mergeBatchCount;
+    private boolean hasSealPending;
     private boolean closed;
 
     //endregion
 
     //region Constructor
 
-    SegmentAggregator(UpdateableSegmentMetadata metadata, Storage storage, WriterDataSource dataSource, WriterConfig config, AutoStopwatch stopwatch) {
-        Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(storage, "storage");
+    /**
+     * Creates a new instance of the SegmentAggregator class.
+     *
+     * @param segmentMetadata The Metadata for the StreamSegment to construct this Aggregator for.
+     * @param dataSource      The WriterDataSource to use.
+     * @param storage         The Storage to use (for flushing).
+     * @param config          The Configuration to use.
+     * @param stopwatch       A Stopwatch to use to determine elapsed time.
+     */
+    SegmentAggregator(UpdateableSegmentMetadata segmentMetadata, WriterDataSource dataSource, Storage storage, WriterConfig config, AutoStopwatch stopwatch) {
+        Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
         Preconditions.checkNotNull(dataSource, "dataSource");
+        Preconditions.checkNotNull(storage, "storage");
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(stopwatch, "stopwatch");
 
-        this.metadata = metadata;
+        this.metadata = segmentMetadata;
+        Preconditions.checkArgument(this.metadata.getContainerId() == dataSource.getId(), "SegmentMetadata.ContainerId is different from WriterDataSource.Id");
+
         this.config = config;
         this.storage = storage;
         this.dataSource = dataSource;
@@ -89,7 +100,7 @@ class SegmentAggregator implements AutoCloseable {
         this.lastAddedOffset = -1; // Will be set properly in initialize().
         this.mergeBatchCount = 0;
         this.operations = new LinkedList<>();
-        this.traceObjectId = String.format("StorageWriter[%d-%d]", metadata.getContainerId(), metadata.getId());
+        this.traceObjectId = String.format("StorageWriter[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
     }
 
     //endregion
@@ -127,17 +138,6 @@ class SegmentAggregator implements AutoCloseable {
     }
 
     /**
-     * Gets a value representing the total totalLength of the outstanding data in this SegmentAggregator, counting ONLY
-     * StreamSegmentAppendOperations and CachedStreamSegmentAppendOperations.
-     * All other operations (StreamSegmentSealOperations or MergeBatchOperations) are not counted here.
-     *
-     * @return The result.
-     */
-    long getOutstandingLength() {
-        return this.outstandingLength;
-    }
-
-    /**
      * Gets a value representing the amount of time since the last successful call to flush(). If no such call has been
      * made yet, this returns the amount of time since the creation of this SegmentAggregator object.
      *
@@ -161,63 +161,25 @@ class SegmentAggregator implements AutoCloseable {
      */
     boolean mustFlush() {
         return exceedsThresholds()
-                || hasSealPending()
-                || hasMergePending();
+                || this.hasSealPending
+                || this.mergeBatchCount > 0;
     }
 
-    boolean exceedsThresholds() {
+    /**
+     * Gets a value indicating whether the SegmentAggregator is closed (for any kind of operations).
+     */
+    boolean isClosed() {
+        return this.closed;
+    }
+
+    /**
+     * Gets a value indicating whether the Flush thresholds are exceeded for this SegmentAggregator.
+     *
+     * @return
+     */
+    private boolean exceedsThresholds() {
         return this.outstandingLength >= this.config.getFlushThresholdBytes()
                 || getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0;
-    }
-
-    /**
-     * Gets a value indicating whether this SegmentAggregator is ready for a merge (whether the first outstanding operation
-     * is a MergeBatchOperation).
-     *
-     * @return The result.
-     */
-    boolean canMerge() {
-        return hasMergePending() && this.operations.getFirst() instanceof MergeBatchOperation;
-    }
-
-    /**
-     * Gets a value indicating whether this SegmentAggregator can merge with the given Segment Aggregator. This can happen
-     * only if all the following conditions are met.
-     * <ul>
-     * <li> This SegmentAggregator refers to a stand-alone (not batch) StreamSegment that is stand-alone.
-     * <li> The given SegmentAggregator refers to a batch StreamSegment having this aggregator's Segment as a parent.
-     * <li> This SegmentAggregator has its first outstanding operation a MergeBatchOperation with the given aggregator's Segment.
-     * </ul>
-     *
-     * @param aggregator The aggregator to investigate.
-     * @return True if ready to merge with the other SegmentAggregator, false otherwise.
-     */
-    boolean canMergeWith(SegmentAggregator aggregator) {
-        return this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID    // We are not a batch.
-                && aggregator.getMetadata().getParentId() == this.metadata.getId()      // Given aggregator is a batch of ours.
-                && canMerge()                                                           // We are ready to merge with someone.
-                && ((MergeBatchOperation) this.operations.getFirst()).getBatchStreamSegmentId() == aggregator.getMetadata().getId(); // Our first op is a merge with given segment.
-    }
-
-    /**
-     * Gets a value indicating whether the SegmentAggregator contains an operation that requires sealing the StreamSegment.
-     * This would only be true if the last operation currently in the SegmentAggregator is a StreamSegmentSealOperation
-     * or if we have a MergeBatchOperation somewhere in our pending operations.
-     *
-     * @return The result.
-     */
-    private boolean hasSealPending() {
-        return this.operations.size() > 0 && (this.operations.getLast() instanceof StreamSegmentSealOperation);
-    }
-
-    /**
-     * Gets a value indicating whether a call to merge() is required given the current state of this SegmentAggregator.
-     * This would only be true if the very next operation to be flushed is a MergeBatchOperation.
-     *
-     * @return The result.
-     */
-    private boolean hasMergePending() {
-        return this.mergeBatchCount > 0;
     }
 
     @Override
@@ -284,23 +246,22 @@ class SegmentAggregator implements AutoCloseable {
         ensureInitializedAndNotClosed();
 
         // Verify operation Segment Id.
-        boolean isMergeBatch = operation instanceof MergeBatchOperation;
-        checkSegmentId(operation, isMergeBatch);
+        checkSegmentId(operation);
 
         // Verify operation offset (this also takes care of extra operations after Seal or Merge; no need for further checks).
-        boolean isMergeBatchForThisSegment = isMergeBatch && ((MergeBatchOperation) operation).getBatchStreamSegmentId() == this.metadata.getId();
-        checkOffset(operation, isMergeBatchForThisSegment);
+        checkOffset(operation);
 
         // Add operation to list
         this.operations.addLast(operation);
-        if (isMergeBatch) {
+        if (operation instanceof MergeBatchOperation) {
             this.mergeBatchCount++;
+        } else if (operation instanceof StreamSegmentSealOperation) {
+            this.hasSealPending = true;
         }
 
-        // Update current state (note that MergeBatchOperations have a totalLength of 0 if added to the BatchStreamSegment - because they don't have any effect on it).
-        long operationLength = isMergeBatchForThisSegment ? 0 : operation.getLength();
-        this.outstandingLength += operationLength;
-        this.lastAddedOffset = operation.getStreamSegmentOffset() + operationLength;
+        // Update current state (note that MergeBatchOperations have a length of 0 if added to the BatchStreamSegment - because they don't have any effect on it).
+        this.outstandingLength += operation.getLength();
+        this.lastAddedOffset = operation.getStreamSegmentOffset() + operation.getLength();
     }
 
     //endregion
@@ -314,18 +275,27 @@ class SegmentAggregator implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
      * occurred during the flush, the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<FlushResult> flush(Duration timeout, Executor executor) {
+    CompletableFuture<FlushResult> flush(Duration timeout) {
         ensureInitializedAndNotClosed();
 
         try {
             TimeoutTimer timer = new TimeoutTimer(timeout);
-            if (hasSealPending() || hasMergePending()) {
+            boolean hasMerge = this.mergeBatchCount > 0;
+            if (this.hasSealPending || hasMerge) {
                 // If we have a Seal or Merge Pending, flush everything until we reach that operation.
-                return flushFully(timer.getRemaining())
-                        .thenCompose(flushResult -> seal(flushResult, timer.getRemaining()));
+                CompletableFuture<FlushResult> result = flushFully(timer);
+                if (hasMerge) {
+                    result = result.thenCompose(flushResult -> mergeIfNecessary(flushResult, timer));
+                }
+
+                if (this.hasSealPending) {
+                    result = result.thenCompose(flushResult -> sealIfNecessary(flushResult, timer));
+                }
+
+                return result;
             } else {
                 // Otherwise, just flush the excess as long as we have something to flush.
-                return flushExcess(timer.getRemaining());
+                return flushExcess(timer);
             }
         } catch (Throwable ex) {
             return FutureHelpers.failedFuture(ex);
@@ -333,77 +303,44 @@ class SegmentAggregator implements AutoCloseable {
     }
 
     /**
-     * Seals the StreamSegment in Storage.
-     *
-     * @param flushResult The FlushResult from a previous Flush operation. This will just be passed-through.
-     * @param timeout     Timeout for the operation.
-     * @return The FlushResult passed in as an argument.
-     */
-    private CompletableFuture<FlushResult> seal(FlushResult flushResult, Duration timeout) {
-        StorageOperation nextOp = this.operations.getFirst();
-        assert nextOp instanceof StreamSegmentSealOperation : "attempted Seal but next operation was not a seal";
-
-        return this.storage
-                .seal(this.metadata.getName(), timeout)
-                .thenApply(v -> {
-                    this.operations.removeFirst();
-
-                    // Validate we have no more unexpected items.
-                    if (this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                        assert this.operations.size() == 0 : "Processed StreamSegmentSeal op but more operations are outstanding for non-batch Segment.";
-                        close(); // OK to close as we should not be getting anything else after this.
-                    } else {
-                        assert
-                                this.operations.size() == 0 || this.operations.getFirst() instanceof MergeBatchOperation
-                                : "Processed StreamSegmentSeal op but more non-MergeBatch operations are outstanding for batch Segment.";
-
-                        // We can't close (just yet), since for batches we are expecting a MergeBatchOperation to come after a Seal.
-                    }
-
-                    return flushResult;
-                });
-    }
-
-    /**
      * Flushes all Append Operations that can be flushed at the given moment (until the entire Aggregator is emptied out
      * or until a StreamSegmentSealOperation or MergeBatchOperation is encountered).
      *
-     * @param timeout Timeout for the operation.
+     * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
      */
-    private CompletableFuture<FlushResult> flushFully(Duration timeout) throws DataCorruptionException {
-        return flushConditionally(timeout, () -> this.operations.size() > 0 && isAppendOperation(this.operations.getFirst()));
+    private CompletableFuture<FlushResult> flushFully(TimeoutTimer timer) throws DataCorruptionException {
+        return flushConditionally(timer, () -> this.operations.size() > 0 && isAppendOperation(this.operations.getFirst()));
     }
 
     /**
      * Flushes as many Append Operations as needed as long as the data inside this SegmentAggregator exceeds size/time thresholds.
      * This will stop when either the thresholds are not exceeded anymore or when a non-Append Operation is encountered.
      *
-     * @param timeout Timeout for the operation.
+     * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
      */
-    private CompletableFuture<FlushResult> flushExcess(Duration timeout) throws DataCorruptionException {
-        return flushConditionally(timeout, this::exceedsThresholds);
+    private CompletableFuture<FlushResult> flushExcess(TimeoutTimer timer) throws DataCorruptionException {
+        return flushConditionally(timer, this::exceedsThresholds);
     }
 
     /**
      * Flushes all Append Operations that can be flushed at the given moment (as long ast he given condition holds true).
      *
-     * @param timeout Timeout for the operation.
+     * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
      */
-    private CompletableFuture<FlushResult> flushConditionally(Duration timeout, Supplier<Boolean> condition) throws DataCorruptionException {
-        FlushResult result = new FlushResult(0);
-        TimeoutTimer timer = new TimeoutTimer(timeout);
+    private CompletableFuture<FlushResult> flushConditionally(TimeoutTimer timer, Supplier<Boolean> condition) throws DataCorruptionException {
+        FlushResult result = new FlushResult();
 
         // Flush all outstanding data as long as the threshold is exceeded.
         while (condition.get()) {
             // TODO: figure out how to get rid of this join. Is there something like an AsyncLoop with Futures?
             FlushResult partialFlushResult = flushOnce(timer.getRemaining()).join();
-            result.add(partialFlushResult);
+            result.withFlushResult(partialFlushResult);
         }
 
         return CompletableFuture.completedFuture(result);
@@ -422,7 +359,7 @@ class SegmentAggregator implements AutoCloseable {
 
         if (flushArgs.getTotalLength() == 0) {
             // Nothing to flush.
-            return CompletableFuture.completedFuture(new FlushResult(0));
+            return CompletableFuture.completedFuture(new FlushResult());
         }
 
         // Flush them.
@@ -452,7 +389,7 @@ class SegmentAggregator implements AutoCloseable {
                 data = ((StreamSegmentAppendOperation) op).getData();
             } else if (op instanceof CachedStreamSegmentAppendOperation) {
                 CacheKey key = ((CachedStreamSegmentAppendOperation) op).getCacheKey();
-                data = this.dataSource.get(key);
+                data = this.dataSource.getAppendData(key);
                 if (data == null) {
                     throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for operation '%s', with key '%s'.", op, key));
                 }
@@ -468,44 +405,64 @@ class SegmentAggregator implements AutoCloseable {
     }
 
     /**
-     * Merges the given SegmentAggregator into this one.
-     * Preconditions:
+     * Executes a merger of a Batch StreamSegment into this one.
+     * Conditions for merger:
      * <ul>
      * <li> This StreamSegment is stand-alone (not a batch).
-     * <li> Given Segment is a batch of this StreamSegment.
-     * <li> Both this StreamSegment and the given StreamSegment are fully flushed up until the point of the merger (i.e., the merger is the next operation to process).
+     * <li> The next outstanding operation is a MergeBatchOperation for a BatchStreamSegment of this StreamSegment.
+     * <li> The StreamSegment to merge is not deleted, it is sealed and is fully flushed to Storage.
      * </ul>
      * Effects of the merger:
      * <ul> The entire contents of the given batch StreamSegment will be concatenated to this StreamSegment as one unit.
-     * <li> The metadata for this StreamSegment will be updated to reflect the new totalLength of this StreamSegment.
-     * <li> The given batch SegmentAggregator will be closed (its metadata will not be touched by this method).
+     * <li> The metadata for this StreamSegment will be updated to reflect the new length of this StreamSegment.
+     * <li> The given batch Segment will cease to exist.
      * </ul>
      * <p>
      * Note that various other data integrity checks are done pre and post merger as part of this operation which are meant
      * to ensure the StreamSegment is not in a corrupted state.
      *
-     * @param batchAggregator The SegmentAggregator to merge.
-     * @param storage         The Storage to execute the operation in.
-     * @param timeout         Timeout for the operation.
+     * @param flushResult The flush result from the previous chained operation.
+     * @param timer       Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the number of bytes that were merged into this
      * StreamSegment. If failed, the Future will contain the exception that caused it.
      */
-    CompletableFuture<FlushResult> mergeWith(SegmentAggregator batchAggregator, Storage storage, Duration timeout) {
+    private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer) {
         ensureInitializedAndNotClosed();
+        assert this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID : "Cannot merge into a Batch StreamSegment.";
 
-        // Verify we can actually merge with this Segment (canMergeWith has all the conditions required for that).
-        Preconditions.checkArgument(canMergeWith(batchAggregator), "Cannot merge given SegmentAggregator into this one.");
+        if (this.operations.size() == 0 || !(this.operations.getFirst() instanceof MergeBatchOperation)) {
+            // Either no operation or first operation is not a MergeBatch. Nothing to do.
+            return CompletableFuture.completedFuture(flushResult);
+        }
 
-        // Verify the given Batch StreamSegment's Metadata indicates it's fully flushed to Storage.
-        SegmentMetadata batchMetadata = batchAggregator.getMetadata();
-        Preconditions.checkArgument(
-                batchMetadata.getDurableLogLength() == batchMetadata.getStorageLength(),
-                "Segment %s cannot be merged into %s because it is not fully flushed. DurableLogLength=%s, StorageLength=%s",
-                batchMetadata.getName(), this.metadata.getName(), batchMetadata.getDurableLogLength(), batchMetadata.getStorageLength());
+        // TODO: This only processes one merge at a time. If we had several, that would mean each is done in a different iteration. Should we fix this?
+        MergeBatchOperation mergeBatchOperation = (MergeBatchOperation) this.operations.getFirst();
+        UpdateableSegmentMetadata batchMetadata = this.dataSource.getStreamSegmentMetadata(mergeBatchOperation.getBatchStreamSegmentId());
+        return mergeWith(batchMetadata, timer)
+                .thenApply(flushResult::withFlushResult);
+    }
+
+    /**
+     * Merges the batch StreamSegment with given metadata into this one at the current offset.
+     *
+     * @param batchMetadata The metadata of the batchStreamSegment to merge.
+     * @param timer         Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain the number of bytes that were merged into this
+     * StreamSegment. If failed, the Future will contain the exception that caused it.
+     */
+    private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata batchMetadata, TimeoutTimer timer) {
+        if (batchMetadata.isDeleted()) {
+            return FutureHelpers.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted batch segment '%s'.", batchMetadata.getName())));
+        }
+
+        FlushResult result = new FlushResult();
+        if (!batchMetadata.isSealedInStorage() || batchMetadata.getDurableLogLength() > batchMetadata.getStorageLength()) {
+            // Nothing to do. Given Batch is not eligible for merger yet.
+            return CompletableFuture.completedFuture(result);
+        }
 
         AtomicLong mergedLength = new AtomicLong();
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return storage
+        return this.storage
                 .getStreamSegmentInfo(batchMetadata.getName(), timer.getRemaining())
                 .thenAccept(batchSegmentProperties -> {
                     // One last verification before the actual merger:
@@ -521,12 +478,13 @@ class SegmentAggregator implements AutoCloseable {
 
                     mergedLength.set(batchSegmentProperties.getLength());
                 })
-                .thenCompose(v1 -> storage.concat(this.metadata.getName(), batchAggregator.getMetadata().getName(), timer.getRemaining()))
+                .thenCompose(v1 -> storage.concat(this.metadata.getName(), batchMetadata.getName(), timer.getRemaining()))
                 .thenCompose(v2 -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()))
                 .thenApply(segmentProperties -> {
                     // We have processed a MergeBatchOperation, pop the first operation off and decrement the counter.
                     StorageOperation processedOperation = this.operations.removeFirst();
                     assert processedOperation instanceof MergeBatchOperation : "First outstanding operation was not a MergeBatchOperation";
+                    assert ((MergeBatchOperation) processedOperation).getBatchStreamSegmentId() == batchMetadata.getId() : "First outstanding operation was a MergeBatchOperation for the wrong batch id.";
                     this.mergeBatchCount--;
                     assert this.mergeBatchCount >= 0 : "Negative value for mergeBatchCount";
 
@@ -543,14 +501,38 @@ class SegmentAggregator implements AutoCloseable {
                                 segmentProperties.getLength())));
                     }
 
-                    // Update our metadata with the new totalLength.
                     updateMetadata(segmentProperties);
+                    updateMetadataForBatchPostMerger(batchMetadata);
 
-                    // The other StreamSegment no longer exists and/or is no longer usable. Make sure it is closed.
-                    // The owning StorageWriter will do the actual disposal of it and Metadata cleanup.
-                    batchAggregator.close();
                     this.lastFlush = this.stopwatch.elapsed();
-                    return new FlushResult(mergedLength.get());
+                    return result.withMergedBytes(mergedLength.get());
+                });
+    }
+
+    /**
+     * Seals the StreamSegment in Storage, if necessary.
+     *
+     * @param flushResult The FlushResult from a previous Flush operation. This will just be passed-through.
+     * @param timer       Timer for the operation.
+     * @return The FlushResult passed in as an argument.
+     */
+    private CompletableFuture<FlushResult> sealIfNecessary(FlushResult flushResult, TimeoutTimer timer) {
+        if (!this.hasSealPending || !(this.operations.getFirst() instanceof StreamSegmentSealOperation)) {
+            // Either no Seal is pending or the next operation is not a seal - we cannot execute a seal.
+            return CompletableFuture.completedFuture(flushResult);
+        }
+
+        return this.storage
+                .seal(this.metadata.getName(), timer.getRemaining())
+                .thenApply(v -> {
+                    this.metadata.markSealedInStorage();
+                    this.operations.removeFirst();
+
+                    // Validate we have no more unexpected items and then close (as we shouldn't be getting anything else).
+                    assert this.operations.size() == 0 : "Processed StreamSegmentSeal operation but more operations are outstanding.";
+                    this.hasSealPending = false;
+                    close();
+                    return flushResult;
                 });
     }
 
@@ -563,26 +545,21 @@ class SegmentAggregator implements AutoCloseable {
      * * Regular Operations: SegmentId matches this SegmentAggregator's SegmentId
      * * Batches: TargetSegmentId/SegmentId matches this SegmentAggregator's SegmentId.
      *
-     * @param operation    The operation to check.
-     * @param isMergeBatch Whether the given operation is a MergeBatchOperation.
+     * @param operation The operation to check.
      * @throws IllegalArgumentException If any of the validations failed.
      */
-    private void checkSegmentId(StorageOperation operation, boolean isMergeBatch) {
+    private void checkSegmentId(StorageOperation operation) {
         // All exceptions thrown from here are RuntimeExceptions (as opposed from DataCorruptionExceptions); they are indicative
         // of bad code (objects got routed to wrong SegmentAggregators) and not data corruption.
-        if (isMergeBatch) {
-            MergeBatchOperation mbo = (MergeBatchOperation) operation;
-            if (this.metadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                // We are a batch StreamSegment; verify that the Operation has us as a batch to merge.
-                Preconditions.checkArgument(
-                        mbo.getBatchStreamSegmentId() == this.metadata.getId(),
-                        "Operation '%s' refers to a different StreamSegment than this one (%s).", operation, this.metadata.getId());
-            } else {
-                // We are a stand-alone StreamSegment; verify that the Operation has us as a parent (target).
-                Preconditions.checkArgument(
-                        mbo.getStreamSegmentId() == this.metadata.getId(),
-                        "Operation '%s' refers to a different StreamSegment as a target than this one (%s).", operation, this.metadata.getId());
-            }
+        if (operation instanceof MergeBatchOperation) {
+            Preconditions.checkArgument(
+                    this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                    "MergeBatchOperations can only be added to the parent StreamSegment; received '%s'.", operation);
+
+            // Since we are a stand-alone StreamSegment; verify that the Operation has us as a parent (target).
+            Preconditions.checkArgument(
+                    operation.getStreamSegmentId() == this.metadata.getId(),
+                    "Operation '%s' refers to a different StreamSegment as a target (parent) than this one (%s).", operation, this.metadata.getId());
         } else {
             // Regular operation.
             Preconditions.checkArgument(
@@ -595,39 +572,38 @@ class SegmentAggregator implements AutoCloseable {
      * Ensures the following conditions are met:
      * * Operation Offset matches the last Offset from the previous operation (that is, operations are contiguous).
      *
-     * @param operation                  The operation to check.
-     * @param isMergeBatchForThisSegment Whether the given operation is a Batch for this Segment (as opposed to it being
-     *                                   for a child segment).
+     * @param operation The operation to check.
      * @throws DataCorruptionException  If any of the validations failed.
      * @throws IllegalArgumentException If the operation has an undefined Offset or Length (these are not considered data-
      *                                  corrupting issues).
      */
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    private void checkOffset(StorageOperation operation, boolean isMergeBatchForThisSegment) throws DataCorruptionException {
+    private void checkOffset(StorageOperation operation) throws DataCorruptionException {
+        if (this.hasSealPending) {
+            // After a StreamSegmentSeal, we do not allow any other operation.
+            throw new DataCorruptionException(String.format("No operation is allowed for a sealed segment; received '%s' .", operation));
+        }
+
         // Verify operation offset against the lastAddedOffset (whether the last Op in the list or StorageLength).
         long offset = operation.getStreamSegmentOffset();
         long length = operation.getLength();
         Preconditions.checkArgument(offset >= 0, "Operation '%s' has an invalid offset (%s).", operation, operation.getStreamSegmentOffset());
         Preconditions.checkArgument(length >= 0, "Operation '%s' has an invalid length (%s).", operation, operation.getLength());
 
-        if (!isMergeBatchForThisSegment) {
-            // Check that operations are contiguous.
-            if (offset != this.lastAddedOffset) {
-                throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %d, actual: %d.", operation, this.lastAddedOffset, offset));
-            }
-
-            // Check that the operation does not exceed the DurableLogLength of the StreamSegment.
-            if (offset + length > this.metadata.getDurableLogLength()) {
-                throw new DataCorruptionException(String.format(
-                        "Operation '%s' has at least one byte beyond its DurableLogLength. Offset = %d, Length = %d, DurableLogLength = %d.",
-                        operation,
-                        offset,
-                        length,
-                        this.metadata.getDurableLogLength()));
-            }
+        // Check that operations are contiguous.
+        if (offset != this.lastAddedOffset) {
+            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %d, actual: %d.", operation, this.lastAddedOffset, offset));
         }
 
-        boolean requiresSealedSegment = false;
+        // Check that the operation does not exceed the DurableLogLength of the StreamSegment.
+        if (offset + length > this.metadata.getDurableLogLength()) {
+            throw new DataCorruptionException(String.format(
+                    "Operation '%s' has at least one byte beyond its DurableLogLength. Offset = %d, Length = %d, DurableLogLength = %d.",
+                    operation,
+                    offset,
+                    length,
+                    this.metadata.getDurableLogLength()));
+        }
+
         if (operation instanceof StreamSegmentSealOperation) {
             // For StreamSegmentSealOperations, we must ensure the offset of the operation is equal to the DurableLogLength for the segment.
             if (this.metadata.getDurableLogLength() != offset) {
@@ -638,29 +614,10 @@ class SegmentAggregator implements AutoCloseable {
                         offset));
             }
 
-            requiresSealedSegment = true;
-
             // Even though not an offset, we should still verify that the metadata actually thinks this is a sealed segment.
             if (!this.metadata.isSealed()) {
                 throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
             }
-        } else if (isMergeBatchForThisSegment) {
-            // Only need to do the check for MergeBatchOperation as batch StreamSegments (the only thing needed as parents is the offset & length check).
-            // We must ensure the BatchStreamSegmentLength of the operation is equal to the DurableLogLength for the segment.
-            if (this.metadata.getDurableLogLength() != length) {
-                throw new DataCorruptionException(String.format(
-                        "Wrong BatchStreamSegmentLength for Operation '%s'. Expected: %d (DurableLogLength), actual: %d.",
-                        operation,
-                        this.metadata.getDurableLogLength(),
-                        length));
-            }
-
-            requiresSealedSegment = true;
-        }
-
-        if (requiresSealedSegment && !this.metadata.isSealed()) {
-            // Even though not an offset, we should still verify that the metadata actually thinks this is a sealed segment.
-            throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
         }
     }
 
@@ -685,7 +642,7 @@ class SegmentAggregator implements AutoCloseable {
 
         // Update the last flush checkpoint.
         this.lastFlush = this.stopwatch.elapsed();
-        return new FlushResult(flushArgs.getTotalLength());
+        return new FlushResult().withFlushedBytes(flushArgs.getTotalLength());
     }
 
     /**
@@ -695,9 +652,19 @@ class SegmentAggregator implements AutoCloseable {
      */
     private void updateMetadata(SegmentProperties segmentProperties) {
         this.metadata.setStorageLength(segmentProperties.getLength());
-        if (segmentProperties.isSealed() && !this.metadata.isSealed()) {
+        if (segmentProperties.isSealed() && !this.metadata.isSealedInStorage()) {
             this.metadata.markSealed();
+            this.metadata.markSealedInStorage();
         }
+    }
+
+    private void updateMetadataForBatchPostMerger(UpdateableSegmentMetadata batchMetadata) {
+        // The other StreamSegment no longer exists and/or is no longer usable. Make sure it is marked as deleted.
+        batchMetadata.markDeleted();
+        this.dataSource.deleteStreamSegment(batchMetadata.getName()); // This may be redundant...
+
+        // Complete the merger (in the ReadIndex and whatever other listeners we might have).
+        this.dataSource.completeMerge(batchMetadata.getParentId(), batchMetadata.getId());
     }
 
     /**

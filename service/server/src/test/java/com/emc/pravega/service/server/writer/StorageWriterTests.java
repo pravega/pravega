@@ -22,6 +22,8 @@ import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -30,6 +32,7 @@ import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
@@ -38,6 +41,7 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -50,17 +54,24 @@ import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Unit tests for the StorageWriter class.
  */
 public class StorageWriterTests {
     private static final int CONTAINER_ID = 1;
-    private static final int SEGMENT_COUNT = 1;
-    private static final int BATCHES_PER_SEGMENT = 0;
+    private static final int SEGMENT_COUNT = 10;
+    private static final int BATCHES_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 1000;
-    private static final int THREAD_POOL_SIZE = 200;
-    private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(1000, 1000);
+    private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
+    private static final int THREAD_POOL_SIZE = 100;
+    private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
+            PropertyBag.create()
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Test
@@ -78,6 +89,14 @@ public class StorageWriterTests {
 
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
+        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
+        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
+        context.dataSource.setAcknowledgeCallback(args -> {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+                ackEverything.complete(null);
+            }
+        });
+
         // Append data
         CompletableFuture.runAsync(() -> {
             appendData(segmentIds, segmentContents, context);
@@ -85,16 +104,31 @@ public class StorageWriterTests {
 
             // Merge batches
             sealSegments(batchIds, context);
-            mergeBatches(batchIds, context);
+            mergeBatches(batchIds, segmentContents, context);
 
             // Seal the parents
             sealSegments(segmentIds, context);
-        }, context.executor.get()).join();
+            metadataCheckpoint(context);
+            producingComplete.complete(null);
+        }, context.executor.get());
 
-        Thread.sleep(3000);
+        // Wait for producing and the writer to complete their jobs.
+        CompletableFuture.allOf(producingComplete, ackEverything).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        for (long segmentId : segmentContents.keySet()) {
+            SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
+            Assert.assertNotNull("No metadata for segment " + segmentId, metadata);
+            Assert.assertEquals("Not expecting a batch segment " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
+            Assert.assertEquals("Not all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
+
+            byte[] expected = segmentContents.get(segmentId).toByteArray();
+            byte[] actual = new byte[expected.length];
+            int actualLength = context.storage.read(metadata.getName(), 0, actual, 0, actual.length, TIMEOUT).join();
+            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata.getStorageLength(), actualLength);
+            Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
+        }
     }
 
-    private void mergeBatches(Iterable<Long> batchIds, TestContext context) {
+    private void mergeBatches(Iterable<Long> batchIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         for (long batchId : batchIds) {
             UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
             UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(batchMetadata.getParentId());
@@ -106,7 +140,6 @@ public class StorageWriterTests {
             MergeBatchOperation op = new MergeBatchOperation(parentMetadata.getId(), batchMetadata.getId());
             op.setLength(batchMetadata.getLength());
             op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
-            op.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
 
             // Update metadata
             parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + batchMetadata.getDurableLogLength());
@@ -114,7 +147,19 @@ public class StorageWriterTests {
 
             // Process the merge op
             context.dataSource.add(op);
+
+            try {
+                segmentContents.get(parentMetadata.getId()).write(segmentContents.get(batchMetadata.getId()).toByteArray());
+            } catch (IOException ex) {
+                throw new AssertionError(ex);
+            }
+
+            segmentContents.remove(batchId);
         }
+    }
+
+    private void metadataCheckpoint(TestContext context) {
+        context.dataSource.add(new MetadataCheckpointOperation());
     }
 
     private void sealSegments(Collection<Long> segmentIds, TestContext context) {
@@ -123,7 +168,6 @@ public class StorageWriterTests {
             segmentMetadata.markSealed();
             StreamSegmentSealOperation sealOp = new StreamSegmentSealOperation(segmentId);
             sealOp.setStreamSegmentOffset(segmentMetadata.getDurableLogLength());
-            sealOp.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
             context.dataSource.add(sealOp);
         }
     }
@@ -141,7 +185,6 @@ public class StorageWriterTests {
                 long offset = segmentMetadata.getDurableLogLength();
                 segmentMetadata.setDurableLogLength(offset + data.length);
                 StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, appendContext);
-                op.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
                 op.setStreamSegmentOffset(offset);
                 if (writeId % 2 == 0) {
                     CacheKey key = new CacheKey(segmentId, offset);
@@ -180,7 +223,6 @@ public class StorageWriterTests {
             // Add the operation to the log.
             StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(name, TIMEOUT).join());
             mapOp.setStreamSegmentId((long) i);
-            mapOp.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
             context.dataSource.add(mapOp);
         }
 
@@ -204,7 +246,6 @@ public class StorageWriterTests {
                 // Add the operation to the log.
                 BatchMapOperation mapOp = new BatchMapOperation(parentId, context.storage.getStreamSegmentInfo(batchName, TIMEOUT).join());
                 mapOp.setStreamSegmentId(batchId);
-                mapOp.setSequenceNumber(context.metadata.nextOperationSequenceNumber());
                 context.dataSource.add(mapOp);
 
                 batchId++;
@@ -222,7 +263,7 @@ public class StorageWriterTests {
     }
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
-        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
+        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
     private String getSegmentName(int i) {
@@ -244,8 +285,11 @@ public class StorageWriterTests {
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage(this.executor.get());
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
-            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), false); // We assign sequence numbers manually.
-            this.writer = new StorageWriter(config, this.metadata, this.dataSource, this.storage, this.executor.get());
+
+            val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
+            dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
+            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), dataSourceConfig);
+            this.writer = new StorageWriter(config, this.dataSource, this.storage, this.executor.get());
         }
 
         @Override

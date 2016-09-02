@@ -24,32 +24,70 @@ import com.google.common.base.Preconditions;
  * Represents the result of a Storage Flush Operation.
  */
 class FlushResult {
-    private long length;
+    private long flushedBytes;
+    private long mergedBytes;
 
-    FlushResult(long length) {
-        Preconditions.checkArgument(length >= 0, "length must be a positive number.");
-        this.length = length;
+    FlushResult() {
+        this.flushedBytes = 0;
+        this.mergedBytes = 0;
+    }
+
+    /**
+     * Adds a number of flushedBytes.
+     *
+     * @param flushedBytes The value to add.
+     * @return This object.
+     */
+    FlushResult withFlushedBytes(long flushedBytes) {
+        Preconditions.checkArgument(flushedBytes >= 0, "flushedBytes must be a positive number.");
+        this.flushedBytes += flushedBytes;
+        return this;
+    }
+
+    /**
+     * Adds a number of merged bytes.
+     *
+     * @param mergedBytes The value to add.
+     * @return This object.
+     */
+    FlushResult withMergedBytes(long mergedBytes) {
+        Preconditions.checkArgument(mergedBytes >= 0, "mergedBytes must be a positive number.");
+        this.mergedBytes += mergedBytes;
+        return this;
+    }
+
+    /**
+     * Adds the given FlushResult to this one.
+     *
+     * @param flushResult The flush result to add.
+     * @return This object.
+     */
+    FlushResult withFlushResult(FlushResult flushResult) {
+        this.flushedBytes += flushResult.flushedBytes;
+        this.mergedBytes += flushResult.mergedBytes;
+        return this;
     }
 
     /**
      * Gets a value indicating the total amount of data flushed, in bytes.
      *
-     * @return The result
+     * @return The result.
      */
-    long getLength() {
-        return this.length;
+    long getFlushedBytes() {
+        return this.flushedBytes;
     }
 
     /**
-     * Adds the given FlushResult to this one.
-     * @param flushResult
+     * Gets a value indicating the total amount of data that was merged, in bytes.
+     *
+     * @return The result.
      */
-    void add(FlushResult flushResult) {
-        this.length += flushResult.length;
+    long getMergedBytes() {
+        return this.mergedBytes;
     }
 
     @Override
     public String toString() {
-        return String.format("Length = %d", this.length);
+        return String.format("Flushed = %d, Merged = %d", this.flushedBytes, this.mergedBytes);
     }
 }

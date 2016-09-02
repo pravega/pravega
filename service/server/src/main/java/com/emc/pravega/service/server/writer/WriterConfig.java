@@ -39,13 +39,19 @@ public class WriterConfig extends ComponentConfig {
     public static final String PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE = "maxItemsToReadAtOnce";
     public static final String PROPERTY_MIN_READ_TIMEOUT_MILLIS = "minReadTimeoutMillis";
     public static final String PROPERTY_MAX_READ_TIMEOUT_MILLIS = "maxReadTimeoutMillis";
+    public static final String PROPERTY_FLUSH_TIMEOUT_MILLIS = "flushTimeoutMillis";
+    public static final String PROPERTY_ACK_TIMEOUT_MILLIS = "ackTimeoutMillis";
+    public static final String PROPERTY_SHUTDOWN_TIMEOUT_MILLIS = "shutdownTimeoutMillis";
 
     private static final int DEFAULT_FLUSH_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4MB
     private static final int DEFAULT_FLUSH_THRESHOLD_MILLIS = 30 * 1000; // 30s
     private static final int DEFAULT_MAX_FLUSH_SIZE_BYTES = DEFAULT_FLUSH_THRESHOLD_BYTES;
     private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 100;
     private static final int DEFAULT_MIN_READ_TIMEOUT_MILLIS = 2 * 1000; // 2s
-    private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 60s
+    private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 30 min
+    private static final int DEFAULT_FLUSH_TIMEOUT_MILLIS = 60 * 1000; // 60s
+    private static final int DEFAULT_ACK_TIMEOUT_MILLIS = 15 * 1000; // 15s
+    private static final int DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000; // 10s
 
     private int flushThresholdBytes;
     private Duration flushThresholdTime;
@@ -53,6 +59,9 @@ public class WriterConfig extends ComponentConfig {
     private int maxItemsToReadAtOnce;
     private Duration minReadTimeout;
     private Duration maxReadTimeout;
+    private Duration flushTimeout;
+    private Duration ackTimeout;
+    private Duration shutdownTimeout;
 
     //endregion
 
@@ -129,6 +138,34 @@ public class WriterConfig extends ComponentConfig {
         return this.maxReadTimeout;
     }
 
+    /**
+     * Gets a value indicating the timeout for the Flush Stage.
+     *
+     * @return The result.
+     */
+    public Duration getFlushTimeout() {
+        return this.flushTimeout;
+    }
+
+    /**
+     * Gets a value indicating the timeout for the Shutdown operation (how much to wait for the current iteration to end
+     * before giving up).
+     *
+     * @return The result.
+     */
+    public Duration getShutdownTimeout() {
+        return this.shutdownTimeout;
+    }
+
+    /**
+     * Gets a value indicating the timeout for the Ack Stage.
+     *
+     * @return The result.
+     */
+    public Duration getAckTimeout() {
+        return this.ackTimeout;
+    }
+
     //endregion
 
     //region ComponentConfig Implementation
@@ -140,8 +177,8 @@ public class WriterConfig extends ComponentConfig {
             throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
         }
 
-        long flushMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
-        this.flushThresholdTime = Duration.ofMillis(flushMillis);
+        long flushThresholdMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
+        this.flushThresholdTime = Duration.ofMillis(flushThresholdMillis);
 
         this.maxFlushSizeBytes = getInt32Property(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
 
@@ -162,6 +199,15 @@ public class WriterConfig extends ComponentConfig {
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
+
+        long flushTimeoutMillis = getInt64Property(PROPERTY_FLUSH_TIMEOUT_MILLIS, DEFAULT_FLUSH_TIMEOUT_MILLIS);
+        this.flushTimeout = Duration.ofMillis(flushTimeoutMillis);
+
+        long ackTimeoutMillis = getInt64Property(PROPERTY_ACK_TIMEOUT_MILLIS, DEFAULT_ACK_TIMEOUT_MILLIS);
+        this.ackTimeout = Duration.ofMillis(ackTimeoutMillis);
+
+        long shutdownTimeoutMillis = getInt64Property(PROPERTY_SHUTDOWN_TIMEOUT_MILLIS, DEFAULT_SHUTDOWN_TIMEOUT_MILLIS);
+        this.shutdownTimeout = Duration.ofMillis(shutdownTimeoutMillis);
     }
 
     //endregion

@@ -30,6 +30,7 @@ import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.OperationLog;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentInformation;
@@ -96,7 +97,10 @@ public class DurableLogTests extends OperationLogTestBase {
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
     private static final int NO_METADATA_CHECKPOINT = 0;
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfig(100, 1024);
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+            PropertyBag.create()
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
 
     //region Adding operations
 

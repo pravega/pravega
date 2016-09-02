@@ -25,6 +25,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
+import com.google.common.base.Preconditions;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
@@ -216,7 +217,7 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> concat(StreamSegmentData other) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
-                    other.sealed = true; // Make sure other is sealed.
+                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.");
                     synchronized (this.lock) {
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;

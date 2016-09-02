@@ -22,6 +22,7 @@ import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -64,26 +65,34 @@ public class StorageWriterFactory implements WriterFactory {
     public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
         Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given containerMetadata and operationLog have different Container Ids.");
         Storage storage = this.storageFactory.getStorageAdapter();
-        WriterDataSource dataSource = new StorageWriterDataSource(operationLog, readIndex, cache);
-        return new StorageWriter(this.config, containerMetadata, dataSource, storage, this.executor);
+        WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex, cache);
+        return new StorageWriter(this.config, dataSource, storage, this.executor);
     }
 
     private static class StorageWriterDataSource implements WriterDataSource {
+        private final UpdateableContainerMetadata containerMetadata;
         private final OperationLog operationLog;
         private final Cache cache;
         private final ReadIndex readIndex;
 
-        StorageWriterDataSource(OperationLog operationLog, ReadIndex readIndex, Cache cache) {
+        StorageWriterDataSource(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
+            Preconditions.checkNotNull(containerMetadata, "containerMetadata");
             Preconditions.checkNotNull(operationLog, "operationLog");
             Preconditions.checkNotNull(readIndex, "readIndex");
             Preconditions.checkNotNull(cache, "cache");
 
+            this.containerMetadata = containerMetadata;
             this.operationLog = operationLog;
             this.readIndex = readIndex;
             this.cache = cache;
         }
 
         //region WriterDataSource Implementation
+
+        @Override
+        public int getId() {
+            return this.containerMetadata.getContainerId();
+        }
 
         @Override
         public CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout) {
@@ -102,7 +111,27 @@ public class StorageWriterFactory implements WriterFactory {
         }
 
         @Override
-        public byte[] get(CacheKey key) {
+        public boolean isValidTruncationPoint(long operationSequenceNumber) {
+            return this.containerMetadata.isValidTruncationPoint(operationSequenceNumber);
+        }
+
+        @Override
+        public long getClosestValidTruncationPoint(long operationSequenceNumber) {
+            return this.containerMetadata.getClosestValidTruncationPoint(operationSequenceNumber);
+        }
+
+        @Override
+        public void deleteStreamSegment(String streamSegmentName) {
+            this.containerMetadata.deleteStreamSegment(streamSegmentName);
+        }
+
+        @Override
+        public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
+            return this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+        }
+
+        @Override
+        public byte[] getAppendData(CacheKey key) {
             return this.cache.get(key);
         }
 

@@ -56,7 +56,9 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
         this.length = baseOperation.getData().length;
         this.cacheKey = cacheKey;
-        setSequenceNumber(baseOperation.getSequenceNumber());
+        if (baseOperation.getSequenceNumber() >= 0) {
+            setSequenceNumber(baseOperation.getSequenceNumber());
+        }
     }
 
     //endregion

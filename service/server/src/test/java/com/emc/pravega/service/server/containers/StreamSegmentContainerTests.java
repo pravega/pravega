@@ -33,6 +33,7 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.ServiceShutdownListener;
@@ -87,9 +88,20 @@ public class StreamSegmentContainerTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
-    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(10, 100, 10 * 1024 * 1024);
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfig(100, 1024);
-    private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(Integer.MAX_VALUE, Long.MAX_VALUE);
+    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
+            PropertyBag.create()
+                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
+                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+            PropertyBag.create()
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+    private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(
+            PropertyBag.create()
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, Integer.MAX_VALUE)
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, Integer.MAX_VALUE));
 
     /**
      * Tests the createSegment, append, read, getSegmentInfo, getLastAppendContext.

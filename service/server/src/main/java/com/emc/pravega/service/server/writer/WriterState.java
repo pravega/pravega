@@ -41,6 +41,7 @@ class WriterState {
     WriterState() {
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
         this.lowestUncommittedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
+        this.lastTruncatedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
     }
 
     //endregion

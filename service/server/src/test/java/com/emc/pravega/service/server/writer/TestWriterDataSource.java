@@ -19,11 +19,13 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.MemoryOperationLog;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
@@ -34,8 +36,7 @@ import lombok.val;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -52,31 +53,30 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private final UpdateableContainerMetadata metadata;
     private final MemoryOperationLog log;
     private final Cache cache;
-    private Consumer<TruncationArgs> truncationCallback;
+    private Consumer<AcknowledgeArgs> acknowledgeCallback;
     private BiConsumer<Long, Long> completeMergeCallback;
-    private final Executor executor;
-    private final boolean autoAssignSequenceNumbers;
+    private final ScheduledExecutorService executor;
+    private final DataSourceConfig config;
     private CompletableFuture<Void> addProcessed;
+    private long lastAddedCheckpoint;
     private boolean closed;
 
     //endregion
 
     //region Constructor
 
-    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, Executor executor) {
-        this(metadata, cache, executor, true);
-    }
-
-    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, Executor executor, boolean autoAssignSequenceNumbers) {
+    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, ScheduledExecutorService executor, DataSourceConfig config) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkNotNull(config, "config");
 
         this.metadata = metadata;
         this.cache = cache;
         this.executor = executor;
-        this.autoAssignSequenceNumbers = autoAssignSequenceNumbers;
+        this.config = config;
         this.log = new MemoryOperationLog();
+        this.lastAddedCheckpoint = 0;
     }
 
     //endregion
@@ -107,25 +107,38 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     public long add(Operation operation) {
         Exceptions.checkNotClosed(this.closed, this);
-        AtomicLong seqNo = new AtomicLong(operation.getSequenceNumber());
-        if (this.autoAssignSequenceNumbers) {
-            Preconditions.checkArgument(seqNo.get() < 0, "Cannot auto-assign sequence numbers if the operation already has one.");
-            seqNo.set(this.metadata.nextOperationSequenceNumber());
-            operation.setSequenceNumber(seqNo.get());
-        } else {
-            Preconditions.checkArgument(seqNo.get() >= 0, "Given operation has no sequence number and auto-assign is not enabled.");
+        Preconditions.checkArgument(operation.getSequenceNumber() < 0, "Given operation already has a sequence number.");
+
+        // If not a checkpoint op, see if we need to auto-add one.
+        boolean isCheckpoint = operation instanceof MetadataCheckpointOperation;
+        if (!isCheckpoint) {
+            if (this.config.autoInsertCheckpointFrequency > 0 && this.metadata.getOperationSequenceNumber() - this.lastAddedCheckpoint >= this.config.autoInsertCheckpointFrequency) {
+                MetadataCheckpointOperation checkpointOperation = new MetadataCheckpointOperation();
+                this.lastAddedCheckpoint = add(checkpointOperation);
+            }
         }
 
-        if (!this.log.addIf(operation, previous -> previous.getSequenceNumber() < seqNo.get())) {
+        // Set the Sequence Number, after the possible recursive call to add a checkpoint (to maintain Seq No order).
+        operation.setSequenceNumber(this.metadata.nextOperationSequenceNumber());
+
+        // We need to record the Truncation Marker/Point prior to actually adding the operation to the log (because it could
+        // get picked up very fast by the Writer, so we need to have everything in place).
+        if (isCheckpoint) {
+            this.metadata.recordTruncationMarker(operation.getSequenceNumber(), operation.getSequenceNumber());
+            this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
+        }
+
+        if (!this.log.addIf(operation, previous -> previous.getSequenceNumber() < operation.getSequenceNumber())) {
             throw new RuntimeStreamingException(new DataCorruptionException("Sequence numbers out of order."));
         }
 
-        if (operation instanceof MetadataCheckpointOperation) {
-            this.metadata.recordTruncationMarker(seqNo.get(), seqNo.get());
-        }
-
         notifyAddProcessed();
-        return seqNo.get();
+        return operation.getSequenceNumber();
+    }
+
+    @Override
+    public int getId() {
+        return this.metadata.getContainerId();
     }
 
     @Override
@@ -138,11 +151,11 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             this.metadata.removeTruncationMarkers(upToSequenceNumber);
 
             // Invoke the truncation callback.
-            Consumer<TruncationArgs> callback = this.truncationCallback;
+            Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
             if (callback != null) {
                 Operation lastOperation = this.log.getLast();
                 long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
-                CallbackHelpers.invokeSafely(callback, new TruncationArgs(upToSequenceNumber, highestSeqNo), null);
+                CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
             }
         }, this.executor);
     }
@@ -156,7 +169,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             return CompletableFuture.completedFuture(logReadResult);
         } else {
             // Result is not yet available; wait for an add and then retry the read.
-            return waitForAdd(afterSequenceNumber)
+            return waitForAdd(afterSequenceNumber, timeout)
                     .thenComposeAsync(v -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
         }
     }
@@ -170,8 +183,28 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     @Override
-    public byte[] get(CacheKey key) {
+    public byte[] getAppendData(CacheKey key) {
         return this.cache.get(key);
+    }
+
+    @Override
+    public boolean isValidTruncationPoint(long operationSequenceNumber) {
+        return this.metadata.isValidTruncationPoint(operationSequenceNumber);
+    }
+
+    @Override
+    public long getClosestValidTruncationPoint(long operationSequenceNumber) {
+        return this.metadata.getClosestValidTruncationPoint(operationSequenceNumber);
+    }
+
+    @Override
+    public void deleteStreamSegment(String streamSegmentName) {
+        this.metadata.deleteStreamSegment(streamSegmentName);
+    }
+
+    @Override
+    public UpdateableSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) {
+        return this.metadata.getStreamSegmentMetadata(streamSegmentId);
     }
 
     //endregion
@@ -179,12 +212,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //region Other Properties
 
     /**
-     * Sets a callback that will invoked on every call to truncate.
+     * Sets a callback that will invoked on every call to acknowledge.
      *
      * @param callback The callback to set.
      */
-    public void setTruncationCallback(Consumer<TruncationArgs> callback) {
-        this.truncationCallback = callback;
+    public void setAcknowledgeCallback(Consumer<AcknowledgeArgs> callback) {
+        this.acknowledgeCallback = callback;
     }
 
     /**
@@ -200,7 +233,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //region Helpers
 
-    private CompletableFuture<Void> waitForAdd(long currentSeqNo) {
+    private CompletableFuture<Void> waitForAdd(long currentSeqNo, Duration timeout) {
         CompletableFuture<Void> result;
         synchronized (this.log) {
             if (this.log.size() > 0 && this.log.getLast().getSequenceNumber() > currentSeqNo) {
@@ -209,7 +242,14 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             } else {
                 if (this.addProcessed == null) {
                     // We need to wait for an add, and nobody else is waiting for it too.
-                    this.addProcessed = new CompletableFuture<>();
+                    this.addProcessed = FutureHelpers.futureWithTimeout(timeout, this.executor);
+                    FutureHelpers.onTimeout(this.addProcessed, ex -> {
+                        synchronized (this.log) {
+                            if (this.addProcessed.isCompletedExceptionally()) {
+                                this.addProcessed = null;
+                            }
+                        }
+                    });
                 }
 
                 result = this.addProcessed;
@@ -235,26 +275,30 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //endregion
 
-    public static class TruncationArgs {
+    static class AcknowledgeArgs {
         private final long highestSequenceNumber;
-        private final long truncationSequenceNumber;
+        private final long ackSequenceNumber;
 
-        TruncationArgs(long truncationSequenceNumber, long highestSequenceNumber) {
-            this.truncationSequenceNumber = truncationSequenceNumber;
+        AcknowledgeArgs(long ackSequenceNumber, long highestSequenceNumber) {
+            this.ackSequenceNumber = ackSequenceNumber;
             this.highestSequenceNumber = highestSequenceNumber;
         }
 
-        public long getHighestSequenceNumber() {
+        long getHighestSequenceNumber() {
             return this.highestSequenceNumber;
         }
 
-        public long getTruncationSequenceNumber() {
-            return this.truncationSequenceNumber;
+        long getAckSequenceNumber() {
+            return this.ackSequenceNumber;
         }
 
         @Override
         public String toString() {
-            return String.format("T.SeqNo = %d, H.SeqNo = %d", this.truncationSequenceNumber, this.highestSequenceNumber);
+            return String.format("AckSeqNo = %d, HighSeqNo = %d", this.ackSequenceNumber, this.highestSequenceNumber);
         }
+    }
+
+    static class DataSourceConfig {
+        int autoInsertCheckpointFrequency;
     }
 }

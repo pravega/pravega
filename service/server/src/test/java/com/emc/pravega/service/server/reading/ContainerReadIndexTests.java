@@ -28,6 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
@@ -69,7 +70,10 @@ public class ContainerReadIndexTests {
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int THREAD_POOL_SIZE = 50;
     private static final int CONTAINER_ID = 123;
-    private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfig(100, 1024);
+    private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+            PropertyBag.create()
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     /**
@@ -466,6 +470,7 @@ public class ContainerReadIndexTests {
      * * 0.25N-0.75N, 0.75N..N, N..1.25N, 0..0.25N, 1.25N..1.5N (remember that we added quite a bunch of items after the initial run).
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testCacheEviction() throws Exception {
         // Create a CachePolicy with a set number of generations and a known max size.
         // Each generation contains exactly one entry, so the number of generations is also the number of entries.
@@ -475,7 +480,10 @@ public class ContainerReadIndexTests {
         final int postStorageEntryCount = entriesPerSegment / 4; // 25% of the entries are beyond the StorageOffset
         final int preStorageEntryCount = entriesPerSegment - postStorageEntryCount; // 75% of the entries are before the StorageOffset.
         CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
-        ReadIndexConfig config = ConfigHelpers.createReadIndexConfig(appendSize, appendSize); // To properly test this, we want predictable storage reads.
+        ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+                PropertyBag.create()
+                           .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, appendSize)
+                           .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, appendSize)); // To properly test this, we want predictable storage reads.
 
         ArrayList<CacheKey> removedKeys = new ArrayList<>();
         @Cleanup

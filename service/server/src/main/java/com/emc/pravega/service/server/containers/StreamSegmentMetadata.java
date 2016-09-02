@@ -48,6 +48,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long storageLength;
     private long durableLogLength;
     private boolean sealed;
+    private boolean sealedInStorage;
     private boolean deleted;
     private boolean merged;
     private Date lastModified;
@@ -88,6 +89,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.parentStreamSegmentId = parentStreamSegmentId;
         this.containerId = containerId;
         this.sealed = false;
+        this.sealedInStorage = false;
         this.deleted = false;
         this.merged = false;
         this.storageLength = -1;
@@ -150,6 +152,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public boolean isSealedInStorage() {
+        return this.sealedInStorage;
+    }
+
+    @Override
     public long getStorageLength() {
         return this.storageLength;
     }
@@ -171,7 +178,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public String toString() {
-        return String.format("Id = %d, StorageLength = %d, DLOffset = %d, Sealed = %s, Deleted = %s, Name = %s", getId(), getStorageLength(), getDurableLogLength(), isSealed(), isDeleted(), getName());
+        return String.format(
+                "Id = %d, StorageLength = %d, DLOffset = %d, Sealed(DL/S) = %s/%s, Deleted = %s, Name = %s",
+                getId(),
+                getStorageLength(),
+                getDurableLogLength(),
+                isSealed(),
+                isSealedInStorage(),
+                isDeleted(),
+                getName());
     }
 
     //endregion
@@ -200,6 +215,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     public void markSealed() {
         log.trace("{}: Sealed = true.", this.traceObjectId);
         this.sealed = true;
+    }
+
+    @Override
+    public void markSealedInStorage() {
+        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
+        log.trace("{}: SealedInStorage = true.", this.traceObjectId);
+        this.sealedInStorage = true;
     }
 
     @Override
@@ -243,6 +265,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isSealed()) {
             markSealed();
+            if (base.isSealedInStorage()) {
+                markSealedInStorage();
+            }
         }
 
         if (base.isMerged()) {

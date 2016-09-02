@@ -504,7 +504,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
             streamSegmentMetadata.setStorageLength(operation.getLength());
             streamSegmentMetadata.setDurableLogLength(operation.getLength()); // DurableLogLength must be at least StorageLength.
             if (operation.isSealed()) {
+                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
+                // Seal flags need to be set.
                 streamSegmentMetadata.markSealed();
+                streamSegmentMetadata.markSealedInStorage();
             }
         }
 
@@ -518,7 +521,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
             batchStreamSegmentMetadata.setStorageLength(operation.getLength());
             batchStreamSegmentMetadata.setDurableLogLength(0);
             if (operation.isSealed()) {
+                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
+                // Seal flags need to be set.
                 batchStreamSegmentMetadata.markSealed();
+                batchStreamSegmentMetadata.markSealedInStorage();
             }
         }
 
@@ -689,9 +695,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
             stream.writeBoolean(sm.isMerged());
             // S7. Sealed.
             stream.writeBoolean(sm.isSealed());
-            // S8. Deleted.
+            // S8. SealedInStorage.
+            stream.writeBoolean(sm.isSealedInStorage());
+            // S9. Deleted.
             stream.writeBoolean(sm.isDeleted());
-            // S9. LastModified.
+            // S10. LastModified.
             stream.writeLong(sm.getLastModified().getTime());
 
             // TODO: determine if we want to snapshot the client ids and their offsets too. This might be a long list, especially if we don't clean it up.
@@ -722,12 +730,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (isSealed) {
                 metadata.markSealed();
             }
-            // S8. Deleted.
+            // S8. SealedInStorage.
+            boolean isSealedInStorage = stream.readBoolean();
+            if (isSealedInStorage) {
+                metadata.markSealedInStorage();
+            }
+            // S9. Deleted.
             boolean isDeleted = stream.readBoolean();
             if (isDeleted) {
                 metadata.markDeleted();
             }
-            // S9. LastModified.
+            // S10. LastModified.
             Date lastModified = new java.util.Date(stream.readLong());
             metadata.setLastModified(lastModified);
         }
@@ -824,6 +837,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
         @Override
         public boolean isMerged() {
             return this.merged;
+        }
+
+        @Override
+        public boolean isSealedInStorage() {
+            return this.baseMetadata.isSealedInStorage();
         }
 
         @Override
@@ -1061,7 +1079,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {
                 this.baseMetadata.markSealed();
+                if (this.isSealedInStorage()) {
+                    this.baseMetadata.isSealedInStorage();
+                }
             }
+
             if (this.isMerged()) {
                 this.baseMetadata.markMerged();
             }
