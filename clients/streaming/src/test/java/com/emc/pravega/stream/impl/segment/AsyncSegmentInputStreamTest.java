@@ -17,13 +17,17 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.nio.ByteBuffer;
 
-import org.junit.Ignore;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 import com.emc.pravega.common.netty.ClientConnection;
@@ -34,6 +38,8 @@ import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
 import com.emc.pravega.testcommon.Async;
 
+import lombok.Cleanup;
+
 public class AsyncSegmentInputStreamTest {
 
     @Test
@@ -41,12 +47,13 @@ public class AsyncSegmentInputStreamTest {
         String segment = "testRetry";
         String endpoint = "localhost";
         TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory , connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        verify(c).send(new ReadSegment(segment, 1234, 5678));
+        verify(c).sendAsync(new ReadSegment(segment, 1234, 5678));
         processor.connectionDropped();
         verify(c).close();
         assertFalse(readFuture.isSuccess());
@@ -54,7 +61,7 @@ public class AsyncSegmentInputStreamTest {
         SegmentRead result = Async.testBlocking(() -> in.getResult(readFuture) , () -> {
             processor.segmentRead(segmentRead);
         });
-        verify(c, times(2)).send(new ReadSegment(segment, 1234, 5678));
+        verify(c).send(new ReadSegment(segment, 1234, 5678));
         assertTrue(readFuture.isSuccess());
         assertEquals(segmentRead, result);
         verifyNoMoreInteractions(c);
@@ -65,12 +72,13 @@ public class AsyncSegmentInputStreamTest {
         String segment = "testRetry";
         String endpoint = "localhost";
         TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory , connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        verify(c).send(new ReadSegment(segment, 1234, 5678));
+        verify(c).sendAsync(new ReadSegment(segment, 1234, 5678));
         SegmentRead segmentRead = new SegmentRead(segment, 1234, false, false, ByteBuffer.allocate(0));
         processor.segmentRead(segmentRead);
         assertTrue(readFuture.isSuccess());
@@ -83,12 +91,13 @@ public class AsyncSegmentInputStreamTest {
         String segment = "testRetry";
         String endpoint = "localhost";
         TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory , connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        verify(c).send(new ReadSegment(segment, 1234, 5678));
+        verify(c).sendAsync(new ReadSegment(segment, 1234, 5678));
         processor.segmentRead(new SegmentRead(segment, 1235, false, false, ByteBuffer.allocate(0)));
         assertFalse(readFuture.isSuccess());
         verifyNoMoreInteractions(c);
