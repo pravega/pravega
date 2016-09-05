@@ -38,6 +38,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
+
 /**
  * Entry point of controller server.
  */
@@ -53,11 +56,11 @@ public class Main {
         hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
         //1) LOAD configuration.
-        // TODO: read store type and construct store configuration based on configuration file
         log.info("Creating in-memory stream store");
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
         log.info("Creating in-memory host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.

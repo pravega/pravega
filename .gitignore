@@ -1,5 +1,5 @@
 *.iml
-src/generated/**
+**/src/generated/**
 .project
 build
 .classpath
@@ -12,3 +12,4 @@ target
 log/
 .metadata/
 .recommenders/
+*.log
