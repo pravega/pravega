@@ -26,6 +26,9 @@ import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.impl.PositionImpl;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimaps;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,27 +46,6 @@ public class ConsumerImpl implements ControllerApi.Consumer {
     public ConsumerImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
-    }
-
-    /**
-     * invert a map
-     * @param map input
-     * @return the inverted map with keys and values inverted
-     */
-    private Map<Integer, List<Integer>> invertMap(Map<Integer, Integer> map) {
-        Map<Integer, List<Integer>> inverse = new HashMap<>();
-        map.entrySet().stream().forEach(
-            x -> {
-                if (inverse.containsKey(x.getValue())) {
-                    inverse.get(x.getValue()).add(x.getKey());
-                } else {
-                    List<Integer> list = new ArrayList<>();
-                    list.add(x.getKey());
-                    inverse.put(x.getValue(), list);
-                }
-            }
-        );
-        return inverse;
     }
 
     /**
@@ -85,7 +67,9 @@ public class ConsumerImpl implements ControllerApi.Consumer {
                     int quotient = currentCount / n;
                     int remainder = currentCount % n;
 
-                    Map<Integer, List<Integer>> inverse = invertMap(segmentFutures.getFutures());
+                    ListMultimap<Integer, Integer> inverse = Multimaps.invertFrom(
+                            Multimaps.forMap(segmentFutures.getFutures()),
+                            ArrayListMultimap.create());
 
                     int size = (quotient < 1) ? remainder : n;
                     List<Position> positions = new ArrayList<>(size);
