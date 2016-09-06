@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import lombok.Data;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -30,13 +31,13 @@ import java.util.Map;
 @Data
 public class SegmentFutures {
     // current segments to read from or write to
-    private List<Integer> current;
+    private final List<Integer> current;
 
     // future segments to read from or write to when current segment is completely read (consumer) or sealed (producer)
-    private Map<Integer, Integer> futures;
+    private final Map<Integer, Integer> futures;
 
-    SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
-        this.current = current;
-        this.futures = futures;
+    public SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
+        this.current = Collections.unmodifiableList(current);
+        this.futures = Collections.unmodifiableMap(futures);
     }
 }

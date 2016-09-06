@@ -30,6 +30,7 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import lombok.extern.slf4j.Slf4j;
 import com.emc.pravega.stream.ControllerApi;
 import com.google.common.collect.Sets;
 
@@ -43,6 +44,7 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 /**
  * Entry point of controller server.
  */
+@Slf4j
 public class Main {
 
     public static void main(String[] args) {
@@ -54,8 +56,10 @@ public class Main {
         hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
         //1) LOAD configuration.
+        log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
+        log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
@@ -64,13 +68,14 @@ public class Main {
         ControllerApi.Admin adminApi = new AdminImpl(streamStore, hostStore);
 
         //2.2) initialize implementation of ControllerApi.ApiConsumer
-        ControllerApi.Consumer consumerApi = new ConsumerImpl();
+        ControllerApi.Consumer consumerApi = new ConsumerImpl(streamStore, hostStore);
 
         //2.3) initialize implementation of ControllerApi.ApiProducer
         ControllerApi.Producer producerApi = new ProducerImpl(streamStore, hostStore);
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.
+        log.info("Starting RPC server");
         RPCServer.start(new AdminServiceImpl(adminApi), new ConsumerServiceImpl(consumerApi), new ProducerServiceImpl(producerApi));
     }
 }

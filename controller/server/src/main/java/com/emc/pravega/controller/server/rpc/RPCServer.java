@@ -63,6 +63,7 @@ public class RPCServer {
 
     private static void simpleThreaded(final TMultiplexedProcessor processor) {
         try {
+            log.info("Listening on port " + SERVER_PORT);
             TServerTransport serverTransport = new TServerSocket(SERVER_PORT);
             TServer server = new TThreadPoolServer(new TThreadPoolServer.Args(serverTransport).processor(processor));
             log.info("Starting Controller Server (ThreadPool based)...");

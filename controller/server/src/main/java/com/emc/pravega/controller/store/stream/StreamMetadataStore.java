@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Stream Metadata
@@ -99,7 +100,7 @@ public interface StreamMetadataStore {
      * @param currentSegments current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    List<SegmentFutures> getNextSegments(String name, List<Integer> completedSegments, List<SegmentFutures> currentSegments);
+    List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -110,5 +111,5 @@ public interface StreamMetadataStore {
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    List<Segment> scale(String name, List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp);
+    List<Segment> scale(String name, List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp);
 }

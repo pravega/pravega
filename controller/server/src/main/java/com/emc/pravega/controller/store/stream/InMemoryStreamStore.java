@@ -22,6 +22,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * In-memory stream store.
@@ -99,13 +100,13 @@ public class InMemoryStreamStore implements StreamMetadataStore {
     }
 
     @Override
-    public List<SegmentFutures> getNextSegments(String name, List<Integer> completedSegments, List<SegmentFutures> currentSegments) {
+    public List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments) {
         Stream stream = getStream(name);
         return stream.getNextSegments(completedSegments, currentSegments);
     }
 
     @Override
-    public List<Segment> scale(String name, List<Segment> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
+    public List<Segment> scale(String name, List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
         Stream stream = getStream(name);
         return stream.scale(sealedSegments, newSegments, scaleTimestamp);
     }

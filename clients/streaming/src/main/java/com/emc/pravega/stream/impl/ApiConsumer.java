@@ -66,7 +66,7 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
     }
 
     @Override
-    public CompletableFuture<List<Position>> updatePositions(List<Position> positions) {
+    public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
         //Use RPC client to invoke updatePositions
         log.info("Invoke ConsumerService.Client.updatePositions() for positions: {} ", positions);
 
@@ -75,7 +75,7 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
             try {
                 //invoke RPC client
                 List<com.emc.pravega.controller.stream.api.v1.Position> result =
-                        client.updatePositions(positions.stream().map(p -> ModelHelper.decode(p)).collect(Collectors.toList()));
+                        client.updatePositions(stream, positions.stream().map(p -> ModelHelper.decode(p)).collect(Collectors.toList()));
                 //encode the result back to Model class
                 List<Position> resultModel = result.parallelStream().map(ModelHelper::encode).collect(Collectors.toList());
                 log.debug("Received the following data from the controller {}", result);
