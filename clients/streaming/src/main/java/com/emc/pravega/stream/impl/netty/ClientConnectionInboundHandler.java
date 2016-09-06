@@ -18,9 +18,10 @@
 
 package com.emc.pravega.stream.impl.netty;
 
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.Reply;
@@ -75,17 +76,15 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.exceptionCaught(ctx, cause);
         ctx.close();
     }
-
+    
+    @Override
+    public Future<Void> sendAsync(WireCommand cmd) {
+         return getChannel().writeAndFlush(cmd);
+    }
+    
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
-        try {
-            getChannel().writeAndFlush(cmd).get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(connectionName + " Send call was interrupted", e);
-        } catch (ExecutionException e) {
-            throw new ConnectionFailedException(e.getCause());
-        }
+        FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
 
     @Override
@@ -101,11 +100,5 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Preconditions.checkState(ch != null, connectionName + " Connection not yet established.");
         return ch;
     }
-
-    // @Override
-    // public boolean isConnected() {
-    // Channel c = channel.get();
-    // return c!=null && c.isOpen();
-    // }
 
 }

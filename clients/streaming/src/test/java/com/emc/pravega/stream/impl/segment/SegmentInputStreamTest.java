@@ -18,6 +18,8 @@
 package com.emc.pravega.stream.impl.segment;
 
 import static com.emc.pravega.testcommon.Async.testBlocking;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 import java.nio.ByteBuffer;
 import java.util.Vector;
@@ -28,15 +30,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.ByteBufferUtils;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 import lombok.Cleanup;
+import lombok.Data;
 
 public class SegmentInputStreamTest {
 
@@ -52,19 +54,45 @@ public class SegmentInputStreamTest {
             }
         }
 
+        @Data
+        private class ReadFutureImpl implements ReadFuture {
+            final int num;
+            int attempt = 0;
+            @Override
+            public boolean isSuccess() {
+                return FutureHelpers.isSuccessful(readResults.get(num + attempt));
+            }  
+        }
+        
         @Override
-        public CompletableFuture<SegmentRead> read(long offset, int length) {
+        public ReadFuture read(long offset, int length) {
             int i = readIndex.incrementAndGet();
-            return readResults.get(i);
+            return new ReadFutureImpl(i);
         }
 
         void complete(int readNumber, SegmentRead readResult) {
             readResults.get(readNumber).complete(readResult);
         }
 
+        void completeExceptionally(int readNumber, Exception e) {
+            readResults.get(readNumber).completeExceptionally(e);
+        }
+        
         @Override
         public void close() {
             closed.set(true);
+        }
+
+        @Override
+        public SegmentRead getResult(ReadFuture ongoingRead) {
+            ReadFutureImpl read = (ReadFutureImpl)ongoingRead;
+            CompletableFuture<SegmentRead> future = readResults.get(read.num + read.attempt);
+            if (FutureHelpers.await(future)) {
+                    return future.getNow(null);
+            } else {
+                read.attempt++;
+                return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
+            }
         }
     }
 
@@ -130,6 +158,29 @@ public class SegmentInputStreamTest {
         ByteBuffer read = testBlocking(() -> stream.read(), () -> {
             fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, createEventFromData(data)));
         });
+        assertEquals(ByteBuffer.wrap(data), read);
+    }
+    
+    @Test
+    public void testExceptionRecovery() throws EndOfSegmentException {
+        byte[] data = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        ByteBuffer wireData = createEventFromData(data);
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(6);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
+        fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
+        fakeNetwork.complete(2, new SegmentRead("Foo", 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
+        fakeNetwork.complete(3, new SegmentRead("Foo", 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
+        fakeNetwork
+            .complete(4, new SegmentRead("Foo", 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        try {
+            ByteBuffer read = stream.read();
+            fail();
+        } catch (RuntimeException e) {
+            //Expected
+        }
+        ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read);
     }
 
