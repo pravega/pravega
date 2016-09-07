@@ -248,8 +248,8 @@ class SegmentAggregator implements AutoCloseable {
         // Verify operation Segment Id.
         checkSegmentId(operation);
 
-        // Verify operation offset (this also takes care of extra operations after Seal or Merge; no need for further checks).
-        checkOffset(operation);
+        // Verify operation validity (this also takes care of extra operations after Seal or Merge; no need for further checks).
+        checkValidOperation(operation);
 
         // Add operation to list
         this.operations.addLast(operation);
@@ -379,8 +379,10 @@ class SegmentAggregator implements AutoCloseable {
     private FlushArgs getFlushArgs() throws DataCorruptionException {
         FlushArgs result = new FlushArgs();
         for (StorageOperation op : this.operations) {
-            if (result.getTotalLength() + op.getLength() > this.config.getMaxFlushSizeBytes()) {
+            if (result.getTotalLength() > 0 && result.getTotalLength() + op.getLength() > this.config.getMaxFlushSizeBytes()) {
                 // We will be exceeding the maximum flush size if we include this operation. Stop here and return the result.
+                // However, we want to make sure we flush at least one item, which is why we check TotalLength to be 0.
+                // The add() method should make sure the length of one single operation does not exceed the total flush size.
                 break;
             }
 
@@ -577,7 +579,7 @@ class SegmentAggregator implements AutoCloseable {
      * @throws IllegalArgumentException If the operation has an undefined Offset or Length (these are not considered data-
      *                                  corrupting issues).
      */
-    private void checkOffset(StorageOperation operation) throws DataCorruptionException {
+    private void checkValidOperation(StorageOperation operation) throws DataCorruptionException {
         if (this.hasSealPending) {
             // After a StreamSegmentSeal, we do not allow any other operation.
             throw new DataCorruptionException(String.format("No operation is allowed for a sealed segment; received '%s' .", operation));
@@ -592,6 +594,12 @@ class SegmentAggregator implements AutoCloseable {
         // Check that operations are contiguous.
         if (offset != this.lastAddedOffset) {
             throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %d, actual: %d.", operation, this.lastAddedOffset, offset));
+        }
+
+        // Even though the DurableLog should take care of this, doesn't hurt to check again that we cannot add anything
+        // after a StreamSegmentSealOperation.
+        if (this.hasSealPending) {
+            throw new DataCorruptionException(String.format("Cannot add any operation after sealing a Segment; received '%s'.", operation));
         }
 
         // Check that the operation does not exceed the DurableLogLength of the StreamSegment.
@@ -618,6 +626,9 @@ class SegmentAggregator implements AutoCloseable {
             if (!this.metadata.isSealed()) {
                 throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
             }
+        } else if (operation instanceof StreamSegmentAppendOperation || operation instanceof CachedStreamSegmentAppendOperation) {
+            // Make sure that no single operation exceeds the MaxFlushSizeBytes - since we only flush in whole operations at this time.
+            Preconditions.checkArgument(length <= this.config.getMaxFlushSizeBytes(), "Operation '%s' exceeds the Maximum Flush Size (%s) as specified in the configuration.", operation, config.getMaxFlushSizeBytes());
         }
     }
 

@@ -27,6 +27,9 @@ class FlushResult {
     private long flushedBytes;
     private long mergedBytes;
 
+    /**
+     * Creates a new instance of the FlushResult class.
+     */
     FlushResult() {
         this.flushedBytes = 0;
         this.mergedBytes = 0;
@@ -88,6 +91,6 @@ class FlushResult {
 
     @Override
     public String toString() {
-        return String.format("Flushed = %d, Merged = %d", this.flushedBytes, this.mergedBytes);
+        return String.format("FlushedBytes = %d, MergedBytes = %d", this.flushedBytes, this.mergedBytes);
     }
 }

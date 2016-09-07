@@ -465,9 +465,9 @@ class StorageWriter extends AbstractService implements Writer {
         return FutureHelpers
                 .allOfWithResults(stageComponents)
                 .thenAccept(flushResults -> {
-                    StageResult result = new StageResult();
-                    flushResults.forEach(r -> result.addBytes(r.getFlushedBytes()));
-                    if (result.bytes + result.count > 0) {
+                    FlushStageResult result = new FlushStageResult();
+                    flushResults.forEach(result::withFlushResult);
+                    if (result.getFlushedBytes() + result.getMergedBytes() + result.count > 0) {
                         logStageEvent(stageName, result);
                     }
                 });
@@ -507,23 +507,23 @@ class StorageWriter extends AbstractService implements Writer {
         }
     }
 
-    //region StageResult
+    //region FlushStageResult
 
     /**
      * Represents the result of an iteration stage.
      */
-    private static class StageResult {
+    private static class FlushStageResult extends FlushResult {
         int count;
-        long bytes;
 
-        void addBytes(long byteCount) {
-            this.bytes += byteCount;
+        @Override
+        public FlushStageResult withFlushResult(FlushResult flushResult) {
             this.count++;
+            return (FlushStageResult) super.withFlushResult(flushResult);
         }
 
         @Override
         public String toString() {
-            return String.format("Count=%d, Bytes=%d", this.count, this.bytes);
+            return String.format("Count=%d, %s", this.count, super.toString());
         }
     }
 

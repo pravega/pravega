@@ -33,8 +33,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import static com.emc.pravega.testcommon.ErrorInjector.throwAsyncExceptionIfNeeded;
-
 /**
  * Test DurableDataLog. Wraps around an existing DurableDataLog, and allows controlling behavior for each method, such
  * as injecting errors, simulating non-availability, etc.
@@ -80,7 +78,7 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<Long> append(InputStream data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
-        return throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
                 .thenCompose(v -> this.wrappedLog.append(data, timeout));
     }
 

@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.common.Exceptions;
 import com.google.common.collect.Iterators;
 
 import java.io.ByteArrayInputStream;
@@ -49,6 +50,19 @@ class FlushArgs {
         if (data.length > 0) {
             this.streams.add(new ByteArrayInputStream(data));
             this.totalLength += data.length;
+        }
+    }
+
+    /**
+     * Incorporates part of the given byte array into the args.
+     *
+     * @param data The byte array to incorporate.
+     */
+    void add(byte[] data, int offset, int length) {
+        if (data.length > 0 && length > 0) {
+            Exceptions.checkArrayRange(offset, length, data.length, "offset", "length");
+            this.streams.add(new ByteArrayInputStream(data, offset, length));
+            this.totalLength += length;
         }
     }
 

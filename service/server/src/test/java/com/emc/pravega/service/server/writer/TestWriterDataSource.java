@@ -112,7 +112,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         // If not a checkpoint op, see if we need to auto-add one.
         boolean isCheckpoint = operation instanceof MetadataCheckpointOperation;
         if (!isCheckpoint) {
-            if (this.config.autoInsertCheckpointFrequency > 0 && this.metadata.getOperationSequenceNumber() - this.lastAddedCheckpoint >= this.config.autoInsertCheckpointFrequency) {
+            if (this.config.autoInsertCheckpointFrequency != DataSourceConfig.NO_METADATA_CHECKPOINT && this.metadata.getOperationSequenceNumber() - this.lastAddedCheckpoint >= this.config.autoInsertCheckpointFrequency) {
                 MetadataCheckpointOperation checkpointOperation = new MetadataCheckpointOperation();
                 this.lastAddedCheckpoint = add(checkpointOperation);
             }
@@ -299,6 +299,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     }
 
     static class DataSourceConfig {
+        static final int NO_METADATA_CHECKPOINT = -1;
         int autoInsertCheckpointFrequency;
     }
 }
