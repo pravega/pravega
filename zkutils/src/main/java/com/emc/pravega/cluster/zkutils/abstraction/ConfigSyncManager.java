@@ -35,15 +35,15 @@ public interface ConfigSyncManager {
 
   /**
      * Create an entry at a given path. Right now all the entries are ephemeral
-     * @param path
-     * @param value
+     * @param path The path in the ZK/Vnest which is created
+     * @param value The value stored at this path
      * @throws Exception
      */
   void createEntry(String path, byte[] value) throws Exception;
 
     /**
      * Deletes an existing entry
-     * @param path
+     * @param path The path in ZK/Vnest which is removed
      * @throws Exception
      */
   void deleteEntry(String path) throws Exception;
@@ -56,8 +56,8 @@ public interface ConfigSyncManager {
 
     /**
      * Registers a Pravega node
-     * @param host
-     * @param port
+     * @param host Unique name/IP of the host to be registered
+     * @param port The port used to communicate to Pravega node
      * @param jsonMetadata
      * @throws Exception
      */
@@ -65,8 +65,8 @@ public interface ConfigSyncManager {
 
     /**
      * Registers a Pravega controller
-     * @param host
-     * @param port
+     * @param host Unique hostname/IP of the controller
+     * @param port Port used to communicate to the controller
      * @param jsonMetadata
      * @throws Exception
      */
@@ -74,16 +74,16 @@ public interface ConfigSyncManager {
 
     /**
      * Unregisters a Pravega controller
-     * @param host
-     * @param port
+     * @param host Unique hostname/IP of the controller
+     * @param port Port used to communicate to the controller
      * @throws Exception
      */
   void unregisterPravegaController(String host, int port) throws Exception;
 
     /**
      * Unregisters a Pravega node
-     * @param host
-     * @param port
+     * @param host Unique name/IP of the host to be registered
+     * @param port The port used to communicate to Pravega node
      * @throws Exception
      */
   void unregisterPravegaNode(String host, int port) throws Exception;
