@@ -41,10 +41,13 @@ import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandle
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.*;
+import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.impl.ApiAdmin;
-import com.emc.pravega.stream.impl.ApiProducer;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
