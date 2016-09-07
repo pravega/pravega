@@ -80,7 +80,6 @@ public class InMemoryCache implements Cache {
         Exceptions.checkNotClosed(this.closed, this);
         synchronized (this.map) {
             this.map.put(key, payload);
-            key.markInCache(true);
         }
     }
 
@@ -103,7 +102,6 @@ public class InMemoryCache implements Cache {
     public boolean remove(Cache.Key key) {
         Exceptions.checkNotClosed(this.closed, this);
         synchronized (this.map) {
-            key.markInCache(false);
             return this.map.remove(key) != null;
         }
     }

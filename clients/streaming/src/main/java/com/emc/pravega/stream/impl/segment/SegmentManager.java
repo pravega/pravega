@@ -64,7 +64,7 @@ public interface SegmentManager {
      * same or different clients (i.e., there can be concurrent Stream Writers
      * in the same process space).
      */
-    SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config);
+    SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) throws SegmentSealedException;
 
     /**
      * Opens an existing segment for reading. This operation will fail if the

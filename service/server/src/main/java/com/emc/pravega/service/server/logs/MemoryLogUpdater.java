@@ -86,26 +86,10 @@ class MemoryLogUpdater {
      *                                 append operations out of order.
      */
     void process(Operation operation) throws DataCorruptionException {
+        // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the QueueProcessor,
+        // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
         CacheKey cacheKey = addToCache(operation);
-        try {
-            // Add entry to MemoryTransactionLog and ReadIndex. This callback is invoked from the QueueProcessor,
-            // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
-            operation = addToMemoryOperationLog(operation, cacheKey);
-
-            // Add entry to read index (if applicable).
-            if (operation instanceof StorageOperation) {
-                this.cacheUpdater.addToReadIndex((StorageOperation) operation);
-            }
-        } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
-                if (cacheKey != null) {
-                    // Cleanup the cache after failing to process an operation that did process something to the cache.
-                    this.cacheUpdater.removeFromCache(cacheKey);
-                }
-            }
-
-            throw ex;
-        }
+        addToMemoryOperationLog(operation, cacheKey);
     }
 
     /**
@@ -128,14 +112,14 @@ class MemoryLogUpdater {
     }
 
     private CacheKey addToCache(Operation operation) {
-        if (operation instanceof StreamSegmentAppendOperation) {
-            return this.cacheUpdater.addToCache((StreamSegmentAppendOperation) operation);
+        if (operation instanceof StorageOperation) {
+            return this.cacheUpdater.addToReadIndex((StorageOperation) operation);
         }
 
         return null;
     }
 
-    private Operation addToMemoryOperationLog(Operation operation, CacheKey key) throws DataCorruptionException {
+    private void addToMemoryOperationLog(Operation operation, CacheKey key) throws DataCorruptionException {
         if (key != null) {
             // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
             assert operation instanceof StreamSegmentAppendOperation : "non-null CacheKey, but operation is not a StreamSegmentAppendOperation";
@@ -159,9 +143,6 @@ class MemoryLogUpdater {
             // while serving reads, so better stop now than later.
             throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
         }
-
-        // Return either the original operation or the newly created one.
-        return operation;
     }
 
     //endregion

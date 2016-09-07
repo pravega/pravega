@@ -37,6 +37,7 @@ import com.emc.pravega.service.server.logs.operations.OperationFactory;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
+import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -72,6 +73,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 8 * 1024;
     private static final int METADATA_CHECKPOINT_EVERY = 100;
+    private static final int THREAD_POOL_SIZE = 10;
 
     /**
      * Tests the ability of the OperationProcessor to process Operations in a failure-free environment.
@@ -317,6 +319,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
         // immediately shut down and stop accepting other ops.
@@ -476,6 +479,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
     private static class TestContext implements AutoCloseable {
         final CloseableExecutorService executorService;
+        final CacheManager cacheManager;
         final Storage storage;
         final MemoryOperationLog memoryLog;
         final Cache cache;
@@ -484,12 +488,13 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final MemoryLogUpdater logUpdater;
 
         TestContext() {
-            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(10));
+            this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.storage = new InMemoryStorage(this.executorService.get());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfig(100, 1024);
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.executorService.get());
+            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService.get());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
             this.memoryLog = new MemoryOperationLog();
             this.logUpdater = new MemoryLogUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
         }
@@ -499,6 +504,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.readIndex.close();
             this.storage.close();
             this.cache.close();
+            this.cacheManager.close();
             this.executorService.close();
         }
     }

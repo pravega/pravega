@@ -66,4 +66,6 @@ public interface ReplyProcessor {
     void segmentDeleted(SegmentDeleted segmentDeleted);
 
     void keepAlive(KeepAlive keepAlive);
+    
+    void connectionDropped();
 }

@@ -45,6 +45,7 @@ public class PendingAppendsCollectionTests {
      * Tests the ability to register an append and then get the correct AppendContext for it.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testRegisterGet() {
         HashMap<Long, HashMap<UUID, AppendContext>> lastContexts = new HashMap<>();
         CompletableFuture<Long> doneFirstThird = new CompletableFuture<>();

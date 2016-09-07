@@ -18,11 +18,9 @@
 
 package com.emc.pravega.common;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.testcommon.AssertExtensions;
-
 import org.junit.Test;
+
+import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Tests the functionality of methods within the Exceptions class.

@@ -101,6 +101,16 @@ public class SingleSegmentStreamImpl implements Stream {
                 l,
                 config);
     }
+    
+    public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
+        return new ConsumerImpl<>(this,
+                segmentManager,
+                s,
+                new PositionImpl(Collections.singletonMap(segmentId, 0L), Collections.emptyMap()),
+                new SingleStreamOrderer<T>(),
+                null,
+                config);
+    }
 
     @Override
     public void close() {

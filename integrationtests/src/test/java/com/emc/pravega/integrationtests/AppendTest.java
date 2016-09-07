@@ -21,6 +21,7 @@ package com.emc.pravega.integrationtests;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.common.netty.Reply;
 import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.WireCommand;
@@ -34,8 +35,8 @@ import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.controller.stream.api.v1.*;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
-import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
-import com.emc.pravega.service.server.host.handler.LogServiceRequestProcessor;
+import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.host.handler.PravegaRequestProcessor;
 import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandler;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -57,6 +58,8 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -83,7 +86,7 @@ public class AppendTest {
     public void setup() throws Exception {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
-
+        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = new InMemoryServiceBuilder(ServiceBuilderConfig.getDefaultConfig());
         this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
     }
@@ -134,7 +137,7 @@ public class AppendTest {
         assertEquals(data.readableBytes(), ack.getEventNumber());
     }
 
-    private Reply sendRequest(EmbeddedChannel channel, CommandDecoder decoder, Request request) throws Exception {
+    static Reply sendRequest(EmbeddedChannel channel, CommandDecoder decoder, Request request) throws Exception {
         channel.writeInbound(request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
@@ -152,32 +155,33 @@ public class AppendTest {
         return (Reply) decoded;
     }
 
-    private EmbeddedChannel createChannel(StreamSegmentStore store) {
+    static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new LogServiceRequestProcessor(store, lsh)));
-        EmbeddedChannel channel = new EmbeddedChannel(new CommandEncoder(),
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
+                new CommandEncoder(),
                 new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                 new CommandDecoder(),
                 lsh);
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh)));
         return channel;
     }
 
     @Test
-    public void appendThroughLogClient() throws Exception {
+    public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
         String segmentName = "abc";
         int port = 8765;
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl logClient = new SegmentManagerImpl(endpoint, clientCF);
-        logClient.createSegment(segmentName);
+        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
+        segmentClient.createSegment(segmentName);
         @Cleanup("close")
-        SegmentOutputStream out = logClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();
@@ -192,7 +196,7 @@ public class AppendTest {
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        LogServiceConnectionListener server = new LogServiceConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
         ControllerApi.Admin apiAdmin = new ControllerApi.Admin() {

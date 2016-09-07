@@ -138,6 +138,7 @@ public class StreamSegmentContainerMetadataTests {
      * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (batch) StreamSegments.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testDeleteStreamSegment() {
         StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
         ArrayList<Long> segmentIds = new ArrayList<>();

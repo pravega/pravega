@@ -26,7 +26,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.server.host.handler.LogServiceConnectionListener;
+import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
@@ -38,7 +38,7 @@ public final class ServiceStarter {
     private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
-    private LogServiceConnectionListener listener;
+    private PravegaConnectionListener listener;
     private boolean closed;
 
     private ServiceStarter(ServiceBuilderConfig config) {
@@ -59,7 +59,7 @@ public final class ServiceStarter {
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new LogServiceConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }

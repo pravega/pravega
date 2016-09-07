@@ -18,12 +18,10 @@
 
 package com.emc.pravega.common.util;
 
+import java.nio.ByteBuffer;
+
 import org.junit.Ignore;
 import org.junit.Test;
-
-import com.emc.pravega.common.util.CircularBuffer;
-
-import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
