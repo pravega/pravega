@@ -17,9 +17,13 @@
  */
 package com.emc.pravega.demo;
 
-
-import com.emc.pravega.stream.*;
-import com.emc.pravega.stream.impl.*;
+import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.ApiAdmin;
+import com.emc.pravega.stream.impl.ApiProducer;
+import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import lombok.Cleanup;
 
 import java.util.concurrent.ExecutionException;
