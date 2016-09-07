@@ -29,10 +29,12 @@ import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * ServiceBuilder that uses all in-memory components. Upon closing this object, all data would be lost.
  */
+@Slf4j
 public class InMemoryServiceBuilder extends ServiceBuilder {
     public InMemoryServiceBuilder(ServiceBuilderConfig config) {
         super(config);
@@ -64,6 +66,7 @@ public class InMemoryServiceBuilder extends ServiceBuilder {
             return new ClusterImpl(ConfigSyncManagerType.DUMMY, this.serviceBuilderConfig.getServiceConfig().getZKConnectString(),
                     -                    this.serviceBuilderConfig.getServiceConfig().getZKClusterTimeoutMS());
         } catch (Exception e) {
+            log.warn("Exception {} which creating a cluster object",e);
             return null;
         }
     }

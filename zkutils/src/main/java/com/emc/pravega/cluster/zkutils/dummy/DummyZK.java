@@ -25,9 +25,6 @@ import com.google.common.base.Preconditions;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Created by kandha on 8/8/16.
- */
 public class DummyZK extends CommonConfigSyncManager {
 
     private final ConcurrentHashMap<String, byte[]> valueMap;
@@ -38,11 +35,7 @@ public class DummyZK extends CommonConfigSyncManager {
         valueMap = new ConcurrentHashMap<>();
     }
 
-    /**
-     * Sample configuration/synchronization methods. Will add more as implementation progresses
-     *  @param path
-     * @param value
-     */
+
     @Override
     public void createEntry(String path, byte[] value) {
         Preconditions.checkNotNull(path);

@@ -82,7 +82,7 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
      * Initializes the cluster with a given config manager type
      *
      */
-    private  synchronized void initializeCluster() throws Exception {
+    private void initializeCluster() throws Exception {
         if (manager == null) {
             manager = new ConfigSyncManagerFactory().createManager(syncType, connectionString,
                     sessionTimeout, this);

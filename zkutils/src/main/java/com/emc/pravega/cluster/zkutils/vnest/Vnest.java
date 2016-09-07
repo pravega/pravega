@@ -32,11 +32,7 @@ public class Vnest extends CommonConfigSyncManager {
     }
 
 
-    /**
-     * Sample configuration/synchronization methods. Will add more as implementation progresses
-     *  @param path
-     * @param value
-     */
+    
     @Override
     public void createEntry(String path, byte[] value) {
         throw new UnsupportedOperationException();
