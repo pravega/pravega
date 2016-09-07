@@ -51,18 +51,18 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @GuardedBy("lock")
     private CompletableFuture<ClientConnection> connection = null;
     private final Object lock = new Object();
-    private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();    
+    private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final StreamController controller;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
-        
+
         @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());
         }
-        
+
         @Override
         public void wrongHost(WrongHost wrongHost) {
             closeConnection(new ConnectionFailedException(wrongHost.toString()));
@@ -87,35 +87,42 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private static class ReadFutureImpl implements ReadFuture {
         private final ReadSegment request;
         private final AtomicReference<CompletableFuture<SegmentRead>> result;
+
         ReadFutureImpl(ReadSegment request) {
             Preconditions.checkNotNull(request);
             this.request = request;
             this.result = new AtomicReference<>(new CompletableFuture<>());
-        }        
+        }
+
         private boolean await() {
             return FutureHelpers.await(result.get());
         }
+
         private SegmentRead get() throws ExecutionException {
             return Exceptions.handleInterrupted(() -> result.get().get());
         }
+
         private void complete(SegmentRead r) {
             result.get().complete(r);
         }
+
         public void completeExceptionally(Exception e) {
             result.get().completeExceptionally(e);
         }
+
         private void reset() {
             CompletableFuture<SegmentRead> old = result.getAndSet(new CompletableFuture<>());
             if (!old.isDone()) {
                 old.completeExceptionally(new RuntimeException("Retry alrady in progress"));
             }
         }
+
         @Override
         public boolean isSuccess() {
             return FutureHelpers.isSuccessful(result.get());
         }
     }
-    
+
     public AsyncSegmentInputStreamImpl(StreamController controller, ConnectionFactory connectionFactory, String segment) {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
@@ -133,8 +140,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     @Override
-    public ReadFuture read(long offset, int length) {        
-        if(closed.get()) {
+    public ReadFuture read(long offset, int length) {
+        if (closed.get()) {
             throw new ObjectClosedException(this);
         }
         ReadSegment request = new ReadSegment(segment, offset, length);
@@ -185,12 +192,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             read.completeExceptionally(e);
         }
     }
-    
+
     @Override
     public SegmentRead getResult(ReadFuture ongoingRead) {
         ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
         return backoffSchedule.retryingOn(ExecutionException.class).throwingOn(RuntimeException.class).run(() -> {
-            if(closed.get()) {
+            if (closed.get()) {
                 throw new ObjectClosedException(this);
             }
             if (!read.await()) {

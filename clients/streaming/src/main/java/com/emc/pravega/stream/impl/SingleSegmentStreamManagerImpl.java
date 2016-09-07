@@ -21,7 +21,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 import com.emc.pravega.common.netty.ConnectionFactory;
-import com.emc.pravega.stream.*;
+import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamManager;
+import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 
 /**

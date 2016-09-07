@@ -19,7 +19,6 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.SegmentId;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.Collections;
 import java.util.Map;

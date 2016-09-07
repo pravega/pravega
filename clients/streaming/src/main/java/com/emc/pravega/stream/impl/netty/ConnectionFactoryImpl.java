@@ -20,22 +20,17 @@ package com.emc.pravega.stream.impl.netty;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.SSLException;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;

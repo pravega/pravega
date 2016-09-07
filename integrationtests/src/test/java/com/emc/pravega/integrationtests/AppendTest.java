@@ -32,7 +32,7 @@ import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.controller.stream.api.v1.*;
+import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -75,7 +75,6 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;

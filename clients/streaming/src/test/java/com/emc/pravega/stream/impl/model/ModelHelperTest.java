@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * <p/>
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- * <p/>
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,7 +24,6 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
-import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -39,7 +38,7 @@ public class ModelHelperTest {
     }
 
     private static ScalingPolicy createScalingPolicy() {
-        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100l, 2, 3);
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
         return policy;
     }
 
@@ -59,19 +58,20 @@ public class ModelHelperTest {
 
     private static Position createPosition() {
         Map<SegmentId, Long> ownedLogs = new HashMap<>();
-        ownedLogs.put(createSegmentId("seg1"), 1l);
+        ownedLogs.put(createSegmentId("seg1"), 1L);
 
         Map<SegmentId, Long> futureOwnedLogs = new HashMap<>();
-        futureOwnedLogs.put(createSegmentId("seg2"), 2l);
+        futureOwnedLogs.put(createSegmentId("seg2"), 2L);
 
         return new PositionImpl(ownedLogs, futureOwnedLogs);
     }
 
     @Test(expected = NullPointerException.class)
     public void decodeSegmentId() throws Exception {
-        final String SEG_NAME = "seg1";
+        final String segName = "seg1";
+
         com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(createSegmentId("seg1"));
-        assertEquals(SEG_NAME, segmentID.getName());
+        assertEquals(segName, segmentID.getName());
         assertEquals("scope", segmentID.getScope());
         assertEquals(2, segmentID.getNumber());
         assertEquals(1, segmentID.getPrevious());
@@ -94,7 +94,7 @@ public class ModelHelperTest {
     public void decodeScalingPolicy() throws Exception {
         com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
         assertEquals(ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
-        assertEquals(100l, policy.getTargetRate());
+        assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
 
@@ -105,7 +105,7 @@ public class ModelHelperTest {
     public void encodeScalingPolicy() throws Exception {
         ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(createScalingPolicy()));
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
-        assertEquals(100l, policy.getTargetRate());
+        assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
 
@@ -118,7 +118,7 @@ public class ModelHelperTest {
         assertEquals("test", config.getName());
         com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy = config.getPolicy();
         assertEquals(ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
-        assertEquals(100l, policy.getTargetRate());
+        assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
 
@@ -133,7 +133,7 @@ public class ModelHelperTest {
         assertEquals("test", config.getName());
         ScalingPolicy policy = config.getScalingingPolicy();
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
-        assertEquals(100l, policy.getTargetRate());
+        assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
 
@@ -145,8 +145,8 @@ public class ModelHelperTest {
         com.emc.pravega.controller.stream.api.v1.Position position = ModelHelper.decode(createPosition());
         assertEquals(1, position.getOwnedLogs().size());
         assertEquals(1, position.getFutureOwnedLogs().size());
-        assertEquals(1l, position.getOwnedLogs().get(ModelHelper.decode(createSegmentId("seg1"))).longValue());
-        assertEquals(2l, position.getFutureOwnedLogs().get(ModelHelper.decode(createSegmentId("seg2"))).longValue());
+        assertEquals(1L, position.getOwnedLogs().get(ModelHelper.decode(createSegmentId("seg1"))).longValue());
+        assertEquals(2L, position.getFutureOwnedLogs().get(ModelHelper.decode(createSegmentId("seg2"))).longValue());
 
         ModelHelper.decode((Position) null);
     }
@@ -157,8 +157,8 @@ public class ModelHelperTest {
         assertEquals(1, position.asImpl().getOwnedLogs().size());
         assertEquals(1, position.asImpl().getFutureOwnedLogs().size());
         Map<SegmentId, Long> owndedLogs = position.asImpl().getOwnedLogs();
-        assertEquals(1l, position.asImpl().getOwnedLogs().get(createSegmentId("seg1")).longValue());
-        assertEquals(2l, position.asImpl().getFutureOwnedLogs().get(createSegmentId("seg2")).longValue());
+        assertEquals(1L, position.asImpl().getOwnedLogs().get(createSegmentId("seg1")).longValue());
+        assertEquals(2L, position.asImpl().getFutureOwnedLogs().get(createSegmentId("seg2")).longValue());
 
         ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.Position) null);
     }
