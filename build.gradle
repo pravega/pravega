@@ -206,7 +206,6 @@ project('perfbenchmark') {
     }
 }
 
-<<<<<<< HEAD
 project('cluster') {
     apply plugin: 'scala'
     dependencies {
@@ -246,7 +245,6 @@ tasks.withType(ScalaCompile) {
     }
 }
 
-=======
 
 if (System.env.TRAVIS == 'true') {
   allprojects {
@@ -265,4 +263,3 @@ if (System.env.TRAVIS == 'true') {
 subprojects {
     task allDeps(type: DependencyReportTask) {}
 }
->>>>>>> master
