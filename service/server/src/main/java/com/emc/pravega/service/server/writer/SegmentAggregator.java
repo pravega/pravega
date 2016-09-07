@@ -64,7 +64,7 @@ class SegmentAggregator implements AutoCloseable {
     private final Storage storage;
     private final WriterDataSource dataSource;
     private Duration lastFlush;
-    private long outstandingLength;
+    private long outstandingAppendLength;
     private long lastAddedOffset;
     private int mergeBatchCount;
     private boolean hasSealPending;
@@ -98,7 +98,7 @@ class SegmentAggregator implements AutoCloseable {
         this.dataSource = dataSource;
         this.stopwatch = stopwatch;
         this.lastFlush = stopwatch.elapsed();
-        this.outstandingLength = 0;
+        this.outstandingAppendLength = 0;
         this.lastAddedOffset = -1; // Will be set properly in initialize().
         this.mergeBatchCount = 0;
         this.operations = new LinkedList<>();
@@ -180,7 +180,7 @@ class SegmentAggregator implements AutoCloseable {
      * @return
      */
     private boolean exceedsThresholds() {
-        return this.outstandingLength >= this.config.getFlushThresholdBytes()
+        return this.outstandingAppendLength >= this.config.getFlushThresholdBytes()
                 || getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0;
     }
 
@@ -191,7 +191,7 @@ class SegmentAggregator implements AutoCloseable {
                 this.metadata.getId(),
                 this.metadata.getName(),
                 this.operations.size(),
-                this.outstandingLength,
+                this.outstandingAppendLength,
                 this.lastAddedOffset,
                 this.getElapsedSinceLastFlush().toMillis() / 1000);
     }
@@ -259,10 +259,11 @@ class SegmentAggregator implements AutoCloseable {
             this.mergeBatchCount++;
         } else if (operation instanceof StreamSegmentSealOperation) {
             this.hasSealPending = true;
+        } else if (operation instanceof StreamSegmentAppendOperation || operation instanceof CachedStreamSegmentAppendOperation) {
+            // Update current outstanding length - but we only keep track of this for appends (MergeBatches do not count for flush thresholds).
+            this.outstandingAppendLength += operation.getLength();
         }
 
-        // Update current state (note that MergeBatchOperations have a length of 0 if added to the BatchStreamSegment - because they don't have any effect on it).
-        this.outstandingLength += operation.getLength();
         this.lastAddedOffset = operation.getStreamSegmentOffset() + operation.getLength();
     }
 
@@ -657,8 +658,8 @@ class SegmentAggregator implements AutoCloseable {
         this.metadata.setStorageLength(this.metadata.getStorageLength() + flushArgs.getTotalLength());
 
         // Update the outstanding length.
-        this.outstandingLength -= flushArgs.getTotalLength();
-        assert this.outstandingLength >= 0 : "negative outstandingLength";
+        this.outstandingAppendLength -= flushArgs.getTotalLength();
+        assert this.outstandingAppendLength >= 0 : "negative outstandingAppendLength";
 
         // Update the last flush checkpoint.
         this.lastFlush = this.stopwatch.elapsed();
