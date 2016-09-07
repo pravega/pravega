@@ -24,9 +24,11 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -526,7 +528,14 @@ class SegmentAggregator implements AutoCloseable {
 
         return this.storage
                 .seal(this.metadata.getName(), timer.getRemaining())
-                .thenApply(v -> {
+                .handle((v, ex) -> {
+                    if (ex != null && !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentSealedException)) {
+                        // The operation failed, and it was not because the Segment was already Sealed. Throw it again.
+                        // We consider the Seal to succeed if the Segment in Storage is already sealed - it's an idempotent operation.
+                        throw new CompletionException(ex);
+                    }
+
+                    // Update metadata.
                     this.metadata.markSealedInStorage();
                     this.operations.removeFirst();
 

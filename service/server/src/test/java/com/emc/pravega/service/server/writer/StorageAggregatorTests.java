@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
+import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -393,7 +395,7 @@ public class StorageAggregatorTests {
             FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
 
             // We are always expecting a flush.
-            AssertExtensions.assertGreaterThan("Not enough bytes were flushed (time threshold).", 0, flushResult.getFlushedBytes());
+            AssertExtensions.assertGreaterThan("Not enough bytes were flushed (batch appends).", 0, flushResult.getFlushedBytes());
             outstandingSize -= flushResult.getFlushedBytes();
 
             Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
@@ -486,10 +488,176 @@ public class StorageAggregatorTests {
      * Tests the flush() method with Append and StreamSegmentSealOperations.
      */
     @Test
-    public void testFlushSeal() {
-        // Flush seal individually.
-        // Flush appends and seal together
-        // Storage errors.
+    public void testFlushSeal() throws Exception {
+        // Add some appends and seal, and then flush together. Verify that everything got flushed in one go.
+        final int appendCount = 1000;
+        final WriterConfig config = ConfigHelpers.createWriterConfig(
+                PropertyBag.create()
+                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                           .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
+                           .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+
+        // We use this currentTime to simulate time passage - trigger based on time thresholds.
+        final AtomicLong currentTime = new AtomicLong();
+        @Cleanup
+        TestContext context = new TestContext(config, currentTime::get);
+        context.storage.create(context.segmentMetadata.getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        @Cleanup
+        ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+
+        // Part 1: flush triggered by accumulated size.
+        long outstandingSize = 0;
+        for (int i = 0; i < appendCount; i++) {
+            // Add another operation and record its length.
+            StorageOperation appendOp = generateAppendAndUpdateMetadata(i, SEGMENT_ID, context);
+            outstandingSize += appendOp.getLength();
+            context.segmentAggregator.add(appendOp);
+            getAppendData(appendOp, writtenData, context);
+
+            // Call flush() and inspect the result.
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+
+            // Not expecting a flush. If we do get one, we need to modify the test parameters.
+            Assert.assertEquals(String.format("Not expecting a flush. OutstandingSize=%d, Threshold=%d", outstandingSize, config.getFlushThresholdBytes()),
+                    0, flushResult.getFlushedBytes());
+
+            Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
+        }
+
+        // Generate and add a Seal Operation.
+        StorageOperation sealOp = generateSealAndUpdateMetadata(SEGMENT_ID, context);
+        context.segmentAggregator.add(sealOp);
+
+        // Call flush and verify that the entire Aggregator got flushed and the Seal got persisted to Storage.
+        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        Assert.assertEquals("Expected the entire Aggregator to be flushed.", outstandingSize, flushResult.getFlushedBytes());
+
+        // Verify data.
+        byte[] expectedData = writtenData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        SegmentProperties storageInfo = context.storage.getStreamSegmentInfo(context.segmentMetadata.getName(), TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageInfo.getLength());
+        Assert.assertTrue("Segment is not sealed in storage post flush.", storageInfo.isSealed());
+        Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentMetadata.isSealedInStorage());
+        context.storage.read(context.segmentMetadata.getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
+
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    /**
+     * Tests the flush() method when it has a StreamSegmentSealOperation but the Segment is already sealed in Storage.
+     */
+    @Test
+    public void testFlushSealAlreadySealed() throws Exception {
+        // Add some appends and seal, and then flush together. Verify that everything got flushed in one go.
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        // We use this currentTime to simulate time passage - trigger based on time thresholds.
+        final AtomicLong currentTime = new AtomicLong();
+        @Cleanup
+        TestContext context = new TestContext(config, currentTime::get);
+        context.storage.create(context.segmentMetadata.getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        // Generate and add a Seal Operation.
+        StorageOperation sealOp = generateSealAndUpdateMetadata(SEGMENT_ID, context);
+        context.segmentAggregator.add(sealOp);
+
+        // Seal the segment in Storage, behind the scenes.
+        context.storage.seal(context.segmentMetadata.getName(), TIMEOUT).join();
+
+        // Call flush and verify no exception is thrown.
+        context.segmentAggregator.flush(TIMEOUT).join();
+
+        // Verify data - even though already sealed, make sure the metadata is updated accordingly.
+        Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentMetadata.isSealedInStorage());
+    }
+
+    /**
+     * Tests the flush() method with Append and StreamSegmentSealOperations when there are Storage errors.
+     */
+    @Test
+    public void testFlushSealWithStorageErrors() throws Exception {
+        // Add some appends and seal, and then flush together. Verify that everything got flushed in one go.
+        final int appendCount = 1000;
+        final WriterConfig config = ConfigHelpers.createWriterConfig(
+                PropertyBag.create()
+                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
+                           .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                           .with(WriterConfig.PROPERTY_MAX_FLUSH_SIZE_BYTES, 10000)
+                           .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+
+        // We use this currentTime to simulate time passage - trigger based on time thresholds.
+        final AtomicLong currentTime = new AtomicLong();
+        @Cleanup
+        TestContext context = new TestContext(config, currentTime::get);
+        context.storage.create(context.segmentMetadata.getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        @Cleanup
+        ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+
+        // Part 1: flush triggered by accumulated size.
+        for (int i = 0; i < appendCount; i++) {
+            // Add another operation and record its length (not bothering with flushing here; testFlushSeal() covers that).
+            StorageOperation appendOp = generateAppendAndUpdateMetadata(i, SEGMENT_ID, context);
+            context.segmentAggregator.add(appendOp);
+            getAppendData(appendOp, writtenData, context);
+        }
+
+        // Generate and add a Seal Operation.
+        StorageOperation sealOp = generateSealAndUpdateMetadata(SEGMENT_ID, context);
+        context.segmentAggregator.add(sealOp);
+
+        // Have the writes fail every few attempts with a well known exception.
+        AtomicBoolean generateSyncException = new AtomicBoolean(true);
+        AtomicBoolean generateAsyncException = new AtomicBoolean(true);
+        AtomicReference<IntentionalException> setException = new AtomicReference<>();
+        Supplier<Exception> exceptionSupplier = () -> {
+            IntentionalException ex = new IntentionalException(Long.toString(currentTime.get()));
+            setException.set(ex);
+            System.out.println("Y");
+            return ex;
+        };
+        context.storage.setSealSyncErrorInjector(new ErrorInjector<>(count -> generateSyncException.getAndSet(false), exceptionSupplier));
+        context.storage.setSealAsyncErrorInjector(new ErrorInjector<>(count -> generateAsyncException.getAndSet(false), exceptionSupplier));
+
+        // Call flush and verify that the entire Aggregator got flushed and the Seal got persisted to Storage.
+        int attemptCount = 4;
+        for (int i = 0; i < attemptCount; i++) {
+            // Repeat a number of times, at least once should work.
+            setException.set(null);
+            try {
+                FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+                Assert.assertNull("An exception was expected, but none was thrown.", setException.get());
+                Assert.assertNotNull("No FlushResult provided.", flushResult);
+            } catch (Exception ex) {
+                if (setException.get() != null) {
+                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), ExceptionHelpers.getRealException(ex));
+                } else {
+                    // Not expecting any exception this time.
+                    throw ex;
+                }
+            }
+
+            if (!generateAsyncException.get() && !generateSyncException.get() && setException.get() == null) {
+                // We are done. We got at least one through.
+                break;
+            }
+        }
+
+        // Verify data.
+        byte[] expectedData = writtenData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        SegmentProperties storageInfo = context.storage.getStreamSegmentInfo(context.segmentMetadata.getName(), TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageInfo.getLength());
+        Assert.assertTrue("Segment is not sealed in storage post flush.", storageInfo.isSealed());
+        Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentMetadata.isSealedInStorage());
+        context.storage.read(context.segmentMetadata.getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
     /**
