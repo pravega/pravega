@@ -48,31 +48,19 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
         initializeCluster();
     }
 
-    /**
-     * Gets a list of nodes with the cluster class right now.
-     *
-     * @return
-     */
+
     @Override
     public Iterable<PravegaNode> getPravegaNodes() {
         return new ConcurrentHashMap<>(nodes).values();
     }
 
-    /**
-     * Returns list of controllers available with the cluster class right now.
-     *
-     * @return
-     */
+
     @Override
     public Iterable<PravegaController> getPravegaControllers() {
         return new ConcurrentHashMap<>(controllers).values();
     }
 
-    /**
-     * Returns list of listeners available with the cluster class right now.
-     *
-     * @return
-     */
+
     @Override
     public Iterable<ClusterListener> getListeners() {
         return listeners.values();
@@ -170,60 +158,33 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
                 });
     }
 
-    /**
-     * Registers the current Pravega node with a specific hostname and port with the config store
-     *
-     * @param host
-     * @param port
-     * @param jsonMetadata
-     */
+
     @Override
     public void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception {
         manager.registerPravegaNode(host, port, jsonMetadata);
     }
 
-    /**
-     * Registers the current Pravega controller with a specific hostname and port with the config store
-     *
-     * @param host
-     * @param port
-     * @param jsonMetadata
-     */
+
     @Override
     public void registerPravegaController(String host, int port, String jsonMetadata) throws Exception {
         manager.registerPravegaController(host, port, jsonMetadata);
     }
 
-    /**
-     * Unregisters the current Pravega controller with a specific hostname and port with the config store
-     *
-     * @param host
-     * @param port
-     */
+
     @Override
     public void unregisterPravegaController(String host, int port) throws Exception {
         Preconditions.checkNotNull(host);
         manager.unregisterPravegaController(host, port);
     }
 
-    /**
-     * Unregisters the current Pravega node with a specific hostname and port with the config store
-     *
-     * @param host
-     * @param port
-     */
+
     @Override
     public void unregisterPravegaNode(String host, int port) throws Exception {
         Preconditions.checkNotNull(host);
         manager.unregisterPravegaNode(host, port);
     }
 
-    /**
-     * Listener specific functions:
-     * Registers a new listener
-     *
-     * @param clusterListener
-     */
+
     @Override
     public void registerListener(String name, ClusterListener clusterListener) {
         Preconditions.checkNotNull(name);
@@ -232,53 +193,32 @@ public class ClusterImpl  implements Cluster, ConfigChangeListener {
         listeners.put(name, clusterListener);
     }
 
-    /**
-     * Listener specific functions:
-     * Removes a registered listener
-     *
-     * @param clusterListener
-     */
+
     @Override
     public void unregisterListener(ClusterListener clusterListener) {
         Preconditions.checkNotNull(clusterListener);
         listeners.remove(clusterListener);
     }
 
-    /**
-     * Notification from the config manager abstraction to notify a node is added
-     *
-     * @param ep
-     */
+
     @Override
     public void nodeAddedNotification(Endpoint ep) {
         addNode(new PravegaNode(ep), ep);
     }
 
-    /**
-     * Notification from config manager abstraction to notify a controller is added
-     *
-     * @param ep
-     */
+
     @Override
     public void controllerAddedNotification(Endpoint ep) {
         addController(new PravegaController(ep), ep);
     }
 
-    /**
-     * Notification from the config manager abstraction to notify a node is removed
-     *
-     * @param ep
-     */
+
     @Override
     public void nodeRemovedNotification(Endpoint ep) {
         removeNode(ep);
     }
 
-    /**
-     * Notification from config manager abstraction to notify a controller is removed
-     *
-     * @param ep
-     */
+
     @Override
     public void controllerRemovedNotification(Endpoint ep) {
         removeController(ep);

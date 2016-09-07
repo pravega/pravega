@@ -32,7 +32,7 @@ public interface Cluster {
     /**
      * Gets a list of nodes with the cluster class right now.
      *
-     * @return
+     * @return List of nodes cached with cached with the local cluster object
      */
     Iterable<PravegaNode> getPravegaNodes();
 
@@ -40,7 +40,7 @@ public interface Cluster {
      * Returns list of controllers available with the cluster at this point in time.
      * Users of this API can register a listener to be notified about updates to this data.
      *
-     * @return
+     * @return List of Pravega controllers cached with the local cluster object
      */
     Iterable<PravegaController> getPravegaControllers();
 
@@ -48,7 +48,7 @@ public interface Cluster {
      * Returns list of listeners available with the cluster at this point in time.
      * Users of this API can register a listener to be notified about updates to this data.
      *
-     * @return
+     * @return List of listeners
      */
     Iterable<ClusterListener> getListeners();
 
@@ -62,34 +62,34 @@ public interface Cluster {
     /**
      * Registers the current Pravega node with a specific hostname and port with the config store
      *
-     * @param host
-     * @param port
-     * @param jsonMetadata
+     * @param host Unique name/IP of the host to be registered
+     * @param port The port used to communicate to Pravega node
+     * @param jsonMetadata Reserved for future use. A Node/controller can use this field to store important metadata
      */
     void registerPravegaNode(String host, int port, String jsonMetadata) throws Exception;
 
     /**
      * Registers the current Pravega controller with a specific hostname and port with the config store
      *
-     * @param host
-     * @param port
-     * @param jsonMetadata
+     * @param host Unique hostname/IP of the controller
+     * @param port Port used to communicate to the controller
+     * @param jsonMetadata Reserved for future use. A Node/controller can use this field to store important metadata
      */
     void registerPravegaController(String host, int port, String jsonMetadata) throws Exception;
 
     /**
      * Unregisters the current Pravega controller with a specific hostname and port with the config store
      *
-     * @param host
-     * @param port
+     * @param host Unique hostname/IP of the controller
+     * @param port Port used to communicate to the controller
      */
     void unregisterPravegaController(String host, int port) throws Exception;
 
     /**
      * Unregisters the current Pravega node with a specific hostname and port with the config store
      *
-     * @param host
-     * @param port
+     * @param host Unique name/IP of the host to be registered
+     * @param port The port used to communicate to Pravega node
      */
     void unregisterPravegaNode(String host, int port) throws Exception;
 

@@ -32,7 +32,7 @@ public class Vnest extends CommonConfigSyncManager {
     }
 
 
-    
+
     @Override
     public void createEntry(String path, byte[] value) {
         throw new UnsupportedOperationException();
