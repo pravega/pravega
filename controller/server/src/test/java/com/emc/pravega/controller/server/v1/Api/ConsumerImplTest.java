@@ -22,7 +22,6 @@ import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
-import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.stream.Position;
@@ -31,11 +30,11 @@ import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import org.junit.Assert;
+import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,32 +65,25 @@ public class ConsumerImplTest {
     @Before
     public void prepareStreamStore() {
 
-        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy);
+        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy1);
+        final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy2);
 
         // region createStream
         streamStore.createStream(stream1, configuration1);
         streamStore.createStream(stream2, configuration2);
         // endregion
 
-        // region createSegments
-        streamStore.addActiveSegment(stream1, 0, 0.0, 0.5, new ArrayList<>());
-        streamStore.addActiveSegment(stream1, 0, 0.5, 1.0, new ArrayList<>());
-
-        streamStore.addActiveSegment(stream2, 5, 0.0, 0.3, new ArrayList<>());
-        streamStore.addActiveSegment(stream2, 5, 0.3, 0.6, new ArrayList<>());
-        streamStore.addActiveSegment(stream2, 5, 0.6, 1.0, new ArrayList<>());
-        // endregion
-
         // region scaleSegments
-        Segment segment1 = new Segment(2, 20, 30, 0.5, 0.75);
-        Segment segment2 = new Segment(3, 20, 40, 0.75, 1.0);
+
+        SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
         streamStore.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
 
-        Segment segment3 = new Segment(4, 20, 40, 0.0, 0.5);
-        Segment segment4 = new Segment(2, 20, 30, 0.5, 0.75);
-        Segment segment5 = new Segment(3, 20, 40, 0.75, 1.0);
+        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
+        SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
+        SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         streamStore.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
         // endregion
     }
@@ -107,25 +99,25 @@ public class ConsumerImplTest {
         List<Position> positions;
 
         positions = consumer.getPositions(stream1, 10, 3).get();
-        Assert.assertEquals(2, positions.size());
-        Assert.assertEquals(1, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(2, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(2, positions.size());
+        assertEquals(1, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(2, positions.get(1).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream1, 10, 1).get();
-        Assert.assertEquals(1, positions.size());
-        Assert.assertEquals(2, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(2, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.size());
+        assertEquals(2, positions.get(0).getOwnedSegments().size());
+        assertEquals(2, positions.get(0).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream2, 10, 3).get();
-        Assert.assertEquals(3, positions.size());
-        Assert.assertEquals(1, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(2).getOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
+        assertEquals(3, positions.size());
+        assertEquals(1, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(2).getOwnedSegments().size());
+        assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
 
 
         Position newPosition = new PositionImpl(
@@ -133,50 +125,50 @@ public class ConsumerImplTest {
                 Collections.EMPTY_MAP);
         positions.set(2, newPosition);
         positions = consumer.updatePositions(stream2, positions).get();
-        Assert.assertEquals(3, positions.size());
-        Assert.assertEquals(1, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(2).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
+        assertEquals(3, positions.size());
+        assertEquals(1, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(2).getOwnedSegments().size());
+        assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream2, 10, 2).get();
-        Assert.assertEquals(2, positions.size());
-        Assert.assertEquals(2, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(2, positions.size());
+        assertEquals(2, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream1, 25, 3).get();
-        Assert.assertEquals(3, positions.size());
-        Assert.assertEquals(1, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(2).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
+        assertEquals(3, positions.size());
+        assertEquals(1, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(2).getOwnedSegments().size());
+        assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream1, 25, 1).get();
-        Assert.assertEquals(1, positions.size());
-        Assert.assertEquals(3, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.size());
+        assertEquals(3, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream2, 25, 3).get();
-        Assert.assertEquals(3, positions.size());
-        Assert.assertEquals(1, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(2).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
+        assertEquals(3, positions.size());
+        assertEquals(1, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(2).getOwnedSegments().size());
+        assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
         positions = consumer.getPositions(stream2, 25, 2).get();
-        Assert.assertEquals(2, positions.size());
-        Assert.assertEquals(2, positions.get(0).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
-        Assert.assertEquals(1, positions.get(1).getOwnedSegments().size());
-        Assert.assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
+        assertEquals(2, positions.size());
+        assertEquals(2, positions.get(0).getOwnedSegments().size());
+        assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
+        assertEquals(1, positions.get(1).getOwnedSegments().size());
+        assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
 
     }
 }

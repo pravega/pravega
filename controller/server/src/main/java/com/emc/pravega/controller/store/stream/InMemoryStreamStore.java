@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,6 @@ public class InMemoryStreamStore implements StreamMetadataStore {
 
     public void initialize() {
         // TODO initialize from persistent store, create collections of appropriate size
-        streams = new HashMap<>();
     }
 
     @Override
@@ -76,18 +76,6 @@ public class InMemoryStreamStore implements StreamMetadataStore {
     }
 
     @Override
-    public Segment addActiveSegment(String name, long start, double keyStart, double keyEnd, List<Integer> predecessors) {
-        Stream stream = getStream(name);
-        return stream.addActiveSegment(start, keyStart, keyEnd, predecessors);
-    }
-
-    @Override
-    public Segment addActiveSegment(String name, Segment segment) {
-        Stream stream = getStream(name);
-        return stream.addActiveSegment(segment);
-    }
-
-    @Override
     public SegmentFutures getActiveSegments(String name) {
         Stream stream = getStream(name);
         return stream.getActiveSegments();
@@ -106,8 +94,8 @@ public class InMemoryStreamStore implements StreamMetadataStore {
     }
 
     @Override
-    public List<Segment> scale(String name, List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
+    public List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         Stream stream = getStream(name);
-        return stream.scale(sealedSegments, newSegments, scaleTimestamp);
+        return stream.scale(sealedSegments, newRanges, scaleTimestamp);
     }
 }

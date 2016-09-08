@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Stream properties
@@ -53,50 +55,32 @@ class Stream {
         this.configuration = configuration;
         currentSegments = new ArrayList<>();
         segments = new ArrayList<>();
+        int numSegments = configuration.getScalingingPolicy().getMinNumSegments();
+        double keyRange = 1.0 / numSegments;
+        IntStream.range(0, numSegments)
+                .forEach(
+                        x -> {
+                            Segment segment = new Segment(x, 0, Long.MAX_VALUE, x * keyRange, (x + 1) * keyRange);
+                            segments.add(segment);
+                            currentSegments.add(x);
+                        }
+                );
     }
 
     String getName() {
         return this.name;
     }
 
-    StreamConfiguration getStreamConfiguration() {
+    synchronized StreamConfiguration getStreamConfiguration() {
         return this.configuration;
     }
 
-    void setConfiguration(StreamConfiguration configuration) {
+    synchronized void setConfiguration(StreamConfiguration configuration) {
         this.configuration = configuration;
     }
 
-    Segment getSegment(int number) {
+    synchronized Segment getSegment(int number) {
         return segments.get(number);
-    }
-
-    /**
-     * Adds a new active segment to the store, with smallest number higher than that of existing segments.
-     * End time is assumed to be Max_Value, and successors null, since it is an active segment.
-     */
-    Segment addActiveSegment(long start, double keyStart, double keyEnd, List<Integer> predecessors) {
-        int number = segments.size();
-        Preconditions.checkNotNull(predecessors);
-        predecessors.stream().forEach(x -> Preconditions.checkArgument(0 <= x && x <= number - 1));
-        Segment segment = new Segment(number, start, Long.MAX_VALUE, keyStart, keyEnd, predecessors, new ArrayList<>());
-        currentSegments.add(segment.getNumber());
-        segments.add(segment);
-        return segment;
-    }
-
-    /**
-     * Adds a new active segment to the store, with smallest number higher than that of existing segments.
-     * End time is assumed to be Max_Value, and successors null, since it is an active segment.
-     */
-    Segment addActiveSegment(Segment segment) {
-        Preconditions.checkNotNull(segment);
-        Preconditions.checkState(segment.getEnd() == Long.MAX_VALUE);
-        segment.setNumber(segments.size());
-        segment.setSuccessors(new ArrayList<>());
-        currentSegments.add(segment.getNumber());
-        segments.add(segment);
-        return segment;
     }
 
     /**
@@ -114,7 +98,7 @@ class Stream {
     /**
      * @return the list of currently active segments
      */
-    SegmentFutures getActiveSegments() {
+    synchronized SegmentFutures getActiveSegments() {
         return new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP);
     }
 
@@ -125,7 +109,7 @@ class Stream {
      * using augmented interval tree or segment index..
      * TODO: maintain a augmented interval tree or segment tree index
      */
-    SegmentFutures getActiveSegments(long timestamp) {
+    synchronized SegmentFutures getActiveSegments(long timestamp) {
         List<Integer> currentSegments = new ArrayList<>();
         Map<Integer, Integer> futureSegments = new HashMap<>();
         int i = 0;
@@ -147,7 +131,7 @@ class Stream {
      * @param positions current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    List<SegmentFutures> getNextSegments(Set<Integer> completedSegments, List<SegmentFutures> positions) {
+    synchronized List<SegmentFutures> getNextSegments(Set<Integer> completedSegments, List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 
@@ -182,7 +166,7 @@ class Stream {
                             if (newFutures.containsKey(pendingPredecessor)) {
                                 newFutures.get(pendingPredecessor).add(x);
                             } else {
-                                List<Integer> list = new ArrayList<Integer>();
+                                List<Integer> list = new ArrayList<>();
                                 list.add(x);
                                 newFutures.put(pendingPredecessor, list);
                             }
@@ -197,8 +181,8 @@ class Stream {
     private List<SegmentFutures> divideSegments(List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
         List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
 
-        int quotient = (int) newCurrents.size() / positions.size();
-        int remainder = (int) newCurrents.size() % positions.size();
+        int quotient = newCurrents.size() / positions.size();
+        int remainder = newCurrents.size() % positions.size();
         int counter = 0;
         for (int i = 0; i < positions.size(); i++) {
             SegmentFutures position = positions.get(i);
@@ -238,22 +222,22 @@ class Stream {
      * Seals a set of segments, and adds a new set of segments as current segments.
      * It sets appropriate endtime and successors of sealed segment.
      * @param sealedSegments segments to be sealed
-     * @param newSegments    new segments to be added as active segments
+     * @param keyRanges    new segments to be added as active segments
      * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new segments.
      * @return the list of new segments.
      */
-    List<Segment> scale(List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp) {
+    synchronized List<Segment> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
         Preconditions.checkNotNull(sealedSegments);
-        Preconditions.checkNotNull(newSegments);
+        Preconditions.checkNotNull(keyRanges);
         Preconditions.checkArgument(sealedSegments.size() > 0);
-        Preconditions.checkArgument(newSegments.size() > 0);
+        Preconditions.checkArgument(keyRanges.size() > 0);
 
+        List<Segment> newSegments = new ArrayList<>();
         // assign start times, numbers to new segments. Add them to segments list and current list.
-        for (Segment segment: newSegments) {
-            segment.setStart(scaleTimestamp);
-            segment.setEnd(Long.MAX_VALUE);
+        for (SimpleEntry<Double, Double> range: keyRanges) {
             int number = segments.size();
-            segment.setNumber(number);
+            Segment segment = new Segment(number, scaleTimestamp, Long.MAX_VALUE, range.getKey(), range.getValue());
+            newSegments.add(segment);
             segments.add(segment);
             currentSegments.add(number);
         }

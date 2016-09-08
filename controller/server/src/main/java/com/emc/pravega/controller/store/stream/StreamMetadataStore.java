@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Set;
 
@@ -59,29 +60,6 @@ public interface StreamMetadataStore {
     Segment getSegment(String name, int number);
 
     /**
-     * Adds a new active segment to the store, having its number property set to smallest value
-     * higher than that of existing segments. End time is set to Max_Value, and successors null,
-     * since it is an active segment.
-     * @param name stream name.
-     * @param start start time of this new segment, which should be higher than start times of existing segments.
-     * @param keyStart statr of the key range for this segment.
-     * @param keyEnd end of the key range for this segment.
-     * @param predecessors predecessor segments of this segment.
-     * @return the created Segment object
-     */
-    Segment addActiveSegment(String name, long start, double keyStart, double keyEnd, List<Integer> predecessors);
-
-    /**
-     * Adds a new active segment to the store, having its number property set to smallest value
-     * higher than that of existing segments. End time is set to Max_Value, and successors null,
-     * since it is an active segment.
-     * @param name stream name.
-     * @param segment new active segment to be added.
-     * @return the Segment object updated with number property, endTime set to Max_Value, and successors set to null.
-     */
-    Segment addActiveSegment(String name, Segment segment);
-
-    /**
      * @param name stream name.
      * @return currently active segments
      */
@@ -106,10 +84,10 @@ public interface StreamMetadataStore {
      * Scales in or out the currently set of active segments of a stream.
      * @param name stream name.
      * @param sealedSegments segments to be sealed
-     * @param newSegments new active segments to added to the stream
+     * @param newRanges new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    List<Segment> scale(String name, List<Integer> sealedSegments, List<Segment> newSegments, long scaleTimestamp);
+    List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 }
