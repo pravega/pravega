@@ -42,13 +42,8 @@ public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
     @Override
     public Type getNextEvent(long timeout) throws EndOfSegmentException {
         ByteBuffer buffer;
-        synchronized (in) { // TODO: Improve this. The code is currently unnecessary allocating 2 byte
-                            // arrays. This could be made less redundant with lower level code.
-            buffer = ByteBuffer.allocate(4);
-            in.read(buffer);
-            int length = buffer.getInt();
-            buffer = ByteBuffer.allocate(length);
-            in.read(buffer);
+        synchronized (in) { 
+            buffer = in.read();
         }
         return deserializer.deserialize(buffer);
     }

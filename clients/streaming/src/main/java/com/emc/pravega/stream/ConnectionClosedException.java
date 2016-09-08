@@ -15,38 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.service.server.host.handler;
+package com.emc.pravega.stream;
 
-import org.junit.Ignore;
-import org.junit.Test;
-
-import static org.junit.Assert.fail;
-
-@Ignore
-public class LogServiceRequestProcessorTest {
-
-    @Test
-    public void testReadSegment() {
-        fail();
-    }
-    
-    @Test
-    public void testGetSegmentInfo() {
-        fail();
-    }
-    
-    @Test
-    public void testCreateSegment() {
-        fail();
-    }
-    
-    @Test
-    public void testDeleteSegment() {
-        fail();
-    }
-    
-    @Test
-    public void testTransaction() {
-        fail();
-    }
+public class ConnectionClosedException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
 }

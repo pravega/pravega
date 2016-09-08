@@ -24,6 +24,7 @@ import java.security.cert.CertificateException;
 
 import javax.net.ssl.SSLException;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionListener;
@@ -47,11 +48,13 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.
  */
-public final class LogServiceConnectionListener implements ConnectionListener {
+public final class PravegaConnectionListener implements ConnectionListener {
 
     private final boolean ssl;
     private final int port;
@@ -60,10 +63,11 @@ public final class LogServiceConnectionListener implements ConnectionListener {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
 
-    public LogServiceConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
         this.ssl = ssl;
         this.port = port;
         this.store = streamSegmentStore;
+        InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
     }
 
     @Override
@@ -84,7 +88,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
         try {
             bossGroup = new EpollEventLoopGroup(1);
             workerGroup = new EpollEventLoopGroup();
-        } catch (ExceptionInInitializerError|NoClassDefFoundError e) {
+        } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
             nio = true;
             bossGroup = new NioEventLoopGroup(1);
             workerGroup = new NioEventLoopGroup();
@@ -111,7 +115,7 @@ public final class LogServiceConnectionListener implements ConnectionListener {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new LogServiceRequestProcessor(store, lsh)));
+                         new PravegaRequestProcessor(store, lsh)));
              }
          });
 
@@ -122,13 +126,10 @@ public final class LogServiceConnectionListener implements ConnectionListener {
     @Override
     public void close() {
         // Wait until the server socket is closed.
-        try {
+        Exceptions.handleInterrupted(() -> {
             serverChannel.close();
             serverChannel.closeFuture().sync();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
+        });
         // Shut down all event loops to terminate all threads.
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();

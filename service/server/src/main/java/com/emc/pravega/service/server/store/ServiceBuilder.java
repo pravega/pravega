@@ -32,8 +32,8 @@ import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -45,7 +45,7 @@ public abstract class ServiceBuilder implements AutoCloseable {
 
     protected final SegmentToContainerMapper segmentToContainerMapper;
     protected final ServiceBuilderConfig serviceBuilderConfig;
-    protected final ExecutorService executorService;
+    protected final ScheduledExecutorService executorService;
     private OperationLogFactory operationLogFactory;
     private ReadIndexFactory readIndexFactory;
     private DurableDataLogFactory dataLogFactory;
@@ -88,6 +88,11 @@ public abstract class ServiceBuilder implements AutoCloseable {
         if (this.dataLogFactory != null) {
             this.dataLogFactory.close();
             this.dataLogFactory = null;
+        }
+
+        if (this.readIndexFactory != null) {
+            this.readIndexFactory.close();
+            this.readIndexFactory = null;
         }
 
         if (this.storageFactory != null) {

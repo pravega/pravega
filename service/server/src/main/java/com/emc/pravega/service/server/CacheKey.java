@@ -103,7 +103,7 @@ public class CacheKey extends Cache.Key {
 
     @Override
     public String toString() {
-        return String.format("SegmentId = %d, Offset = %d, InCache = %s", this.streamSegmentId, this.offset, isInCache());
+        return String.format("SegmentId = %d, Offset = %d", this.streamSegmentId, this.offset);
     }
 
     //endregion

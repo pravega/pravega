@@ -29,9 +29,12 @@ import java.nio.ByteBuffer;
  * @param <T> The type of event that this serializes.
  */
 public interface Serializer<T> {
+    public static final int MAX_EVENT_SIZE = 1024 * 1024;
+
     /**
      * @param value The event to be serialized
      * @return The serialized form of the event
+     * NOTE: buffers returned should not exceed {@link #MAX_EVENT_SIZE}
      */
     public ByteBuffer serialize(T value);
 

@@ -18,15 +18,14 @@
 
 package com.emc.pravega.common.util;
 
-import com.emc.pravega.common.util.BlockingDrainingQueue;
-import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
+import com.emc.pravega.testcommon.AssertExtensions;
 
 /**
  * Unit tests for BlockingDrainingQueue class.

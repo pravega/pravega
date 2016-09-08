@@ -18,19 +18,18 @@
 
 package com.emc.pravega.common.concurrent;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.IntentionalException;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
 
 /**
  * Unit tests for the FutureHelpers class.
