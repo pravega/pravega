@@ -20,7 +20,7 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-
+import com.emc.pravega.cluster.Cluster;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
@@ -39,6 +39,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
     private boolean closed;
+    private Cluster cluster;
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
@@ -60,6 +61,19 @@ public final class ServiceStarter {
 
         this.listener = new PravegaConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
         this.listener.startListening();
+
+
+        try {
+            this.cluster = this.serviceBuilder.getCluster();
+            if(cluster != null) {
+                cluster.registerPravegaNode(this.serviceConfig.getServiceConfig().getListeningHost(), this.serviceConfig.getServiceConfig().getListeningPort(), "");
+            } else {
+                System.err.println("Zookeeper setup failed. Continuing with standalone existence.");
+            }
+        } catch (Exception e) {
+            System.err.println("Zookeeper setup failed. Continuing with standalone existence.");
+        }
+
         System.out.println("LogServiceConnectionListener started successfully.");
     }
 

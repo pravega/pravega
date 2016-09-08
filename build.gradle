@@ -7,7 +7,6 @@
  * user guide available at https://docs.gradle.org/2.11/userguide/tutorial_java_projects.html
  */
 
-// Apply the java plugin to add support for Java
 
 allprojects {
     apply plugin: 'java'
@@ -16,6 +15,8 @@ allprojects {
     apply plugin: 'maven'
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
+
+
 
     checkstyle {
         toolVersion = "7.1"
@@ -45,6 +46,7 @@ allprojects {
         compile 'org.slf4j:slf4j-api:1.7.14'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.1.7'
 
+
         testCompile 'junit:junit:4.12'
         compile group: 'com.google.guava', name: 'guava', version: '19.0'
  
@@ -54,11 +56,20 @@ allprojects {
         compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
         
         compile 'io.netty:netty-all:4.0.36.Final'
-        
+
+        // https://mvnrepository.com/artifact/org.apache.curator/curator-framework
+        compile group: 'org.apache.curator', name: 'curator-framework', version: '2.7.0'
+        // https://mvnrepository.com/artifact/org.apache.curator/curator-recipes
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.2.0-incubating'
+        // https://mvnrepository.com/artifact/com.google.code.gson/gson
+        compile group: 'com.google.code.gson', name: 'gson', version: '2.3.1'
+
+
         testCompile "org.mockito:mockito-core:2.+"
     }
 
 }
+
 
 def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 
@@ -116,6 +127,7 @@ project('service:server') {
         compile project(':common')
         compile project(':service:contracts')
         compile project(':service:storage')
+        compile project(':cluster')
         testCompile project(':testcommon')
     }
 }
@@ -170,7 +182,8 @@ project('integrationtests') {
 }
 
 
-project('benchmark') {
+project('perfbenchmark') {
+    apply plugin: 'scala'
     dependencies {
         compile project(':common')
         compile project(':clients:streaming')
@@ -181,6 +194,8 @@ project('benchmark') {
         testCompile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
+        // https://mvnrepository.com/artifact/com.emc.ecs/object-client
+        compile group: 'com.emc.ecs', name: 'object-client', version: '2.2.2'
     }
 
 
@@ -188,6 +203,45 @@ project('benchmark') {
         main = "com.emc.pravega.demo.StartECSProducer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
+    }
+}
+
+project('cluster') {
+    apply plugin: 'scala'
+    dependencies {
+        compile 'org.scala-lang:scala-library:2.11.7'
+        testCompile 'org.scalatest:scalatest_2.11:3.0.0'
+        compile project(':zkutils')
+    }
+}
+
+project('zkutils') {
+    apply plugin: 'scala'
+    dependencies {
+        compile 'org.scala-lang:scala-library:2.11.7'
+        testCompile 'org.scalatest:scalatest_2.11:3.0.0'
+    }
+
+}
+
+tasks.withType(ScalaCompile) {
+    scalaCompileOptions.useAnt = false
+
+    scalaCompileOptions.additionalParameters = [
+            "-deprecation",
+            "-unchecked",
+            "-encoding", "utf8",
+            "-target:jvm-${sourceCompatibility}".toString(),
+            "-Xlog-reflective-calls",
+            "-feature",
+            "-language:postfixOps",
+            "-language:implicitConversions",
+            "-language:existentials"
+    ]
+
+    configure(scalaCompileOptions.forkOptions) {
+        memoryMaximumSize = '1g'
+        jvmArgs = ['-XX:MaxPermSize=512m', '-Xss2m']
     }
 }
 
