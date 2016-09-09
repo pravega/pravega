@@ -25,15 +25,12 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

@@ -18,8 +18,6 @@
 package com.emc.pravega.stream;
 
 import java.io.Serializable;
-import java.util.Map;
-import java.util.Set;
 
 import com.emc.pravega.stream.impl.PositionImpl;
 

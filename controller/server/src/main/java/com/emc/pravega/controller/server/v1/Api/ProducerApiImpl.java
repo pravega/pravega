@@ -24,7 +24,6 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamSegments;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;

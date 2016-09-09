@@ -23,10 +23,8 @@ import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-
-import java.util.concurrent.ExecutionException;
 
 /**
  * Stream Controller Admin API server implementation.

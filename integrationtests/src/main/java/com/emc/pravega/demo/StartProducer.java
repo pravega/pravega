@@ -25,7 +25,6 @@ import com.emc.pravega.stream.impl.ApiConsumer;
 import com.emc.pravega.stream.impl.ApiProducer;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
-import lombok.Cleanup;
 
 import java.util.concurrent.ExecutionException;
 
@@ -41,18 +40,16 @@ public class StartProducer {
         ApiAdmin apiAdmin = new ApiAdmin(endpoint, port);
         ApiProducer apiProducer = new ApiProducer(endpoint, port);
         ApiConsumer apiConsumer = new ApiConsumer(endpoint, port);
-        @Cleanup
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, scope);
         Stream stream = streamManager.createStream(streamName, null);
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
         Thread.sleep(1000);
 
-        @Cleanup
+//        @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         for (int i = 0; i < 10000; i++) {
             producer.publish(null, testString + i + "\n");
         }
         producer.flush();
     }
-
 }

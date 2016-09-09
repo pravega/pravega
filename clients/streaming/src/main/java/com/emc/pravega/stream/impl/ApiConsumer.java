@@ -19,13 +19,11 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 import java.util.List;
@@ -104,4 +102,5 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
         }, service);
 
         return resultFinal;
-    }}
+    }
+}

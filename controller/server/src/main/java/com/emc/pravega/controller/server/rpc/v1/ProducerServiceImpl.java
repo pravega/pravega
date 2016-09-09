@@ -24,10 +24,8 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**

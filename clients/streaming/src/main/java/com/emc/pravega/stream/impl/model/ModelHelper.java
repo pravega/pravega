@@ -20,7 +20,6 @@ package com.emc.pravega.stream.impl.model;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
@@ -67,6 +66,10 @@ public final class ModelHelper {
         return new PositionImpl(encodeLogMap(position.getOwnedLogs()), encodeLogMap(position.getFutureOwnedLogs()));
     }
 
+    public static com.emc.pravega.stream.SegmentUri encode(SegmentUri uri) {
+        return new com.emc.pravega.stream.SegmentUri(uri.getEndpoint(), uri.getPort());
+    }
+
     public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final SegmentId segmentId) {
         Preconditions.checkNotNull(segmentId, "Segment");
         return new com.emc.pravega.controller.stream.api.v1.SegmentId().setScope(segmentId.getScope()).setName(segmentId.getName())
@@ -92,6 +95,10 @@ public final class ModelHelper {
                 decodeLogMap(position.asInternalImpl().getFutureOwnedLogs()));
     }
 
+    public static SegmentUri decode(com.emc.pravega.stream.SegmentUri uri) {
+        return new SegmentUri(uri.getEndpoint(), uri.getPort());
+    }
+
     private static Map<SegmentId, Long> encodeLogMap(final Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> map) {
         Preconditions.checkNotNull(map);
         return map.entrySet().stream().collect(Collectors.toMap(e -> encode(e.getKey()), Map.Entry::getValue));
@@ -100,13 +107,5 @@ public final class ModelHelper {
     private static Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> decodeLogMap(final Map<SegmentId, Long> map) {
         Preconditions.checkNotNull(map);
         return map.entrySet().stream().collect(Collectors.toMap(e -> decode(e.getKey()), Map.Entry::getValue));
-    }
-
-    public static com.emc.pravega.stream.SegmentUri encode(SegmentUri uri) {
-        return new com.emc.pravega.stream.SegmentUri(uri.getEndpoint(), uri.getPort());
-    }
-
-    public static SegmentUri decode(com.emc.pravega.stream.SegmentUri uri) {
-        return new SegmentUri(uri.getEndpoint(), uri.getPort());
     }
 }

@@ -27,7 +27,6 @@ import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
@@ -55,8 +54,8 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
     public List<Position> updatePositions(String stream, List<Position> positions) throws TException {
         // TODO: handle npe with null exception return case
         return FutureHelpers.getAndHandleExceptions(
-                consumerApi.updatePositions(stream, positions.stream().map(ModelHelper::encode).collect(Collectors.toList()))
-                , RuntimeException::new)
+                consumerApi.updatePositions(stream, positions.stream().map(ModelHelper::encode).collect(Collectors.toList())),
+                RuntimeException::new)
                 .stream()
                 .map(ModelHelper::decode)
                 .collect(Collectors.toList());

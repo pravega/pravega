@@ -42,7 +42,7 @@ import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.SegmentId;
@@ -72,7 +72,6 @@ import org.junit.Test;
 
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
-import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
@@ -238,12 +237,12 @@ public class AppendTest {
 
         ControllerApi.Consumer apiConsumer = new ControllerApi.Consumer() {
             @Override
-            public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
+            public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count) {
                 return null;
             }
 
             @Override
-            public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
+            public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
                 return null;
             }
 
@@ -253,11 +252,9 @@ public class AppendTest {
             }
         };
 
-        @Cleanup
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, "Scope");
         Stream stream = streamManager.createStream(streamName, null);
 
-        @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         producer.publish("RoutingKey", testString);
         producer.flush();

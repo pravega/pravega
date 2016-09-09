@@ -24,7 +24,7 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -96,7 +96,7 @@ public class ConsumerApiImplTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        List<Position> positions;
+        List<PositionInternal> positions;
 
         positions = consumer.getPositions(stream1, 10, 3).get();
         assertEquals(2, positions.size());
@@ -120,7 +120,7 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
 
 
-        Position newPosition = new PositionImpl(
+        PositionInternal newPosition = new PositionImpl(
                 Collections.singletonMap(new SegmentId(stream2, stream2 + 5, 5, 2), 0L),
                 Collections.EMPTY_MAP);
         positions.set(2, newPosition);
