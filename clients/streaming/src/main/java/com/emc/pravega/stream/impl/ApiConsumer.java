@@ -94,6 +94,14 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
 
     @Override
     public CompletableFuture<SegmentUri> getURI(SegmentId id) {
-        throw new NotImplementedException();
-    }
-}
+        CompletableFuture<SegmentUri> resultFinal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                resultFinal.complete(ModelHelper.encode(client.getURI(ModelHelper.decode(id))));
+            } catch (TException e) {
+                resultFinal.completeExceptionally(e);
+            }
+        }, service);
+
+        return resultFinal;
+    }}
