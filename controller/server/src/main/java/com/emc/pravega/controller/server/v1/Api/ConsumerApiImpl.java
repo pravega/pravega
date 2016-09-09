@@ -22,14 +22,18 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,17 +42,22 @@ import java.util.concurrent.CompletableFuture;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class ConsumerImpl implements ControllerApi.Consumer {
+public class ConsumerApiImpl implements ControllerApi.Consumer {
 
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 
-    public ConsumerImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
+    public ConsumerApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
     }
 
-    /**
+    @Override
+    public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+        return CompletableFuture.supplyAsync(() -> SegmentHelper.getSegmentUri(id.getScope(), id, hostStore));
+    }
+
+    /**con
      *
      * @param stream input stream
      * @param timestamp timestamp at which the active position is sought
@@ -56,7 +65,7 @@ public class ConsumerImpl implements ControllerApi.Consumer {
      * @return at most n positions at specified timestamp from the specified stream
      */
     @Override
-    public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int n) {
+    public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int n) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     // fetch the segments active at timestamp from specified stream
@@ -72,7 +81,7 @@ public class ConsumerImpl implements ControllerApi.Consumer {
                             ArrayListMultimap.create());
 
                     int size = (quotient < 1) ? remainder : n;
-                    List<Position> positions = new ArrayList<>(size);
+                    List<PositionInternal> positions = new ArrayList<>(size);
 
                     int counter = 0;
                     for (int i = 0; i < size; i++) {
@@ -80,7 +89,7 @@ public class ConsumerImpl implements ControllerApi.Consumer {
                         List<SegmentId> current = new ArrayList<>(j);
                         for (int k = 0; k < j; k++, counter++) {
                             Integer number = segmentFutures.getCurrent().get(counter);
-                            SegmentId segmentId = SegmentHelper.getSegmentId(stream, number, 0, hostStore);
+                            SegmentId segmentId = SegmentHelper.getSegment(stream, number, 0);
                             current.add(segmentId);
                         }
                         Map<SegmentId, Long> currentSegments = new HashMap<>();
@@ -93,14 +102,14 @@ public class ConsumerImpl implements ControllerApi.Consumer {
                                     if (inverse.containsKey(previous)) {
                                         inverse.get(previous).stream().forEach(
                                                 y -> {
-                                                    SegmentId segmentId = SegmentHelper.getSegmentId(stream, y, previous, hostStore);
+                                                    SegmentId segmentId = SegmentHelper.getSegment(stream, y, previous);
                                                     futureSegments.put(segmentId, 0L);
                                                 }
                                         );
                                     }
                                 }
                         );
-                        Position position = new PositionImpl(currentSegments, futureSegments);
+                        PositionInternal position = new PositionImpl(currentSegments, futureSegments);
                         positions.add(position);
                     }
                     return positions;
@@ -118,7 +127,7 @@ public class ConsumerImpl implements ControllerApi.Consumer {
      * @return the updated list of position objects
      */
     @Override
-    public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
+    public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     // collect the completed segments from list of position objects
@@ -127,7 +136,7 @@ public class ConsumerImpl implements ControllerApi.Consumer {
                     List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
 
                     // construct SegmentFutures for each position object.
-                    for (Position position: positions) {
+                    for (PositionInternal position: positions) {
                         List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
                         Map<Integer, Integer> futures = new HashMap<>();
                         position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
@@ -157,17 +166,17 @@ public class ConsumerImpl implements ControllerApi.Consumer {
         );
     }
 
-    private List<Position> getNewPositions(String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
-        List<Position> resultPositions = new ArrayList<>(segmentFutures.size());
+    private List<PositionInternal> getNewPositions(String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
+        List<PositionInternal> resultPositions = new ArrayList<>(segmentFutures.size());
         segmentFutures.stream().forEach(
                 x -> {
                     Map<SegmentId, Long> currentSegments = new HashMap<>();
                     Map<SegmentId, Long> futureSegments = new HashMap<>();
                     x.getCurrent().stream().forEach(
-                            y -> currentSegments.put(SegmentHelper.getSegmentId(stream, y, 0, hostStore), segmentOffsets.get(y))
+                            y -> currentSegments.put(SegmentHelper.getSegment(stream, y, 0), segmentOffsets.get(y))
                     );
                     x.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(SegmentHelper.getSegmentId(stream, y.getKey(), y.getValue(), hostStore), 0L)
+                            y -> futureSegments.put(SegmentHelper.getSegment(stream, y.getKey(), y.getValue()), 0L)
                     );
                     resultPositions.add(new PositionImpl(currentSegments, futureSegments));
                 }

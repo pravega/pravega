@@ -17,6 +17,9 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
 import com.emc.pravega.controller.stream.api.v1.Position;
@@ -40,38 +43,27 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
 
     @Override
     public List<Position> getPositions(String stream, long timestamp, int count) throws TException {
-        //invoke Api.ApiConsumer.getPositions(...)
-
-        try {
-            // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
-            return consumerApi.getPositions(stream, timestamp, count).get()
-                    .stream()
-                    .map(ModelHelper::decode)
-                    .collect(Collectors.toList());
-        } catch (ExecutionException | InterruptedException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-
+        // TODO: handle npe with null exception return case
+        return FutureHelpers.getAndHandleExceptions(consumerApi.getPositions(stream, timestamp, count),
+                RuntimeException::new)
+                .parallelStream()
+                .map(ModelHelper::decode)
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<Position> updatePositions(String stream, List<Position> positions) throws TException {
+        // TODO: handle npe with null exception return case
+        return FutureHelpers.getAndHandleExceptions(
+                consumerApi.updatePositions(stream, positions.stream().map(ModelHelper::encode).collect(Collectors.toList()))
+                , RuntimeException::new)
+                .stream()
+                .map(ModelHelper::decode)
+                .collect(Collectors.toList());
+    }
 
-        try {
-            //invoke Api.Consumer.updatePositions(...)
-            // convert pravega.controller.stream.api.v1.Position to pravega.stream.Position before invoking method on server
-
-            return consumerApi
-                    .updatePositions(stream, positions.stream().map(ModelHelper::encode).collect(Collectors.toList()))
-                    // convert pravega.stream.Position to pravega.controller.stream.api.v1.Position before sending it over wire
-                    .get()
-                    .stream()
-                    .map(ModelHelper::decode)
-                    .collect(Collectors.toList());
-        } catch (ExecutionException | InterruptedException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
+    @Override
+    public SegmentUri getURI(SegmentId id) throws TException {
+        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(consumerApi.getURI(ModelHelper.encode(id)), RuntimeException::new));
     }
 }

@@ -122,5 +122,4 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             }
         }
     }
-
 }

@@ -17,12 +17,14 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.concurrent.ExecutionException;
 
@@ -39,18 +41,14 @@ public class AdminServiceImpl implements AdminService.Iface {
 
     @Override
     public Status createStream(StreamConfig streamConfig) throws TException {
-        try {
-            return adminApi.createStream(ModelHelper.encode(streamConfig)).get();
-        } catch (ExecutionException | InterruptedException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
+        return FutureHelpers.getAndHandleExceptions(adminApi.createStream(ModelHelper.encode(streamConfig)),
+                RuntimeException::new);
     }
 
     @Override
     public Status alterStream(StreamConfig streamConfig) throws TException {
         //invoke ControllerApi.ApiAdmin.alterStream(...)
         adminApi.alterStream(null);
-        return null;
+        throw new NotImplementedException();
     }
 }

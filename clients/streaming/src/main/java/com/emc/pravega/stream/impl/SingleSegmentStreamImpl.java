@@ -67,12 +67,12 @@ public class SingleSegmentStreamImpl implements Stream {
     };
 
     public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config,
-                                   SegmentId segmentId) {
+                                   SegmentId segmentId, String endpoint, int port) {
         this.scope = scope;
         this.name = name;
         this.config = config;
         this.segmentId = segmentId;
-        this.segmentManager = new SegmentManagerImpl(segmentId.getEndpoint(), new ConnectionFactoryImpl(false, segmentId.getPort()));
+        this.segmentManager = new SegmentManagerImpl(endpoint, new ConnectionFactoryImpl(false, port));
     }
 
     @Override
@@ -111,10 +111,4 @@ public class SingleSegmentStreamImpl implements Stream {
                 null,
                 config);
     }
-
-    @Override
-    public void close() {
-        segmentManager.close();
-    }
-
 }

@@ -46,9 +46,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 /**
- * ConsumerImpl test
+ * ConsumerApiImpl test
  */
-public class ConsumerImplTest {
+public class ConsumerApiImplTest {
 
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
@@ -61,7 +61,7 @@ public class ConsumerImplTest {
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
 
-    private final ConsumerImpl consumer = new ConsumerImpl(streamStore, hostStore);
+    private final ConsumerApiImpl consumer = new ConsumerApiImpl(streamStore, hostStore);
 
     @Before
     public void prepareStreamStore() {
@@ -129,7 +129,7 @@ public class ConsumerImplTest {
 
 
         Position newPosition = new PositionImpl(
-                Collections.singletonMap(new SegmentId(stream2, stream2 + 5, 5, 2, "localhost", 9090), 0L),
+                Collections.singletonMap(new SegmentId(stream2, stream2 + 5, 5, 2), 0L),
                 Collections.EMPTY_MAP);
         positions.set(2, newPosition);
         positions = consumer.updatePositions(stream2, positions).get();

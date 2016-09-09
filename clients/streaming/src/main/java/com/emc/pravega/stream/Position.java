@@ -44,39 +44,4 @@ public interface Position extends Serializable {
      * Used internally. Do not call.
      */
     PositionImpl asImpl();
-
-    /**
-     * Set of segments currently being read
-     * @return
-     */
-    Set<SegmentId> getOwnedSegments();
-
-    /**
-     * Returns read offset for each segment currently being read.
-     * Completely read segments have offset of -1.
-     * @return
-     */
-    Map<SegmentId, Long> getOwnedSegmentsWithOffsets();
-
-    /**
-     * Returns the set of completely read segments.
-     * @return
-     */
-    Set<SegmentId> getCompletedSegments();
-
-    /**
-     * Read offset for a specific segment contained in the position.
-     * @param segmentId input segment
-     * @return
-     */
-    Long getOffsetForOwnedSegment(SegmentId segmentId);
-
-    /**
-     * futureOwnedSegments are those that can be read after one of the currently read segment is completely read.
-     * Each segment in this set has exactly one previous segment that belongs to the set ownedSegments.
-     *
-     * @return
-     */
-    Set<SegmentId> getFutureOwnedSegments();
-
 }

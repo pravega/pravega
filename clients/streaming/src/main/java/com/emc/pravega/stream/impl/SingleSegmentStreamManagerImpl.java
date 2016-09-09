@@ -18,17 +18,16 @@
 package com.emc.pravega.stream.impl;
 
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 
-import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 
 /**
  * A StreamManager for the special case where the streams it creates will only ever be composed of one segment.
@@ -39,11 +38,13 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ControllerApi.Admin apiAdmin;
     private final ControllerApi.Producer apiProducer;
+    private final ControllerApi.Consumer apiConsumer;
 
-    public SingleSegmentStreamManagerImpl(ControllerApi.Admin apiAdmin, ControllerApi.Producer apiProducer, String scope) {
+    public SingleSegmentStreamManagerImpl(ControllerApi.Admin apiAdmin, ControllerApi.Producer apiProducer, ControllerApi.Consumer apiConsumer, String scope) {
         this.scope = scope;
         this.apiAdmin = apiAdmin;
         this.apiProducer = apiProducer;
+        this.apiConsumer = apiConsumer;
     }
 
     @Override
@@ -58,25 +59,18 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        try {
-            apiAdmin.createStream(new StreamConfigurationImpl(streamName,
-                    new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))).get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        FutureHelpers.getAndHandleExceptions(
+                apiAdmin.createStream(new StreamConfigurationImpl(streamName,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))),
+                RuntimeException::new);
 
-        ConnectionFactory clientCF;
-        SegmentManagerImpl segmentManager;
-        StreamSegments segments;
-        try {
-            segments = apiProducer.getCurrentSegments(streamName).get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        StreamSegments segments = FutureHelpers.getAndHandleExceptions(
+                apiProducer.getCurrentSegments(streamName), RuntimeException::new);
 
         SegmentId singleSegment = segments.getSegments().get(0);
+        SegmentUri uri = FutureHelpers.getAndHandleExceptions(apiProducer.getURI(singleSegment), RuntimeException::new);
 
-        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, singleSegment);
+        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, singleSegment, uri.getEndpoint(), uri.getPort());
         created.put(streamName, stream);
         return stream;
     }
@@ -87,8 +81,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public void close() {
-        created.values().parallelStream().forEach(x -> x.close());
-    }
+    public void close() throws Exception {
 
+    }
 }

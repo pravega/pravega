@@ -28,8 +28,6 @@ struct SegmentId {
   2: required string name,
   3: required i32 number,
   4: required i32 previous,
-  5: required string endpoint;
-  6: required i32 port;
 }
 
 struct SegmentUri {
@@ -64,6 +62,7 @@ service ProducerService {
 service ConsumerService {
     list<Position> getPositions(1:string stream, 2:i64 timestamp, 3:i32 count)
     list<Position> updatePositions(1:string stream, 2:list<Position> positions)
+    SegmentUri getURI(1:SegmentId id)
 }
 
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

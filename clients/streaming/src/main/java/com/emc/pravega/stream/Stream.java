@@ -85,9 +85,4 @@ public interface Stream {
      * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking this method.
      */
     <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
-
-    /**
-     * Close connection with all segments of the stream
-     */
-    void close();
 }

@@ -25,7 +25,8 @@ public class HostStoreFactory {
         InMemory,
         Zookeeper,
         ECS,
-        S3
+        S3,
+        HDFS
     }
 
     public static HostControllerStore createStore(StoreType type, StoreConfiguration config) {

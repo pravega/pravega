@@ -24,7 +24,8 @@ public class StreamStoreFactory {
         InMemory,
         Zookeeper,
         ECS,
-        S3
+        S3,
+        HDFS
     }
 
     public static StreamMetadataStore createStore(StoreType type, StoreConfiguration config) {
@@ -34,6 +35,7 @@ public class StreamStoreFactory {
             case Zookeeper:
             case ECS:
             case S3:
+            case HDFS:
             default:
                 throw new NotImplementedException();
         }

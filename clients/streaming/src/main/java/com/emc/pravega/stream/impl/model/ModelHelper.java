@@ -18,8 +18,10 @@
 package com.emc.pravega.stream.impl.model;
 
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
+import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -36,7 +38,7 @@ public final class ModelHelper {
 
     public static final SegmentId encode(final com.emc.pravega.controller.stream.api.v1.SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new SegmentId(segment.getScope(), segment.getName(), segment.getNumber(), segment.getPrevious(), segment.getEndpoint(), segment.getPort());
+        return new SegmentId(segment.getScope(), segment.getName(), segment.getNumber(), segment.getPrevious());
     }
 
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
@@ -60,16 +62,15 @@ public final class ModelHelper {
         };
     }
 
-    public static final Position encode(final com.emc.pravega.controller.stream.api.v1.Position position) {
+    public static final PositionImpl encode(final com.emc.pravega.controller.stream.api.v1.Position position) {
         Preconditions.checkNotNull(position, "Position");
         return new PositionImpl(encodeLogMap(position.getOwnedLogs()), encodeLogMap(position.getFutureOwnedLogs()));
     }
 
-    public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final SegmentId segment) {
-        Preconditions.checkNotNull(segment, "Segment");
-        return new com.emc.pravega.controller.stream.api.v1.SegmentId().setScope(segment.getScope()).setName(segment.getName())
-                .setEndpoint(segment.getEndpoint()).setPort(segment.getPort())
-                .setNumber(segment.getNumber()).setPrevious(segment.getPrevious());
+    public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final SegmentId segmentId) {
+        Preconditions.checkNotNull(segmentId, "Segment");
+        return new com.emc.pravega.controller.stream.api.v1.SegmentId().setScope(segmentId.getScope()).setName(segmentId.getName())
+                .setNumber(segmentId.getNumber()).setPrevious(segmentId.getPrevious());
 
     }
 
@@ -85,10 +86,10 @@ public final class ModelHelper {
         return new StreamConfig(configModel.getName(), decode(configModel.getScalingingPolicy()));
     }
 
-    public static final com.emc.pravega.controller.stream.api.v1.Position decode(final Position position) {
+    public static final com.emc.pravega.controller.stream.api.v1.Position decode(final PositionInternal position) {
         Preconditions.checkNotNull(position, "Position");
-        return new com.emc.pravega.controller.stream.api.v1.Position(decodeLogMap(position.asImpl().getOwnedLogs()),
-                decodeLogMap(position.asImpl().getFutureOwnedLogs()));
+        return new com.emc.pravega.controller.stream.api.v1.Position(decodeLogMap(position.asInternalImpl().getOwnedLogs()),
+                decodeLogMap(position.asInternalImpl().getFutureOwnedLogs()));
     }
 
     private static Map<SegmentId, Long> encodeLogMap(final Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> map) {
@@ -99,5 +100,13 @@ public final class ModelHelper {
     private static Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> decodeLogMap(final Map<SegmentId, Long> map) {
         Preconditions.checkNotNull(map);
         return map.entrySet().stream().collect(Collectors.toMap(e -> decode(e.getKey()), Map.Entry::getValue));
+    }
+
+    public static com.emc.pravega.stream.SegmentUri encode(SegmentUri uri) {
+        return new com.emc.pravega.stream.SegmentUri(uri.getEndpoint(), uri.getPort());
+    }
+
+    public static SegmentUri decode(com.emc.pravega.stream.SegmentUri uri) {
+        return new SegmentUri(uri.getEndpoint(), uri.getPort());
     }
 }

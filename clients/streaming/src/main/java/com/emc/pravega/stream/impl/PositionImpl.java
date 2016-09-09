@@ -18,6 +18,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
 
 import java.util.Collections;
@@ -25,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class PositionImpl implements Position {
+public class PositionImpl implements Position, PositionInternal {
 
     private static final long serialVersionUID = 1L;
     private final Map<SegmentId, Long> ownedLogs;
@@ -61,13 +62,18 @@ public class PositionImpl implements Position {
         return Collections.unmodifiableSet(futureOwnedLogs.keySet());
     }
 
-    Long getOffsetForOwnedLog(SegmentId log) {
-        return ownedLogs.get(log);
-    }
-
     @Override
     public PositionImpl asImpl() {
         return this;
+    }
+
+    @Override
+    public PositionImpl asInternalImpl() {
+        return this;
+    }
+
+    Long getOffsetForOwnedLog(SegmentId id) {
+        return ownedLogs.get(id);
     }
 
     public Map<SegmentId, Long> getFutureOwnedLogs() {

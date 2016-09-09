@@ -42,9 +42,11 @@ import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
@@ -73,6 +75,7 @@ import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -206,7 +209,7 @@ public class AppendTest {
             public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
                 ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
                 SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
-                SegmentId segmentId = new SegmentId(streamName, streamName, 0, 0, endpoint, port);
+                SegmentId segmentId = new SegmentId(streamName, streamName, 0, 0);
 
                 segmentManager.createSegment(segmentId.getQualifiedName());
 
@@ -223,18 +226,35 @@ public class AppendTest {
             @Override
             public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
                 return CompletableFuture.completedFuture(new StreamSegments(
-                        Lists.newArrayList(new SegmentId(stream, stream, 0, 0, endpoint, port)),
+                        Lists.newArrayList(new SegmentId(stream, stream, 0, 0)),
                         System.currentTimeMillis()));
             }
 
             @Override
-            public CompletableFuture<URI> getURI(com.emc.pravega.controller.stream.api.v1.SegmentId id) {
+            public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+                return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
+            }
+        };
+
+        ControllerApi.Consumer apiConsumer = new ControllerApi.Consumer() {
+            @Override
+            public CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count) {
                 return null;
+            }
+
+            @Override
+            public CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions) {
+                return null;
+            }
+
+            @Override
+            public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+                return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
             }
         };
 
         @Cleanup
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, "Scope");
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, "Scope");
         Stream stream = streamManager.createStream(streamName, null);
 
         @Cleanup

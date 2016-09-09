@@ -21,19 +21,19 @@ package com.emc.pravega.controller.server.v1.Api;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamSegments;
 import org.apache.commons.lang.NotImplementedException;
 
-import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-public class ProducerImpl implements ControllerApi.Producer {
+public class ProducerApiImpl implements ControllerApi.Producer {
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 
-    public ProducerImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
+    public ProducerApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
     }
@@ -44,12 +44,12 @@ public class ProducerImpl implements ControllerApi.Producer {
         return CompletableFuture.supplyAsync(() -> streamStore.getActiveSegments(stream))
                 .thenApply(
                         result -> new StreamSegments(result.getCurrent().stream()
-                                .map(x -> SegmentHelper.getSegmentId(stream, streamStore.getSegment(stream, x.intValue()), hostStore))
+                                .map(x -> SegmentHelper.getSegment(stream, streamStore.getSegment(stream, x.intValue())))
                                 .collect(Collectors.toList()), System.currentTimeMillis()));
     }
 
     @Override
-    public CompletableFuture<URI> getURI(SegmentId id) {
-        throw new NotImplementedException();
+    public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+        return CompletableFuture.supplyAsync(() -> SegmentHelper.getSegmentUri(id.getScope(), id, hostStore));
     }
 }

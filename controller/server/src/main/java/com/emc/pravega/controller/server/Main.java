@@ -21,9 +21,9 @@ import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
 import com.emc.pravega.controller.server.rpc.v1.ProducerServiceImpl;
-import com.emc.pravega.controller.server.v1.Api.AdminImpl;
-import com.emc.pravega.controller.server.v1.Api.ConsumerImpl;
-import com.emc.pravega.controller.server.v1.Api.ProducerImpl;
+import com.emc.pravega.controller.server.v1.Api.AdminApiImpl;
+import com.emc.pravega.controller.server.v1.Api.ConsumerApiImpl;
+import com.emc.pravega.controller.server.v1.Api.ProducerApiImpl;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -65,13 +65,13 @@ public class Main {
 
         //2) initialize implementation objects, with right parameters/configuration.
         //2.1) initialize implementation of ControllerApi.ApiAdmin
-        ControllerApi.Admin adminApi = new AdminImpl(streamStore, hostStore);
+        ControllerApi.Admin adminApi = new AdminApiImpl(streamStore, hostStore);
 
         //2.2) initialize implementation of ControllerApi.ApiConsumer
-        ControllerApi.Consumer consumerApi = new ConsumerImpl(streamStore, hostStore);
+        ControllerApi.Consumer consumerApi = new ConsumerApiImpl(streamStore, hostStore);
 
         //2.3) initialize implementation of ControllerApi.ApiProducer
-        ControllerApi.Producer producerApi = new ProducerImpl(streamStore, hostStore);
+        ControllerApi.Producer producerApi = new ProducerApiImpl(streamStore, hostStore);
 
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.

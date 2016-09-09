@@ -17,12 +17,14 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.thrift.TException;
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -41,18 +43,16 @@ public class ProducerServiceImpl implements ProducerService.Iface {
 
     @Override
     public List<SegmentId> getCurrentSegments(String stream) throws TException {
-        try {
-            return producerApi.getCurrentSegments(stream).get().getSegments().parallelStream()
-                    .map(ModelHelper::decode).collect(Collectors.toList());
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        // TODO: fix null pointer warning because of exception = null return scenario
+        return FutureHelpers.getAndHandleExceptions(producerApi.getCurrentSegments(stream), RuntimeException::new)
+                .getSegments()
+                .parallelStream()
+                .map(ModelHelper::decode)
+                .collect(Collectors.toList());
     }
 
     @Override
     public SegmentUri getURI(SegmentId id) throws TException {
-        //invoke ControllerApi.ApiProducer.getURI(...)
-        producerApi.getURI(id);
-        return null;
+        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(producerApi.getURI(ModelHelper.encode(id)), RuntimeException::new));
     }
 }

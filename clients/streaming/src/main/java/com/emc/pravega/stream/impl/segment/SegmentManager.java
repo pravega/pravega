@@ -74,9 +74,4 @@ public interface SegmentManager {
      * process space).
      */
     SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config);
-
-    /**
-     * Closes the segment for operations.
-     */
-    void close();
 }

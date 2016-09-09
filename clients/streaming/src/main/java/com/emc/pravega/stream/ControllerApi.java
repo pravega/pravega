@@ -18,10 +18,8 @@
 
 package com.emc.pravega.stream;
 
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.Status;
 
-import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -30,26 +28,80 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class ControllerApi {
 
-    public static interface Admin {
+    /**
+     * Controller Apis for administrative action for streams
+     */
+    public interface Admin {
+        /**
+         * Api to create stream
+         * @param streamConfig
+         * @return
+         */
         CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
 
+        /**
+         * Api to alter stream
+         * @param streamConfig
+         * @return
+         */
         CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
     }
 
-    public static interface Producer {
+    /**
+     * Controller Apis called by pravega producers for getting stream specific information
+     */
+    public interface Producer {
+        /**
+         * Api to get list of current segments for the stream to produce to.
+         * @param stream
+         * @return
+         */
         CompletableFuture<StreamSegments> getCurrentSegments(String stream);
 
-        CompletableFuture<URI> getURI(SegmentId id);
+        /**
+         * Api to get URI for a given segment Id. This will be called when a pravega host fails
+         * to respond for the given segment. The producer can check with controller to find new host
+         * which is responsible for the said segment.
+         * @param id
+         * @return
+         */
+        CompletableFuture<SegmentUri> getURI(SegmentId id);
     }
 
-    public static interface Consumer {
-        CompletableFuture<List<Position>> getPositions(String stream, long timestamp, int count);
+    /**
+     * Controller Apis that are called by consumers
+     */
+    public interface Consumer {
+        /**
+         * Returns list of position objects by distributing available segments at the
+         * given timestamp into requested number of position objects
+         * @param stream
+         * @param timestamp
+         * @param count
+         * @return
+         */
+        CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count);
 
-        CompletableFuture<List<Position>> updatePositions(String stream, List<Position> positions);
+        /**
+         * Called by consumer upon reaching end of segment on some segment in its position obejct
+         * @param stream
+         * @param positions
+         * @return
+         */
+        CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions);
+
+        /**
+         * Api to get URI for a given segment Id. This will be called when a pravega host fails
+         * to respond for the given segment. The consumer can check with controller to find new host
+         * which is responsible for the said segment.
+         * @param id
+         * @return
+         */
+        CompletableFuture<SegmentUri> getURI(SegmentId id);
     }
 
     //Note: this is not a public interface TODO: Set appropriate scope
-    static interface Host {
+    interface Host {
         //Placeholder for APIs that pravega host shall call into
     }
 }

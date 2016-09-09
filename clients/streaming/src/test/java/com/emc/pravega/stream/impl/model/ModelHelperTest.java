@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl.model;
 
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.stream.Position;
+import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -34,7 +34,7 @@ import static org.junit.Assert.assertEquals;
 public class ModelHelperTest {
 
     private static SegmentId createSegmentId(String name) {
-        return new SegmentId("scope", name, 2, 1, "", 0);
+        return new SegmentId("scope", name, 2, 1);
     }
 
     private static ScalingPolicy createScalingPolicy() {
@@ -56,7 +56,7 @@ public class ModelHelperTest {
         };
     }
 
-    private static Position createPosition() {
+    private static PositionInternal createPosition() {
         Map<SegmentId, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("seg1"), 1L);
 
@@ -148,17 +148,17 @@ public class ModelHelperTest {
         assertEquals(1L, position.getOwnedLogs().get(ModelHelper.decode(createSegmentId("seg1"))).longValue());
         assertEquals(2L, position.getFutureOwnedLogs().get(ModelHelper.decode(createSegmentId("seg2"))).longValue());
 
-        ModelHelper.decode((Position) null);
+        ModelHelper.decode((PositionInternal) null);
     }
 
     @Test(expected = NullPointerException.class)
     public void encodePosition() throws Exception {
-        Position position = ModelHelper.encode(ModelHelper.decode(createPosition()));
-        assertEquals(1, position.asImpl().getOwnedLogs().size());
-        assertEquals(1, position.asImpl().getFutureOwnedLogs().size());
-        Map<SegmentId, Long> owndedLogs = position.asImpl().getOwnedLogs();
-        assertEquals(1L, position.asImpl().getOwnedLogs().get(createSegmentId("seg1")).longValue());
-        assertEquals(2L, position.asImpl().getFutureOwnedLogs().get(createSegmentId("seg2")).longValue());
+        PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
+        assertEquals(1, position.asInternalImpl().getOwnedLogs().size());
+        assertEquals(1, position.asInternalImpl().getFutureOwnedLogs().size());
+        Map<SegmentId, Long> owndedLogs = position.asInternalImpl().getOwnedLogs();
+        assertEquals(1L, position.asInternalImpl().getOwnedLogs().get(createSegmentId("seg1")).longValue());
+        assertEquals(2L, position.asInternalImpl().getFutureOwnedLogs().get(createSegmentId("seg2")).longValue());
 
         ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.Position) null);
     }

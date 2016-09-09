@@ -18,14 +18,14 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.ProducerService;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.SegmentUri;
+import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
 
-import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -53,7 +53,7 @@ public class ApiProducer extends BaseClient implements ControllerApi.Producer {
             try {
                 //invoke RPC client and encode
                 resultFinal.complete(new StreamSegments(client.getCurrentSegments(stream).
-                        parallelStream().map(ModelHelper::encode).collect(Collectors.toList()),
+                        stream().map(ModelHelper::encode).collect(Collectors.toList()),
                         System.currentTimeMillis()));
             } catch (TException e) {
                 resultFinal.completeExceptionally(e);
@@ -64,14 +64,16 @@ public class ApiProducer extends BaseClient implements ControllerApi.Producer {
     }
 
     @Override
-    public CompletableFuture<URI> getURI(SegmentId id) {
-        //Use RPC client to invoke getURI
-        ProducerService.Client client = new ProducerService.Client(null);
-        try {
-            client.getURI(null);
-        } catch (TException e) {
-            e.printStackTrace();
-        }
-        return null;
+    public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+        CompletableFuture<SegmentUri> resultFinal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                resultFinal.complete(ModelHelper.encode(client.getURI(ModelHelper.decode(id))));
+            } catch (TException e) {
+                resultFinal.completeExceptionally(e);
+            }
+        }, service);
+
+        return resultFinal;
     }
 }

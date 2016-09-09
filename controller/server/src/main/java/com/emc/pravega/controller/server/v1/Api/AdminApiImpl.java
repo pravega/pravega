@@ -24,6 +24,7 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
@@ -32,29 +33,27 @@ import org.apache.commons.lang.NotImplementedException;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
-public class AdminImpl implements ControllerApi.Admin {
+public class AdminApiImpl implements ControllerApi.Admin {
     private StreamMetadataStore streamStore;
     private HostControllerStore hostStore;
 
-    public AdminImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
+    public AdminApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
-
     }
 
-    @Override
     /***
      * Create the stream metadata in the metadata streamStore.
      * Start with creation of minimum number of segments.
-     * Asynchronously notify all pravega hosts about segments in the stream
+     * Asynchronously call createSegment on pravega hosts about segments in the stream
      */
+    @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         String stream = streamConfig.getName();
         return CompletableFuture.supplyAsync(() -> streamStore.createStream(stream, streamConfig))
                 .thenApply(result -> {
                     if (result) {
                         IntStream.range(0, streamConfig.getScalingingPolicy().getMinNumSegments()).
-                                parallel().
                                 forEach(i -> createSegment(stream, i));
                         return Status.SUCCESS;
                     } else return Status.FAILURE;
@@ -66,16 +65,14 @@ public class AdminImpl implements ControllerApi.Admin {
         throw new NotImplementedException();
     }
 
-    public void createSegment(String stream, int segmentNumber) {
+    private void createSegment(String stream, int segmentNumber) {
         Segment segment = new Segment(segmentNumber, 0, Long.MAX_VALUE, 0.0, 0.0);
         streamStore.addActiveSegment(stream, segment);
 
-        SegmentId segmentId = SegmentHelper.getSegmentId(stream, segment, hostStore);
-
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, segmentId.getPort());
-        SegmentManagerImpl segmentManager = new SegmentManagerImpl(segmentId.getEndpoint(), clientCF);
-
-        // what is previous segment id? There could be multiple previous in case of merge
+        SegmentId segmentId = SegmentHelper.getSegment(stream, segment);
+        SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId, hostStore);
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, uri.getPort());
+        SegmentManagerImpl segmentManager = new SegmentManagerImpl(uri.getEndpoint(), clientCF);
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails
