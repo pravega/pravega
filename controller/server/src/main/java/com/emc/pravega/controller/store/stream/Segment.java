@@ -21,7 +21,9 @@ package com.emc.pravega.controller.store.stream;
  * In-memory representation of a stream segment.
  */
 import com.google.common.base.Preconditions;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Setter;
 import lombok.ToString;
 
 import java.util.ArrayList;
@@ -37,26 +39,27 @@ public class Segment {
         Sealed,
     }
 
-    private int number;
-    private long start;
-    private long end;
-    private double keyStart;
-    private double keyEnd;
-    private Status status;
-    private List<Integer> successors;
-    private List<Integer> predecessors;
+    private final int number;
+    private final long start;
+    private @Setter(AccessLevel.PACKAGE) long end;
+    private final double keyStart;
+    private final double keyEnd;
+    private @Setter(AccessLevel.PACKAGE) Status status;
+    private final List<Integer> successors;
+    private final List<Integer> predecessors;
 
-    public Segment(int number, long start, long end, double keyStart, double keyEnd) {
+    Segment(int number, long start, long end, double keyStart, double keyEnd) {
         this.number = number;
         this.start = start;
         this.end = end;
         this.keyStart = keyStart;
         this.keyEnd = keyEnd;
+        this.status = Status.Active;
         successors = new ArrayList<>();
         predecessors = new ArrayList<>();
     }
 
-    public Segment(int number, long start, long end, double keyStart, double keyEnd, List<Integer> successors, List<Integer> predecessors) {
+    Segment(int number, long start, long end, double keyStart, double keyEnd, List<Integer> successors, List<Integer> predecessors) {
         Preconditions.checkNotNull(successors);
         Preconditions.checkNotNull(predecessors);
         this.number = number;
@@ -64,6 +67,7 @@ public class Segment {
         this.end = end;
         this.keyStart = keyStart;
         this.keyEnd = keyEnd;
+        this.status = Status.Active;
         this.successors = successors;
         this.predecessors = predecessors;
     }
@@ -72,13 +76,13 @@ public class Segment {
         return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
     }
 
-    public void addSuccesor(int successor) {
+    void addSuccesor(int successor) {
         if (!successors.contains(successor)) {
             successors.add(successor);
         }
     }
 
-    public void addPredecessor(int predecessor) {
+    void addPredecessor(int predecessor) {
         if (!predecessors.contains(predecessor)) {
             predecessors.add(predecessor);
         }

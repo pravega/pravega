@@ -20,7 +20,6 @@ package com.emc.pravega.controller.server.v1.Api;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.SegmentId;
@@ -31,7 +30,6 @@ import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.IntStream;
 
 public class AdminApiImpl implements ControllerApi.Admin {
     private StreamMetadataStore streamStore;
@@ -53,8 +51,9 @@ public class AdminApiImpl implements ControllerApi.Admin {
         return CompletableFuture.supplyAsync(() -> streamStore.createStream(stream, streamConfig))
                 .thenApply(result -> {
                     if (result) {
-                        IntStream.range(0, streamConfig.getScalingingPolicy().getMinNumSegments()).
-                                forEach(i -> createSegment(stream, i));
+                        streamStore.getActiveSegments(stream).getCurrent().stream().
+                                parallel().
+                                forEach(i -> notifyNewSegment(stream, i));
                         return Status.SUCCESS;
                     } else return Status.FAILURE;
                 });
@@ -65,14 +64,14 @@ public class AdminApiImpl implements ControllerApi.Admin {
         throw new NotImplementedException();
     }
 
-    private void createSegment(String stream, int segmentNumber) {
-        Segment segment = new Segment(segmentNumber, 0, Long.MAX_VALUE, 0.0, 0.0);
-        streamStore.addActiveSegment(stream, segment);
-
-        SegmentId segmentId = SegmentHelper.getSegment(stream, segment);
+    public void notifyNewSegment(String stream, int segmentNumber) {
+        SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, 0);
         SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId, hostStore);
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, uri.getPort());
+
         SegmentManagerImpl segmentManager = new SegmentManagerImpl(uri.getEndpoint(), clientCF);
+
+        // what is previous segment id? There could be multiple previous in case of merge
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails
