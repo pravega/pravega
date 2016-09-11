@@ -232,30 +232,37 @@ class Stream {
         Preconditions.checkArgument(sealedSegments.size() > 0);
         Preconditions.checkArgument(keyRanges.size() > 0);
 
-        List<Segment> newSegments = new ArrayList<>();
-        // assign start times, numbers to new segments. Add them to segments list and current list.
-        for (SimpleEntry<Double, Double> range: keyRanges) {
-            int number = segments.size();
-            Segment segment = new Segment(number, scaleTimestamp, Long.MAX_VALUE, range.getKey(), range.getValue());
-            newSegments.add(segment);
-            segments.add(segment);
-            currentSegments.add(number);
+        List<List<Integer>> predecessors = new ArrayList<>();
+        for (int i = 0; i < keyRanges.size(); i++) {
+            predecessors.add(new ArrayList<>());
         }
 
+        int start = segments.size();
         // assign status, end times, and successors to sealed segments.
         // assign predecessors to new segments
         for (Integer sealed: sealedSegments) {
             Segment segment = segments.get(sealed);
-            segment.setStatus(Segment.Status.Sealed);
-            segment.setEnd(scaleTimestamp);
+            List<Integer> successors = new ArrayList<>();
 
-            for (Segment newSegment: newSegments) {
-                if (newSegment.overlaps(segment)) {
-                    segment.addSuccesor(newSegment.getNumber());
-                    newSegment.addPredecessor(sealed);
+            for (int i = 0; i < keyRanges.size(); i++) {
+                if (segment.overlaps(keyRanges.get(i).getKey(), keyRanges.get(i).getValue())) {
+                    successors.add(start + i);
+                    predecessors.get(i).add(sealed);
                 }
             }
+            Segment sealedSegment = new Segment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(), segment.getKeyEnd(), Segment.Status.Sealed, successors, segment.getPredecessors());
+            segments.set(sealed, sealedSegment);
             currentSegments.remove(sealed);
+        }
+
+        List<Segment> newSegments = new ArrayList<>();
+        // assign start times, numbers to new segments. Add them to segments list and current list.
+        for (int i = 0; i < keyRanges.size(); i++) {
+            int number = start + i;
+            Segment segment = new Segment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), Segment.Status.Active, new ArrayList<>(), predecessors.get(i));
+            newSegments.add(segment);
+            segments.add(segment);
+            currentSegments.add(number);
         }
 
         return newSegments;
