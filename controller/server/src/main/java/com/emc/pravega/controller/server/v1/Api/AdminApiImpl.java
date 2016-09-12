@@ -65,7 +65,7 @@ public class AdminApiImpl implements ControllerApi.Admin {
     }
 
     public void notifyNewSegment(String stream, int segmentNumber) {
-        SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, 0);
+        SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, -1);
         SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId, hostStore);
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, uri.getPort());
 

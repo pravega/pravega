@@ -105,7 +105,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
             List<SegmentId> current = new ArrayList<>(j);
             for (int k = 0; k < j; k++, counter++) {
                 Integer number = segmentFutures.getCurrent().get(counter);
-                SegmentId segmentId = SegmentHelper.getSegment(stream, number, 0);
+                SegmentId segmentId = SegmentHelper.getSegment(stream, number, -1);
                 current.add(segmentId);
             }
 
@@ -207,7 +207,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
                     Map<SegmentId, Long> currentSegments = new HashMap<>();
                     Map<SegmentId, Long> futureSegments = new HashMap<>();
                     x.getCurrent().stream().forEach(
-                            y -> currentSegments.put(SegmentHelper.getSegment(stream, y, 0), segmentOffsets.get(y))
+                            y -> currentSegments.put(SegmentHelper.getSegment(stream, y, -1), segmentOffsets.get(y))
                     );
                     x.getFutures().entrySet().stream().forEach(
                             y -> futureSegments.put(SegmentHelper.getSegment(stream, y.getKey(), y.getValue()), 0L)

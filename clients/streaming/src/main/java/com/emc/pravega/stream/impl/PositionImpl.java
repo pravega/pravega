@@ -44,7 +44,7 @@ public class PositionImpl implements Position, PositionInternal {
         return ownedLogs
                 .entrySet()
                 .stream()
-                .filter(x -> predecessors.contains(x.getKey().getNumber()))
+                .filter(x -> !predecessors.contains(x.getKey().getNumber()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
