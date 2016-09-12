@@ -19,11 +19,11 @@ package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.AdminService;
 import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.thrift.TException;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -46,20 +46,12 @@ public class ApiAdmin extends BaseClient implements ControllerApi.Admin {
         //Use RPC client to invoke createStream
         log.info("Invoke AdminService.Client.createStream() with streamConfiguration: {}", streamConfig);
 
-        CompletableFuture<Status> resultFinal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                //invoke RPC client
-                Status status = client.createStream(ModelHelper.decode(streamConfig));
-
-                log.debug("Received the following status from the controller {}", status);
-                resultFinal.complete(status);
-            } catch (TException e) {
-                resultFinal.completeExceptionally(e);
-            }
-        }, service);
-
-        return resultFinal;
+        return CompletableFuture
+                .supplyAsync(() -> {
+                    Status status = ThriftHelper.thriftCall(() -> client.createStream(ModelHelper.decode(streamConfig)));
+                    log.debug("Received the following status from the controller {}", status);
+                    return status;
+                }, service);
     }
 
     @Override
@@ -67,18 +59,11 @@ public class ApiAdmin extends BaseClient implements ControllerApi.Admin {
         //Use RPC client to invoke getPositions
         log.info("Invoke AdminService.Client.alterStream() with streamConfiguration: {}", streamConfig);
 
-        CompletableFuture<Status> resultFinal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                //invoke RPC client
-                Status status = client.alterStream(ModelHelper.decode(streamConfig));
-                log.debug("Received the following status from the controller {}", status);
-                resultFinal.complete(status);
-            } catch (TException e) {
-                resultFinal.completeExceptionally(e);
-            }
-        }, service);
-
-        return resultFinal;
+        return CompletableFuture
+                .supplyAsync(() -> {
+                    Status status = ThriftHelper.thriftCall(() -> client.alterStream(ModelHelper.decode(streamConfig)));
+                    log.debug("Received the following status from the controller {}", status);
+                    return status;
+                }, service);
     }
 }

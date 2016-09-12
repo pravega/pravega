@@ -18,13 +18,13 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.controller.stream.api.v1.ConsumerService;
+import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.thrift.TException;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -49,22 +49,12 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
         //Use RPC client to invoke getPositions
         log.info("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream, timestamp, count);
 
-        CompletableFuture<List<PositionInternal>> resultFinal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                //invoke RPC client
-                List<com.emc.pravega.controller.stream.api.v1.Position> result = client.getPositions(stream, timestamp, count);
-                //encode the result back to Model class
-                List<PositionInternal> resultModel = result.stream().map(ModelHelper::encode)
-                        .collect(Collectors.toList());
-                log.debug("Received the following data from the controller {}", result);
-                resultFinal.complete(resultModel);
-            } catch (TException e) {
-                resultFinal.completeExceptionally(e);
-            }
-        }, service);
-
-        return resultFinal;
+        return CompletableFuture
+                .supplyAsync(() -> ThriftHelper.thriftCall(() -> client.getPositions(stream, timestamp, count)), service)
+                .thenApply(result -> {
+                    log.debug("Received the following data from the controller {}", result);
+                    return result.stream().map(ModelHelper::encode).collect(Collectors.toList());
+                });
     }
 
     @Override
@@ -72,35 +62,23 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
         //Use RPC client to invoke updatePositions
         log.info("Invoke ConsumerService.Client.updatePositions() for positions: {} ", positions);
 
-        CompletableFuture<List<PositionInternal>> resultFinal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                //invoke RPC client
-                List<com.emc.pravega.controller.stream.api.v1.Position> result =
-                        client.updatePositions(stream, positions.stream().map(p -> ModelHelper.decode(p)).collect(Collectors.toList()));
-                //encode the result back to Model class
-                List<PositionInternal> resultModel = result.stream().map(ModelHelper::encode).collect(Collectors.toList());
-                log.debug("Received the following data from the controller {}", result);
-                resultFinal.complete(resultModel);
-            } catch (TException e) {
-                resultFinal.completeExceptionally(e);
-            }
-        }, service);
+        List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
+                positions.stream().map(p -> ModelHelper.decode(p)).collect(Collectors.toList());
 
-        return resultFinal;
+        return CompletableFuture
+                .supplyAsync(() -> ThriftHelper.thriftCall(() -> client.updatePositions(stream, transformed)), service)
+                .thenApply(result -> {
+                    log.debug("Received the following data from the controller {}", result);
+                    return result.stream().map(ModelHelper::encode).collect(Collectors.toList());
+                });
     }
 
     @Override
     public CompletableFuture<SegmentUri> getURI(SegmentId id) {
-        CompletableFuture<SegmentUri> resultFinal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                resultFinal.complete(ModelHelper.encode(client.getURI(ModelHelper.decode(id))));
-            } catch (TException e) {
-                resultFinal.completeExceptionally(e);
-            }
-        }, service);
-
-        return resultFinal;
+        return CompletableFuture
+                .supplyAsync(() -> ThriftHelper.thriftCall(() -> client.getURI(ModelHelper.decode(id))), service)
+                .thenApply(ModelHelper::encode);
     }
+
+
 }
