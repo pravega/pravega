@@ -208,7 +208,7 @@ public class AppendTest {
             public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
                 ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
                 SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
-                SegmentId segmentId = new SegmentId(streamName, streamName, 0, 0);
+                SegmentId segmentId = new SegmentId(streamName, streamName, 0, -1);
 
                 segmentManager.createSegment(segmentId.getQualifiedName());
 
@@ -225,7 +225,7 @@ public class AppendTest {
             @Override
             public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
                 return CompletableFuture.completedFuture(new StreamSegments(
-                        Lists.newArrayList(new SegmentId(stream, stream, 0, 0)),
+                        Lists.newArrayList(new SegmentId(stream, stream, 0, -1)),
                         System.currentTimeMillis()));
             }
 
