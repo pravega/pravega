@@ -24,7 +24,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class InMemoryHostStore implements HostControllerStore {
-    private Map<Host, Set<Integer>> hostContainerMap;
+    private final Map<Host, Set<Integer>> hostContainerMap;
 
 
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {

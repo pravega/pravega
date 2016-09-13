@@ -29,8 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class ProducerApiImpl implements ControllerApi.Producer {
-    private StreamMetadataStore streamStore;
-    private HostControllerStore hostStore;
+    private final StreamMetadataStore streamStore;
+    private final HostControllerStore hostStore;
 
     public ProducerApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
