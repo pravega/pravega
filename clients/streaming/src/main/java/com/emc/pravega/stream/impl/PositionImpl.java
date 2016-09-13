@@ -115,4 +115,22 @@ public class PositionImpl implements Position, PositionInternal {
         return Collections.unmodifiableMap(ownedLogs);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PositionImpl position = (PositionImpl) o;
+
+        if (!ownedLogs.equals(position.ownedLogs)) return false;
+        return futureOwnedLogs.equals(position.futureOwnedLogs);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = ownedLogs.hashCode();
+        result = 31 * result + futureOwnedLogs.hashCode();
+        return result;
+    }
 }
