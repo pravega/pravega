@@ -41,8 +41,8 @@ import java.util.stream.Collectors;
 
 public class ConsumerApiImpl implements ControllerApi.Consumer {
 
-    private StreamMetadataStore streamStore;
-    private HostControllerStore hostStore;
+    private final StreamMetadataStore streamStore;
+    private final HostControllerStore hostStore;
 
     public ConsumerApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
@@ -69,7 +69,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
                     SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
 
                     // divide current segments in segmentFutures into at most n positions
-                    return shard(stream, segmentFutures, n);
+                    return shard(stream, segmentFutures, timestamp, n);
                 }
         );
     }
@@ -85,7 +85,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
      * @param n number of shards
      * @return the list of position objects
      */
-    private List<PositionInternal> shard(String stream, SegmentFutures segmentFutures, int n) {
+    private List<PositionInternal> shard(String stream, SegmentFutures segmentFutures, long timestamp, int n) {
         // divide the active segments equally into at most n partition
         int currentCount = segmentFutures.getCurrent().size();
         int quotient = currentCount / n;

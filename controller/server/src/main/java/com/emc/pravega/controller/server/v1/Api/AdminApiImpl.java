@@ -32,8 +32,8 @@ import org.apache.commons.lang.NotImplementedException;
 import java.util.concurrent.CompletableFuture;
 
 public class AdminApiImpl implements ControllerApi.Admin {
-    private StreamMetadataStore streamStore;
-    private HostControllerStore hostStore;
+    private final StreamMetadataStore streamStore;
+    private final HostControllerStore hostStore;
 
     public AdminApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
