@@ -67,7 +67,12 @@ public class ModelHelperTest {
     }
 
     @Test(expected = NullPointerException.class)
-    public void decodeSegmentId() throws Exception {
+    public void decodeSegmentIdNullTest() {
+        ModelHelper.decode((SegmentId) null);
+    }
+
+    @Test
+    public void decodeSegmentId() {
         final String segName = "seg1";
 
         com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(createSegmentId("seg1"));
@@ -75,45 +80,57 @@ public class ModelHelperTest {
         assertEquals("scope", segmentID.getScope());
         assertEquals(2, segmentID.getNumber());
         assertEquals(1, segmentID.getPrevious());
-
-        ModelHelper.decode((SegmentId) null);
     }
 
     @Test(expected = NullPointerException.class)
+    public void encodeSegmentIdNullInput() {
+        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null);
+    }
+
+    @Test
     public void encodeSegmentId() {
         SegmentId segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("seg1")));
         assertEquals("seg1", segment.getName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getNumber());
         assertEquals(1, segment.getPrevious());
-
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null);
     }
 
     @Test(expected = NullPointerException.class)
-    public void decodeScalingPolicy() throws Exception {
+    public void decodeScalingPolicyNullInput() throws Exception {
+        ModelHelper.decode((ScalingPolicy) null);
+    }
+
+    @Test
+    public void decodeScalingPolicy() {
         com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy = ModelHelper.decode(createScalingPolicy());
         assertEquals(ScalingPolicyType.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
-
-        ModelHelper.decode((ScalingPolicy) null);
     }
 
     @Test(expected = NullPointerException.class)
-    public void encodeScalingPolicy() throws Exception {
+    public void encodeScalingPolicyNullInput() {
+        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.ScalingPolicy) null);
+    }
+
+    @Test
+    public void encodeScalingPolicy() {
         ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(createScalingPolicy()));
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
-
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.ScalingPolicy) null);
     }
 
     @Test(expected = NullPointerException.class)
-    public void decodeStreamConfig() throws Exception {
+    public void decodeStreamConfigNullInput() {
+        ModelHelper.decode((StreamConfiguration) null);
+    }
+
+    @Test
+    public void decodeStreamConfig() {
         StreamConfig config = ModelHelper.decode(createStreamConfig("test"));
         assertEquals("test", config.getName());
         com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy = config.getPolicy();
@@ -121,14 +138,15 @@ public class ModelHelperTest {
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
-
-        ModelHelper.decode((StreamConfiguration) null);
-
-
     }
 
     @Test(expected = NullPointerException.class)
-    public void encodeStreamConfig() throws Exception {
+    public void encodeStreamConfigNullInput() {
+        ModelHelper.encode((StreamConfig) null);
+    }
+
+    @Test
+    public void encodeStreamConfig() {
         StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(createStreamConfig("test")));
         assertEquals("test", config.getName());
         ScalingPolicy policy = config.getScalingingPolicy();
@@ -136,31 +154,34 @@ public class ModelHelperTest {
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
-
-        ModelHelper.encode((StreamConfig) null);
     }
 
     @Test(expected = NullPointerException.class)
-    public void decodePosition() throws Exception {
+    public void decodePositionNullInput() {
+        ModelHelper.decode((PositionInternal) null);
+    }
+
+    @Test
+    public void decodePosition() {
         com.emc.pravega.controller.stream.api.v1.Position position = ModelHelper.decode(createPosition());
         assertEquals(1, position.getOwnedLogs().size());
         assertEquals(1, position.getFutureOwnedLogs().size());
         assertEquals(1L, position.getOwnedLogs().get(ModelHelper.decode(createSegmentId("seg1"))).longValue());
         assertEquals(2L, position.getFutureOwnedLogs().get(ModelHelper.decode(createSegmentId("seg2"))).longValue());
-
-        ModelHelper.decode((PositionInternal) null);
     }
 
     @Test(expected = NullPointerException.class)
-    public void encodePosition() throws Exception {
+    public void encodePositionNullInput() {
+        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.Position) null);
+    }
+
+    @Test
+    public void encodePosition() {
         PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
         assertEquals(1, position.asInternalImpl().getOwnedLogs().size());
         assertEquals(1, position.asInternalImpl().getFutureOwnedLogs().size());
         Map<SegmentId, Long> owndedLogs = position.asInternalImpl().getOwnedLogs();
         assertEquals(1L, position.asInternalImpl().getOwnedLogs().get(createSegmentId("seg1")).longValue());
         assertEquals(2L, position.asInternalImpl().getFutureOwnedLogs().get(createSegmentId("seg2")).longValue());
-
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.Position) null);
     }
-
 }
