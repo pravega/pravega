@@ -28,6 +28,7 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.server.TThreadedSelectorServer;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TServerTransport;
@@ -79,12 +80,13 @@ public class RPCServer {
 
             TThreadedSelectorServer.Args config = new TThreadedSelectorServer.Args(socket);
             config.processor(processor)
+                    .transportFactory(new TFramedTransport.Factory())
                     .protocolFactory(new TBinaryProtocol.Factory())
                     .workerThreads(SERVER_WORKER_THREAD_COUNT)
                     .selectorThreads(SERVER_SELECTOR_THREAD_COUNT);
 
             TServer server = new TThreadedSelectorServer(config);
-            log.info("Starting Controller Server (Threaded Selector Server) ...");
+            log.info("Starting Controller Server (Threaded Selector Server) on port {}", SERVER_PORT);
             server.serve();
         } catch (TTransportException e) {
             log.error("Exception during start of Threaded Selector Server", e);

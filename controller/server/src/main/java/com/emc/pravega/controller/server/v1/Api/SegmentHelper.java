@@ -27,7 +27,7 @@ import com.emc.pravega.stream.SegmentUri;
 
 public class SegmentHelper {
     public static SegmentId getSegment(String stream, Segment segment) {
-        return new SegmentId(stream, stream + segment.getNumber(), segment.getNumber(), 0);
+        return new SegmentId(stream, stream + segment.getNumber(), segment.getNumber(), -1);
     }
 
     public static SegmentId getSegment(String stream, int segmentNumber, int previous) {

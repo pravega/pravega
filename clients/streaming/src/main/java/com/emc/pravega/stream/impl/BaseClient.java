@@ -21,7 +21,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
 import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 import java.util.concurrent.ExecutorService;
@@ -36,14 +38,14 @@ public class BaseClient implements AutoCloseable {
     private static final int DEFAULT_SOCKET_CONNECTION_TIMEOUT_MS = 60 * 1000;
     protected ExecutorService service = Executors.newCachedThreadPool();
 
-    private final TSocket transport;
+    private final TTransport transport;
 
     private final String hostName;
     private final int port;
     private final String serviceName;
 
     protected BaseClient(final String host, final int portNum, final String service) {
-        transport = new TSocket(host, portNum, DEFAULT_SOCKET_CONNECTION_TIMEOUT_MS);
+        transport = new TFramedTransport(new TSocket(host, portNum, DEFAULT_SOCKET_CONNECTION_TIMEOUT_MS));
         hostName = host;
         port = portNum;
         serviceName = service;

@@ -21,9 +21,7 @@ package com.emc.pravega.controller.store.stream;
  * In-memory representation of a stream segment.
  */
 import com.google.common.base.Preconditions;
-import lombok.AccessLevel;
 import lombok.Data;
-import lombok.Setter;
 import lombok.ToString;
 
 import java.util.ArrayList;
@@ -41,10 +39,10 @@ public class Segment {
 
     private final int number;
     private final long start;
-    private @Setter(AccessLevel.PACKAGE) long end;
+    private final long end;
     private final double keyStart;
     private final double keyEnd;
-    private @Setter(AccessLevel.PACKAGE) Status status;
+    private final Status status;
     private final List<Integer> successors;
     private final List<Integer> predecessors;
 
@@ -59,7 +57,7 @@ public class Segment {
         predecessors = new ArrayList<>();
     }
 
-    Segment(int number, long start, long end, double keyStart, double keyEnd, List<Integer> successors, List<Integer> predecessors) {
+    Segment(int number, long start, long end, double keyStart, double keyEnd, Status status, List<Integer> successors, List<Integer> predecessors) {
         Preconditions.checkNotNull(successors);
         Preconditions.checkNotNull(predecessors);
         this.number = number;
@@ -67,7 +65,7 @@ public class Segment {
         this.end = end;
         this.keyStart = keyStart;
         this.keyEnd = keyEnd;
-        this.status = Status.Active;
+        this.status = status;
         this.successors = successors;
         this.predecessors = predecessors;
     }
@@ -76,15 +74,7 @@ public class Segment {
         return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
     }
 
-    void addSuccesor(int successor) {
-        if (!successors.contains(successor)) {
-            successors.add(successor);
-        }
-    }
-
-    void addPredecessor(int predecessor) {
-        if (!predecessors.contains(predecessor)) {
-            predecessors.add(predecessor);
-        }
+    public boolean overlaps(double keyStart, double keyEnd) {
+        return keyEnd > this.keyStart && keyStart < this.keyEnd;
     }
 }

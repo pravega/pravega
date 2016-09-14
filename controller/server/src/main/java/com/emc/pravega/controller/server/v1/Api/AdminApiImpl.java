@@ -32,8 +32,8 @@ import org.apache.commons.lang.NotImplementedException;
 import java.util.concurrent.CompletableFuture;
 
 public class AdminApiImpl implements ControllerApi.Admin {
-    private StreamMetadataStore streamStore;
-    private HostControllerStore hostStore;
+    private final StreamMetadataStore streamStore;
+    private final HostControllerStore hostStore;
 
     public AdminApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
@@ -65,7 +65,7 @@ public class AdminApiImpl implements ControllerApi.Admin {
     }
 
     public void notifyNewSegment(String stream, int segmentNumber) {
-        SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, 0);
+        SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, -1);
         SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId, hostStore);
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, uri.getPort());
 

@@ -33,8 +33,39 @@ public class PositionImpl implements Position, PositionInternal {
     private final Map<SegmentId, Long> futureOwnedLogs;
 
     public PositionImpl(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
-        this.ownedLogs = ownedLogs;
+        isFutureLogsWellFormed(ownedLogs, futureOwnedLogs);
+        this.ownedLogs = normalizeOwnedLogs(ownedLogs);
         this.futureOwnedLogs = futureOwnedLogs;
+    }
+
+    private Map<SegmentId, Long> normalizeOwnedLogs(Map<SegmentId, Long> ownedLogs) {
+        // find redundant segmentIds
+        Set<Integer> predecessors = ownedLogs.keySet().stream().map(SegmentId::getPrevious).collect(Collectors.toSet());
+        return ownedLogs
+                .entrySet()
+                .stream()
+                .filter(x -> !predecessors.contains(x.getKey().getNumber()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private boolean isFutureLogsWellFormed(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
+        // every segment in futures should
+        // 1. not be in ownedLogs, and
+        // 2. have a predecessor in ownedLogs
+        Set<Integer> current = ownedLogs.entrySet().stream().map(x -> x.getKey().getNumber()).collect(Collectors.toSet());
+        return futureOwnedLogs.entrySet().stream()
+                        .allMatch(x -> current.contains(x.getKey().getPrevious()) && !current.contains(x.getKey().getNumber()));
+    }
+
+    private boolean isOwnedLogsWellFormed(Map<SegmentId, Long> ownedLogs) {
+        Set<Integer> current = ownedLogs.entrySet().stream().map(x -> x.getKey().getNumber()).collect(Collectors.toSet());
+
+        // for every segment in ownedLogs, its predecessor should not be in ownedLogs
+        return ownedLogs.entrySet().stream().allMatch(x -> !current.contains(x.getKey().getPrevious()));
+    }
+
+    private boolean isWellFormed(Map<SegmentId, Long> ownedLogs, Map<SegmentId, Long> futureOwnedLogs) {
+        return isFutureLogsWellFormed(ownedLogs, futureOwnedLogs) && isOwnedLogsWellFormed(ownedLogs);
     }
 
     @Override
@@ -49,7 +80,7 @@ public class PositionImpl implements Position, PositionInternal {
 
     @Override
     public Set<SegmentId> getCompletedSegments() {
-        return ownedLogs.entrySet().stream().filter(x -> x.getValue() < 0).map(y -> y.getKey()).collect(Collectors.toSet());
+        return ownedLogs.entrySet().stream().filter(x -> x.getValue() < 0).map(Map.Entry::getKey).collect(Collectors.toSet());
     }
 
     @Override
@@ -84,4 +115,22 @@ public class PositionImpl implements Position, PositionInternal {
         return Collections.unmodifiableMap(ownedLogs);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PositionImpl position = (PositionImpl) o;
+
+        if (!ownedLogs.equals(position.ownedLogs)) return false;
+        return futureOwnedLogs.equals(position.futureOwnedLogs);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = ownedLogs.hashCode();
+        result = 31 * result + futureOwnedLogs.hashCode();
+        return result;
+    }
 }

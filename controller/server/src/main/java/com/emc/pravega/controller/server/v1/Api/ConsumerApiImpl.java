@@ -41,8 +41,8 @@ import java.util.stream.Collectors;
 
 public class ConsumerApiImpl implements ControllerApi.Consumer {
 
-    private StreamMetadataStore streamStore;
-    private HostControllerStore hostStore;
+    private final StreamMetadataStore streamStore;
+    private final HostControllerStore hostStore;
 
     public ConsumerApiImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
@@ -65,53 +65,77 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
     public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int n) {
         return CompletableFuture.supplyAsync(
                 () -> {
-                    // fetch the segments active at timestamp from specified stream
+                    // first fetch segments active at specified timestamp from the specified stream
                     SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
 
-                    // divide the active segments equally into at most n partitions
-                    int currentCount = segmentFutures.getCurrent().size();
-                    int quotient = currentCount / n;
-                    int remainder = currentCount % n;
-
-                    ListMultimap<Integer, Integer> inverse = Multimaps.invertFrom(
-                            Multimaps.forMap(segmentFutures.getFutures()),
-                            ArrayListMultimap.create());
-
-                    int size = (quotient < 1) ? remainder : n;
-                    List<PositionInternal> positions = new ArrayList<>(size);
-
-                    int counter = 0;
-                    for (int i = 0; i < size; i++) {
-                        int j = (i < remainder) ? quotient + 1 : quotient;
-                        List<SegmentId> current = new ArrayList<>(j);
-                        for (int k = 0; k < j; k++, counter++) {
-                            Integer number = segmentFutures.getCurrent().get(counter);
-                            SegmentId segmentId = SegmentHelper.getSegment(stream, number, 0);
-                            current.add(segmentId);
-                        }
-                        Map<SegmentId, Long> currentSegments = new HashMap<>();
-                        Map<SegmentId, Long> futureSegments = new HashMap<>();
-                        current.stream().forEach(
-                                x -> {
-                                    // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
-                                    currentSegments.put(x, 0L);
-                                    int previous = x.getNumber();
-                                    if (inverse.containsKey(previous)) {
-                                        inverse.get(previous).stream().forEach(
-                                                y -> {
-                                                    SegmentId segmentId = SegmentHelper.getSegment(stream, y, previous);
-                                                    futureSegments.put(segmentId, 0L);
-                                                }
-                                        );
-                                    }
-                                }
-                        );
-                        PositionInternal position = new PositionImpl(currentSegments, futureSegments);
-                        positions.add(position);
-                    }
-                    return positions;
+                    // divide current segments in segmentFutures into at most n positions
+                    return shard(stream, segmentFutures, timestamp, n);
                 }
         );
+    }
+
+    /**
+     * This method divides the current segments from the segmentFutures into at most n positions. It appropriately
+     * distributes the future segments in segmentFutures among the shards. E.g., if n=5, and segmentFutures contains
+     * a) 3 current segments, then 3 positions will be created each having one current segment
+     * b) 6 current segments, then 5 positions will be created 1st position containing #1, #2 current segments
+     *    and remaining positions having 1 current segment each
+     * @param stream input stream
+     * @param segmentFutures input segmentFutures
+     * @param n number of shards
+     * @return the list of position objects
+     */
+    private List<PositionInternal> shard(String stream, SegmentFutures segmentFutures, long timestamp, int n) {
+        // divide the active segments equally into at most n partition
+        int currentCount = segmentFutures.getCurrent().size();
+        int quotient = currentCount / n;
+        int remainder = currentCount % n;
+        // if quotient < 1 then remainder number of positions shall be created, other wise n positions shall be created
+        int size = (quotient < 1) ? remainder : n;
+        List<PositionInternal> positions = new ArrayList<>(size);
+
+        ListMultimap<Integer, Integer> inverse = Multimaps.invertFrom(
+                Multimaps.forMap(segmentFutures.getFutures()),
+                ArrayListMultimap.create());
+
+        int counter = 0;
+        // create a position object in each iteration of the for loop
+        for (int i = 0; i < size; i++) {
+            int j = (i < remainder) ? quotient + 1 : quotient;
+            List<SegmentId> current = new ArrayList<>(j);
+            for (int k = 0; k < j; k++, counter++) {
+                Integer number = segmentFutures.getCurrent().get(counter);
+                SegmentId segmentId = SegmentHelper.getSegment(stream, number, -1);
+                current.add(segmentId);
+            }
+
+            // Compute the current and future segments set for position i
+            Map<SegmentId, Long> currentSegments = new HashMap<>();
+            Map<SegmentId, Long> futureSegments = new HashMap<>();
+            current.stream().forEach(
+                    x -> {
+                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
+                        // put it in the currentSegments
+                        currentSegments.put(x, 0L);
+
+                        // update futures with all segments in segmentFutures.getFutures having x.number as the predecessor
+                        // these segments can be found from the inverted segmentFutures.getFutures
+                        int previous = x.getNumber();
+                        if (inverse.containsKey(previous)) {
+                            inverse.get(previous).stream().forEach(
+                                    y -> {
+                                        SegmentId segmentId = SegmentHelper.getSegment(stream, y, previous);
+                                        futureSegments.put(segmentId, 0L);
+                                    }
+                            );
+                        }
+                    }
+            );
+            // create a new position object with current and futures segments thus computed
+            PositionInternal position = new PositionImpl(currentSegments, futureSegments);
+            positions.add(position);
+        }
+        return positions;
     }
 
     /**
@@ -127,50 +151,63 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
     public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
         return CompletableFuture.supplyAsync(
                 () -> {
-                    // collect the completed segments from list of position objects
+                    // initialize completed segments set from those found in the list of input position objects
                     Set<Integer> completedSegments = positions.stream().flatMap(x -> x.getCompletedSegments().stream().map(y -> y.getNumber())).collect(Collectors.toSet());
                     Map<Integer, Long> segmentOffsets = new HashMap<>();
-                    List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
 
-                    // construct SegmentFutures for each position object.
-                    for (PositionInternal position: positions) {
-                        List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
-                        Map<Integer, Integer> futures = new HashMap<>();
-                        position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
-                                x -> {
-                                    int number = x.getKey().getNumber();
-                                    current.add(number);
-                                    Segment segment = streamStore.getSegment(stream, number);
-                                    // update completed segments set with implicitly completed segments
-                                    segment.getPredecessors().stream().forEach(y -> completedSegments.add(y));
-                                    segmentOffsets.put(number, x.getValue());
-                                }
-                        );
-                        position.getFutureOwnedSegments().stream().forEach(
-                                x -> {
-                                    futures.put(x.getNumber(), x.getPrevious());
-                                }
-                        );
-                        segmentFutures.add(new SegmentFutures(current, futures));
-                    }
+                    // convert positions to segmentFutures, while updating completedSegments set and
+                    // storing segment offsets in segmentOffsets map
+                    List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(stream, positions, completedSegments, segmentOffsets);
 
                     // fetch updated SegmentFutures from stream metadata
-                    List<SegmentFutures> result = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
+                    List<SegmentFutures> updatedSegmentFutures = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
 
                     // finally convert SegmentFutures back to position objects
-                    return getNewPositions(stream, result, segmentOffsets);
+                    return convertSegmentFuturesToPositions(stream, updatedSegmentFutures, segmentOffsets);
                 }
         );
     }
 
-    private List<PositionInternal> getNewPositions(String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
+    /**
+     * This method converts list of positions into list of segmentFutures.
+     * While doing so it updates the completedSegments set and stores segment offsets in a map.
+     * @param stream input stream
+     * @param positions input list of positions
+     * @param completedSegments set of completed segments that shall be updated in this method
+     * @param segmentOffsets map of segment number of its offset that shall be populated in this method
+     * @return the list of segmentFutures objects
+     */
+    private List<SegmentFutures> convertPositionsToSegmentFutures(String stream, List<PositionInternal> positions, Set<Integer> completedSegments, Map<Integer, Long> segmentOffsets) {
+        List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
+
+        // construct SegmentFutures for each position object.
+        for (PositionInternal position: positions) {
+            List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
+            Map<Integer, Integer> futures = new HashMap<>();
+            position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
+                    x -> {
+                        int number = x.getKey().getNumber();
+                        current.add(number);
+                        Segment segment = streamStore.getSegment(stream, number);
+                        // update completed segments set with implicitly completed segments
+                        segment.getPredecessors().stream().forEach(y -> completedSegments.add(y));
+                        segmentOffsets.put(number, x.getValue());
+                    }
+            );
+            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getNumber(), x.getPrevious()));
+            segmentFutures.add(new SegmentFutures(current, futures));
+        }
+        return segmentFutures;
+    }
+
+    private List<PositionInternal> convertSegmentFuturesToPositions(String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
         List<PositionInternal> resultPositions = new ArrayList<>(segmentFutures.size());
         segmentFutures.stream().forEach(
                 x -> {
                     Map<SegmentId, Long> currentSegments = new HashMap<>();
                     Map<SegmentId, Long> futureSegments = new HashMap<>();
                     x.getCurrent().stream().forEach(
-                            y -> currentSegments.put(SegmentHelper.getSegment(stream, y, 0), segmentOffsets.get(y))
+                            y -> currentSegments.put(SegmentHelper.getSegment(stream, y, -1), segmentOffsets.get(y))
                     );
                     x.getFutures().entrySet().stream().forEach(
                             y -> futureSegments.put(SegmentHelper.getSegment(stream, y.getKey(), y.getValue()), 0L)

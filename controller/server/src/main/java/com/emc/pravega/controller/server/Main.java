@@ -61,7 +61,7 @@ public class Main {
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
-                new InMemoryHostControllerStoreConfig().setHostContainers(hostContainerMap));
+                new InMemoryHostControllerStoreConfig(hostContainerMap));
 
         //2) initialize implementation objects, with right parameters/configuration.
         //2.1) initialize implementation of ControllerApi.ApiAdmin

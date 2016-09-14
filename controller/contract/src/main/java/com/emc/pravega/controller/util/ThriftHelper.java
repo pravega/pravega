@@ -15,30 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
+package com.emc.pravega.controller.util;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
+import org.apache.thrift.TException;
 
-import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
+/**
+ * Thrift helper functions
+ */
+public final class ThriftHelper {
 
-public class InMemoryHostControllerStoreConfig implements StoreConfiguration {
-    private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
-
-    private final Map<Host, Set<Integer>> hostContainerMap;
-
-    public InMemoryHostControllerStoreConfig(Map<Host, Set<Integer>> hostContainerMap) {
-        this.hostContainerMap = hostContainerMap;
+    @FunctionalInterface
+    public static interface ThriftCall<ResultT> {
+        ResultT call() throws TException;
     }
 
-    public Map<Host, Set<Integer>> getHostContainerMap() {
-        return Collections.unmodifiableMap(hostContainerMap);
-    }
-
-    public int getNumOfContainers() {
-        return numOfContainers;
+    /**
+     * Eliminates boilerplate code of wrapping 'checked' thrift exception into a RuntimeException.
+     *
+     * @param call thrift method call
+     */
+    public static <ResultT> ResultT thriftCall(ThriftCall<ResultT> call) {
+        try {
+            return call.call();
+        } catch (TException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
