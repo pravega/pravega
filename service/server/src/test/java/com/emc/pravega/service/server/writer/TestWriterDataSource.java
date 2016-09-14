@@ -30,8 +30,9 @@ import com.emc.pravega.service.server.logs.MemoryOperationLog;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
-import lombok.val;
+import lombok.Setter;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -60,6 +61,18 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private CompletableFuture<Void> addProcessed;
     private long lastAddedCheckpoint;
     private boolean closed;
+    @Setter
+    private ErrorInjector<Exception> readSyncErrorInjector;
+    @Setter
+    private ErrorInjector<Exception> readAsyncErrorInjector;
+    @Setter
+    private ErrorInjector<Exception> ackSyncErrorInjector;
+    @Setter
+    private ErrorInjector<Exception> ackAsyncErrorInjector;
+    @Setter
+    private ErrorInjector<Exception> completeMergeErrorInjector;
+    @Setter
+    private ErrorInjector<Exception> getAppendDataErrorInjector;
 
     //endregion
 
@@ -103,7 +116,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //endregion
 
-    //region WriterDataSource Implementation
+    //region add
 
     public long add(Operation operation) {
         Exceptions.checkNotClosed(this.closed, this);
@@ -136,6 +149,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return operation.getSequenceNumber();
     }
 
+    //endregion
+
+    //region WriterDataSource Implementation
+
     @Override
     public int getId() {
         return this.metadata.getContainerId();
@@ -145,37 +162,47 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     public CompletableFuture<Void> acknowledge(long upToSequenceNumber, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation Point. Must refer to a MetadataCheckpointOperation.");
+        ErrorInjector.throwSyncExceptionIfNeeded(this.ackSyncErrorInjector);
 
-        return CompletableFuture.runAsync(() -> {
-            this.log.truncate(o -> o.getSequenceNumber() <= upToSequenceNumber);
-            this.metadata.removeTruncationMarkers(upToSequenceNumber);
+        return ErrorInjector
+                .throwAsyncExceptionIfNeeded(this.ackAsyncErrorInjector)
+                .thenRunAsync(() -> {
+                    this.log.truncate(o -> o.getSequenceNumber() <= upToSequenceNumber);
+                    this.metadata.removeTruncationMarkers(upToSequenceNumber);
 
-            // Invoke the truncation callback.
-            Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
-            if (callback != null) {
-                Operation lastOperation = this.log.getLast();
-                long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
-                CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
-            }
-        }, this.executor);
+                    // Invoke the truncation callback.
+                    Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
+                    if (callback != null) {
+                        Operation lastOperation = this.log.getLast();
+                        long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
+                        CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
+                    }
+                }, this.executor);
     }
 
     @Override
     public CompletableFuture<Iterator<Operation>> read(long afterSequenceNumber, int maxCount, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        val logReadResult = this.log.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
-        if (logReadResult.hasNext()) {
-            // Result is readily available; return it.
-            return CompletableFuture.completedFuture(logReadResult);
-        } else {
-            // Result is not yet available; wait for an add and then retry the read.
-            return waitForAdd(afterSequenceNumber, timeout)
-                    .thenComposeAsync(v -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
-        }
+        ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
+
+        return ErrorInjector
+                .throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
+                .thenCompose(v -> {
+                    Iterator<Operation> logReadResult = this.log.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
+                    if (logReadResult.hasNext()) {
+                        // Result is readily available; return it.
+                        return CompletableFuture.completedFuture(logReadResult);
+                    } else {
+                        // Result is not yet available; wait for an add and then retry the read.
+                        return waitForAdd(afterSequenceNumber, timeout)
+                                .thenComposeAsync(v1 -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
+                    }
+                });
     }
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+        ErrorInjector.throwSyncExceptionIfNeeded(this.completeMergeErrorInjector);
         BiConsumer<Long, Long> callback = this.completeMergeCallback;
         if (callback != null) {
             callback.accept(targetStreamSegmentId, sourceStreamSegmentId);
@@ -184,6 +211,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public byte[] getAppendData(CacheKey key) {
+        ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
         return this.cache.get(key);
     }
 
@@ -216,6 +244,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
      *
      * @param callback The callback to set.
      */
+
     public void setAcknowledgeCallback(Consumer<AcknowledgeArgs> callback) {
         this.acknowledgeCallback = callback;
     }

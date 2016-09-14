@@ -19,6 +19,8 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
@@ -40,6 +42,7 @@ import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
+import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -89,13 +92,13 @@ public class StorageWriterTests {
         TestContext context = new TestContext(DEFAULT_CONFIG);
         context.writer.startAsync();
 
+        // Create a bunch of segments and batches.
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
         ArrayList<Long> batchIds = new ArrayList<>();
         batchesBySegment.values().forEach(batchIds::addAll);
 
-        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
-
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
         CompletableFuture<Void> producingComplete = new CompletableFuture<>();
         context.dataSource.setAcknowledgeCallback(args -> {
@@ -104,28 +107,45 @@ public class StorageWriterTests {
             }
         });
 
-        // Append data
-        CompletableFuture.runAsync(() -> {
-            appendData(segmentIds, segmentContents, context);
-            appendData(batchIds, segmentContents, context);
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendData(segmentIds, segmentContents, context);
+        appendData(batchIds, segmentContents, context);
 
-            // Merge batches
-            sealSegments(batchIds, context);
-            mergeBatches(batchIds, segmentContents, context);
+        // Merge batches.
+        sealSegments(batchIds, context);
+        mergeBatches(batchIds, segmentContents, context);
 
-            // Seal the parents
-            sealSegments(segmentIds, context);
-            metadataCheckpoint(context);
-            producingComplete.complete(null);
-        }, context.executor.get());
+        // Seal the parents.
+        sealSegments(segmentIds, context);
+        metadataCheckpoint(context);
+        producingComplete.complete(null);
 
-        // Wait for producing and the writer to complete their jobs.
-        CompletableFuture.allOf(producingComplete, ackEverything).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        // Wait for the writer to complete its job.
+        ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify all batches are deleted.
+        for (long batchId : batchIds) {
+            SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(batchId);
+            Assert.assertTrue("Batch not marked as deleted in metadata: " + batchId, metadata.isDeleted());
+            AssertExtensions.assertThrows(
+                    "Batch segment was not deleted from storage after being merged: " + batchId,
+                    () -> context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join(),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+        }
+
+        // Verify segment contents.
         for (long segmentId : segmentContents.keySet()) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
-            Assert.assertNotNull("No metadata for segment " + segmentId, metadata);
-            Assert.assertEquals("Not expecting a batch segment " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
-            Assert.assertEquals("Not all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
+            Assert.assertNotNull("Setup error: No metadata for segment " + segmentId, metadata);
+            Assert.assertEquals("Setup error: Not expecting a batch segment in the final list: " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
+
+            Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
+            Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
+
+            SegmentProperties sp = context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join();
+            Assert.assertEquals("Metadata.StorageLength disagrees with Storage.Length for segment " + segmentId, metadata.getStorageLength(), sp.getLength());
+            Assert.assertEquals("Metadata.Sealed/SealedInStorage disagrees with Storage.Sealed for segment " + segmentId, metadata.isSealedInStorage(), sp.isSealed());
 
             byte[] expected = segmentContents.get(segmentId).toByteArray();
             byte[] actual = new byte[expected.length];
@@ -140,7 +160,10 @@ public class StorageWriterTests {
      */
     @Test
     public void testWithDataSourceErrors() throws Exception {
-
+        // read
+        // acknowledge
+        // completeMerge
+        // getAppendData
     }
 
     /**
