@@ -72,15 +72,22 @@ public class StorageWriterTests {
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
                        .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
+    /**
+     * Tests a normal, happy case, when the Writer needs to process operations in the "correct" order, from a DataSource
+     * that does not produce any errors (i.e., Timeouts) and to a Storage that works perfectly.
+     * General data flow:
+     * 1. Add Appends (Cached/non-cached) to both Parent and Batch segments
+     * 2. Seal and merge the batches
+     * 3. Seal the parent segments.
+     * 4. Wait for everything to be ack-ed and check the result.
+     */
     @Test
-    public void testMisc() throws Exception {
+    public void testNormalFlow() throws Exception {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
-        // Start the writer.
         context.writer.startAsync();
-        Thread.sleep(100);
 
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
@@ -127,6 +134,41 @@ public class StorageWriterTests {
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
         }
     }
+
+    /**
+     * Tests the StorageWriter in a scenario where the DataSource throws random exceptions, such as TimeoutException.
+     */
+    @Test
+    public void testWithDataSourceErrors() throws Exception {
+
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not badOffset)
+     */
+    @Test
+    public void testWithStorageTransientErrors() throws Exception {
+
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., not badOffset)
+     */
+    @Test
+    public void testWithStorageCorruptionErrors() throws Exception {
+
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where it needs to gracefully recover from a Container failure, and not all
+     * previously written data has been acknowledged to the DataSource.
+     */
+    @Test
+    public void testRecovery() throws Exception {
+
+    }
+
+    //region Helpers
 
     private void mergeBatches(Iterable<Long> batchIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         for (long batchId : batchIds) {
@@ -269,6 +311,8 @@ public class StorageWriterTests {
     private String getSegmentName(int i) {
         return "Segment_" + i;
     }
+
+    //endregion
 
     // region TestContext
 

@@ -76,6 +76,15 @@ public abstract class StorageOperation extends Operation {
     public abstract long getLength();
 
     /**
+     * Gets a value indicating the Offset within the StreamSegment of the last byte that this operation applies (i.e., ending offset).
+     *
+     * @return The result.
+     */
+    public long getLastStreamSegmentOffset() {
+        return getStreamSegmentOffset() + getLength();
+    }
+
+    /**
      * Sets the Id of the StreamSegment.
      *
      * @param streamSegmentId The id to set.

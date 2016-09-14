@@ -24,6 +24,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
@@ -69,6 +70,7 @@ class SegmentAggregator implements AutoCloseable {
     private int mergeBatchCount;
     private boolean hasSealPending;
     private boolean closed;
+    private boolean isInitialized;
 
     //endregion
 
@@ -177,7 +179,7 @@ class SegmentAggregator implements AutoCloseable {
     /**
      * Gets a value indicating whether the Flush thresholds are exceeded for this SegmentAggregator.
      *
-     * @return
+     * @return The result.
      */
     private boolean exceedsThresholds() {
         return this.outstandingAppendLength >= this.config.getFlushThresholdBytes()
@@ -187,12 +189,13 @@ class SegmentAggregator implements AutoCloseable {
     @Override
     public String toString() {
         return String.format(
-                "[%d: %s] Count = %d, Length = %d, LastOffset = %d, LastFlush = %ds",
+                "[%d: %s] Size = %d|%d, LastOffset = %d, LUSN = %d LastFlush = %ds",
                 this.metadata.getId(),
                 this.metadata.getName(),
                 this.operations.size(),
                 this.outstandingAppendLength,
                 this.lastAddedOffset,
+                getLowestUncommittedSequenceNumber(),
                 this.getElapsedSinceLastFlush().toMillis() / 1000);
     }
 
@@ -209,29 +212,52 @@ class SegmentAggregator implements AutoCloseable {
      */
     CompletableFuture<Void> initialize(Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.lastAddedOffset < 0, "SegmentAggregator has already been initialized.");
+        Preconditions.checkState(!this.isInitialized, "SegmentAggregator has already been initialized.");
 
         return this.storage
                 .getStreamSegmentInfo(this.metadata.getName(), timeout)
-                .thenAccept(segmentInfo -> {
-                    // Check & Update StorageLength in metadata.
-                    if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
-                        if (this.metadata.getStorageLength() >= 0) {
-                            // Only log warning if the StorageLength has actually been initialized, but is different.
-                            log.warn("{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one ({}) - updating metadata.", this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
+                .handle((segmentInfo, ex) -> {
+                    if (ex != null) {
+                        ex = ExceptionHelpers.getRealException(ex);
+                        if (ex instanceof StreamSegmentNotExistsException) {
+                            // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
+                            // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
+                            // * We processed a BatchMergeOperation but did not have a chance to ack/truncate the DataSource
+                            this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
+                            log.warn("{}: Segment does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, ex);
+                        } else {
+                            // Other kind of error - re-throw.
+                            throw new CompletionException(ex);
+                        }
+                    } else {
+                        // Check & Update StorageLength in metadata.
+                        if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
+                            if (this.metadata.getStorageLength() >= 0) {
+                                // Only log warning if the StorageLength has actually been initialized, but is different.
+                                log.warn("{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one ({}) - updating metadata.", this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
+                            }
+
+                            // It is very important to keep this value up-to-date and correct.
+                            this.metadata.setStorageLength(segmentInfo.getLength());
                         }
 
-                        // It is very important to keep this value up-to-date and correct.
-                        this.metadata.setStorageLength(segmentInfo.getLength());
+                        // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
+                        if (segmentInfo.isSealed()) {
+                            if (!this.metadata.isSealed()) {
+                                throw new RuntimeStreamingException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
+                            }
+
+                            if (!this.metadata.isSealedInStorage()) {
+                                this.metadata.markSealedInStorage();
+                                log.warn("{}: Segment is sealed in Storage but metadata does not reflect that - updating metadata.", this.traceObjectId, segmentInfo.getLength());
+                            }
+                        }
+
+                        log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
                     }
 
-                    // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
-                    if (!this.metadata.isSealed() && segmentInfo.isSealed()) {
-                        throw new RuntimeStreamingException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
-                    }
-
-                    this.lastAddedOffset = this.metadata.getStorageLength();
-                    log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
+                    this.isInitialized = true;
+                    return null;
                 });
     }
 
@@ -250,21 +276,34 @@ class SegmentAggregator implements AutoCloseable {
         // Verify operation Segment Id.
         checkSegmentId(operation);
 
+        if (this.metadata.isDeleted()) {
+            // Deleted Segment - nothing to do.
+            return;
+        }
+
         // Verify operation validity (this also takes care of extra operations after Seal or Merge; no need for further checks).
         checkValidOperation(operation);
 
-        // Add operation to list
-        this.operations.addLast(operation);
-        if (operation instanceof MergeBatchOperation) {
-            this.mergeBatchCount++;
-        } else if (operation instanceof StreamSegmentSealOperation) {
-            this.hasSealPending = true;
-        } else if (operation instanceof StreamSegmentAppendOperation || operation instanceof CachedStreamSegmentAppendOperation) {
-            // Update current outstanding length - but we only keep track of this for appends (MergeBatches do not count for flush thresholds).
-            this.outstandingAppendLength += operation.getLength();
+        // Add operation to list, but only if hasn't yet been persisted in Storage.
+        // We can figure this out if we compare the last offset of the op with Metadata.StorageLength or, for seal operations,
+        // if it hasn't already been sealed in Storage.
+        long lastOffset = operation.getLastStreamSegmentOffset();
+        boolean processOp = lastOffset > this.metadata.getStorageLength()
+                || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation));
+        if (processOp) {
+            this.operations.addLast(operation);
+            if (operation instanceof MergeBatchOperation) {
+                this.mergeBatchCount++;
+            } else if (operation instanceof StreamSegmentSealOperation) {
+                this.hasSealPending = true;
+            } else if (operation instanceof StreamSegmentAppendOperation || operation instanceof CachedStreamSegmentAppendOperation) {
+                // Update current outstanding length - but we only keep track of this for appends (MergeBatches do not count for flush thresholds).
+                this.outstandingAppendLength += operation.getLength();
+            }
         }
 
-        this.lastAddedOffset = operation.getStreamSegmentOffset() + operation.getLength();
+        // Always record the last added offset, to ensure that operations are processed in the right order.
+        this.lastAddedOffset = lastOffset;
     }
 
     //endregion
@@ -381,14 +420,8 @@ class SegmentAggregator implements AutoCloseable {
      */
     private FlushArgs getFlushArgs() throws DataCorruptionException {
         FlushArgs result = new FlushArgs();
+        int remainingCapacity = this.config.getMaxFlushSizeBytes();
         for (StorageOperation op : this.operations) {
-            if (result.getTotalLength() > 0 && result.getTotalLength() + op.getLength() > this.config.getMaxFlushSizeBytes()) {
-                // We will be exceeding the maximum flush size if we include this operation. Stop here and return the result.
-                // However, we want to make sure we flush at least one item, which is why we check TotalLength to be 0.
-                // The add() method should make sure the length of one single operation does not exceed the total flush size.
-                break;
-            }
-
             byte[] data;
             if (op instanceof StreamSegmentAppendOperation) {
                 data = ((StreamSegmentAppendOperation) op).getData();
@@ -403,7 +436,24 @@ class SegmentAggregator implements AutoCloseable {
                 break;
             }
 
-            result.add(data);
+            // Calculate the exact offset within the buffer that we need to start adding at. This is necessary because
+            // we can commit partial operations (for optimization purposes).
+            long bufferOffset = Math.max(0, this.metadata.getStorageLength() - op.getStreamSegmentOffset());
+            if (bufferOffset > op.getLength()) {
+                throw new DataCorruptionException(String.format("Cannot flush operation '%s'. Its end offset is before the Segment's StorageLength (%d).", op, this.metadata.getStorageLength()));
+            }
+
+            // Calculate the maximum amount of data from this buffer that we can commit, without exceeding the Max Flush Size (remainingCapacity).
+            int bufferLength = Math.min(remainingCapacity, data.length - (int) bufferOffset);
+
+            // Add whatever we can to the result.
+            result.add(data, (int) bufferOffset, bufferLength);
+            remainingCapacity -= bufferLength;
+
+            if (remainingCapacity <= 0) {
+                // We have exceeded the maximum flush size. Stop here and return the result.
+                break;
+            }
         }
 
         return result;
@@ -601,8 +651,8 @@ class SegmentAggregator implements AutoCloseable {
         Preconditions.checkArgument(offset >= 0, "Operation '%s' has an invalid offset (%s).", operation, operation.getStreamSegmentOffset());
         Preconditions.checkArgument(length >= 0, "Operation '%s' has an invalid length (%s).", operation, operation.getLength());
 
-        // Check that operations are contiguous.
-        if (offset != this.lastAddedOffset) {
+        // Check that operations are contiguous (only for the operations after the first one - as we initialize lastAddedOffset on the first op).
+        if (this.lastAddedOffset >= 0 && offset != this.lastAddedOffset) {
             throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %d, actual: %d.", operation, this.lastAddedOffset, offset));
         }
 
@@ -636,9 +686,6 @@ class SegmentAggregator implements AutoCloseable {
             if (!this.metadata.isSealed()) {
                 throw new DataCorruptionException(String.format("Received Operation '%s' for a non-sealed segment.", operation));
             }
-        } else if (operation instanceof StreamSegmentAppendOperation || operation instanceof CachedStreamSegmentAppendOperation) {
-            // Make sure that no single operation exceeds the MaxFlushSizeBytes - since we only flush in whole operations at this time.
-            Preconditions.checkArgument(length <= this.config.getMaxFlushSizeBytes(), "Operation '%s' exceeds the Maximum Flush Size (%s) as specified in the configuration.", operation, config.getMaxFlushSizeBytes());
         }
     }
 
@@ -649,13 +696,23 @@ class SegmentAggregator implements AutoCloseable {
      * @return A FlushResult containing statistics about the flush operation.
      */
     private FlushResult updateStatePostFlush(FlushArgs flushArgs) {
-        for (int i = 0; i < flushArgs.getCount(); i++) {
-            StorageOperation op = this.operations.removeFirst();
-            assert isAppendOperation(op) : "Flushed operation was not an Append.";
-        }
-
         // Update the metadata Storage Length.
-        this.metadata.setStorageLength(this.metadata.getStorageLength() + flushArgs.getTotalLength());
+        long newLength = this.metadata.getStorageLength() + flushArgs.getTotalLength();
+        this.metadata.setStorageLength(newLength);
+
+        // Remove operations from the outstanding list as long as every single byte it contains has been committed.
+        boolean reachedEnd = false;
+        while (this.operations.size() > 0 && !reachedEnd) {
+            StorageOperation first = this.operations.getFirst();
+            long lastOffset = first.getLastStreamSegmentOffset();
+            reachedEnd = lastOffset >= newLength;
+
+            // Verify that if we did reach the 'newLength' offset, we were on an append operation. Anything else is indicative of a bug.
+            assert reachedEnd || isAppendOperation(first) : "Flushed operation was not an Append.";
+            if (lastOffset <= newLength) {
+                this.operations.removeFirst();
+            }
+        }
 
         // Update the outstanding length.
         this.outstandingAppendLength -= flushArgs.getTotalLength();
@@ -700,7 +757,7 @@ class SegmentAggregator implements AutoCloseable {
 
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.lastAddedOffset >= 0, "SegmentAggregator is not initialized. Cannot execute this operation.");
+        Preconditions.checkState(this.isInitialized, "SegmentAggregator is not initialized. Cannot execute this operation.");
     }
 
     //endregion

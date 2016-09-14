@@ -55,8 +55,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -66,9 +69,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
- * Unit tests for the StorageAggregator class.
+ * Unit tests for the SegmentAggregator class.
  */
-public class StorageAggregatorTests {
+public class SegmentAggregatorTests {
     private static final int CONTAINER_ID = 0;
     private static final long SEGMENT_ID = 123;
     private static final String SEGMENT_NAME = "Segment";
@@ -96,18 +99,23 @@ public class StorageAggregatorTests {
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
         // Check behavior for non-existent segments (in Storage).
-        AssertExtensions.assertThrows(
-                "initialize() succeeded on a Segment that does not exist in Storage.",
-                () -> context.segmentAggregator.initialize(TIMEOUT),
-                ex -> ex instanceof StreamSegmentNotExistsException);
+        context.batchesAggregators[0].initialize(TIMEOUT).join();
+        Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", context.batchesAggregators[0].getMetadata().isDeleted());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
-        context.storage.create(context.batchesAggregators[0].getMetadata().getName(), TIMEOUT).join();
-        context.storage.seal(context.batchesAggregators[0].getMetadata().getName(), TIMEOUT).join();
+        context.storage.create(context.batchesAggregators[1].getMetadata().getName(), TIMEOUT).join();
+        context.storage.seal(context.batchesAggregators[1].getMetadata().getName(), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
-                () -> context.batchesAggregators[0].initialize(TIMEOUT),
+                () -> context.batchesAggregators[1].initialize(TIMEOUT),
                 ex -> ex instanceof RuntimeStreamingException && ex.getCause() instanceof DataCorruptionException);
+
+        // Check behavior for already-sealed segments (in storage, in metadata, but metadata does not reflect Sealed in storage.)
+        context.storage.create(context.batchesAggregators[2].getMetadata().getName(), TIMEOUT).join();
+        context.storage.seal(context.batchesAggregators[2].getMetadata().getName(), TIMEOUT).join();
+        ((UpdateableSegmentMetadata) context.batchesAggregators[2].getMetadata()).markSealed();
+        context.batchesAggregators[2].initialize(TIMEOUT).join();
+        Assert.assertTrue("isSealedInStorage() flag not set on metadata for storage-sealed segment.", context.batchesAggregators[2].getMetadata().isSealedInStorage());
 
         // Check the ability to update Metadata.StorageOffset if it is different.
         final int writeLength = 10;
@@ -426,6 +434,32 @@ public class StorageAggregatorTests {
 
             Assert.assertFalse("Unexpected value returned by mustFlush() after flush (batch appends).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flush (batch appends).", Operation.NO_SEQUENCE_NUMBER, context.segmentAggregator.getLowestUncommittedSequenceNumber());
+            Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
+        }
+
+        // Part 4: large appends (larger than MaxFlushSize).
+        Random random = new Random();
+        for (int i = 0; i < appendCount; i++) {
+            // Add another operation and record its length.
+            byte[] largeAppendData = new byte[config.getMaxFlushSizeBytes() * 10 + 1];
+            random.nextBytes(largeAppendData);
+            StorageOperation appendOp = generateAppendAndUpdateMetadata(i, SEGMENT_ID, largeAppendData, context);
+            outstandingSize += appendOp.getLength();
+            context.segmentAggregator.add(appendOp);
+            getAppendData(appendOp, writtenData, context);
+
+            // Call flush() and inspect the result.
+            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+            Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
+            Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (time threshold).", appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
+            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+
+            // We are always expecting a flush.
+            AssertExtensions.assertGreaterThan("Not enough bytes were flushed (time threshold).", 0, flushResult.getFlushedBytes());
+            outstandingSize -= flushResult.getFlushedBytes();
+
+            Assert.assertFalse("Unexpected value returned by mustFlush() after flush (time threshold).", context.segmentAggregator.mustFlush());
+            Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flush (time threshold).", Operation.NO_SEQUENCE_NUMBER, context.segmentAggregator.getLowestUncommittedSequenceNumber());
             Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
         }
 
@@ -922,20 +956,145 @@ public class StorageAggregatorTests {
 
     //endregion
 
+    //region Recovery
+
+    /**
+     * Tests a scenario where data that is about to be added already exists in Storage. This would most likely happen
+     * in a recovery situation, where we committed the data but did not properly ack/truncate it from the DataSource.
+     */
+    @Test
+    public void testRecovery() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+        final int appendCount = 100;
+
+        // We use this currentTime to simulate time passage - trigger based on time thresholds.
+        final AtomicLong currentTime = new AtomicLong();
+        @Cleanup
+        TestContext context = new TestContext(config, currentTime::get);
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        for (SegmentAggregator a : context.batchesAggregators) {
+            context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
+        }
+
+        // Store written data by segment - so we can check it later.
+        HashMap<Long, ByteArrayOutputStream> dataBySegment = new HashMap<>();
+        ArrayList<StorageOperation> operations = new ArrayList<>();
+
+        // Create a segment and all its batches (do not initialize yet).
+        ArrayList<StorageOperation> parentOperations = new ArrayList<>();
+        ByteArrayOutputStream parentData = new ByteArrayOutputStream();
+        dataBySegment.put(context.segmentAggregator.getMetadata().getId(), parentData);
+
+        // All batches have appends (First 1/3 of batches just have appends, that exist in Storage as well)
+        for (int i = 0; i < context.batchesAggregators.length; i++) {
+            SegmentAggregator batchAggregator = context.batchesAggregators[i];
+            long batchId = batchAggregator.getMetadata().getId();
+            ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+            dataBySegment.put(batchId, writtenData);
+
+            for (int appendId = 0; appendId < appendCount; appendId++) {
+                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, batchId, context);
+                operations.add(appendOp);
+                getAppendData(appendOp, writtenData, context);
+            }
+
+            // Second and third 1/3s of batches are sealed, with the seals in storage, but we'll still add them.
+            boolean isSealed = i >= context.batchesAggregators.length / 3;
+            if (isSealed) {
+                operations.add(generateSealAndUpdateMetadata(batchId, context));
+            }
+
+            // Last 1/3 of batches are also merged.
+            boolean isMerged = isSealed && (i >= context.batchesAggregators.length * 2 / 3);
+            if (isMerged) {
+                parentOperations.add(generateMergeBatchAndUpdateMetadata(batchId, context));
+                ByteArrayOutputStream batchData = dataBySegment.get(batchId);
+                parentData.write(batchData.toByteArray());
+                batchData.close();
+                dataBySegment.remove(batchId);
+            }
+        }
+
+        // Populate the storage.
+        for (Map.Entry<Long, ByteArrayOutputStream> e : dataBySegment.entrySet()) {
+            context.storage.write(
+                    context.containerMetadata.getStreamSegmentMetadata(e.getKey()).getName(),
+                    0,
+                    new ByteArrayInputStream(e.getValue().toByteArray()),
+                    e.getValue().size(),
+                    TIMEOUT).join();
+        }
+
+        for (SegmentAggregator a : context.batchesAggregators) {
+            if (a.getMetadata().isSealed()) {
+                context.storage.seal(a.getMetadata().getName(), TIMEOUT).join();
+            }
+
+            if (a.getMetadata().isMerged() || a.getMetadata().isDeleted()) {
+                context.storage.delete(a.getMetadata().getName(), TIMEOUT).join();
+            }
+        }
+
+        // Now initialize the SegmentAggregators
+        context.segmentAggregator.initialize(TIMEOUT).join();
+        for (SegmentAggregator a : context.batchesAggregators) {
+            a.initialize(TIMEOUT).join();
+        }
+
+        // Add all operations we had so far.
+        for (StorageOperation o : operations) {
+            int batchIndex = (int) (o.getStreamSegmentId() - BATCH_ID_START);
+            SegmentAggregator a = batchIndex < 0 ? context.segmentAggregator : context.batchesAggregators[batchIndex];
+            a.add(o);
+        }
+
+        // And now finish up the operations (merge all batches).
+        for (SegmentAggregator a : context.batchesAggregators) {
+            if (!a.getMetadata().isSealed()) {
+                a.add(generateSealAndUpdateMetadata(a.getMetadata().getId(), context));
+            }
+
+            if (!a.getMetadata().isMerged()) {
+                context.segmentAggregator.add(generateMergeBatchAndUpdateMetadata(a.getMetadata().getId(), context));
+                ByteArrayOutputStream batchData = dataBySegment.get(a.getMetadata().getId());
+                parentData.write(batchData.toByteArray());
+                batchData.close();
+                dataBySegment.remove(a.getMetadata().getId());
+            }
+        }
+
+        flushAllSegments(context);
+
+        // Verify that in the end, the contents of the parents is as expected.
+        byte[] expectedData = parentData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
+        Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    //endregion
+
     //region Helpers
 
-    private void getAppendData(StorageOperation operation, ByteArrayOutputStream stream, TestContext context) {
+    private byte[] getAppendData(StorageOperation operation, ByteArrayOutputStream stream, TestContext context) {
+        byte[] result = null;
+        if (operation instanceof StreamSegmentAppendOperation) {
+            result = ((StreamSegmentAppendOperation) operation).getData();
+        } else if (operation instanceof CachedStreamSegmentAppendOperation) {
+            result = context.cache.get(((CachedStreamSegmentAppendOperation) operation).getCacheKey());
+        } else {
+            Assert.fail("Not an append operation: " + operation);
+        }
+
         try {
-            if (operation instanceof StreamSegmentAppendOperation) {
-                stream.write(((StreamSegmentAppendOperation) operation).getData());
-            } else if (operation instanceof CachedStreamSegmentAppendOperation) {
-                stream.write(context.cache.get(((CachedStreamSegmentAppendOperation) operation).getCacheKey()));
-            } else {
-                Assert.fail("Not an append operation: " + operation);
-            }
+            stream.write(result);
         } catch (IOException ex) {
             Assert.fail("Not expecting this exception: " + ex);
         }
+
+        return result;
     }
 
     private StorageOperation generateMergeBatchAndUpdateMetadata(long batchId, TestContext context) {
