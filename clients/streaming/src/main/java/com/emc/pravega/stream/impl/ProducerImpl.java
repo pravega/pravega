@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -58,12 +59,14 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final ProducerConfig config;
     @GuardedBy("lock")
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
+    private final ControllerApi.Producer apiProducer;
 
-    ProducerImpl(Stream stream, SegmentManager segmentManager, EventRouter router, Serializer<Type> serializer,
+    ProducerImpl(Stream stream, ControllerApi.Producer apiProducer, SegmentManager segmentManager, EventRouter router, Serializer<Type> serializer,
             ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(serializer);
+        this.apiProducer = apiProducer;
         this.segmentManager = segmentManager;
         this.stream = stream;
         this.router = router;

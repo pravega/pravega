@@ -20,14 +20,17 @@ package com.emc.pravega.stream.impl;
 import java.util.Collection;
 import java.util.Collections;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -51,6 +54,10 @@ public class SingleSegmentStreamImpl implements Stream {
     private final StreamConfiguration config;
     private final SegmentId segmentId;
     private final SegmentManager segmentManager;
+    private final ControllerApi.Admin apiAdmin;
+    private final ControllerApi.Producer apiProducer;
+    private final ControllerApi.Consumer apiConsumer;
+
     private final EventRouter router = new EventRouter() {
         @Override
         public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
@@ -67,17 +74,23 @@ public class SingleSegmentStreamImpl implements Stream {
     };
 
     public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config,
-                                   SegmentId segmentId, String endpoint, int port) {
+                                   ControllerApi.Admin apiAdmin, ControllerApi.Producer apiProducer, ControllerApi.Consumer apiConsumer) {
         this.scope = scope;
         this.name = name;
         this.config = config;
-        this.segmentId = segmentId;
-        this.segmentManager = new SegmentManagerImpl(endpoint, new ConnectionFactoryImpl(false, port));
+        this.apiAdmin = apiAdmin;
+        this.apiProducer = apiProducer;
+        this.apiConsumer = apiConsumer;
+        this.segmentId = getLatestSegments().getSegments().get(0);
+        SegmentUri uri = FutureHelpers.getAndHandleExceptions(apiProducer.getURI(segmentId), RuntimeException::new);
+
+        this.segmentManager = new SegmentManagerImpl(uri.getEndpoint(), new ConnectionFactoryImpl(false, uri.getPort()));
     }
 
     @Override
     public StreamSegments getSegments(long time) {
-        return new StreamSegments(Collections.singletonList(segmentId), time);
+        return FutureHelpers.getAndHandleExceptions(
+                apiProducer.getCurrentSegments(name), RuntimeException::new);
     }
 
     @Override
@@ -87,13 +100,14 @@ public class SingleSegmentStreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<>(this, segmentManager, router, s, config);
+        return new ProducerImpl<>(this, apiProducer, segmentManager, router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
         return new ConsumerImpl<>(this,
+                apiConsumer,
                 segmentManager,
                 s,
                 startingPosition.asImpl(),
@@ -104,6 +118,7 @@ public class SingleSegmentStreamImpl implements Stream {
     
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
         return new ConsumerImpl<>(this,
+                apiConsumer,
                 segmentManager,
                 s,
                 new PositionImpl(Collections.singletonMap(segmentId, 0L), Collections.emptyMap()),

@@ -22,12 +22,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
-import com.emc.pravega.stream.StreamSegments;
 
 /**
  * A StreamManager for the special case where the streams it creates will only ever be composed of one segment.
@@ -64,13 +61,8 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))),
                 RuntimeException::new);
 
-        StreamSegments segments = FutureHelpers.getAndHandleExceptions(
-                apiProducer.getCurrentSegments(streamName), RuntimeException::new);
 
-        SegmentId singleSegment = segments.getSegments().get(0);
-        SegmentUri uri = FutureHelpers.getAndHandleExceptions(apiProducer.getURI(singleSegment), RuntimeException::new);
-
-        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, singleSegment, uri.getEndpoint(), uri.getPort());
+        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, apiAdmin, apiProducer, apiConsumer);
         created.put(streamName, stream);
         return stream;
     }

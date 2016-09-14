@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.SegmentId;
@@ -41,8 +42,9 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     private final ConsumerConfig config;
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
     private final Map<SegmentId, Long> futureOwnedLogs = new HashMap<>();
+    private final ControllerApi.Consumer apiConsumer;
 
-    ConsumerImpl(Stream stream, SegmentManager segmentManager, Serializer<Type> deserializer, PositionImpl position,
+    ConsumerImpl(Stream stream, ControllerApi.Consumer apiConsumer, SegmentManager segmentManager, Serializer<Type> deserializer, PositionImpl position,
             Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
         this.deserializer = deserializer;
         this.stream = stream;
@@ -50,6 +52,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         this.orderer = orderer;
         this.rateChangeListener = rateChangeListener;
         this.config = config;
+        this.apiConsumer = apiConsumer;
         setPosition(position);
     }
 
