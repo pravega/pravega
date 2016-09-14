@@ -36,6 +36,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.ConnectionClosedException;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.base.Preconditions;
 
@@ -177,10 +178,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 return connection;
             }
         }
-        String endpoint = controller.getEndpointForSegment(segment);
+        SegmentUri uri = controller.getEndpointForSegment(segment);
         synchronized (lock) {
             if (connection == null) {
-                connection = connectionFactory.establishConnection(endpoint, responseProcessor);
+                connection = connectionFactory.establishConnection(uri.getEndpoint(), uri.getPort(), responseProcessor);
             }
             return connection;
         }

@@ -18,6 +18,7 @@
 
 package com.emc.pravega.integrationtests;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
@@ -32,7 +33,7 @@ import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.integrationtests.mockController.MockController;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -42,21 +43,16 @@ import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 
-import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -74,7 +70,6 @@ import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -173,17 +168,22 @@ public class AppendTest {
     @Test
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
-        String segmentName = "abc";
         int port = 8765;
         String testString = "Hello world\n";
+        String stream = "stream";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
-        segmentClient.createSegment(segmentName);
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
+
+        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
+        SegmentManagerProducerImpl segmentClient = new SegmentManagerProducerImpl(stream, apiProducer);
+
+        String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new).getSegments().get(0).getQualifiedName();
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -193,7 +193,7 @@ public class AppendTest {
     }
 
     @Test
-    public void appendThroughStreamingClient() {
+    public void appendThroughStreamingClient() throws InterruptedException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = 8910;
@@ -203,55 +203,9 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ControllerApi.Admin apiAdmin = new ControllerApi.Admin() {
-            @Override
-            public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-                ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-                SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
-                SegmentId segmentId = new SegmentId(streamName, streamName, 0, -1);
-
-                segmentManager.createSegment(segmentId.getQualifiedName());
-
-                return CompletableFuture.completedFuture(Status.SUCCESS);
-            }
-
-            @Override
-            public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-                return null;
-            }
-        };
-
-        ControllerApi.Producer apiProducer = new ControllerApi.Producer() {
-            @Override
-            public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
-                return CompletableFuture.completedFuture(new StreamSegments(
-                        Lists.newArrayList(new SegmentId(stream, stream, 0, -1)),
-                        System.currentTimeMillis()));
-            }
-
-            @Override
-            public CompletableFuture<SegmentUri> getURI(SegmentId id) {
-                return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
-            }
-        };
-
-        ControllerApi.Consumer apiConsumer = new ControllerApi.Consumer() {
-            @Override
-            public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count) {
-                return null;
-            }
-
-            @Override
-            public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
-                return null;
-            }
-
-            @Override
-            public CompletableFuture<SegmentUri> getURI(SegmentId id) {
-                return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
-            }
-        };
-
+        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
+        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, "Scope");
         Stream stream = streamManager.createStream(streamName, null);
 

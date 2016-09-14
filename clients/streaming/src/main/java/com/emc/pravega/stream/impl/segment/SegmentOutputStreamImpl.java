@@ -50,6 +50,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
+import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -313,9 +314,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            String endpoint = controller.getEndpointForSegment(segment);
+            SegmentUri uri = controller.getEndpointForSegment(segment);
             ClientConnection connection = getAndHandleExceptions(connectionFactory
-                .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
+                .establishConnection(uri.getEndpoint(), uri.getPort(), responseProcessor), ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(connectionId, segment);
             connection.send(cmd);

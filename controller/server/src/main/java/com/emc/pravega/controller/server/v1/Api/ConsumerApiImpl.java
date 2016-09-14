@@ -50,8 +50,8 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
     }
 
     @Override
-    public CompletableFuture<SegmentUri> getURI(SegmentId id) {
-        return CompletableFuture.supplyAsync(() -> SegmentHelper.getSegmentUri(id.getScope(), id, hostStore));
+    public CompletableFuture<SegmentUri> getURI(String stream, SegmentId id) {
+        return CompletableFuture.supplyAsync(() -> SegmentHelper.getSegmentUri(stream, id, hostStore));
     }
 
     /**con

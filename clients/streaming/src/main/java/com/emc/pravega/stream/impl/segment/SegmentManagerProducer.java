@@ -17,23 +17,17 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import java.util.UUID;
-
 import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
+
+import java.util.UUID;
 
 /**
  * The analog of the {@link StreamManager} for segments.
  * The implementation of this class will connect to a store & manage TCP connections.
  */
-public interface SegmentManager {
-
-    /**
-     * Creates a new segment with given name. Returns false if the segment already
-     * existed
-     */
-    boolean createSegment(String name);
+public interface SegmentManagerProducer {
 
     /**
      * Creates a new transaction on the specified segment
@@ -65,13 +59,4 @@ public interface SegmentManager {
      * in the same process space).
      */
     SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) throws SegmentSealedException;
-
-    /**
-     * Opens an existing segment for reading. This operation will fail if the
-     * segment does not exist.
-     * This operation may be called multiple times on the same stream from the
-     * same client (i.e., there can be concurrent Stream Readers in the same
-     * process space).
-     */
-    SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config);
 }

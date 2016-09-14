@@ -62,7 +62,7 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
     }
 
     @Override
-    public SegmentUri getURI(SegmentId id) throws TException {
-        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(consumerApi.getURI(ModelHelper.encode(id)), RuntimeException::new));
+    public SegmentUri getURI(String stream, SegmentId id) throws TException {
+        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(consumerApi.getURI(stream, ModelHelper.encode(id)), RuntimeException::new));
     }
 }

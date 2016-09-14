@@ -50,7 +50,7 @@ public class ProducerServiceImpl implements ProducerService.Iface {
     }
 
     @Override
-    public SegmentUri getURI(SegmentId id) throws TException {
-        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(producerApi.getURI(ModelHelper.encode(id)), RuntimeException::new));
+    public SegmentUri getURI(String stream, SegmentId id) throws TException {
+        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(producerApi.getURI(stream, ModelHelper.encode(id)), RuntimeException::new));
     }
 }

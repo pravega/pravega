@@ -48,7 +48,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint");
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, cf, cid, SEGMENT);
@@ -63,7 +63,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint");
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, cf, cid, SEGMENT);
@@ -86,7 +86,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint");
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
 
@@ -157,7 +157,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint");
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection("endpoint", connection);
         @Cleanup

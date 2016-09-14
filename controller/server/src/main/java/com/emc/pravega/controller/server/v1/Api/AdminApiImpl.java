@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -25,8 +24,6 @@ import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.concurrent.CompletableFuture;
@@ -65,16 +62,12 @@ public class AdminApiImpl implements ControllerApi.Admin {
     }
 
     public void notifyNewSegment(String stream, int segmentNumber) {
+        // what is previous segment id? There could be multiple previous in case of merge
         SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, -1);
         SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId, hostStore);
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, uri.getPort());
-
-        SegmentManagerImpl segmentManager = new SegmentManagerImpl(uri.getEndpoint(), clientCF);
-
-        // what is previous segment id? There could be multiple previous in case of merge
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails
-        CompletableFuture.runAsync(() -> segmentManager.createSegment(segmentId.getQualifiedName()));
+        CompletableFuture.runAsync(() -> com.emc.pravega.stream.impl.segment.SegmentHelper.createSegment(segmentId.getQualifiedName(), uri));
     }
 }

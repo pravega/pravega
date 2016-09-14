@@ -44,7 +44,8 @@ public class AsyncSegmentInputStreamTest {
     public void testRetry() throws ConnectionFailedException {
         String segment = "testRetry";
         String endpoint = "localhost";
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        int port = 1234;
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
@@ -69,7 +70,9 @@ public class AsyncSegmentInputStreamTest {
     public void testRead() throws ConnectionFailedException {
         String segment = "testRetry";
         String endpoint = "localhost";
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        int port = 1234;
+
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
@@ -88,7 +91,8 @@ public class AsyncSegmentInputStreamTest {
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         String segment = "testRetry";
         String endpoint = "localhost";
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        int port = 1234;
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);

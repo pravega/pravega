@@ -21,31 +21,28 @@ package com.emc.pravega.integrationtests;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.integrationtests.mockController.MockController;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
-import com.google.common.collect.Lists;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.emc.pravega.common.netty.CommandDecoder;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -58,11 +55,9 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 
@@ -154,7 +149,7 @@ public class ReadTest {
     @Test
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException {
         String endpoint = "localhost";
-        String segmentName = "abc";
+        String stream = "stream";
         int port = 8765;
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -162,16 +157,27 @@ public class ReadTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
-        segmentClient.createSegment(segmentName);
+        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
+
+        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
+        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+
+        SegmentManagerProducerImpl segmentproducerClient = new SegmentManagerProducerImpl(stream, apiProducer);
+
+        SegmentManagerConsumerImpl segmentConsumerClient = new SegmentManagerConsumerImpl(stream, apiConsumer);
+
+
+        String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new)
+                .getSegments().get(0).getQualifiedName();
+
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentproducerClient.openSegmentForAppending(segmentName, null);
         out.write(ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>());
         out.flush();
         
         @Cleanup("close")
-        SegmentInputStream in = segmentClient.openSegmentForReading(segmentName, new SegmentInputConfiguration());
+        SegmentInputStream in = segmentConsumerClient.openSegmentForReading(segmentName, new SegmentInputConfiguration());
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }
@@ -184,62 +190,22 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
 
-        ControllerApi.Admin apiAdmin = new ControllerApi.Admin() {
-            @Override
-            public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-                ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-                SegmentManagerImpl segmentManager = new SegmentManagerImpl(endpoint, clientCF);
-                SegmentId segmentId = new SegmentId(streamName, streamName, 0, -1);
-                segmentManager.createSegment(segmentId.getQualifiedName());
+        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
+        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
 
-                return CompletableFuture.completedFuture(Status.SUCCESS);
-            }
-
-            @Override
-            public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-                return null;
-            }
-        };
-
-        ControllerApi.Producer apiProducer = new ControllerApi.Producer() {
-            @Override
-            public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
-                return CompletableFuture.completedFuture(new StreamSegments(
-                        Lists.newArrayList(new SegmentId(stream, stream, 0, -1)),
-                        System.currentTimeMillis()));
-            }
-
-            @Override
-            public CompletableFuture<com.emc.pravega.stream.SegmentUri> getURI(SegmentId id) {
-
-                return CompletableFuture.completedFuture(new com.emc.pravega.stream.SegmentUri(endpoint, port));
-            }
-        };
-
-        ControllerApi.Consumer apiConsumer = new ControllerApi.Consumer() {
-            @Override
-            public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count) {
-                return null;
-            }
-
-            @Override
-            public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
-                return null;
-            }
-
-            @Override
-            public CompletableFuture<com.emc.pravega.stream.SegmentUri> getURI(SegmentId id) {
-                return CompletableFuture.completedFuture(new com.emc.pravega.stream.SegmentUri(endpoint, port));
-            }
-        };
-
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, scope);
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(
+                apiAdmin,
+                apiProducer,
+                apiConsumer,
+                scope);
 
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         SingleSegmentStreamImpl stream = (SingleSegmentStreamImpl) streamManager.createStream(streamName, null);
+
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));

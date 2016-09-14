@@ -74,9 +74,9 @@ public class ApiConsumer extends BaseClient implements ControllerApi.Consumer {
     }
 
     @Override
-    public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+    public CompletableFuture<SegmentUri> getURI(String stream, SegmentId id) {
         return CompletableFuture
-                .supplyAsync(() -> ThriftHelper.thriftCall(() -> client.getURI(ModelHelper.decode(id))), service)
+                .supplyAsync(() -> ThriftHelper.thriftCall(() -> client.getURI(stream, ModelHelper.decode(id))), service)
                 .thenApply(ModelHelper::encode);
     }
 
