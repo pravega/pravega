@@ -54,7 +54,7 @@ import java.util.function.Supplier;
  * Aggregates contents for a specific StreamSegment.
  */
 @Slf4j
-class SegmentAggregator implements AutoCloseable {
+class SegmentAggregator implements OperationProcessor, AutoCloseable {
     //region Members
 
     private final UpdateableSegmentMetadata metadata;
@@ -121,6 +121,19 @@ class SegmentAggregator implements AutoCloseable {
 
     //endregion
 
+    //region OperationProcessor Implementation
+
+    @Override
+    public long getLowestUncommittedSequenceNumber() {
+        return this.operations.size() == 0 ? Operation.NO_SEQUENCE_NUMBER : this.operations.getFirst().getSequenceNumber();
+    }
+    @Override
+    public boolean isClosed() {
+        return this.closed;
+    }
+
+    //endregion
+
     //region Properties
 
     /**
@@ -130,15 +143,6 @@ class SegmentAggregator implements AutoCloseable {
      */
     SegmentMetadata getMetadata() {
         return this.metadata;
-    }
-
-    /**
-     * Gets the SequenceNumber of the first operation that is not fully committed to Storage.
-     *
-     * @return The result.
-     */
-    long getLowestUncommittedSequenceNumber() {
-        return this.operations.size() == 0 ? Operation.NO_SEQUENCE_NUMBER : this.operations.getFirst().getSequenceNumber();
     }
 
     /**
@@ -167,13 +171,6 @@ class SegmentAggregator implements AutoCloseable {
         return exceedsThresholds()
                 || this.hasSealPending
                 || this.mergeBatchCount > 0;
-    }
-
-    /**
-     * Gets a value indicating whether the SegmentAggregator is closed (for any kind of operations).
-     */
-    boolean isClosed() {
-        return this.closed;
     }
 
     /**

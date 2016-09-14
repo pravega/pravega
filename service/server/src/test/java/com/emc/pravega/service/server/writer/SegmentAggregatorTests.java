@@ -853,12 +853,7 @@ public class SegmentAggregatorTests {
         }
 
         // Verify that in the end, the contents of the parents is as expected.
-        byte[] expectedData = parentData.toByteArray();
-        byte[] actualData = new byte[expectedData.length];
-        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
-        Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
-        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
-        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+        verifyParentSegmentData(parentData, context);
     }
 
     /**
@@ -1066,12 +1061,7 @@ public class SegmentAggregatorTests {
         flushAllSegments(context);
 
         // Verify that in the end, the contents of the parents is as expected.
-        byte[] expectedData = parentData.toByteArray();
-        byte[] actualData = new byte[expectedData.length];
-        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
-        Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
-        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
-        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+        verifyParentSegmentData(parentData, context);
     }
 
     //endregion
@@ -1218,6 +1208,15 @@ public class SegmentAggregatorTests {
             Assert.assertEquals("Unexpected exception or no exception got thrown.", expectedException, ex);
             return null;
         }
+    }
+
+    private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context){
+        byte[] expectedData = parentData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
+        Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
     //endregion

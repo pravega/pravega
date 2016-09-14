@@ -28,7 +28,6 @@ class WriterState {
     //region Members
 
     private long lastReadSequenceNumber;
-    private long lowestUncommittedSequenceNumber;
     private long lastTruncatedSequenceNumber;
 
     //endregion
@@ -40,7 +39,6 @@ class WriterState {
      */
     WriterState() {
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
-        this.lowestUncommittedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
         this.lastTruncatedSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
     }
 
@@ -86,30 +84,9 @@ class WriterState {
         this.lastReadSequenceNumber = value;
     }
 
-    /**
-     * Gets a value indicating the Sequence Number of the first Operation that has at least 1 byte not committed to Storage.
-     * By definition, all Operations with Sequence Numbers less than this value are fully committed to Storage.
-     *
-     * @return The result.
-     */
-    long getLowestUncommittedSequenceNumber() {
-        return this.lowestUncommittedSequenceNumber;
-    }
-
-    /**
-     * Sets the Sequence Number of the first Operation that has at least 1 byte uncommitted to Storage (with all prior Operations also committed).
-     *
-     * @param value The Sequence Number to set.
-     */
-    void setLowestUncommittedSequenceNumber(long value) {
-        Preconditions.checkArgument(value >= this.lowestUncommittedSequenceNumber, "New lowestUncommittedSequenceNumber cannot be smaller than the previous one.");
-        Preconditions.checkArgument(value <= this.lastReadSequenceNumber, "New lowestUncommittedSequenceNumber cannot be larger than lastReadSequenceNumber.");
-        this.lowestUncommittedSequenceNumber = value;
-    }
-
     @Override
     public String toString() {
-        return String.format("LastRead = %d, HighestCommitted = %d", this.lastReadSequenceNumber, this.lowestUncommittedSequenceNumber);
+        return String.format("LastRead = %d", this.lastReadSequenceNumber);
     }
 
     //endregion
