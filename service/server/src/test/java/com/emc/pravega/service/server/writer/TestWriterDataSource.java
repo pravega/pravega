@@ -70,8 +70,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @Setter
     private ErrorInjector<Exception> ackAsyncErrorInjector;
     @Setter
-    private ErrorInjector<Exception> completeMergeErrorInjector;
-    @Setter
     private ErrorInjector<Exception> getAppendDataErrorInjector;
 
     //endregion
@@ -202,7 +200,6 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-        ErrorInjector.throwSyncExceptionIfNeeded(this.completeMergeErrorInjector);
         BiConsumer<Long, Long> callback = this.completeMergeCallback;
         if (callback != null) {
             callback.accept(targetStreamSegmentId, sourceStreamSegmentId);

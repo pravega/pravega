@@ -38,6 +38,7 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -127,6 +128,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     public long getLowestUncommittedSequenceNumber() {
         return this.operations.size() == 0 ? Operation.NO_SEQUENCE_NUMBER : this.operations.getFirst().getSequenceNumber();
     }
+
     @Override
     public boolean isClosed() {
         return this.closed;
@@ -405,7 +407,24 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         InputStream inputStream = flushArgs.getInputStream();
         return this.storage
                 .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getTotalLength(), timeout)
-                .thenApply(v -> updateStatePostFlush(flushArgs));
+                .thenApply(v -> updateStatePostFlush(flushArgs))
+                .handle((r, ex) -> {
+                    if (ex != null) {
+                        if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
+                            // This is a bad one. We attempted to write at an offset that already contained other data.
+                            // TODO: when we implement BadOffset Reconciliation, consider starting from here.
+                            ex = new DataCorruptionException(String.format(
+                                    "Attempted to write at offset %d that is not the end of the segment in storage (Segment=%s).",
+                                    this.metadata.getStorageLength(), this.metadata.getName()), ex);
+                        }
+
+                        // Rethrow all exceptions.
+                        throw new CompletionException(ex);
+                    }
+
+                    // All is good - return the result.
+                    return r;
+                });
     }
 
     /**

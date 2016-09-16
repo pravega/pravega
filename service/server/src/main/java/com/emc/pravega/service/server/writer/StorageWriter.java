@@ -199,13 +199,14 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private void endOfIteration(Void ignored, Throwable ex) {
         this.currentIteration = null;
-        boolean critical = isCriticalError(ex);
-        if (!critical) {
-            // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
-            this.cleanup();
-        }
 
         if (ex != null) {
+            boolean critical = isCriticalError(ex);
+            if (!critical) {
+                // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
+                this.cleanup();
+            }
+
             if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !isRunning()) {
                 // Writer is not running and we caught a CancellationException.
                 // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
@@ -423,8 +424,9 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private Duration getReadTimeout() {
         // Find the minimum expiration time among all SegmentAggregators.
-        long timeMillis = this.config.getMaxReadTimeout().toMillis();
+        long maxTimeMillis = this.config.getMaxReadTimeout().toMillis();
         long minTimeMillis = this.config.getMinReadTimeout().toMillis();
+        long timeMillis = maxTimeMillis;
         for (SegmentAggregator a : this.aggregators.values()) {
             if (a.mustFlush()) {
                 // We found a SegmentAggregator that needs to flush right away. No need to search anymore.
@@ -476,7 +478,7 @@ class StorageWriter extends AbstractService implements Writer {
             log.error("{}: Iteration[{}].Error. {}", this.traceObjectId, this.iterationId, ex);
             //System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.iterationId, ex));
         }
-        ex.printStackTrace(System.out);
+        //ex.printStackTrace(System.out);
     }
 
     private void logErrorHandled(Throwable ex) {

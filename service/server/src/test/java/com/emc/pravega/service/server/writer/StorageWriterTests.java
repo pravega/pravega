@@ -25,9 +25,13 @@ import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.DataCorruptionException;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
+import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
@@ -40,14 +44,16 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
-import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.ErrorInjector;
+import com.emc.pravega.testcommon.IntentionalException;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
@@ -58,6 +64,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * Unit tests for the StorageWriter class.
@@ -73,23 +82,207 @@ public class StorageWriterTests {
             PropertyBag.create()
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10));
+                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     /**
      * Tests a normal, happy case, when the Writer needs to process operations in the "correct" order, from a DataSource
      * that does not produce any errors (i.e., Timeouts) and to a Storage that works perfectly.
-     * General data flow:
-     * 1. Add Appends (Cached/non-cached) to both Parent and Batch segments
-     * 2. Seal and merge the batches
-     * 3. Seal the parent segments.
-     * 4. Wait for everything to be ack-ed and check the result.
+     * See testWriter() for more details about testing flow.
      */
     @Test
     public void testNormalFlow() throws Exception {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
+        testWriter(context);
+    }
+
+    /**
+     * Tests the StorageWriter in a scenario where the DataSource throws random exceptions. Simulated errors are for
+     * the following operations:
+     * * Read (sync + async)
+     * * Acknowledge (sync + async)
+     * * GetAppendData (sync)
+     */
+    @Test
+    public void testWithDataSourceTransientErrors() throws Exception {
+        final int failReadSyncEvery = 2;
+        final int failReadAsyncEvery = 3;
+        final int failAckSyncEvery = 2;
+        final int failAckAsyncEvery = 3;
+        final int failGetAppendDataEvery = 99;
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        Supplier<Exception> exceptionSupplier = IntentionalException::new;
+
+        // Simulated Read errors.
+        context.dataSource.setReadSyncErrorInjector(new ErrorInjector<>(count -> count % failReadSyncEvery == 0, exceptionSupplier));
+        context.dataSource.setReadAsyncErrorInjector(new ErrorInjector<>(count -> count % failReadAsyncEvery == 0, exceptionSupplier));
+
+        // Simulated ack/truncate errors.
+        context.dataSource.setAckSyncErrorInjector(new ErrorInjector<>(count -> count % failAckSyncEvery == 0, exceptionSupplier));
+        context.dataSource.setAckAsyncErrorInjector(new ErrorInjector<>(count -> count % failAckAsyncEvery == 0, exceptionSupplier));
+
+        // Simulated data retrieval errors.
+        context.dataSource.setGetAppendDataErrorInjector(new ErrorInjector<>(count -> count % failGetAppendDataEvery == 0, exceptionSupplier));
+
+        testWriter(context);
+    }
+
+    /**
+     * Tests the StorageWriter in a scenario where some sort of fatal error occurs from the DataSource. In this case,
+     * the cache lookup for a CachedStreamSegmentAppendOperation returns null.
+     */
+    @Test
+    public void testWithDataSourceFatalErrors() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a bunch of segments and batches.
+        ArrayList<Long> segmentIds = createSegments(context);
+
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
+        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
+        context.dataSource.setAcknowledgeCallback(args -> {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+                ackEverything.complete(null);
+            }
+        });
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendData(segmentIds, segmentContents, context);
+        producingComplete.complete(null);
+
+        // We clear up the cache after we have added the operations in the data source - this will cause the writer
+        // to pick them up and end up failing when attempting to fetch the cache contents.
+        context.cache.reset();
+
+        context.writer.startAsync().awaitRunning();
+
+        AssertExtensions.assertThrows(
+                "StorageWriter did not fail when a fatal data retrieval error occurred.",
+                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                ex -> ex instanceof IllegalStateException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not badOffset)
+     */
+    @Test
+    public void testWithStorageTransientErrors() throws Exception {
+        final int failWriteSyncEvery = 4;
+        final int failWriteAsyncEvery = 6;
+        final int failSealSyncEvery = 4;
+        final int failSealAsyncEvery = 6;
+        final int failConcatAsyncEvery = 6;
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        Supplier<Exception> exceptionSupplier = IntentionalException::new;
+
+        // Simulated Write errors.
+        context.storage.setWriteSyncErrorInjector(new ErrorInjector<>(count -> count % failWriteSyncEvery == 0, exceptionSupplier));
+        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(count -> count % failWriteAsyncEvery == 0, exceptionSupplier));
+
+        // Simulated Seal errors.
+        context.storage.setSealSyncErrorInjector(new ErrorInjector<>(count -> count % failSealSyncEvery == 0, exceptionSupplier));
+        context.storage.setSealAsyncErrorInjector(new ErrorInjector<>(count -> count % failSealAsyncEvery == 0, exceptionSupplier));
+
+        // Simulated Concat errors.
+        context.storage.setConcatAsyncErrorInjector(new ErrorInjector<>(count -> count % failConcatAsyncEvery == 0, exceptionSupplier));
+
+        testWriter(context);
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., badOffset,
+     * and after reconciliation, the data is still corrupt).
+     */
+    @Test
+    public void testWithStorageCorruptionErrors() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Create a bunch of segments and batches.
+        ArrayList<Long> segmentIds = createSegments(context);
+
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
+        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
+        context.dataSource.setAcknowledgeCallback(args -> {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+                ackEverything.complete(null);
+            }
+        });
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendData(segmentIds, segmentContents, context);
+        producingComplete.complete(null);
+
+        byte[] corruptionData = "foo".getBytes();
+        Supplier<Exception> exceptionSupplier = () -> {
+            // Corrupt data.
+            for (long segmentId : segmentIds) {
+                String name = context.metadata.getStreamSegmentMetadata(segmentId).getName();
+                long length = context.storage.getStreamSegmentInfo(name, TIMEOUT).join().getLength();
+                context.storage.write(name, length, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
+            }
+
+            // Return some other kind of exception.
+            return new TimeoutException();
+        };
+
+        // We only try to corrupt data once.
+        AtomicBoolean corruptionHappened = new AtomicBoolean();
+        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier));
+
+        context.writer.startAsync().awaitRunning();
+
+        AssertExtensions.assertThrows(
+                "StorageWriter did not fail when a fatal data corruption error occurred.",
+                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                ex -> ex instanceof IllegalStateException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., badOffset,
+     * but after reconciliation, the data is not corrupt).
+     */
+    @Test
+    public void testWithStorageRecoverableCorruptionErrors() throws Exception {
+        // TODO: implement once the proper code is implemented in StorageWriter/SegmentAggregator.
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where it needs to gracefully recover from a Container failure, and not all
+     * previously written data has been acknowledged to the DataSource.
+     */
+    @Test
+    public void testRecovery() throws Exception {
+
+    }
+
+    /**
+     * Tests the writer as it is setup in the given context.
+     * General test flow:
+     * 1. Add Appends (Cached/non-cached) to both Parent and Batch segments
+     * 2. Seal and merge the batches
+     * 3. Seal the parent segments.
+     * 4. Wait for everything to be ack-ed and check the result.
+     *
+     * @param context The TestContext to use.
+     */
+    private void testWriter(TestContext context) throws Exception {
         context.writer.startAsync();
 
         // Create a bunch of segments and batches.
@@ -153,42 +346,6 @@ public class StorageWriterTests {
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata.getStorageLength(), actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
         }
-    }
-
-    /**
-     * Tests the StorageWriter in a scenario where the DataSource throws random exceptions, such as TimeoutException.
-     */
-    @Test
-    public void testWithDataSourceErrors() throws Exception {
-        // read
-        // acknowledge
-        // completeMerge
-        // getAppendData
-    }
-
-    /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not badOffset)
-     */
-    @Test
-    public void testWithStorageTransientErrors() throws Exception {
-
-    }
-
-    /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., not badOffset)
-     */
-    @Test
-    public void testWithStorageCorruptionErrors() throws Exception {
-
-    }
-
-    /**
-     * Tests the StorageWriter in a Scenario where it needs to gracefully recover from a Container failure, and not all
-     * previously written data has been acknowledged to the DataSource.
-     */
-    @Test
-    public void testRecovery() throws Exception {
-
     }
 
     //region Helpers
@@ -343,14 +500,14 @@ public class StorageWriterTests {
         final CloseableExecutorService executor;
         final UpdateableContainerMetadata metadata;
         final TestWriterDataSource dataSource;
-        final Storage storage;
+        final TestStorage storage;
         final Cache cache;
         final StorageWriter writer;
 
         TestContext(WriterConfig config) {
             this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            this.storage = new InMemoryStorage(this.executor.get());
+            this.storage = new TestStorage(new InMemoryStorage(this.executor.get()));
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
