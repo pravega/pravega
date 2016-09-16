@@ -63,12 +63,12 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
-    public void createTransaction(CreateTransaction createBatch) {
+    public void createTransaction(CreateTransaction createTransaction) {
         throw new IllegalStateException("Unexpected operation");
     }
 
     @Override
-    public void commitTransaction(CommitTransaction mergeBatch) {
+    public void commitTransaction(CommitTransaction commitTransaction) {
         throw new IllegalStateException("Unexpected operation");
     }
     

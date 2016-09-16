@@ -24,6 +24,7 @@ import org.junit.Test;
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.Stack;
+import java.util.UUID;
 
 /**
  * Unit tests for StreamSegmentNameUtils class.
@@ -40,20 +41,11 @@ public class StreamSegmentNameUtilsTests {
         Assert.assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
 
         for (int i = 0; i < batchCount; i++) {
-            String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+            String batchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
             AssertExtensions.assertNotNullOrEmpty("generateBatchStreamSegmentName() did not generate any Segment Name.", batchName);
             AssertExtensions.assertGreaterThan("generateBatchStreamSegmentName() generated a Segment Name that is shorter than the base.", segmentName.length(), batchName.length());
             parentName = StreamSegmentNameUtils.getParentStreamSegmentName(batchName);
             Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName, parentName);
-
-            // Alter a character (at a time) from the batch name and verify that it cannot derive a valid parent from it anymore.
-            for (int j = 0; j < batchName.length(); j++) {
-                String firstPart = j == 0 ? "" : batchName.substring(0, j - 1);
-                String lastPart = j == batchName.length() - 1 ? "" : batchName.substring(j + 1);
-                String badBatchName = String.format("%s%s%s", firstPart, (char) (batchName.charAt(j) + 1), lastPart);
-                parentName = StreamSegmentNameUtils.getParentStreamSegmentName(badBatchName);
-                Assert.assertNull("getParentStreamSegmentName() generated a value for parent when none was expected.", parentName);
-            }
         }
     }
 
@@ -69,7 +61,7 @@ public class StreamSegmentNameUtilsTests {
         names.push("foo"); // Base segment.
         for (int i = 0; i < recursionCount; i++) {
             // Generate a batch name for the last generated name.
-            names.push(StreamSegmentNameUtils.generateBatchStreamSegmentName(names.peek()));
+            names.push(StreamSegmentNameUtils.getBatchNameFromId(names.peek(), UUID.randomUUID()));
         }
 
         // Make sure we can retrace our roots.

@@ -116,7 +116,7 @@ public class LogTestHelpers {
                 long batchId = getBatchId(streamSegmentId, i);
                 assert result.put(batchId, streamSegmentId) == null : "duplicate BatchId generated: " + batchId;
                 assert !streamSegmentIds.contains(batchId) : "duplicate StreamSegmentId (batch) generated: " + batchId;
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(streamSegmentName);
+                String batchName = StreamSegmentNameUtils.getBatchNameFromId(streamSegmentName, UUID.randomUUID());
                 containerMetadata.mapStreamSegmentId(batchName, batchId, streamSegmentId);
                 containerMetadata.getStreamSegmentMetadata(batchId).setDurableLogLength(0);
                 containerMetadata.getStreamSegmentMetadata(batchId).setStorageLength(0);
@@ -134,7 +134,7 @@ public class LogTestHelpers {
 
             for (int i = 0; i < batchesPerStreamSegment; i++) {
                 long batchId = mapper
-                        .createNewBatchStreamSegment(streamSegmentName, Duration.ZERO)
+                        .createNewBatchStreamSegment(streamSegmentName, UUID.randomUUID(), Duration.ZERO)
                         .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
                 result.put(batchId, streamSegmentId);
             }

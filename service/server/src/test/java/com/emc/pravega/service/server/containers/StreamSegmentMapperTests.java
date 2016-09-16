@@ -44,6 +44,7 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -86,7 +87,7 @@ public class StreamSegmentMapperTests {
             assertStreamSegmentCreated(name, context);
 
             for (int j = 0; j < batchesPerSegment; j++) {
-                String batchName = context.mapper.createNewBatchStreamSegment(name, TIMEOUT).join();
+                String batchName = context.mapper.createNewBatchStreamSegment(name, UUID.randomUUID(), TIMEOUT).join();
                 assertBatchSegmentCreated(batchName, name, context);
             }
         }
@@ -130,7 +131,7 @@ public class StreamSegmentMapperTests {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
         AssertExtensions.assertThrows(
                 "createNewBatchStreamSegment did not fail when Segment already exists.",
-                context.mapper.createNewBatchStreamSegment(segmentName, TIMEOUT)::join,
+                context.mapper.createNewBatchStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals("Batch was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", 1, context.metadata.getAllStreamSegmentIds().size());
 
@@ -138,7 +139,7 @@ public class StreamSegmentMapperTests {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewBatchStreamSegment did not fail when random exception was thrown.",
-                context.mapper.createNewBatchStreamSegment(segmentName, TIMEOUT)::join,
+                context.mapper.createNewBatchStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Batch was registered in the metadata even if it failed to be created (IntentionalException).", 1, context.metadata.getAllStreamSegmentIds().size());
 
@@ -150,7 +151,7 @@ public class StreamSegmentMapperTests {
         // 5. When Creating a batch.
         AssertExtensions.assertThrows(
                 "createNewBatchStreamSegment did not fail when OperationLog threw an exception.",
-                context.mapper.createNewBatchStreamSegment(segmentName, TIMEOUT)::join,
+                context.mapper.createNewBatchStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Batch was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
         Assert.assertEquals("Batch was not created in Storage even if the failure was post-storage (in OperationLog processing).", 2, storageSegments.size());
@@ -179,7 +180,7 @@ public class StreamSegmentMapperTests {
             for (int j = 0; j < batchesPerSegment; j++) {
                 // There is a small chance of a name conflict here, but we don't care. As long as we get at least one
                 // batch per segment, we should be fine.
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+                String batchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
                 storageSegments.add(batchName);
             }
         }
@@ -263,7 +264,7 @@ public class StreamSegmentMapperTests {
     @Test
     public void testGetOrAssignStreamSegmentIdWithFailures() {
         final String segmentName = "Segment";
-        final String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+        final String batchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
@@ -292,14 +293,14 @@ public class StreamSegmentMapperTests {
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // 2b. Batch does not exist.
-        final String inexistentBatchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+        final String inexistentBatchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent batch.",
                 context.mapper.getOrAssignStreamSegmentId(inexistentBatchName, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // 2c. Batch exists, but not its parent.
-        final String noValidParentBatchName = StreamSegmentNameUtils.generateBatchStreamSegmentName("foo");
+        final String noValidParentBatchName = StreamSegmentNameUtils.getBatchNameFromId("foo", UUID.randomUUID());
         storageSegments.add(noValidParentBatchName);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a batch with an inexistent parent.",

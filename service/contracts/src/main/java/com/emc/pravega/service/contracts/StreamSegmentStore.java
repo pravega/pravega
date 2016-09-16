@@ -88,7 +88,7 @@ public interface StreamSegmentStore {
      * If the operation failed, it will contain the exception that caused the failure.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<String> createBatch(String parentStreamSegmentName, Duration timeout);
+    CompletableFuture<String> createBatch(String parentStreamSegmentName, UUID batchId, Duration timeout);
 
     /**
      * Merges a Batch into its parent StreamSegment.

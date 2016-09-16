@@ -109,11 +109,11 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<String> createBatch(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createBatch(String parentStreamSegmentName, UUID batchId, Duration timeout) {
         int traceId = LoggerHelpers.traceEnter(log, "createBatch", parentStreamSegmentName, timeout);
         return withCompletion(
                 () -> getContainer(parentStreamSegmentName)
-                        .thenCompose(container -> container.createBatch(parentStreamSegmentName, timeout)),
+                        .thenCompose(container -> container.createBatch(parentStreamSegmentName, batchId, timeout)),
                 r -> traceLeave(log, "createBatch", traceId, r));
     }
 

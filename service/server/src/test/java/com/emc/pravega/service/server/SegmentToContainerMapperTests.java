@@ -24,6 +24,7 @@ import org.junit.Test;
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * Unit tests for SegmentToContainerMapper.
@@ -104,7 +105,7 @@ public class SegmentToContainerMapperTests {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < batchPerParentCount; i++) {
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+                String batchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
                 int batchContainerId = m.getContainerId(batchName);
                 Assert.assertEquals("Parent and batch were not assigned to the same container.", containerId, batchContainerId);
             }

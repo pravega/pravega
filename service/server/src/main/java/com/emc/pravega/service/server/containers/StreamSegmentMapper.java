@@ -18,6 +18,15 @@
 
 package com.emc.pravega.service.server.containers;
 
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -34,15 +43,8 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
@@ -126,7 +128,7 @@ public class StreamSegmentMapper {
      * If the operation failed, this will contain the exception that caused the failure.
      * @throws IllegalArgumentException If the given parent StreamSegment is invalid to have a batch (deleted, sealed, inexistent).
      */
-    public CompletableFuture<String> createNewBatchStreamSegment(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createNewBatchStreamSegment(String parentStreamSegmentName, UUID batchId, Duration timeout) {
         int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewBatchStreamSegment", parentStreamSegmentName);
 
         //We cannot create a Batch StreamSegment for a what looks like a parent StreamSegment.
@@ -144,8 +146,7 @@ public class StreamSegmentMapper {
             }
         }
 
-        //TODO: verify the batch name doesn't already exist. It is possible that two concurrent calls to createBatch can create the same batch name.
-        String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentStreamSegmentName);
+        String batchName = StreamSegmentNameUtils.getBatchNameFromId(parentStreamSegmentName, batchId);
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         if (parentPropertiesFuture == null) {

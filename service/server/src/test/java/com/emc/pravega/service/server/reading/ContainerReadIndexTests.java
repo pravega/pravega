@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -254,7 +255,7 @@ public class ContainerReadIndexTests {
         initializeSegment(segmentId, context, 0, 0);
 
         long batchId = segmentId + 1;
-        String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+        String batchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
         context.metadata.mapStreamSegmentId(batchName, batchId, segmentId);
         initializeSegment(batchId, context, 0, 0);
 
@@ -789,7 +790,7 @@ public class ContainerReadIndexTests {
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
             for (int i = 0; i < BATCHES_PER_SEGMENT; i++) {
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentMetadata.getName());
+                String batchName = StreamSegmentNameUtils.getBatchNameFromId(parentMetadata.getName(), UUID.randomUUID());
                 context.metadata.mapStreamSegmentId(batchName, batchId, parentId);
                 initializeSegment(batchId, context, 0, 0);
                 segmentBatches.add(batchId);

@@ -601,7 +601,7 @@ public class StreamSegmentContainerTests {
         ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
         for (String segmentName : segmentNames) {
             for (int i = 0; i < BATCHES_PER_SEGMENT; i++) {
-                futures.add(context.container.createBatch(segmentName, TIMEOUT));
+                futures.add(context.container.createBatch(segmentName, UUID.randomUUID(), TIMEOUT));
             }
         }
 

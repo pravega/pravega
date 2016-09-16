@@ -221,12 +221,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<String> createBatch(String parentStreamName, Duration timeout) {
+    public CompletableFuture<String> createBatch(String parentStreamName, UUID batchId, Duration timeout) {
         ensureRunning();
 
         logRequest("createBatch", parentStreamName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.createNewBatchStreamSegment(parentStreamName, timer.getRemaining());
+        return this.segmentMapper.createNewBatchStreamSegment(parentStreamName, batchId, timer.getRemaining());
     }
 
     @Override

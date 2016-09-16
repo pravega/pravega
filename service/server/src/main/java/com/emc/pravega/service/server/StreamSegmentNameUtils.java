@@ -18,7 +18,7 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.common.StringHelpers;
+import java.util.UUID;
 
 /**
  * Utility methods for StreamSegment Names.
@@ -49,32 +49,24 @@ public final class StreamSegmentNameUtils {
     //endregion
 
     /**
-     * Generates a name for a Batch StreamSegment based on the name of the current Parent StreamSegment.
-     * Every call to this method should generate a different name, as long as the calls are at least 1ns apart.
-     * The return value from this method can be decomposed using the getParentStreamSegmentName method.
+     * Returns the batch name for a Batch StreamSegment based on the name of the current Parent StreamSegment, and the batchId
      *
      * @param parentStreamSegmentName The name of the Parent StreamSegment for this batch.
+     * @param batchId The unique Id for the batch.
      * @return The name of the Batch StreamSegmentId.
      */
-    public static String generateBatchStreamSegmentName(String parentStreamSegmentName) {
-        // Part 1 is the the long HashCode for the parentStreamSegmentName.
-        long part1 = StringHelpers.longHashCode(parentStreamSegmentName, 0, parentStreamSegmentName.length());
-
-        // Part 2 is a combination of the current time, expressed both in Millis and in Nanos.
-        long part2 = System.currentTimeMillis() & 0xffffffffL;
-        part2 = part2 << Integer.SIZE | System.nanoTime() & 0xffffffffL;
-
+    public static String getBatchNameFromId(String parentStreamSegmentName, UUID batchId) {
         StringBuilder result = new StringBuilder();
         result.append(parentStreamSegmentName);
         result.append(DELIMITER);
-        result.append(String.format(PART_FORMAT, part1));
-        result.append(String.format(PART_FORMAT, part2));
+        result.append(String.format(PART_FORMAT, batchId.getMostSignificantBits()));
+        result.append(String.format(PART_FORMAT, batchId.getLeastSignificantBits()));
         return result.toString();
     }
 
     /**
      * Attempts to extract the name of the Parent StreamSegment for the given Batch StreamSegment. This method returns a
-     * valid value only if the batchStreamSegmentName was generated using the generateBatchStreamSegmentName method.
+     * valid value only if the batchStreamSegmentName was generated using the {@link #getBatchNameFromId(String, UUID)} method.
      *
      * @param batchStreamSegmentName The name of the Batch StreamSegment to extract the name of the Parent StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
@@ -86,24 +78,6 @@ public final class StreamSegmentNameUtils {
             // Improperly formatted batch name.
             return null;
         }
-
-        // Extract the hashcode from Part 1 (We don't care about Part 2 here). The hash is the entire part1.
-        int decodePos = endOfStreamNamePos + DELIMITER.length();
-        long hash;
-        try {
-            hash = Long.parseUnsignedLong(batchStreamSegmentName.substring(decodePos, decodePos + PART_LENGTH), 16);
-        } catch (NumberFormatException ex) {
-            // Not a valid batch name.
-            return null;
-        }
-
-        // Determine the hash of the "parent" name.
-        long expectedHash = StringHelpers.longHashCode(batchStreamSegmentName, 0, endOfStreamNamePos);
-        if (hash == expectedHash) {
-            return batchStreamSegmentName.substring(0, endOfStreamNamePos);
-        }
-
-        // Hash mismatch. Not a valid batch.
-        return null;
+        return batchStreamSegmentName.substring(0, endOfStreamNamePos);
     }
 }
