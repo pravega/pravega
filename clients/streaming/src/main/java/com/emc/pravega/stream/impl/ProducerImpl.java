@@ -35,7 +35,6 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentManager;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
@@ -52,19 +51,19 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Object lock = new Object();
     private final Stream stream;
     private final Serializer<Type> serializer;
-    private final SegmentManager segmentManager;
+    private final StreamController streamController;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
     @GuardedBy("lock")
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(Stream stream, SegmentManager segmentManager, EventRouter router, Serializer<Type> serializer,
+    ProducerImpl(Stream stream, StreamController streamController, EventRouter router, Serializer<Type> serializer,
             ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(serializer);
-        this.segmentManager = segmentManager;
+        this.streamController = streamController;
         this.stream = stream;
         this.router = router;
         this.serializer = serializer;
@@ -91,7 +90,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 StreamSegments s = stream.getLatestSegments();
                 for (SegmentId segment : s.getSegments()) {
                     if (!producers.containsKey(segment)) {
-                        SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
+                        SegmentOutputStream out = streamController.openSegmentForAppending(segment.getQualifiedName(),
                                                                                          config.getSegmentConfig());
                         producers.put(segment, new SegmentProducerImpl<>(out, serializer));
                     }
@@ -190,17 +189,17 @@ public class ProducerImpl<Type> implements Producer<Type> {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            segmentManager.commitTransaction(txId);
+            streamController.commitTransaction(stream, txId);
         }
 
         @Override
         public void drop() {
-            segmentManager.dropTransaction(txId);
+            streamController.dropTransaction(stream, txId);
         }
 
         @Override
         public Status checkStatus() {
-            return segmentManager.checkTransactionStatus(txId);
+            return streamController.checkTransactionStatus(stream, txId);
         }
 
         @Override
@@ -220,9 +219,9 @@ public class ProducerImpl<Type> implements Producer<Type> {
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
+        streamController.createTransaction(stream, txId, timeout);
         for (SegmentId s : segmentIds) {
-            segmentManager.createTransaction(s.getName(), txId, timeout);
-            SegmentOutputStream out = segmentManager.openTransactionForAppending(s.getName(), txId);
+            SegmentOutputStream out = streamController.openTransactionForAppending(s.getQualifiedName(), txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

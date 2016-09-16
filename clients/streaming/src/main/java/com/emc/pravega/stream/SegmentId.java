@@ -29,16 +29,16 @@ import lombok.NonNull;
 public class SegmentId {
     private final String scope;
     @NonNull
-    private final String name;
+    private final String streamName;
     private final int number;
     private final int previous;
 
-    public SegmentId(String scope, String name, int number, int previous) {
+    public SegmentId(String scope, String streamName, int number, int previous) {
         super();
         this.scope = scope;
-        Preconditions.checkNotNull(name);
-        Preconditions.checkArgument(name.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
-        this.name = name;
+        Preconditions.checkNotNull(streamName);
+        Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
+        this.streamName = streamName;
         this.number = number;
         this.previous = previous;
     }
@@ -49,7 +49,7 @@ public class SegmentId {
             sb.append(scope);
             sb.append('/');
         }
-        sb.append(name);
+        sb.append(streamName);
         sb.append('/');
         sb.append(number);
         return sb.toString();
@@ -59,7 +59,7 @@ public class SegmentId {
      * @return True if this segment is a replacement or partial replacement for the one passed.
      */
     public boolean succeeds(SegmentId other) {
-        return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && name.equals(other.name)
+        return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && streamName.equals(other.streamName)
                 && previous == other.number;
     }
 }

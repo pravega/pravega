@@ -23,18 +23,17 @@ import java.io.IOException;
 import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.BatchCreated;
-import com.emc.pravega.common.netty.WireCommands.BatchMerged;
+import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.Constructor;
-import com.emc.pravega.common.netty.WireCommands.CreateBatch;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
+import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
+import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.MergeBatch;
-import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
 import com.emc.pravega.common.netty.WireCommands.Padding;
 import com.emc.pravega.common.netty.WireCommands.PartialEvent;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
@@ -47,6 +46,9 @@ import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.google.common.base.Preconditions;
 
@@ -82,23 +84,26 @@ public enum WireCommandType {
     CREATE_SEGMENT(20, CreateSegment::readFrom),
     SEGMENT_CREATED(21, SegmentCreated::readFrom),
 
-    CREATE_BATCH(22, CreateBatch::readFrom),
-    BATCH_CREATED(23, BatchCreated::readFrom),
+    CREATE_TRANSACTION(22, CreateTransaction::readFrom),
+    TRANSACTION_CREATED(23, TransactionCreated::readFrom),
 
-    MERGE_BATCH(24, MergeBatch::readFrom),
-    BATCH_MERGED(25, BatchMerged::readFrom),
+    COMMIT_TRANSACTION(24, CommitTransaction::readFrom),
+    TRANSACTION_COMMITTED(25, TransactionCommitted::readFrom),
 
-    SEAL_SEGMENT(26, SealSegment::readFrom),
-    SEGMENT_SEALED(27, SegmentSealed::readFrom),
+    DROP_TRANSACTION(26, DropTransaction::readFrom),
+    TRANSACTION_DROPPED(27, TransactionDropped::readFrom),
+    
+    SEAL_SEGMENT(28, SealSegment::readFrom),
+    SEGMENT_SEALED(29, SegmentSealed::readFrom),
 
-    DELETE_SEGMENT(28, DeleteSegment::readFrom),
-    SEGMENT_DELETED(29, SegmentDeleted::readFrom),
+    DELETE_SEGMENT(30, DeleteSegment::readFrom),
+    SEGMENT_DELETED(31, SegmentDeleted::readFrom),
 
     WRONG_HOST(50, WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, SegmentIsSealed::readFrom),
     SEGMENT_ALREADY_EXISTS(52, SegmentAlreadyExists::readFrom),
     NO_SUCH_SEGMENT(53, NoSuchSegment::readFrom),
-    NO_SUCH_BATCH(54, NoSuchBatch::readFrom),
+    NO_SUCH_TRANSACTION(54, NoSuchTransaction::readFrom),
 
     KEEP_ALIVE(100, KeepAlive::readFrom);
 

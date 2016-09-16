@@ -42,15 +42,15 @@ import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
-import com.emc.pravega.stream.impl.StreamController;
+import com.emc.pravega.stream.impl.Router;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.Unpooled;
@@ -68,7 +68,7 @@ import lombok.extern.slf4j.Slf4j;
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
-    private final StreamController controller;
+    private final Router router;
     private final ConnectionFactory connectionFactory;
     private final UUID connectionId;
     private final String segment;
@@ -242,7 +242,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 
         @Override
-        public void noSuchBatch(NoSuchBatch noSuchBatch) {
+        public void noSuchBatch(NoSuchTransaction noSuchBatch) {
             state.failConnection(new IllegalArgumentException(noSuchBatch.toString()));
         }
 
@@ -313,7 +313,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            String endpoint = controller.getEndpointForSegment(segment);
+            String endpoint = router.getEndpointForSegment(segment);
             ClientConnection connection = getAndHandleExceptions(connectionFactory
                 .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
             state.newConnection(connection);

@@ -46,8 +46,8 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SingleSegmentStreamControllerImpl;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -173,7 +173,7 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
+        SingleSegmentStreamControllerImpl segmentClient = new SingleSegmentStreamControllerImpl(endpoint, clientCF);
         segmentClient.createSegment(segmentName);
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);

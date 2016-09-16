@@ -18,12 +18,10 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.BatchCreated;
-import com.emc.pravega.common.netty.WireCommands.BatchMerged;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
@@ -31,6 +29,9 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
 /**
@@ -62,7 +63,7 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void noSuchBatch(NoSuchBatch noSuchBatch) {
+    public void noSuchBatch(NoSuchTransaction noSuchBatch) {
         getNextReplyProcessor().noSuchBatch(noSuchBatch);
     }
 
@@ -92,13 +93,18 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void batchCreated(BatchCreated batchCreated) {
-        getNextReplyProcessor().batchCreated(batchCreated);
+    public void transactionCreated(TransactionCreated transactionCreated) {
+        getNextReplyProcessor().transactionCreated(transactionCreated);
     }
 
     @Override
-    public void batchMerged(BatchMerged batchMerged) {
-        getNextReplyProcessor().batchMerged(batchMerged);
+    public void transactionCommitted(TransactionCommitted transactionCommitted) {
+        getNextReplyProcessor().transactionCommitted(transactionCommitted);
+    }
+    
+    @Override
+    public void transactionDropped(TransactionDropped transactionDropped) {
+        getNextReplyProcessor().transactionDropped(transactionDropped);
     }
 
     @Override

@@ -24,14 +24,14 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
+import com.emc.pravega.stream.impl.segment.SingleSegmentStreamControllerImpl;
 
 /**
  * A StreamManager for the special case where the streams it creates will only ever be composed of one segment.
  */
 public class SingleSegmentStreamManagerImpl implements StreamManager {
 
-    private final SegmentManagerImpl segmentManager;
+    private final SingleSegmentStreamControllerImpl streamController;
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ConnectionFactory clientCF;
@@ -39,7 +39,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     public SingleSegmentStreamManagerImpl(String endpoint, int port, String scope) {
         this.scope = scope;
         this.clientCF = new ConnectionFactoryImpl(false, port);
-        this.segmentManager = new SegmentManagerImpl(endpoint, clientCF);
+        this.streamController = new SingleSegmentStreamControllerImpl(endpoint, clientCF);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
         boolean existed = created.containsKey(streamName);
         Stream stream = createStreamHelper(streamName, config);
         if (!existed) {
-            segmentManager.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
+            streamController.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
         }
         return stream;
     }
@@ -58,7 +58,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, segmentManager);
+        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, streamController);
         created.put(streamName, stream);
         return stream;
     }

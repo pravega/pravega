@@ -55,7 +55,7 @@ public interface Stream {
     /**
      * @return The name of this stream.
      */
-    String getName();
+    String getQualifiedName();
 
     /**
      * @return The configuration associated with this stream.

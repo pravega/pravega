@@ -32,7 +32,6 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.impl.segment.SegmentManager;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
@@ -43,12 +42,12 @@ import lombok.Getter;
 public class SingleSegmentStreamImpl implements Stream {
 
     private final String scope;
-    @Getter
-    private final String name;
+    private final String streamName;
     @Getter
     private final StreamConfiguration config;
+    @Getter
     private final SegmentId segmentId;
-    private final SegmentManager segmentManager;
+    private final StreamController streamController;
     private final EventRouter router = new EventRouter() {
         @Override
         public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
@@ -64,14 +63,14 @@ public class SingleSegmentStreamImpl implements Stream {
         }
     };
 
-    public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config,
-            SegmentManager segmentManager) {
-        Preconditions.checkNotNull(segmentManager);
+    public SingleSegmentStreamImpl(String scope, String streamName, StreamConfiguration config,
+            StreamController streamController) {
+        Preconditions.checkNotNull(streamController);
         this.scope = scope;
-        this.name = name;
+        this.streamName = streamName;
         this.config = config;
-        this.segmentManager = segmentManager;
-        this.segmentId = new SegmentId(scope, name, 1, 0);
+        this.streamController = streamController;
+        this.segmentId = new SegmentId(scope, streamName, 1, 0);
     }
 
     @Override
@@ -86,14 +85,14 @@ public class SingleSegmentStreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<>(this, segmentManager, router, s, config);
+        return new ProducerImpl<>(this, streamController, router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
         return new ConsumerImpl<>(this,
-                segmentManager,
+                streamController,
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
@@ -103,12 +102,23 @@ public class SingleSegmentStreamImpl implements Stream {
     
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
         return new ConsumerImpl<>(this,
-                segmentManager,
+                streamController,
                 s,
                 new PositionImpl(Collections.singletonMap(segmentId, 0L), Collections.emptyMap()),
                 new SingleStreamOrderer<T>(),
                 null,
                 config);
+    }
+
+    @Override
+    public String getQualifiedName() {
+        StringBuffer sb = new StringBuffer();
+        if (scope != null) {
+            sb.append(scope);
+            sb.append('/');
+        }
+        sb.append(streamName);
+        return sb.toString();
     }
 
 }

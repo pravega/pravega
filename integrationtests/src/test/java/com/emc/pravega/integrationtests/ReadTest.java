@@ -54,9 +54,9 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.emc.pravega.stream.impl.segment.SingleSegmentStreamControllerImpl;
 
 import static org.junit.Assert.*;
 
@@ -155,7 +155,7 @@ public class ReadTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
+        SingleSegmentStreamControllerImpl segmentClient = new SingleSegmentStreamControllerImpl(endpoint, clientCF);
         segmentClient.createSegment(segmentName);
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);

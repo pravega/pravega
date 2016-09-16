@@ -7,14 +7,14 @@ import java.util.concurrent.CompletableFuture;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.stream.impl.StreamController;
+import com.emc.pravega.stream.impl.Router;
 import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-class TestConnectionFactoryImpl implements ConnectionFactory, StreamController {
+class TestConnectionFactoryImpl implements ConnectionFactory, Router {
     Map<String, ClientConnection> connections = new HashMap<>();
     Map<String, ReplyProcessor> processors = new HashMap<>();
     final String endpoint;

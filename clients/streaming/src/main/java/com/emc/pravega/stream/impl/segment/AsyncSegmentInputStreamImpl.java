@@ -36,7 +36,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.ConnectionClosedException;
-import com.emc.pravega.stream.impl.StreamController;
+import com.emc.pravega.stream.impl.Router;
 import com.google.common.base.Preconditions;
 
 import lombok.Data;
@@ -54,7 +54,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();    
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final StreamController controller;
+    private final Router router;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
         
@@ -116,11 +116,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
     
-    public AsyncSegmentInputStreamImpl(StreamController controller, ConnectionFactory connectionFactory, String segment) {
-        Preconditions.checkNotNull(controller);
+    public AsyncSegmentInputStreamImpl(Router router, ConnectionFactory connectionFactory, String segment) {
+        Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
-        this.controller = controller;
+        this.router = router;
         this.connectionFactory = connectionFactory;
         this.segment = segment;
     }
@@ -170,7 +170,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 return connection;
             }
         }
-        String endpoint = controller.getEndpointForSegment(segment);
+        String endpoint = router.getEndpointForSegment(segment);
         synchronized (lock) {
             if (connection == null) {
                 connection = connectionFactory.establishConnection(endpoint, responseProcessor);
