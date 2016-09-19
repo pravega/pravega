@@ -91,6 +91,9 @@ public class SingleSegmentStreamImpl implements Stream {
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
+        Preconditions.checkNotNull(s);
+        Preconditions.checkNotNull(config);
+        Preconditions.checkNotNull(startingPosition);
         return new ConsumerImpl<>(this,
                 streamController,
                 s,
@@ -101,6 +104,8 @@ public class SingleSegmentStreamImpl implements Stream {
     }
     
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
+        Preconditions.checkNotNull(s);
+        Preconditions.checkNotNull(config);
         return new ConsumerImpl<>(this,
                 streamController,
                 s,

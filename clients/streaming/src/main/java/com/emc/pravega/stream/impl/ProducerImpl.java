@@ -171,14 +171,22 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         private final Map<SegmentId, SegmentTransaction<Type>> inner;
         private final UUID txId;
+        private final AtomicBoolean sealed = new AtomicBoolean(false);
 
         TransactionImpl(UUID txId, Map<SegmentId, SegmentTransaction<Type>> transactions) {
             this.txId = txId;
             this.inner = transactions;
         }
 
+        private void checkOpen() throws TxFailedException {
+            if (sealed.get()) {
+                throw new TxFailedException("Transaction has been closed already.");
+            }
+        }
+        
         @Override
         public void publish(String routingKey, Type event) throws TxFailedException {
+            checkOpen();
             SegmentId s = router.getSegmentForEvent(stream, routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
             transaction.publish(event);
@@ -186,15 +194,16 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void commit() throws TxFailedException {
-            for (SegmentTransaction<Type> tx : inner.values()) {
-                tx.flush();
-            }
+            Preconditions.checkState(!sealed.get());
+            flush();
             streamController.commitTransaction(stream, txId);
+            sealed.set(true);
         }
 
         @Override
         public void drop() {
             streamController.dropTransaction(stream, txId);
+            sealed.set(true);
         }
 
         @Override
@@ -204,9 +213,11 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void flush() throws TxFailedException {
+            checkOpen();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
+            ProducerImpl.this.flush();
         }
 
     }
