@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.common.hash.ConsistentHash;
+import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
@@ -34,9 +34,13 @@ public class SegmentHelper {
         return new SegmentId(stream, stream + segmentNumber, segmentNumber, previous);
     }
 
-    public static SegmentUri getSegmentUri(String stream, SegmentId id, HostControllerStore hostStore) {
-        int container = ConsistentHash.hash(stream + id.getNumber(), hostStore.getContainerCount());
+    public static SegmentUri getSegmentUri(String stream, int segmentNumber, HostControllerStore hostStore) {
+        int container = HashHelper.hash(stream + segmentNumber, hostStore.getContainerCount());
         Host host = hostStore.getHostForContainer(container);
         return new SegmentUri(host.getIpAddr(), host.getPort());
+    }
+
+    public static SegmentUri getSegmentUri(String stream, SegmentId id, HostControllerStore hostStore) {
+        return getSegmentUri(stream, id.getNumber(), hostStore);
     }
 }

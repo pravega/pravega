@@ -21,7 +21,7 @@ import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-public class ConsistentHash {
+public class HashHelper {
 
     static final String MD_5 = "MD5";
     private static MessageDigest md;

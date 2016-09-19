@@ -47,8 +47,8 @@ service ControllerService {
     Status createStream (1: StreamConfig streamConfig)
     Status alterStream (1: StreamConfig streamConfig)
     list<SegmentId> getCurrentSegments(1:string stream)
-    SegmentUri getURI(1:SegmentId id)
     list<Position> getPositions(1:string stream, 2:i64 timestamp, 3:i32 count)
     list<Position> updatePositions(1:string stream, 2:list<Position> positions)
+    SegmentUri getURI(1: string stream, 2:SegmentId id)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

@@ -30,14 +30,12 @@ import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.RateChangeListener;
 import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManager;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
@@ -53,7 +51,6 @@ public class SingleSegmentStreamImpl implements Stream {
     @Getter
     private final StreamConfiguration config;
     private final SegmentId segmentId;
-    private final SegmentManager segmentManager;
     private final ControllerApi.Admin apiAdmin;
     private final ControllerApi.Producer apiProducer;
     private final ControllerApi.Consumer apiConsumer;
@@ -81,10 +78,8 @@ public class SingleSegmentStreamImpl implements Stream {
         this.apiAdmin = apiAdmin;
         this.apiProducer = apiProducer;
         this.apiConsumer = apiConsumer;
-        this.segmentId = getLatestSegments().getSegments().get(0);
-        SegmentUri uri = FutureHelpers.getAndHandleExceptions(apiProducer.getURI(segmentId), RuntimeException::new);
 
-        this.segmentManager = new SegmentManagerImpl(uri.getEndpoint(), new ConnectionFactoryImpl(false, uri.getPort()));
+        this.segmentId = getLatestSegments().getSegments().get(0);
     }
 
     @Override
@@ -100,15 +95,14 @@ public class SingleSegmentStreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<>(this, apiProducer, segmentManager, router, s, config);
+        return new ProducerImpl<>(this, new SegmentManagerProducerImpl(name, apiProducer), router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
         return new ConsumerImpl<>(this,
-                apiConsumer,
-                segmentManager,
+                new SegmentManagerConsumerImpl(name, apiConsumer),
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
@@ -118,8 +112,7 @@ public class SingleSegmentStreamImpl implements Stream {
     
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
         return new ConsumerImpl<>(this,
-                apiConsumer,
-                segmentManager,
+                new SegmentManagerConsumerImpl(name, apiConsumer),
                 s,
                 new PositionImpl(Collections.singletonMap(segmentId, 0L), Collections.emptyMap()),
                 new SingleStreamOrderer<T>(),

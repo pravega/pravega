@@ -49,9 +49,6 @@
         <property name="max" value="4"/>
     </module>
     <module name="StringLiteralEquality"/>
-    <module name="CyclomaticComplexity">
-        <property name="switchBlockAsSingleDecisionPoint" value="true"/>
-    </module>
     
     <!-- style -->
     <module name="DefaultComesLast"/>

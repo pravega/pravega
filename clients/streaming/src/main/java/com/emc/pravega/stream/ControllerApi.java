@@ -62,10 +62,10 @@ public final class ControllerApi {
          * Api to get URI for a given segment Id. This will be called when a pravega host fails
          * to respond for the given segment. The producer can check with controller to find new host
          * which is responsible for the said segment.
-         * @param id
+         * @param segmentId
          * @return
          */
-        CompletableFuture<SegmentUri> getURI(SegmentId id);
+        CompletableFuture<SegmentUri> getURI(String stream, SegmentId segmentId);
     }
 
     /**
@@ -94,10 +94,10 @@ public final class ControllerApi {
          * Api to get URI for a given segment Id. This will be called when a pravega host fails
          * to respond for the given segment. The consumer can check with controller to find new host
          * which is responsible for the said segment.
-         * @param id
+         * @param segmentId
          * @return
          */
-        CompletableFuture<SegmentUri> getURI(SegmentId id);
+        CompletableFuture<SegmentUri> getURI(String stream, SegmentId segmentId);
     }
 
     //Note: this is not a public interface TODO: Set appropriate scope

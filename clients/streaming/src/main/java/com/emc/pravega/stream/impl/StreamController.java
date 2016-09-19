@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.SegmentUri;
+
 public interface StreamController {
 
     /**
@@ -25,6 +27,6 @@ public interface StreamController {
      * The result of this function can be cached until the endpoint is unreachable or indicates it
      * is no longer the owner.
      */
-    String getEndpointForSegment(String segment);
+    SegmentUri getEndpointForSegment(String segment);
     
 }

@@ -150,10 +150,10 @@ public class ApiController implements ControllerApi.Admin, ControllerApi.Consume
     }
 
     @Override
-    public CompletableFuture<SegmentUri> getURI(SegmentId id) {
+    public CompletableFuture<SegmentUri> getURI(String stream, SegmentId id) {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getURI(ModelHelper.decode(id), callback);
+            client.getURI(stream, ModelHelper.decode(id), callback);
             return callback.getResult();
         });
         return callback
