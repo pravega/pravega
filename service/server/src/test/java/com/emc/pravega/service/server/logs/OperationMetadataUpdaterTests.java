@@ -19,13 +19,13 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.MetadataHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
@@ -528,7 +528,7 @@ public class OperationMetadataUpdaterTests {
         MetadataHelpers.assertMetadataEquals("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
-        StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
+        StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, false, new Date()));
         processOperation(mapOp, updater, seqNo::incrementAndGet);
         processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
@@ -756,7 +756,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private StreamSegmentMapOperation createMap(String name) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, new Date()));
+        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, false, new Date()));
     }
 
     private BatchMapOperation createBatchMap(long parentId) {
@@ -764,7 +764,7 @@ public class OperationMetadataUpdaterTests {
     }
 
     private BatchMapOperation createBatchMap(long parentId, String name) {
-        return new BatchMapOperation(parentId, new StreamSegmentInformation(name, SEALED_BATCH_LENGTH, true, false, new Date()));
+        return new BatchMapOperation(parentId, new StreamSegmentInformation(name, SEALED_BATCH_LENGTH, true, false, false, new Date()));
     }
 
     private MetadataCheckpointOperation createMetadataPersisted() {

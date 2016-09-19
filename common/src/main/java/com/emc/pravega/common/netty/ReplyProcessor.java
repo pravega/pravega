@@ -32,6 +32,7 @@ import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
 /**
@@ -55,6 +56,8 @@ public interface ReplyProcessor {
     void segmentRead(SegmentRead segmentRead);
 
     void streamSegmentInfo(StreamSegmentInfo streamInfo);
+    
+    void transactionInfo(TransactionInfo transactionInfo);
 
     void segmentCreated(SegmentCreated segmentCreated);
 

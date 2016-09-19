@@ -31,6 +31,7 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
+import lombok.experimental.Accessors;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.
@@ -544,6 +545,78 @@ public final class WireCommands {
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
             return new StreamSegmentInfo(segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
+        }
+    }
+    
+    @Data
+    public static final class GetTransactionInfo implements Request {
+        final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
+        final String segment;
+        final UUID txid;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.getTransactionInfo(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeLong(txid.getMostSignificantBits());
+            out.writeLong(txid.getLeastSignificantBits());
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            UUID txid = new UUID(in.readLong(), in.readLong());
+            return new GetTransactionInfo(segment, txid);
+        }
+    }
+
+    @Data
+    public static final class TransactionInfo implements Reply {
+        final WireCommandType type = WireCommandType.TRANSACTION_INFO;
+        final String segment;
+        final UUID txid;
+        final String transactionName;
+        @Accessors(fluent = true)
+        final boolean exists;
+        final boolean isSealed;
+        final boolean isDeleted;
+        final boolean isCommitted;
+        final long lastModified;
+        final long segmentLength;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.transactionInfo(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeUTF(segment);
+            out.writeLong(txid.getMostSignificantBits());
+            out.writeLong(txid.getLeastSignificantBits());
+            out.writeUTF(transactionName);
+            out.writeBoolean(exists);
+            out.writeBoolean(isSealed);
+            out.writeBoolean(isDeleted);
+            out.writeBoolean(isCommitted);
+            out.writeLong(lastModified);
+            out.writeLong(segmentLength);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            String segment = in.readUTF();
+            UUID txid = new UUID(in.readLong(), in.readLong());
+            String transactionName = in.readUTF();
+            boolean exists = in.readBoolean();
+            boolean isSealed = in.readBoolean();
+            boolean isDeleted = in.readBoolean();
+            boolean isCommitted = in.readBoolean();
+            long lastModified = in.readLong();
+            long segmentLength = in.readLong();
+            return new TransactionInfo(segment, txid, transactionName, exists, isSealed, isDeleted, isCommitted, lastModified, segmentLength);
         }
     }
 

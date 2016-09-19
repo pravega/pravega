@@ -36,11 +36,13 @@ import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.RetriesExaustedException;
 import com.emc.pravega.stream.ConnectionClosedException;
@@ -220,7 +222,38 @@ public class SingleSegmentStreamControllerImpl implements StreamController {
 
     @Override
     public Status checkTransactionStatus(Stream stream, UUID txId) {
-        throw new NotImplementedException();
+        CompletableFuture<Status> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WrongHost wrongHost) {
+                result.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void transactionInfo(TransactionInfo info) {
+                if (!info.exists()) {
+                    throw new IllegalStateException("This transaction was forgotten about by the server: " + txId);
+                }
+                if (info.isCommitted()) {
+                    result.complete(Status.COMMITTED);
+                } else if (info.isDeleted()) {
+                    result.complete(Status.DROPPED);
+                } else if (info.isSealed()) {
+                    result.complete(Status.SEALED);
+                } else {
+                    result.complete(Status.OPEN);
+                }
+            }
+        };
+        SegmentId segmentId = ((SingleSegmentStreamImpl) stream).getSegmentId();
+        sendRequestOverNewConnection(new GetTransactionInfo(segmentId.getQualifiedName(), txId), replyProcessor);
+        return getAndHandleExceptions(result, RuntimeException::new);
     }
 
     @Override

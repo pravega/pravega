@@ -42,6 +42,7 @@ import com.emc.pravega.common.netty.WireCommands.CreateSegment;
 import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
@@ -52,6 +53,7 @@ import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -189,6 +191,32 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return null;
         }).exceptionally((Throwable e) -> {
             handleException(segmentName, "Get segment info", e);
+            return null;
+        });
+    }
+    
+    @Override
+    public void getTransactionInfo(GetTransactionInfo request) {
+        String batchName = StreamSegmentNameUtils.getBatchNameFromId(request.getSegment(), request.getTxid());
+        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(batchName, TIMEOUT);
+        future.thenApply(properties -> {
+            if (properties != null) {
+                TransactionInfo result = new TransactionInfo(request.getSegment(),
+                        request.getTxid(),
+                        batchName,
+                        true,
+                        properties.isSealed(),
+                        properties.isDeleted(),
+                        properties.isMerged(),
+                        properties.getLastModified().getTime(),
+                        properties.getLength());
+                connection.send(result);
+            } else {
+                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), batchName, false, true, true, false, 0, 0));
+            }
+            return null;
+        }).exceptionally((Throwable e) -> {
+            handleException(batchName, "Get transaction info", e);
             return null;
         });
     }

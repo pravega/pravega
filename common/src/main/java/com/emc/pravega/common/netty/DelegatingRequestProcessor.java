@@ -24,6 +24,7 @@ import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SealSegment;
@@ -56,7 +57,12 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo) {
         getNextRequestProcessor().getStreamSegmentInfo(getStreamInfo);
     }
-
+    
+    @Override
+    public void getTransactionInfo(GetTransactionInfo getTransactionInfo) {
+        getNextRequestProcessor().getTransactionInfo(getTransactionInfo);
+    }
+    
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         getNextRequestProcessor().createSegment(createStreamsSegment);

@@ -32,6 +32,7 @@ import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
 /**
@@ -85,6 +86,11 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     @Override
     public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
         getNextReplyProcessor().streamSegmentInfo(streamInfo);
+    }
+    
+    @Override
+    public void transactionInfo(TransactionInfo transactionInfo) {
+        getNextReplyProcessor().transactionInfo(transactionInfo);
     }
 
     @Override

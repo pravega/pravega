@@ -31,6 +31,7 @@ import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
@@ -49,6 +50,7 @@ import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.google.common.base.Preconditions;
 
@@ -80,6 +82,9 @@ public enum WireCommandType {
 
     GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom),
     STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),
+    
+    GET_TRANSACTION_INFO(10, GetTransactionInfo::readFrom),
+    TRANSACTION_INFO(11, TransactionInfo::readFrom),
 
     CREATE_SEGMENT(20, CreateSegment::readFrom),
     SEGMENT_CREATED(21, SegmentCreated::readFrom),

@@ -24,6 +24,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.MetadataRepository;
@@ -33,7 +34,6 @@ import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.logs.CacheUpdater;
 import com.emc.pravega.service.server.logs.OperationLog;
@@ -206,9 +206,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenApply(streamSegmentId -> {
-                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                    return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(), sm.isDeleted(), new Date());
-                });
+                SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                return new StreamSegmentInformation(streamSegmentName,
+                        sm.getDurableLogLength(),
+                        sm.isSealed(),
+                        sm.isDeleted(),
+                        sm.isMerged(),
+                        new Date());
+            });
     }
 
     @Override

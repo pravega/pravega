@@ -24,6 +24,7 @@ import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
 import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SealSegment;
@@ -57,6 +58,11 @@ public class FailingRequestProcessor implements RequestProcessor {
         throw new IllegalStateException("Unexpected operation");
     }
 
+    @Override
+    public void getTransactionInfo(GetTransactionInfo getTransactionInfo) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         throw new IllegalStateException("Unexpected operation");

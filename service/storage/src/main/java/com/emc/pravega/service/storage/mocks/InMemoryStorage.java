@@ -18,15 +18,6 @@
 
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.BadOffsetException;
-import com.emc.pravega.service.storage.Storage;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,6 +29,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.storage.Storage;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -160,12 +162,14 @@ public class InMemoryStorage implements Storage {
         private final Executor executor;
         private long length;
         private boolean sealed;
+        private boolean merged;
 
         StreamSegmentData(String name, Executor executor) {
             this.name = name;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
+            this.merged = false;
             this.executor = executor;
         }
 
@@ -208,7 +212,7 @@ public class InMemoryStorage implements Storage {
                     }
 
                     this.sealed = true;
-                    return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
+                    return new StreamSegmentInformation(this.name, this.length, this.sealed, this.merged, false, new Date());
                 }
             }, this.executor);
         }
@@ -217,6 +221,7 @@ public class InMemoryStorage implements Storage {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
                     other.sealed = true; // Make sure other is sealed.
+                    other.merged = true;
                     synchronized (this.lock) {
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
@@ -234,7 +239,7 @@ public class InMemoryStorage implements Storage {
         }
 
         CompletableFuture<SegmentProperties> getInfo() {
-            return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date())); //TODO: real modification time
+            return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, this.merged, false, new Date())); //TODO: real modification time
         }
 
         private void ensureAllocated(long startOffset, int length) {
@@ -293,48 +298,4 @@ public class InMemoryStorage implements Storage {
 
     //endregion
 
-    //region StreamSegmentInformation
-
-    private static class StreamSegmentInformation implements SegmentProperties {
-        private final long length;
-        private final boolean sealed;
-        private final boolean deleted;
-        private final Date lastModified;
-        private final String streamSegmentName;
-
-        StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
-            this.length = length;
-            this.sealed = isSealed;
-            this.deleted = isDeleted;
-            this.lastModified = lastModified;
-            this.streamSegmentName = streamSegmentName;
-        }
-
-        @Override
-        public String getName() {
-            return this.streamSegmentName;
-        }
-
-        @Override
-        public boolean isSealed() {
-            return this.sealed;
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return this.deleted;
-        }
-
-        @Override
-        public Date getLastModified() {
-            return this.lastModified;
-        }
-
-        @Override
-        public long getLength() {
-            return this.length;
-        }
-    }
-
-    //endregion
 }
