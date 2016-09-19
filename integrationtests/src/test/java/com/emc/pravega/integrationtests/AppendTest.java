@@ -26,7 +26,10 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.After;
 import org.junit.Before;
@@ -181,12 +184,12 @@ public class AppendTest {
         SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
-        out.flush();
+
         assertEquals(null, ack.get(5, TimeUnit.SECONDS));
     }
 
     @Test
-    public void appendThroughStreamingClient() {
+    public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = 8910;
@@ -200,8 +203,8 @@ public class AppendTest {
         Stream stream = streamManager.createStream(streamName, null);
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        producer.publish("RoutingKey", testString);
-        producer.flush();
+        Future<Void> ack = producer.publish("RoutingKey", testString);
+        assertEquals(null, ack.get(5, TimeUnit.SECONDS));
     }
     
     @Test
