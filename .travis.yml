@@ -4,3 +4,8 @@ jdk:
 env:
   global:
     - GRADLE_OPTS="-Xms128m"
+
+notifications:
+  email:
+    - arvind.kandhare@dell.com
+
