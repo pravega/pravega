@@ -60,12 +60,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -76,6 +78,7 @@ public class StorageWriterTests {
     private static final int SEGMENT_COUNT = 10;
     private static final int BATCHES_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 1000;
+    private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
     private static final int THREAD_POOL_SIZE = 100;
     private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
@@ -156,7 +159,7 @@ public class StorageWriterTests {
 
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        appendData(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
         producingComplete.complete(null);
 
         // We clear up the cache after we have added the operations in the data source - this will cause the writer
@@ -225,7 +228,7 @@ public class StorageWriterTests {
 
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        appendData(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
         producingComplete.complete(null);
 
         byte[] corruptionData = "foo".getBytes();
@@ -255,8 +258,8 @@ public class StorageWriterTests {
     }
 
     /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., badOffset,
-     * but after reconciliation, the data is not corrupt).
+     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., badOffset),
+     * but after reconciliation, the data is not corrupt.
      */
     @Test
     public void testWithStorageRecoverableCorruptionErrors() throws Exception {
@@ -266,10 +269,101 @@ public class StorageWriterTests {
     /**
      * Tests the StorageWriter in a Scenario where it needs to gracefully recover from a Container failure, and not all
      * previously written data has been acknowledged to the DataSource.
+     * General test flow:
+     * 1. Starts a writer, and adds a subset of all operations. All acks to the DataSource are not processed
+     * 2. Stops the writer, adds the remaining data, and restarts the writer (with acks now processing)
+     * 3. Restarts the writer, and waits for it to finish, after which the final data is inspected.
      */
     @Test
     public void testRecovery() throws Exception {
+        // Start a writer, and add all operations, both overlapping the already committed data, and for the new data.
+        // At the end, verify everything is ack-ed and in Storage as it should be.
 
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        context.dataSource.setAckEffective(false); // Disable ack-ing.
+        context.writer.startAsync();
+
+        // Create a bunch of segments and batches.
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
+        ArrayList<Long> batchIds = new ArrayList<>();
+        batchesBySegment.values().forEach(batchIds::addAll);
+
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        CompletableFuture<Void> ackEverything = new CompletableFuture<>();
+        CompletableFuture<Void> producingComplete = new CompletableFuture<>();
+        context.dataSource.setAcknowledgeCallback(args -> {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+                ackEverything.complete(null);
+            }
+        });
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        // Parent segments have 50% of data written
+        appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+
+        List<Long> firstThirdBatches = batchIds.subList(0, batchIds.size() / 3);
+        List<Long> secondThirdBatches = batchIds.subList(batchIds.size() / 3, batchIds.size() * 2 / 3);
+        List<Long> lastThirdBatches = batchIds.subList(batchIds.size() * 2 / 3, batchIds.size());
+
+        // First and second 1/3 of batches have full data.
+        appendDataDepthFirst(firstThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
+        appendDataDepthFirst(secondThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
+
+        // Third 1/3 of batches have 50% of data.
+        appendDataDepthFirst(lastThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+
+        // First 1/3 of batches are merged into parent.
+        sealSegments(firstThirdBatches, context);
+        mergeBatches(firstThirdBatches, segmentContents, context);
+
+        // Second 1/3 of batches are sealed, but not merged into parent.
+        sealSegments(secondThirdBatches, context);
+
+        // Wait for the writer to complete its job.
+        metadataCheckpoint(context);
+        producingComplete.complete(null);
+        ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // At this point the storage should mimic the setup we created above, yet the WriterDataSource still has all the
+        // original operations in place. Stop the writer, add the rest of the operations to the DataSource, then restart the writer.
+        context.writer.stopAsync().awaitTerminated();
+        context.dataSource.setAckEffective(true);
+        CompletableFuture<Void> ackEverything2 = new CompletableFuture<>();
+        CompletableFuture<Void> producingComplete2 = new CompletableFuture<>();
+        context.dataSource.setAcknowledgeCallback(args -> {
+            if (producingComplete2.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+                ackEverything2.complete(null);
+            }
+        });
+
+        // Add the last 50% of data to the parent segments.
+        appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+
+        // Seal & merge second 1/3 of batches.
+        sealSegments(secondThirdBatches, context);
+        mergeBatches(secondThirdBatches, segmentContents, context);
+
+        // Add remaining data, seal & merge last 1/3 of batches.
+        appendDataDepthFirst(lastThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+        sealSegments(lastThirdBatches, context);
+        mergeBatches(lastThirdBatches, segmentContents, context);
+
+        // Seal the parents.
+        sealSegments(segmentIds, context);
+        metadataCheckpoint(context);
+        producingComplete2.complete(null);
+
+        // Restart the writer (restart a new one, to clear out any in-memory state).
+        context.resetWriter();
+        context.writer.startAsync().awaitRunning();
+        ackEverything2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify final output.
+        verifyFinalOutput(segmentContents, batchIds, context);
     }
 
     /**
@@ -302,8 +396,8 @@ public class StorageWriterTests {
 
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        appendData(segmentIds, segmentContents, context);
-        appendData(batchIds, segmentContents, context);
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(batchIds, segmentContents, context);
 
         // Merge batches.
         sealSegments(batchIds, context);
@@ -317,6 +411,13 @@ public class StorageWriterTests {
         // Wait for the writer to complete its job.
         ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
+        // Verify final output.
+        verifyFinalOutput(segmentContents, batchIds, context);
+    }
+
+    //region Helpers
+
+    private void verifyFinalOutput(HashMap<Long, ByteArrayOutputStream> segmentContents, Collection<Long> batchIds, TestContext context) {
         // Verify all batches are deleted.
         for (long batchId : batchIds) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(batchId);
@@ -327,7 +428,6 @@ public class StorageWriterTests {
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
-        // Verify segment contents.
         for (long segmentId : segmentContents.keySet()) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
             Assert.assertNotNull("Setup error: No metadata for segment " + segmentId, metadata);
@@ -347,8 +447,6 @@ public class StorageWriterTests {
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
         }
     }
-
-    //region Helpers
 
     private void mergeBatches(Iterable<Long> batchIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         for (long batchId : batchIds) {
@@ -394,31 +492,60 @@ public class StorageWriterTests {
         }
     }
 
-    private void appendData(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    /**
+     * Appends data, depth-first, by filling up one segment before moving on to another.
+     */
+    private void appendDataDepthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+        appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT, segmentContents, context);
+    }
+
+    /**
+     * Appends data, depth-first, by filling up one segment before moving on to another.
+     */
+    private void appendDataDepthFirst(Collection<Long> segmentIds, Function<Long, Integer> getAppendsPerSegment, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         int writeId = 0;
-        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
-            AppendContext appendContext = new AppendContext(UUID.randomUUID(), i);
-            for (long segmentId : segmentIds) {
-                UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
-                byte[] data = getAppendData(segmentMetadata.getName(), segmentId, i, writeId);
+        for (long segmentId : segmentIds) {
+            UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+            int appendCount = getAppendsPerSegment.apply(segmentId);
+            for (int i = 0; i < appendCount; i++) {
+                appendData(segmentMetadata, i, writeId, segmentContents, context);
                 writeId++;
-
-                // Make sure we increase the DurableLogLength prior to appending; the Writer checks for this.
-                long offset = segmentMetadata.getDurableLogLength();
-                segmentMetadata.setDurableLogLength(offset + data.length);
-                StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, appendContext);
-                op.setStreamSegmentOffset(offset);
-                if (writeId % 2 == 0) {
-                    CacheKey key = new CacheKey(segmentId, offset);
-                    context.cache.insert(key, data);
-                    context.dataSource.add(new CachedStreamSegmentAppendOperation(op, key));
-                } else {
-                    context.dataSource.add(op);
-                }
-
-                recordAppend(segmentId, data, segmentContents);
             }
         }
+    }
+
+    /**
+     * Appends data, round-robin style, one append per segment (for each segment), then back to the beginning.
+     */
+    private void appendDataBreadthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+        int writeId = 0;
+        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+            for (long segmentId : segmentIds) {
+                UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+                appendData(segmentMetadata, i, writeId, segmentContents, context);
+                writeId++;
+            }
+        }
+    }
+
+    private void appendData(UpdateableSegmentMetadata segmentMetadata, int appendId, int writeId, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+        AppendContext appendContext = new AppendContext(UUID.randomUUID(), appendId);
+        byte[] data = getAppendData(segmentMetadata.getName(), segmentMetadata.getId(), appendId, writeId);
+
+        // Make sure we increase the DurableLogLength prior to appending; the Writer checks for this.
+        long offset = segmentMetadata.getDurableLogLength();
+        segmentMetadata.setDurableLogLength(offset + data.length);
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, appendContext);
+        op.setStreamSegmentOffset(offset);
+        if (writeId % 2 == 0) {
+            CacheKey key = new CacheKey(segmentMetadata.getId(), offset);
+            context.cache.insert(key, data);
+            context.dataSource.add(new CachedStreamSegmentAppendOperation(op, key));
+        } else {
+            context.dataSource.add(op);
+        }
+
+        recordAppend(segmentMetadata.getId(), data, segmentContents);
     }
 
     private <T> void recordAppend(T segmentIdentifier, byte[] data, HashMap<T, ByteArrayOutputStream> segmentContents) {
@@ -485,6 +612,7 @@ public class StorageWriterTests {
     }
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
+        // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it being that way.
         return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
@@ -502,18 +630,25 @@ public class StorageWriterTests {
         final TestWriterDataSource dataSource;
         final TestStorage storage;
         final Cache cache;
-        final StorageWriter writer;
+        final WriterConfig config;
+        StorageWriter writer;
 
         TestContext(WriterConfig config) {
             this.executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new TestStorage(new InMemoryStorage(this.executor.get()));
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
+            this.config = config;
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
             this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), dataSourceConfig);
-            this.writer = new StorageWriter(config, this.dataSource, this.storage, this.executor.get());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
+        }
+
+        void resetWriter() {
+            this.writer.close();
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
         }
 
         @Override

@@ -182,7 +182,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private boolean exceedsThresholds() {
         return this.outstandingAppendLength >= this.config.getFlushThresholdBytes()
-                || getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0;
+                || (this.outstandingAppendLength > 0 && getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0);
     }
 
     @Override
