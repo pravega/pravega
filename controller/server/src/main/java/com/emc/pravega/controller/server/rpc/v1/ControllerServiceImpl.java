@@ -18,26 +18,60 @@
 package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentUri;
-import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.controller.stream.api.v1.ConsumerService;
+import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Stream Controller Consumer API server implementation.
+ * Stream controller RPC server implementation
  */
-public class ConsumerServiceImpl implements ConsumerService.Iface {
-
+public class ControllerServiceImpl implements ControllerService.Iface {
+    private ControllerApi.Admin adminApi;
     private ControllerApi.Consumer consumerApi;
+    private ControllerApi.Producer producerApi;
 
-    public ConsumerServiceImpl(ControllerApi.Consumer consumerApi) {
+    public ControllerServiceImpl(ControllerApi.Admin adminApi, ControllerApi.Consumer consumerApi, ControllerApi.Producer producerApi) {
+        this.adminApi = adminApi;
         this.consumerApi = consumerApi;
+        this.producerApi = producerApi;
+    }
+
+    @Override
+    public Status createStream(StreamConfig streamConfig) throws TException {
+        return FutureHelpers.getAndHandleExceptions(adminApi.createStream(ModelHelper.encode(streamConfig)),
+                RuntimeException::new);
+    }
+
+    @Override
+    public Status alterStream(StreamConfig streamConfig) throws TException {
+        //invoke ControllerApi.ApiAdmin.alterStream(...)
+        adminApi.alterStream(null);
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public List<SegmentId> getCurrentSegments(String stream) throws TException {
+        // TODO: fix null pointer warning because of exception = null return scenario
+        return FutureHelpers.getAndHandleExceptions(producerApi.getCurrentSegments(stream), RuntimeException::new)
+                .getSegments()
+                .parallelStream()
+                .map(ModelHelper::decode)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public SegmentUri getURI(SegmentId id) throws TException {
+        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(producerApi.getURI(ModelHelper.encode(id)), RuntimeException::new));
     }
 
     @Override
@@ -59,10 +93,5 @@ public class ConsumerServiceImpl implements ConsumerService.Iface {
                 .stream()
                 .map(ModelHelper::decode)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    public SegmentUri getURI(SegmentId id) throws TException {
-        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(consumerApi.getURI(ModelHelper.encode(id)), RuntimeException::new));
     }
 }

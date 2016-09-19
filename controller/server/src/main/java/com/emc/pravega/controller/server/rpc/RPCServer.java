@@ -19,11 +19,10 @@
 package com.emc.pravega.controller.server.rpc;
 
 
-import com.emc.pravega.controller.stream.api.v1.AdminService;
-import com.emc.pravega.controller.stream.api.v1.ConsumerService;
-import com.emc.pravega.controller.stream.api.v1.ProducerService;
+import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TMultiplexedProcessor;
+import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -44,16 +43,11 @@ import static com.emc.pravega.controller.util.Config.SERVER_WORKER_THREAD_COUNT;
 @Slf4j
 public class RPCServer {
 
-    public static void start(AdminService.Iface adminService, ConsumerService.Iface consumerService, ProducerService.Iface producerService) {
+    public static void start(ControllerService.Iface controllerService) {
         try {
 
-            final TMultiplexedProcessor processor = new TMultiplexedProcessor();
-            processor.registerProcessor("adminService", new AdminService.Processor(adminService));
-            processor.registerProcessor("consumerService", new ConsumerService.Processor(consumerService));
-            processor.registerProcessor("producerService", new ProducerService.Processor(producerService));
-
             Runnable simple = () -> {
-                threadedSelectorServer(processor);
+                threadedSelectorServer(new ControllerService.Processor(controllerService));
             };
 
             new Thread(simple).start();
@@ -74,7 +68,7 @@ public class RPCServer {
         }
     }
 
-    private static void threadedSelectorServer(final TMultiplexedProcessor processor) {
+    private static void threadedSelectorServer(final TProcessor processor) {
         try {
             TNonblockingServerSocket socket = new TNonblockingServerSocket(SERVER_PORT);
 

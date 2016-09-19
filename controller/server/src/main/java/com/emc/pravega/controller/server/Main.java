@@ -18,9 +18,7 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.AdminServiceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ConsumerServiceImpl;
-import com.emc.pravega.controller.server.rpc.v1.ProducerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.server.v1.Api.AdminApiImpl;
 import com.emc.pravega.controller.server.v1.Api.ConsumerApiImpl;
 import com.emc.pravega.controller.server.v1.Api.ProducerApiImpl;
@@ -76,6 +74,6 @@ public class Main {
         //3) start the Server implementations.
         //3.1) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        RPCServer.start(new AdminServiceImpl(adminApi), new ConsumerServiceImpl(consumerApi), new ProducerServiceImpl(producerApi));
+        RPCServer.start(new ControllerServiceImpl(adminApi, consumerApi, producerApi));
     }
 }
