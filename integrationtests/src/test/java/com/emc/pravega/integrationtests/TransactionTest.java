@@ -101,7 +101,7 @@ public class TransactionTest {
         producer.publish(routingKey, nonTxEvent);
         transaction.publish(routingKey, txnEvent);
         transaction.commit();
-     //   producer.publish(routingKey, nonTxEvent);
+        producer.publish(routingKey, nonTxEvent);
         AssertExtensions.assertThrows("Publish not allowed after commit",
                                       () -> transaction.publish(routingKey, txnEvent),
                                       ex -> ex instanceof TxFailedException);
@@ -119,6 +119,6 @@ public class TransactionTest {
         assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
         assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
 
-      //  assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
+        assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
     }
 }
