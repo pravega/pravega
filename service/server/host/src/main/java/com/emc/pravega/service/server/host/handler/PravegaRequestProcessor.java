@@ -273,12 +273,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
         String batchName = StreamSegmentNameUtils.getBatchNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        CompletableFuture<Long> future = segmentStore.mergeBatch(batchName, TIMEOUT);
-        future.thenApply((Long offset) -> {
-            connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
-            return null;
+        segmentStore.sealStreamSegment(batchName, TIMEOUT).thenApply((Long length)-> {
+             segmentStore.mergeBatch(batchName, TIMEOUT).thenApply((Long offset) -> {
+                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
+                 return null;
+             }).exceptionally((Throwable e) -> {
+                 handleException(batchName, "Commit transaction", e);
+                 return null;
+             });
+             return null;
         }).exceptionally((Throwable e) -> {
-            handleException(batchName, "Commit transaction", e);
+          handleException(batchName, "Commit transaction", e);
             return null;
         });
     }
