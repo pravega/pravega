@@ -47,6 +47,8 @@ import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
@@ -186,6 +188,32 @@ public class ReadTest {
         Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
         producer.publish("RoutingKey", testString);
         producer.flush();
+        
+        @Cleanup
+        Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig());
+        String read = consumer.getNextEvent(5000);
+        assertEquals(testString, read);
+    }
+    
+    @Test
+    public void readDataWrittenTransactionally() throws TxFailedException {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        int port = 8910;
+        String testString = "Hello world\n";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
+        SingleSegmentStreamImpl stream = (SingleSegmentStreamImpl) streamManager.createStream(streamName, null);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
+        Transaction<String> transaction = producer.startTransaction(60000);
+        transaction.publish("RoutingKey", testString);
+        transaction.commit();
         
         @Cleanup
         Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig());
