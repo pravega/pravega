@@ -20,6 +20,6 @@ Pravega is designed to have no acceptable limitation on number of streams, segme
 ### **Resilient to Failures**
 Pravega self-detects failures and self-recovers from these cases, ensuring continuous flow of stream required by business continuity.
 
-**A small checkin to kick off Travis build.
+
 ### **Global**
 Pravega replicates streams globally, enabling allowing producers and consumers access streams across the globe and fail over among sites for high availability in the event of site wide disaster.
