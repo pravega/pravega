@@ -59,6 +59,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         channel.set(null);
+        processor.connectionDropped();
         super.channelUnregistered(ctx);
     }
 
