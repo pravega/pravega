@@ -131,7 +131,26 @@ public class SingleSegmentStreamControllerImpl implements StreamController {
 
     @Override
     public SegmentOutputStream openTransactionForAppending(String segment, UUID txId) {
-        throw new NotImplementedException();
+        CompletableFuture<String> name = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                name.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WrongHost wrongHost) {
+                name.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void transactionInfo(TransactionInfo info) {
+               name.complete(info.getTransactionName());
+            }
+        };
+        sendRequestOverNewConnection(new GetTransactionInfo(segment, txId), replyProcessor);
+        return new SegmentOutputStreamImpl(this, connectionFactory, UUID.randomUUID(), getAndHandleExceptions(name, RuntimeException::new));
     }
 
     @Override
