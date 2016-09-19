@@ -67,6 +67,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
+    private static final CompletableFuture<Void> NULL_CALLBACK = CompletableFuture.completedFuture(null);
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     private final Router router;
     private final ConnectionFactory connectionFactory;
@@ -174,7 +175,11 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
                 eventNumber++;
                 Append append = new Append(segment, connectionId, eventNumber, Unpooled.wrappedBuffer(buff));
                 inflightEmpty.reset();
-                inflight.put(append, callback);
+                if (callback == null) {                    
+                    inflight.put(append, NULL_CALLBACK);
+                } else {
+                    inflight.put(append, callback);                    
+                }
                 return append;
             }
         }
@@ -266,9 +271,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
 
         private void ackUpTo(long ackLevel) {
             for (CompletableFuture<Void> toAck : state.removeInflightBelow(ackLevel)) {
-                if (toAck != null) {
-                    toAck.complete(null);
-                }
+                toAck.complete(null);
             }
         }
 
