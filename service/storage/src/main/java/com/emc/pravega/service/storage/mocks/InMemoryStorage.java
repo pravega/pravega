@@ -46,7 +46,9 @@ import java.util.concurrent.ScheduledExecutorService;
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorage implements Storage {
-    private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> sizeTriggers;
+    //region Members
+
+    private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> offsetTriggers;
     private final HashMap<String, CompletableFuture<Void>> sealTriggers;
     @GuardedBy("lock")
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
@@ -55,6 +57,10 @@ public class InMemoryStorage implements Storage {
     private boolean closed;
     private boolean ownsExecutorService;
 
+    //endregion
+
+    //region Constructor
+
     public InMemoryStorage() {
         this(Executors.newScheduledThreadPool(1));
         this.ownsExecutorService = true;
@@ -62,9 +68,11 @@ public class InMemoryStorage implements Storage {
 
     public InMemoryStorage(ScheduledExecutorService executor) {
         this.executor = executor;
-        this.sizeTriggers = new HashMap<>();
+        this.offsetTriggers = new HashMap<>();
         this.sealTriggers = new HashMap<>();
     }
+
+    //endregion
 
     //region AutoCloseable Implementation
 
@@ -105,7 +113,7 @@ public class InMemoryStorage implements Storage {
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
                 .thenCompose(ssd -> ssd.write(offset, data, length));
-        result.thenRunAsync(() -> triggerBySizeIfNecessary(streamSegmentName, offset + length), this.executor);
+        result.thenRunAsync(() -> fireOffsetTriggerIfNecessary(streamSegmentName, offset + length), this.executor);
         return result;
     }
 
@@ -119,7 +127,7 @@ public class InMemoryStorage implements Storage {
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         CompletableFuture<SegmentProperties> result = getStreamSegmentData(streamSegmentName)
                 .thenCompose(StreamSegmentData::markSealed);
-        result.thenRunAsync(() -> triggerBySealIfNecessary(streamSegmentName));
+        result.thenRunAsync(() -> fireSealTriggersIfNecessary(streamSegmentName));
         return result;
     }
 
@@ -137,8 +145,8 @@ public class InMemoryStorage implements Storage {
                                                           .thenCompose(v -> targetData.join().concat(sourceData.join()))
                                                           .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
         result.thenRunAsync(() -> {
-            triggerBySizeIfNecessary(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
-            triggerBySealIfNecessary(sourceStreamSegmentName);
+            fireOffsetTriggerIfNecessary(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
+            fireSealTriggersIfNecessary(sourceStreamSegmentName);
         }, this.executor);
         return result;
     }
@@ -189,16 +197,16 @@ public class InMemoryStorage implements Storage {
         return getStreamSegmentInfo(segmentName, timeout)
                 .thenCompose(sp -> {
                     CompletableFuture<Void> result;
-                    synchronized (this.sizeTriggers) {
+                    synchronized (this.offsetTriggers) {
                         if (sp.getLength() >= offset) {
                             // We already exceeded this offset.
                             return CompletableFuture.completedFuture(null);
                         }
 
-                        HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.sizeTriggers.getOrDefault(segmentName, null);
+                        HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
                         if (segmentTriggers == null) {
                             segmentTriggers = new HashMap<>();
-                            this.sizeTriggers.put(segmentName, segmentTriggers);
+                            this.offsetTriggers.put(segmentName, segmentTriggers);
                         }
 
                         result = segmentTriggers.getOrDefault(offset, null);
@@ -213,7 +221,7 @@ public class InMemoryStorage implements Storage {
                 // Do the check again as a write could have happened in between the previous call to getStreamSegmentInfo
                 // and the trigger registration.
                 .thenCompose(v -> getStreamSegmentInfo(segmentName, timeout))
-                .thenAccept(sp -> triggerBySizeIfNecessary(segmentName, sp.getLength()));
+                .thenAccept(sp -> fireOffsetTriggerIfNecessary(segmentName, sp.getLength()));
     }
 
     /**
@@ -246,16 +254,16 @@ public class InMemoryStorage implements Storage {
                 // Do the check again as a seal could have happened in between the previous call to getStreamSegmentInfo
                 // and the trigger registration.
                 .thenCompose(v -> getStreamSegmentInfo(segmentName, timeout))
-                .thenAccept(sp -> triggerBySealIfNecessary(segmentName));
+                .thenAccept(sp -> fireSealTriggersIfNecessary(segmentName));
     }
 
-    private void triggerBySizeIfNecessary(String segmentName, long currentSize) {
+    private void fireOffsetTriggerIfNecessary(String segmentName, long currentOffset) {
         HashMap<Long, CompletableFuture<Void>> toTrigger = new HashMap<>();
-        synchronized (this.sizeTriggers) {
-            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.sizeTriggers.getOrDefault(segmentName, null);
+        synchronized (this.offsetTriggers) {
+            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
             if (segmentTriggers != null) {
                 segmentTriggers.entrySet().forEach(e -> {
-                    if (e.getKey() <= currentSize) {
+                    if (e.getKey() <= currentOffset) {
                         toTrigger.put(e.getKey(), e.getValue());
                     }
                 });
@@ -265,7 +273,7 @@ public class InMemoryStorage implements Storage {
         toTrigger.values().forEach(c -> c.complete(null));
     }
 
-    private void triggerBySealIfNecessary(String segmentName) {
+    private void fireSealTriggersIfNecessary(String segmentName) {
         CompletableFuture<Void> toTrigger;
         synchronized (this.sealTriggers) {
             toTrigger = this.sealTriggers.getOrDefault(segmentName, null);
@@ -279,13 +287,13 @@ public class InMemoryStorage implements Storage {
     private CompletableFuture<Void> createSizeTrigger(String segmentName, long minSize, Duration timeout) {
         CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, this.executor);
         result.whenComplete((r, ex) -> {
-            synchronized (this.sizeTriggers) {
-                HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.sizeTriggers.getOrDefault(segmentName, null);
+            synchronized (this.offsetTriggers) {
+                HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
                 if (segmentTriggers != null) {
                     segmentTriggers.remove(minSize);
 
                     if (segmentTriggers.size() == 0) {
-                        this.sizeTriggers.remove(segmentName);
+                        this.offsetTriggers.remove(segmentName);
                     }
                 }
             }
@@ -373,7 +381,7 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> concat(StreamSegmentData other) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
-                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.");
+                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
                     synchronized (this.lock) {
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;

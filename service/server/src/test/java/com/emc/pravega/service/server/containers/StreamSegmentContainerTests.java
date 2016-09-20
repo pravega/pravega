@@ -437,8 +437,14 @@ public class StreamSegmentContainerTests {
             }
         }
 
+        FutureHelpers.allOf(appendFutures).join();
+
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
+
+        // 6. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
     }
@@ -547,6 +553,10 @@ public class StreamSegmentContainerTests {
             Assert.assertEquals("Unexpected read length for segment " + segmentName, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentName, expectedData, 0, actualData, 0, actualData.length);
         }
+
+        // 6. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
     }
 
     private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
