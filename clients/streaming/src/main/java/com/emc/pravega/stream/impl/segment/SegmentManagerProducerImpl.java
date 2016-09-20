@@ -84,11 +84,6 @@ public class SegmentManagerProducerImpl implements SegmentManagerProducer, Strea
 
     @Override
     public SegmentUri getEndpointForSegment(String segment) {
-        return FutureHelpers.getAndHandleExceptions(apiProducer.getURI(stream, getSegmentIdFromName(segment)), RuntimeException::new);
-    }
-
-    private SegmentId getSegmentIdFromName(String segment) {
-        // TODO: Shivesh
-        return null;
+        return FutureHelpers.getAndHandleExceptions(apiProducer.getURI(stream, SegmentId.getSegmentNumberFromName(segment)), RuntimeException::new);
     }
 }

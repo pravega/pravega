@@ -62,4 +62,10 @@ public class SegmentId {
         return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && name.equals(other.name)
                 && previous == other.number;
     }
+
+    public static int getSegmentNumberFromName(String segment) {
+        String[] tokens = segment.split("/");
+        assert tokens.length >= 3;
+        return Integer.parseInt(tokens[2]);
+    }
 }
