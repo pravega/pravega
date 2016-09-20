@@ -47,7 +47,7 @@ public class ProducerApiImpl implements ControllerApi.Producer {
     }
 
     @Override
-    public CompletableFuture<SegmentUri> getURI(String stream, int id) {
-        return CompletableFuture.supplyAsync(() -> SegmentHelper.getSegmentUri(stream, id, hostStore));
+    public CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber) {
+        return CompletableFuture.supplyAsync(() -> SegmentHelper.getSegmentUri(stream, segmentNumber, hostStore));
     }
 }

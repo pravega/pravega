@@ -84,7 +84,7 @@ public class MockController {
         }
 
         @Override
-        public CompletableFuture<SegmentUri> getURI(String stream, int id) {
+        public CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber) {
             return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
         }
     }
