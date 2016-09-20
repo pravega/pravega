@@ -21,13 +21,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.nio.ByteBuffer;
 
-import org.junit.ClassRule;
 import org.junit.Test;
 
 import com.emc.pravega.common.netty.ClientConnection;
@@ -46,9 +44,10 @@ public class AsyncSegmentInputStreamTest {
     public void testRetry() throws ConnectionFailedException {
         String segment = "testRetry";
         String endpoint = "localhost";
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        int port = 1234;
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory , connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -58,7 +57,7 @@ public class AsyncSegmentInputStreamTest {
         verify(c).close();
         assertFalse(readFuture.isSuccess());
         SegmentRead segmentRead = new SegmentRead(segment, 1234, false, false, ByteBuffer.allocate(0));
-        SegmentRead result = Async.testBlocking(() -> in.getResult(readFuture) , () -> {
+        SegmentRead result = Async.testBlocking(() -> in.getResult(readFuture), () -> {
             processor.segmentRead(segmentRead);
         });
         verify(c).send(new ReadSegment(segment, 1234, 5678));
@@ -66,14 +65,16 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(segmentRead, result);
         verifyNoMoreInteractions(c);
     }
-    
+
     @Test
     public void testRead() throws ConnectionFailedException {
         String segment = "testRetry";
         String endpoint = "localhost";
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        int port = 1234;
+
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory , connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -85,14 +86,15 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(segmentRead, in.getResult(readFuture));
         verifyNoMoreInteractions(c);
     }
-    
+
     @Test
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         String segment = "testRetry";
         String endpoint = "localhost";
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
+        int port = 1234;
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory , connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -102,5 +104,5 @@ public class AsyncSegmentInputStreamTest {
         assertFalse(readFuture.isSuccess());
         verifyNoMoreInteractions(c);
     }
-    
+
 }

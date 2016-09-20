@@ -35,7 +35,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentManager;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducer;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
@@ -52,14 +52,14 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Object lock = new Object();
     private final Stream stream;
     private final Serializer<Type> serializer;
-    private final SegmentManager segmentManager;
+    private final SegmentManagerProducer segmentManager;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
     @GuardedBy("lock")
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(Stream stream, SegmentManager segmentManager, EventRouter router, Serializer<Type> serializer,
+    ProducerImpl(Stream stream, SegmentManagerProducer segmentManager, EventRouter router, Serializer<Type> serializer,
             ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(router);

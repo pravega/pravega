@@ -40,8 +40,8 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
      * Reads from the Segment at the specified offset asynchronously.
      * 
      * 
-     * @param Offset The offset in the segment to read from
-     * @param Length The suggested number of bytes to read. (Note the result may contain either more or less than this
+     * @param offset The offset in the segment to read from
+     * @param length The suggested number of bytes to read. (Note the result may contain either more or less than this
      *            value.)
      * @return A future for the result of the read call. The result can be obtained by calling {@link #getResult(ReadFuture)}
      */
