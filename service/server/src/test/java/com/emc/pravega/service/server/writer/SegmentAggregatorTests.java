@@ -1210,7 +1210,7 @@ public class SegmentAggregatorTests {
         }
     }
 
-    private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context){
+    private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context) {
         byte[] expectedData = parentData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
         long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
