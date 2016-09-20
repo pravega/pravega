@@ -194,7 +194,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void commit() throws TxFailedException {
-            Preconditions.checkState(!sealed.get());
+            checkOpen();
             flush();
             streamController.commitTransaction(stream, txId);
             sealed.set(true);

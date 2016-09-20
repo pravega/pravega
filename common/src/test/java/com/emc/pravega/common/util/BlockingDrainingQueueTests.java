@@ -108,10 +108,7 @@ public class BlockingDrainingQueueTests {
         List<Integer> queueContents = queue.close();
 
         // Verify result.
-        AssertExtensions.assertThrows(
-                "Future was not cancelled with the correct exception.",
-                resultSet::join,
-                ex -> ex instanceof InterruptedException);
+        AssertExtensions.assertThrows(InterruptedException.class, resultSet::join);
 
         Assert.assertNull("Queue returned an item even if it got closed.", result.get());
         Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());

@@ -263,10 +263,7 @@ public class ByteArraySegmentTests {
     }
 
     private void checkReadOnlyException(String methodName, AssertExtensions.RunnableWithException code) {
-        AssertExtensions.assertThrows(
-                methodName + " did not throw the expected exception while in read-only mode.",
-                code,
-                ex -> ex instanceof IllegalStateException);
+        AssertExtensions.assertThrows(IllegalStateException.class, code);
     }
 
     private byte[] createFormattedBuffer() {

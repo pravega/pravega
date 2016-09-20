@@ -34,6 +34,24 @@ import java.util.function.Supplier;
  * Additional Assert Methods that are useful during testing.
  */
 public class AssertExtensions {
+    
+    
+    /**
+     * Asserts that an exception of the Type provided is thrown.
+     */
+    public static void assertThrows(Class<? extends Exception> type, RunnableWithException run) {
+        try {
+            run.run();
+            Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+        } catch (Exception e) {
+            if (!type.isAssignableFrom(e.getClass())) {
+                throw new RuntimeException(
+                        "Exception of the wrong type. Was expecting " + type + " but got: " + e.getClass().getName(),
+                        e);
+            }
+        }
+    }
+    
     /**
      * Asserts that a function throws an expected exception.
      *

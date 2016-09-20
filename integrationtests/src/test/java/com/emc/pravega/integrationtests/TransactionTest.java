@@ -102,9 +102,8 @@ public class TransactionTest {
         transaction.publish(routingKey, txnEvent);
         transaction.commit();
         producer.publish(routingKey, nonTxEvent);
-        AssertExtensions.assertThrows("Publish not allowed after commit",
-                                      () -> transaction.publish(routingKey, txnEvent),
-                                      ex -> ex instanceof TxFailedException);
+        AssertExtensions.assertThrows(TxFailedException.class,
+                                      () -> transaction.publish(routingKey, txnEvent));
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig());
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
@@ -120,5 +119,58 @@ public class TransactionTest {
         assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
 
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
+    }
+    
+    @Test
+    public void testDoubleCommit() throws TxFailedException {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        int port = 8910;
+        String event = "Event\n";
+        String routingKey = "RoutingKey";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
+        SingleSegmentStreamImpl stream = (SingleSegmentStreamImpl) streamManager.createStream(streamName, null);
+        @Cleanup
+        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Transaction<String> transaction = producer.startTransaction(60000);
+        transaction.publish(routingKey, event);
+        transaction.commit();
+        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
+    }
+    
+    @Test
+    public void testDrop() throws TxFailedException {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        int port = 8910;
+        String txnEvent = "TXN Event\n";
+        String nonTxEvent = "Non-TX Event\n";
+        String routingKey = "RoutingKey";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
+        SingleSegmentStreamImpl stream = (SingleSegmentStreamImpl) streamManager.createStream(streamName, null);
+        @Cleanup
+        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        Transaction<String> transaction = producer.startTransaction(60000);
+        transaction.publish(routingKey, txnEvent);
+        transaction.flush();
+        transaction.drop();
+        transaction.drop();
+        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.publish(routingKey, txnEvent));
+        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
+        
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig());
+        producer.publish(routingKey, nonTxEvent);
+        producer.flush();
+        assertEquals(nonTxEvent, consumer.getNextEvent(1500));
     }
 }

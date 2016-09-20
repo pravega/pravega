@@ -296,7 +296,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
             return null;
         }).exceptionally((Throwable e) -> {
-            handleException(batchName, "Drop transaction", e);
+            if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
+                connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+            } else {
+                handleException(batchName, "Drop transaction", e);
+            }
             return null;
         });
     }
