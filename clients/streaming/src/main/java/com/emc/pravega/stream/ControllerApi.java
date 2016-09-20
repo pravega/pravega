@@ -65,7 +65,7 @@ public final class ControllerApi {
          * @param segmentId
          * @return
          */
-        CompletableFuture<SegmentUri> getURI(String stream, SegmentId segmentId);
+        CompletableFuture<SegmentUri> getURI(String stream, int segmentId);
     }
 
     /**
@@ -97,7 +97,7 @@ public final class ControllerApi {
          * @param segmentId
          * @return
          */
-        CompletableFuture<SegmentUri> getURI(String stream, SegmentId segmentId);
+        CompletableFuture<SegmentUri> getURI(String stream, int segmentId);
     }
 
     //Note: this is not a public interface TODO: Set appropriate scope

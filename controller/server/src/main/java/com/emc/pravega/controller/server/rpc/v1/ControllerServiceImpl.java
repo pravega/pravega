@@ -70,8 +70,8 @@ public class ControllerServiceImpl implements ControllerService.Iface {
     }
 
     @Override
-    public SegmentUri getURI(String stream, SegmentId id) throws TException {
-        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(producerApi.getURI(stream, ModelHelper.encode(id)), RuntimeException::new));
+    public SegmentUri getURI(String stream, int segmentNumber) throws TException {
+        return ModelHelper.decode(FutureHelpers.getAndHandleExceptions(producerApi.getURI(stream, segmentNumber), RuntimeException::new));
     }
 
     @Override

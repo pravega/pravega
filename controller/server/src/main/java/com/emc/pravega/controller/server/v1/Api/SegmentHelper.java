@@ -39,8 +39,4 @@ public class SegmentHelper {
         Host host = hostStore.getHostForContainer(container);
         return new SegmentUri(host.getIpAddr(), host.getPort());
     }
-
-    public static SegmentUri getSegmentUri(String stream, SegmentId id, HostControllerStore hostStore) {
-        return getSegmentUri(stream, id.getNumber(), hostStore);
-    }
 }

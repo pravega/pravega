@@ -64,7 +64,7 @@ public class AdminApiImpl implements ControllerApi.Admin {
     public void notifyNewSegment(String stream, int segmentNumber) {
         // what is previous segment id? There could be multiple previous in case of merge
         SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, -1);
-        SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId, hostStore);
+        SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId.getNumber(), hostStore);
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails

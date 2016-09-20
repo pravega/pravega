@@ -23,7 +23,6 @@ import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
@@ -150,10 +149,10 @@ public class ApiController implements ControllerApi.Admin, ControllerApi.Consume
     }
 
     @Override
-    public CompletableFuture<SegmentUri> getURI(String stream, SegmentId id) {
+    public CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber) {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getURI(stream, ModelHelper.decode(id), callback);
+            client.getURI(stream, segmentNumber, callback);
             return callback.getResult();
         });
         return callback

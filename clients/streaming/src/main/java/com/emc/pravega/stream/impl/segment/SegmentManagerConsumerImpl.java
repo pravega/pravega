@@ -53,11 +53,6 @@ public class SegmentManagerConsumerImpl implements SegmentManagerConsumer, Strea
 
     @Override
     public SegmentUri getEndpointForSegment(String segment) {
-        return FutureHelpers.getAndHandleExceptions(apiConsumer.getURI(stream, getSegmentIdFromName(segment)), RuntimeException::new);
-    }
-
-    private SegmentId getSegmentIdFromName(String segment) {
-        // TODO: Shivesh
-        return null;
+        return FutureHelpers.getAndHandleExceptions(apiConsumer.getURI(stream, SegmentId.getSegmentNumberFromName(segment)), RuntimeException::new);
     }
 }
