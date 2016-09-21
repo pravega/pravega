@@ -338,10 +338,11 @@ public class StreamSegmentContainerMetadataTests {
         return "Segment" + id;
     }
 
-    private static class TestLogAddress extends LogAddress{
+    private static class TestLogAddress extends LogAddress {
         TestLogAddress(long sequence) {
             super(sequence);
         }
+
         @Override
         public int hashCode() {
             return Long.hashCode(getSequence());

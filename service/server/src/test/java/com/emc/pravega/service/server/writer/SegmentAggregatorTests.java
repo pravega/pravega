@@ -736,6 +736,7 @@ public class SegmentAggregatorTests {
      * 8. Verify the Parent Segment has all the data (from itself and its batches), in the correct order.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFlushMerge() throws Exception {
         final int appendCount = 100; // This is number of appends per Segment/Batch - there will be a lot of appends here.
         final WriterConfig config = ConfigHelpers.createWriterConfig(
@@ -957,6 +958,7 @@ public class SegmentAggregatorTests {
      * in a recovery situation, where we committed the data but did not properly ack/truncate it from the DataSource.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testRecovery() throws Exception {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 100;
