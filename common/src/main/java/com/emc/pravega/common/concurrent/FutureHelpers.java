@@ -42,6 +42,18 @@ import java.util.stream.Collectors;
 public final class FutureHelpers {
 
     /**
+     * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
+     */
+    public static <T> boolean await(CompletableFuture<T> f) {
+        try {
+            Exceptions.handleInterrupted(() -> f.get());
+            return true;
+        } catch (ExecutionException e) {
+            return false;
+        }
+    }
+    
+    /**
      * Returns true if the future is done and successful
      */
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
