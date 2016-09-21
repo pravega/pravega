@@ -42,7 +42,8 @@ public final class ServiceStarter {
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
-        this.serviceBuilder = new DistributedLogServiceBuilder(this.serviceConfig);
+        this.serviceBuilder = new HDFSServicebuilder(this.serviceConfig);
+        //this.serviceBuilder = new DistributedLogServiceBuilder(this.serviceConfig);
         //this.serviceBuilder = new InMemoryServiceBuilder(this.serviceConfig);
     }
 
