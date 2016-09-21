@@ -24,6 +24,7 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,7 +55,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
     @GuardedBy("lock")
-    private final TreeMap<Long, Long> truncationMarkers;
+    private final TreeMap<Long, LogAddress> truncationMarkers;
     @GuardedBy("lock")
     private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
@@ -258,11 +259,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region TruncationMarkerRepository Implementation
 
     @Override
-    public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+    public void recordTruncationMarker(long operationSequenceNumber, LogAddress address) {
         Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
-        Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
+        Preconditions.checkNotNull(address, "address");
         synchronized (this.truncationMarkers) {
-            this.truncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+            this.truncationMarkers.put(operationSequenceNumber, address);
         }
     }
 
@@ -277,18 +278,18 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             // Remove Truncation points
             toRemove.clear();
             toRemove.addAll(this.truncationPoints.headSet(upToOperationSequenceNumber, true));
-            toRemove.forEach(this.truncationPoints::remove);
+            this.truncationPoints.removeAll(toRemove);
         }
     }
 
     @Override
-    public long getClosestTruncationMarker(long operationSequenceNumber) {
-        Map.Entry<Long, Long> result;
+    public LogAddress getClosestTruncationMarker(long operationSequenceNumber) {
+        Map.Entry<Long, LogAddress> result;
         synchronized (this.truncationMarkers) {
             result = this.truncationMarkers.floorEntry(operationSequenceNumber);
         }
 
-        return result == null ? -1 : result.getValue();
+        return result == null ? null : result.getValue();
     }
 
     @Override

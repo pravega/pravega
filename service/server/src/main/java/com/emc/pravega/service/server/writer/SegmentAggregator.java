@@ -215,44 +215,44 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         return this.storage
                 .getStreamSegmentInfo(this.metadata.getName(), timeout)
-                .handle((segmentInfo, ex) -> {
-                    if (ex != null) {
-                        ex = ExceptionHelpers.getRealException(ex);
-                        if (ex instanceof StreamSegmentNotExistsException) {
-                            // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
-                            // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
-                            // * We processed a BatchMergeOperation but did not have a chance to ack/truncate the DataSource
-                            this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
-                            log.warn("{}: Segment does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, ex);
-                        } else {
-                            // Other kind of error - re-throw.
-                            throw new CompletionException(ex);
+                .thenAccept(segmentInfo -> {
+                    // Check & Update StorageLength in metadata.
+                    if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
+                        if (this.metadata.getStorageLength() >= 0) {
+                            // Only log warning if the StorageLength has actually been initialized, but is different.
+                            log.warn("{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one ({}) - updating metadata.", this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
                         }
+
+                        // It is very important to keep this value up-to-date and correct.
+                        this.metadata.setStorageLength(segmentInfo.getLength());
+                    }
+
+                    // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
+                    if (segmentInfo.isSealed()) {
+                        if (!this.metadata.isSealed()) {
+                            throw new RuntimeStreamingException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
+                        }
+
+                        if (!this.metadata.isSealedInStorage()) {
+                            this.metadata.markSealedInStorage();
+                            log.warn("{}: Segment is sealed in Storage but metadata does not reflect that - updating metadata.", this.traceObjectId, segmentInfo.getLength());
+                        }
+                    }
+
+                    log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
+                    this.isInitialized = true;
+                })
+                .exceptionally(ex -> {
+                    ex = ExceptionHelpers.getRealException(ex);
+                    if (ex instanceof StreamSegmentNotExistsException) {
+                        // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
+                        // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
+                        // * We processed a BatchMergeOperation but did not have a chance to ack/truncate the DataSource
+                        this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
+                        log.warn("{}: Segment does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, ex);
                     } else {
-                        // Check & Update StorageLength in metadata.
-                        if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
-                            if (this.metadata.getStorageLength() >= 0) {
-                                // Only log warning if the StorageLength has actually been initialized, but is different.
-                                log.warn("{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one ({}) - updating metadata.", this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
-                            }
-
-                            // It is very important to keep this value up-to-date and correct.
-                            this.metadata.setStorageLength(segmentInfo.getLength());
-                        }
-
-                        // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
-                        if (segmentInfo.isSealed()) {
-                            if (!this.metadata.isSealed()) {
-                                throw new RuntimeStreamingException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
-                            }
-
-                            if (!this.metadata.isSealedInStorage()) {
-                                this.metadata.markSealedInStorage();
-                                log.warn("{}: Segment is sealed in Storage but metadata does not reflect that - updating metadata.", this.traceObjectId, segmentInfo.getLength());
-                            }
-                        }
-
-                        log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
+                        // Other kind of error - re-throw.
+                        throw new CompletionException(ex);
                     }
 
                     this.isInitialized = true;
@@ -338,7 +338,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 // Otherwise, just flush the excess as long as we have something to flush.
                 return flushExcess(timer);
             }
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             return FutureHelpers.failedFuture(ex);
         }
     }
@@ -408,22 +408,17 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return this.storage
                 .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getTotalLength(), timeout)
                 .thenApply(v -> updateStatePostFlush(flushArgs))
-                .handle((r, ex) -> {
-                    if (ex != null) {
-                        if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
-                            // This is a bad one. We attempted to write at an offset that already contained other data.
-                            // TODO: when we implement BadOffset Reconciliation, consider starting from here.
-                            ex = new DataCorruptionException(String.format(
-                                    "Attempted to write at offset %d that is not the end of the segment in storage (Segment=%s).",
-                                    this.metadata.getStorageLength(), this.metadata.getName()), ex);
-                        }
-
-                        // Rethrow all exceptions.
-                        throw new CompletionException(ex);
+                .exceptionally(ex -> {
+                    if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
+                        // This is a bad one. We attempted to write at an offset that already contained other data.
+                        // TODO: when we implement BadOffset Reconciliation, consider starting from here.
+                        ex = new DataCorruptionException(String.format(
+                                "Attempted to write at offset %d that is not the end of the segment in storage (Segment=%s).",
+                                this.metadata.getStorageLength(), this.metadata.getName()), ex);
                     }
 
-                    // All is good - return the result.
-                    return r;
+                    // Rethrow all exceptions.
+                    throw new CompletionException(ex);
                 });
     }
 

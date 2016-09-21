@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
@@ -108,7 +107,7 @@ public class SegmentAggregatorTests {
         AssertExtensions.assertThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
                 () -> context.batchesAggregators[1].initialize(TIMEOUT),
-                ex -> ex instanceof RuntimeStreamingException && ex.getCause() instanceof DataCorruptionException);
+                ex -> ex instanceof DataCorruptionException);
 
         // Check behavior for already-sealed segments (in storage, in metadata, but metadata does not reflect Sealed in storage.)
         context.storage.create(context.batchesAggregators[2].getMetadata().getName(), TIMEOUT).join();

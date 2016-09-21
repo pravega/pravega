@@ -24,6 +24,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 
 import java.io.InputStream;
@@ -81,12 +82,12 @@ public class NoOpDataLogServiceBuilder extends InMemoryServiceBuilder {
         }
 
         @Override
-        public CompletableFuture<Long> append(InputStream data, Duration timeout) {
-            return CompletableFuture.completedFuture(this.currentOffset.incrementAndGet());
+        public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
+            return CompletableFuture.completedFuture(new NoOpLogAddress(this.currentOffset.incrementAndGet()));
         }
 
         @Override
-        public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
+        public CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout) {
             return CompletableFuture.completedFuture(true);
         }
 
@@ -108,6 +109,12 @@ public class NoOpDataLogServiceBuilder extends InMemoryServiceBuilder {
         @Override
         public void close() {
             // Nothing to do.
+        }
+
+        private static class NoOpLogAddress extends LogAddress {
+            public NoOpLogAddress(long sequence) {
+                super(sequence);
+            }
         }
     }
 

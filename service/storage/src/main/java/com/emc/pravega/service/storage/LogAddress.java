@@ -16,15 +16,34 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
-
-import com.google.common.util.concurrent.Service;
+package com.emc.pravega.service.storage;
 
 /**
- * Defines a component that pulls data from an OperationLog and writes it to a Storage. This is a background service that
- * does not expose any APIs, except for those controlling its lifecycle.
+ * Represents the base for an addressing scheme inside a DurableDataLog. This can be used for accurately locating where
+ * DataFrames are stored inside a DurableDataLog.
+ * <p/>
+ * Subclasses would be specific to DurableDataLog implementations.
  */
-public interface Writer extends Service, AutoCloseable {
+public abstract class LogAddress {
+    private final long sequence;
+
+    /**
+     * Creates a new instance of the LogAddress class.
+     * @param sequence The sequence of the address (location).
+     */
+    public LogAddress(long sequence) {
+        this.sequence = sequence;
+    }
+
+    /**
+     * Gets a value indicating the Sequence of the address (location).
+     */
+    public long getSequence() {
+        return this.sequence;
+    }
+
     @Override
-    void close();
+    public String toString() {
+        return String.format("Sequence = %d", this.sequence);
+    }
 }

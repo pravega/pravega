@@ -22,6 +22,7 @@ import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DataLogWriterNotPrimaryException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Assert;
@@ -58,14 +59,17 @@ public class InMemoryDurableDataLogTests {
             log.initialize(TIMEOUT);
 
             // Only verify sequence number monotonicity. We'll verify reads in its own test.
-            long prevSeqNo = -1;
+            LogAddress prevAddress = null;
             for (int i = 0; i < WRITE_COUNT; i++) {
                 byte[] writeData = String.format("Write_%s", i).getBytes();
                 ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
-                long seqNo = log.append(writeStream, TIMEOUT).join();
+                LogAddress address = log.append(writeStream, TIMEOUT).join();
 
-                AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevSeqNo, seqNo);
-                prevSeqNo = seqNo;
+                if (prevAddress != null) {
+                    AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
+                }
+
+                prevAddress = address;
             }
         }
     }
@@ -107,7 +111,7 @@ public class InMemoryDurableDataLogTests {
             // Check Read pre-initialization.
             AssertExtensions.assertThrows(
                     "truncate() worked before initialize()",
-                    () -> log.truncate(0, TIMEOUT),
+                    () -> log.truncate(new InMemoryDurableDataLog.InMemoryLogAddress(0), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
@@ -116,7 +120,7 @@ public class InMemoryDurableDataLogTests {
 
             // Test truncating after each sequence number that we got back.
             for (long seqNo : seqNos) {
-                log.truncate(seqNo, TIMEOUT).join();
+                log.truncate(new InMemoryDurableDataLog.InMemoryLogAddress(seqNo), TIMEOUT).join();
                 writeData.remove(seqNo);
                 testRead(log, -1, writeData);
             }
@@ -185,7 +189,7 @@ public class InMemoryDurableDataLogTests {
             // ... or to truncate ...
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> log.truncate(writeData.lastKey(), TIMEOUT).join(),
+                    () -> log.truncate(new InMemoryDurableDataLog.InMemoryLogAddress(writeData.lastKey()), TIMEOUT).join(),
                     ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... but it should still be able to read.
@@ -223,8 +227,8 @@ public class InMemoryDurableDataLogTests {
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = String.format("Write_%s", i).getBytes();
             ByteArrayInputStream writeStream = new ByteArrayInputStream(writeData);
-            long seqNo = log.append(writeStream, TIMEOUT).join();
-            writtenData.put(seqNo, writeData);
+            LogAddress address = log.append(writeStream, TIMEOUT).join();
+            writtenData.put(address.getSequence(), writeData);
         }
 
         return writtenData;
@@ -246,7 +250,7 @@ public class InMemoryDurableDataLogTests {
 
             // Verify sequence number, as well as payload.
             long expectedSequenceNumber = expectedKeyIterator.next();
-            Assert.assertEquals("Unexpected sequence number.", expectedSequenceNumber, nextItem.getSequence());
+            Assert.assertEquals("Unexpected sequence number.", expectedSequenceNumber, nextItem.getAddress().getSequence());
             Assert.assertArrayEquals("Unexpected payload for sequence number " + expectedSequenceNumber, expectedData.get(expectedSequenceNumber), nextItem.getPayload());
         }
     }

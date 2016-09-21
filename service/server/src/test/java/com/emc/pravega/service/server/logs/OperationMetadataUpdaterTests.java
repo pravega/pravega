@@ -37,6 +37,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.google.common.base.Supplier;
 import org.junit.Assert;
@@ -701,15 +702,16 @@ public class OperationMetadataUpdaterTests {
         // Record 100 entries, and make sure the TruncationMarkerCollection contains them as soon as recorded.
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater u = new OperationMetadataUpdater(metadata);
-        long previousMarker = -1;
+        LogAddress previousMarker = null;
         for (int i = 0; i < recordCount; i++) {
-            long dfSeqNo = i * i;
-            u.recordTruncationMarker(i, dfSeqNo);
-            long actualMarker = metadata.getClosestTruncationMarker(i);
+            LogAddress dfAddress = new LogAddress(i * i) {
+            };
+            u.recordTruncationMarker(i, dfAddress);
+            LogAddress actualMarker = metadata.getClosestTruncationMarker(i);
             Assert.assertEquals("Unexpected value for truncation marker (pre-commit) for Operation Sequence Number " + i, previousMarker, actualMarker);
             u.commit();
             actualMarker = metadata.getClosestTruncationMarker(i);
-            Assert.assertEquals("Unexpected value for truncation marker (post-commit) for Operation Sequence Number " + i, dfSeqNo, actualMarker);
+            Assert.assertEquals("Unexpected value for truncation marker (post-commit) for Operation Sequence Number " + i, dfAddress, actualMarker);
             previousMarker = actualMarker;
         }
     }
