@@ -14,14 +14,6 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
-import javax.annotation.concurrent.GuardedBy;
-
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -39,9 +31,17 @@ import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.base.Preconditions;
-
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static com.emc.pravega.common.Exceptions.handleInterrupted;
 
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
@@ -100,7 +100,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
 
         private SegmentRead get() throws ExecutionException {
-            return Exceptions.handleInterrupted(() -> result.get().get());
+            return handleInterrupted(() -> result.get().get());
         }
 
         private void complete(SegmentRead r) {
@@ -201,18 +201,19 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
             }
+
             if (!read.await()) {
                 log.debug("Retransmitting a read request {}", read.request);
                 read.reset();
-                ClientConnection c = Exceptions.handleInterrupted(() -> getConnection().get());
+                ClientConnection c = handleInterrupted(() -> getConnection().get());
                 try {
                     c.send(read.request);
                 } catch (ConnectionFailedException e) {
                     closeConnection(e);
                 }
             }
-            return Exceptions.handleInterrupted(() -> read.get());
+
+            return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(read::get);
         });
     }
-
 }

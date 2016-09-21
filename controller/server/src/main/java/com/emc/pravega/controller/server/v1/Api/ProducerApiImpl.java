@@ -18,9 +18,9 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamSegments;
 

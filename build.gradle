@@ -229,6 +229,7 @@ project('controller:contract') {
     dependencies {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
     }
 }
 
