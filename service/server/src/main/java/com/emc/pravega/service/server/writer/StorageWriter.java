@@ -462,10 +462,8 @@ class StorageWriter extends AbstractService implements Writer {
     private void logStageEvent(String stageName, Object result) {
         if (result == null) {
             log.debug("{}: Iteration[{}].{}.", this.traceObjectId, this.iterationId, stageName);
-            //System.out.println(String.format("%s: Iteration[%s].%s.", this.traceObjectId, this.iterationId, stageName));
         } else {
             log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.iterationId, stageName, result);
-            //System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.iterationId, stageName, result));
         }
     }
 
@@ -473,18 +471,14 @@ class StorageWriter extends AbstractService implements Writer {
         ex = ExceptionHelpers.getRealException(ex);
         if (critical) {
             log.error("{}: Iteration[{}].CriticalError. {}", this.traceObjectId, this.iterationId, ex);
-            //System.out.println(String.format("%s: Iteration[%s].CriticalError. %s", this.traceObjectId, this.iterationId, ex));
         } else {
             log.error("{}: Iteration[{}].Error. {}", this.traceObjectId, this.iterationId, ex);
-            //System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.iterationId, ex));
         }
-        //ex.printStackTrace(System.out);
     }
 
     private void logErrorHandled(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         log.warn("{}: Iteration[{}].HandledError {}", this.traceObjectId, this.iterationId, ex);
-        //System.out.println(String.format("%s: Iteration[%s].HandledError %s", this.traceObjectId, this.iterationId, ex));
     }
 
     private void checkRunning() {

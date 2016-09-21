@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
@@ -50,7 +51,7 @@ class DistributedLogDataLog implements DurableDataLog {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If logName is an empty string.
      */
-    public DistributedLogDataLog(String logName, LogClient client) {
+    DistributedLogDataLog(String logName, LogClient client) {
         Preconditions.checkNotNull(client, "client");
         Exceptions.checkNotNullOrEmpty(logName, "logName");
 
@@ -80,15 +81,16 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Long> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
         ensureInitialized();
         return this.handle.append(data, timeout);
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
+    public CompletableFuture<Boolean> truncate(LogAddress logAddress, Duration timeout) {
         ensureInitialized();
-        return this.handle.truncate(upToSequence, timeout);
+        Preconditions.checkArgument(logAddress instanceof DLSNAddress, "Invalid logAddress. Expected a DLSNAddress.");
+        return this.handle.truncate((DLSNAddress) logAddress, timeout);
     }
 
     @Override

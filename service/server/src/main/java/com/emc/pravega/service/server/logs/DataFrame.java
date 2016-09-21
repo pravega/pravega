@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.common.util.CloseableIterator;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
@@ -41,7 +42,7 @@ public class DataFrame {
     private final ByteArraySegment data;
     private FrameHeader header;
     private ByteArraySegment contents;
-    private long frameSequence; // Assigned by DataFrameLog - no need to serialize.
+    private LogAddress address; // Assigned by DataFrameLog - no need to serialize.
 
     private int writeEntryStartIndex;
     private EntryHeader writeEntryHeader;
@@ -102,32 +103,28 @@ public class DataFrame {
     //region Properties
 
     /**
-     * Gets a value indicating the Frame Sequence Number within its serialization chain.
+     * Gets a value indicating the Frame Address within its serialization chain.
      * This value is not serialized with the data frame, rather it is assigned by the DataFrameBuilder or DataFrameReader
      * when constructing frames.
-     *
-     * @return
      */
-    public long getFrameSequence() {
-        return this.frameSequence;
+    public LogAddress getAddress() {
+        return this.address;
     }
 
     /**
-     * Sets the Frame Sequence Number.
+     * Sets the Frame Address within its serialization chain..
      * This value is not serialized with the data frame, rather it is assigned by the DataFrameBuilder or DataFrameReader
      * when constructing frames.
      *
-     * @param value The Sequence Number to set.
+     * @param address The address to set.
      */
-    public void setFrameSequence(long value) {
-        this.frameSequence = value;
+    public void setAddress(LogAddress address) {
+        this.address = address;
     }
 
     /**
      * Gets a value indicating the the Sequence Number of the previous Frame in the Log. When reading frames, comparing
      * this value with the previous frame's value ensures the frames are read in order.
-     *
-     * @return
      */
     public long getPreviousFrameSequence() {
         return this.header.getPreviousFrameSequence();
@@ -139,8 +136,6 @@ public class DataFrame {
      * When creating new frames (write mode), this value may be less than the 'maxLength' provided in the constructor.
      * When reading frames from a source (read mode), this value may be less than the size of the source.
      * This value is serialized with the frame.
-     *
-     * @return
      */
     public int getLength() {
         return this.header.getSerializationLength() + this.header.getContentLength();
@@ -148,8 +143,6 @@ public class DataFrame {
 
     /**
      * Returns a new InputStream representing the serialized form of this frame.
-     *
-     * @return
      */
     public InputStream getData() {
         if (this.data.isReadOnly()) {
@@ -162,8 +155,6 @@ public class DataFrame {
 
     /**
      * Gets a value indicating whether the DataFrame is empty (if it has no entries).
-     *
-     * @return
      */
     public boolean isEmpty() {
         return this.header.getContentLength() == 0;
@@ -171,8 +162,6 @@ public class DataFrame {
 
     /**
      * Gets a value indicating whether the DataFrame is sealed.
-     *
-     * @return
      */
     public boolean isSealed() {
         return this.sealed || this.contents.isReadOnly();
@@ -344,7 +333,7 @@ public class DataFrame {
     public CloseableIterator<DataFrameEntry, SerializationException> getEntries() {
         // The true max length differs based on whether we are still writing this frame or if it's read-only.
         int maxLength = this.writePosition >= 0 ? this.writePosition : this.contents.getLength();
-        return new DataFrameEntryIterator(this.contents.asReadOnly(), this.getFrameSequence(), maxLength);
+        return new DataFrameEntryIterator(this.contents.asReadOnly(), this.address, maxLength);
     }
 
     private void parse() throws SerializationException {
@@ -658,7 +647,7 @@ public class DataFrame {
         private final boolean firstRecordEntry;
         private final boolean lastRecordEntry;
         private final boolean lastEntryInDataFrame;
-        private final long dataFrameSequence;
+        private final LogAddress frameAddress;
         private final ByteArraySegment data;
 
         /**
@@ -666,14 +655,14 @@ public class DataFrame {
          *
          * @param header               The Header for this entry.
          * @param data                 A ByteArraySegment representing the contents of this frame.
-         * @param dataFrameSequence
-         * @param lastEntryInDataFrame
+         * @param frameAddress         The Address of the containing DataFrame.
+         * @param lastEntryInDataFrame Whether this is the last entry in the DataFrame.
          */
-        protected DataFrameEntry(EntryHeader header, ByteArraySegment data, long dataFrameSequence, boolean lastEntryInDataFrame) {
+        private DataFrameEntry(EntryHeader header, ByteArraySegment data, LogAddress frameAddress, boolean lastEntryInDataFrame) {
             this.firstRecordEntry = header.isFirstRecordEntry();
             this.lastRecordEntry = header.isLastRecordEntry();
             this.lastEntryInDataFrame = lastEntryInDataFrame;
-            this.dataFrameSequence = dataFrameSequence;
+            this.frameAddress = frameAddress;
             this.data = data;
         }
 
@@ -705,12 +694,12 @@ public class DataFrame {
         }
 
         /**
-         * Gets a value indicating Sequence Number of the containing DataFrame.
+         * Gets a value indicating Address of the containing DataFrame.
          *
          * @return
          */
-        public long getDataFrameSequence() {
-            return this.dataFrameSequence;
+        public LogAddress getDataFrameAddress() {
+            return this.frameAddress;
         }
 
         /**
@@ -724,7 +713,7 @@ public class DataFrame {
 
         @Override
         public String toString() {
-            return String.format("DataFrameSN = %d, Size = %d, First = %s, Last = %s, LastInDataFrame = %s", getDataFrameSequence(), getData().getLength(), isFirstRecordEntry(), isLastRecordEntry(), isLastEntryInDataFrame());
+            return String.format("Address = %s, Size = %d, First = %s, Last = %s, LastInDataFrame = %s", this.frameAddress, getData().getLength(), isFirstRecordEntry(), isLastRecordEntry(), isLastEntryInDataFrame());
         }
     }
 
@@ -737,20 +726,20 @@ public class DataFrame {
      */
     private class DataFrameEntryIterator implements CloseableIterator<DataFrameEntry, SerializationException> {
         private final ByteArraySegment contents;
-        private final long dataFrameSequence;
+        private final LogAddress frameAddress;
         private int currentPosition;
         private int maxLength;
 
         /**
          * Creates a new instance of the DataFrameEntryIterator class.
          *
-         * @param contents          A ByteArraySegment with the contents of the DataFrame.
-         * @param dataFrameSequence The Sequence Number of the Data Frame.
-         * @param maxLength         The maximum number of bytes to consider reading from the contents.
+         * @param contents     A ByteArraySegment with the contents of the DataFrame.
+         * @param frameAddress The Address of the Data Frame.
+         * @param maxLength    The maximum number of bytes to consider reading from the contents.
          */
-        public DataFrameEntryIterator(ByteArraySegment contents, long dataFrameSequence, int maxLength) {
+        public DataFrameEntryIterator(ByteArraySegment contents, LogAddress frameAddress, int maxLength) {
             this.contents = contents;
-            this.dataFrameSequence = dataFrameSequence;
+            this.frameAddress = frameAddress;
             this.maxLength = maxLength;
             this.currentPosition = 0;
         }
@@ -789,7 +778,7 @@ public class DataFrame {
             // Get the result contents && advance the positions.
             ByteArraySegment resultContents = this.contents.subSegment(this.currentPosition, header.getEntryLength());
             this.currentPosition += header.getEntryLength();
-            return new DataFrameEntry(header, resultContents, this.dataFrameSequence, !this.hasMoreElements());
+            return new DataFrameEntry(header, resultContents, this.frameAddress, !this.hasMoreElements());
         }
 
         private boolean hasMoreElements() {

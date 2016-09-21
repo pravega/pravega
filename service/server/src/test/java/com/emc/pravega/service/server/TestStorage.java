@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server; import com.emc.pravega.service.contracts.SegmentProperties;
+package com.emc.pravega.service.server;
+
+import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;

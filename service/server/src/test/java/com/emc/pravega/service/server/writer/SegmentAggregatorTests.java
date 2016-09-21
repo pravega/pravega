@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
@@ -108,7 +107,7 @@ public class SegmentAggregatorTests {
         AssertExtensions.assertThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
                 () -> context.batchesAggregators[1].initialize(TIMEOUT),
-                ex -> ex instanceof RuntimeStreamingException && ex.getCause() instanceof DataCorruptionException);
+                ex -> ex instanceof DataCorruptionException);
 
         // Check behavior for already-sealed segments (in storage, in metadata, but metadata does not reflect Sealed in storage.)
         context.storage.create(context.batchesAggregators[2].getMetadata().getName(), TIMEOUT).join();
@@ -737,6 +736,7 @@ public class SegmentAggregatorTests {
      * 8. Verify the Parent Segment has all the data (from itself and its batches), in the correct order.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFlushMerge() throws Exception {
         final int appendCount = 100; // This is number of appends per Segment/Batch - there will be a lot of appends here.
         final WriterConfig config = ConfigHelpers.createWriterConfig(
@@ -958,6 +958,7 @@ public class SegmentAggregatorTests {
      * in a recovery situation, where we committed the data but did not properly ack/truncate it from the DataSource.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testRecovery() throws Exception {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 100;
@@ -1210,7 +1211,7 @@ public class SegmentAggregatorTests {
         }
     }
 
-    private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context){
+    private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context) {
         byte[] expectedData = parentData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
         long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();

@@ -40,6 +40,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -162,11 +163,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * Records a Truncation Marker.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param dataFrameSequenceNumber The Sequence Number of the corresponding Data Frame that can be truncated (up to, and including).
+     * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
      */
-    void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
-        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameSequenceNumber = {}.", this.traceObjectId, operationSequenceNumber, dataFrameSequenceNumber);
-        getCurrentTransaction().recordTruncationMarker(operationSequenceNumber, dataFrameSequenceNumber);
+    void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
+        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameAddress = {}.", this.traceObjectId, operationSequenceNumber, logAddress);
+        getCurrentTransaction().recordTruncationMarker(operationSequenceNumber, logAddress);
     }
 
     /**
@@ -251,7 +252,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private final HashMap<Long, UpdateableSegmentMetadata> newStreamSegments;
         private final HashMap<String, Long> newStreamSegmentNames;
         private final List<Long> newTruncationPoints;
-        private final HashMap<Long, Long> newTruncationMarkers;
+        private final HashMap<Long, LogAddress> newTruncationMarkers;
         private final UpdateableContainerMetadata containerMetadata;
         private final AtomicLong newSequenceNumber;
         private final String traceObjectId;
@@ -341,13 +342,13 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Records the given Truncation Marker Mapping.
          *
-         * @param operationSequenceNumber
-         * @param dataFrameSequenceNumber
+         * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
+         * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
          */
-        void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
             Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
-            Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
-            this.newTruncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+            Preconditions.checkNotNull(logAddress, "logAddress");
+            this.newTruncationMarkers.put(operationSequenceNumber, logAddress);
         }
 
         /**

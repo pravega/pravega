@@ -21,6 +21,7 @@ package com.emc.pravega.service.server;
 import com.emc.pravega.common.util.CloseableIterator;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
@@ -46,7 +47,7 @@ public class TestDurableDataLog implements DurableDataLog {
     private ErrorInjector<Exception> getReaderInitialErrorInjector;
     private ErrorInjector<Exception> readSyncErrorInjector;
     private Consumer<ReadItem> readInterceptor;
-    private Consumer<Long> truncateCallback;
+    private Consumer<LogAddress> truncateCallback;
 
     //endregion
 
@@ -76,20 +77,20 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CompletableFuture<Long> append(InputStream data, Duration timeout) {
+    public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
-                .thenCompose(v -> this.wrappedLog.append(data, timeout));
+                            .thenCompose(v -> this.wrappedLog.append(data, timeout));
     }
 
     @Override
-    public CompletableFuture<Boolean> truncate(long upToSequence, Duration timeout) {
-        Consumer<Long> truncateCallback = this.truncateCallback;
+    public CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout) {
+        Consumer<LogAddress> truncateCallback = this.truncateCallback;
         return this.wrappedLog
-                .truncate(upToSequence, timeout)
+                .truncate(upToAddress, timeout)
                 .thenApply(result -> {
                     if (result && truncateCallback != null) {
-                        truncateCallback.accept(upToSequence);
+                        truncateCallback.accept(upToAddress);
                     }
 
                     return result;
@@ -118,10 +119,8 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Sets the Truncation callback, which will be called if a truncation actually happened.
-     *
-     * @param callback
      */
-    public void setTruncateCallback(Consumer<Long> callback) {
+    public void setTruncateCallback(Consumer<LogAddress> callback) {
         this.truncateCallback = callback;
     }
 
@@ -152,8 +151,6 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Sets the Read Interceptor that will be called with every getNext() invocation from the iterator returned by getReader.
-     *
-     * @param interceptor
      */
     public void setReadInterceptor(Consumer<ReadItem> interceptor) {
         this.readInterceptor = interceptor;
@@ -161,11 +158,6 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Retrieves all the entries from the DurableDataLog and converts them to the desired type.
-     *
-     * @param converter
-     * @param <T>
-     * @return
-     * @throws DurableDataLogException
      */
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();
@@ -203,9 +195,6 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Creates a new TestDurableDataLog wrapping the given one.
-     *
-     * @param wrappedLog
-     * @return
      */
     public static TestDurableDataLog create(DurableDataLog wrappedLog) {
         return new TestDurableDataLog(wrappedLog);
@@ -222,7 +211,7 @@ public class TestDurableDataLog implements DurableDataLog {
         private final ErrorInjector<Exception> getNextErrorInjector;
         private final Consumer<ReadItem> readInterceptor;
 
-        public CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
+        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
             assert innerIterator != null;
             this.innerIterator = innerIterator;
             this.getNextErrorInjector = getNextErrorInjector;

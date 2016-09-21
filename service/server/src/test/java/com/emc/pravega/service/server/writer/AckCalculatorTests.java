@@ -36,7 +36,6 @@ public class AckCalculatorTests {
     public void testGetHighestCommittedSequenceNumber() {
         final long initialLastReadSeqNo = 1;
         final int processorCount = 10;
-        final int maxSeqNo = 1000;
         WriterState state = new WriterState();
         AckCalculator calc = new AckCalculator(state);
         Random random = new Random();
@@ -90,6 +89,7 @@ public class AckCalculatorTests {
             }
         });
         Assert.assertTrue("Either no resets or all were reset. Bad test.", 0 < resetCount.get() && resetCount.get() < processors.size());
+        result = calc.getHighestCommittedSequenceNumber(processors);
         expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).filter(sn -> sn >= 0).min().getAsLong() - 1;
         Assert.assertEquals("Unexpected result for Set with partial values when LRSN is infinite.", expectedResult, result);
     }
