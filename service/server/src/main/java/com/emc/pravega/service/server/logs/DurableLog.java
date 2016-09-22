@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -47,7 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -69,7 +70,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
     private final Set<TailRead> tailReads;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
     private final AtomicBoolean closed;
 
@@ -86,7 +87,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, Executor executor) {
+    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
@@ -251,7 +252,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 metadataSeqNo = this.metadata.getOperationSequenceNumber();
                 if (metadataSeqNo <= afterSequenceNumber) {
                     // We cannot fulfill this at this moment; let it be triggered when we do get a new operation.
-                    TailRead tailRead = new TailRead(afterSequenceNumber, maxCount);
+                    TailRead tailRead = new TailRead(afterSequenceNumber, maxCount, timeout, this.executor);
                     result = tailRead.future;
                     this.tailReads.add(tailRead);
                     result.whenComplete((r, ex) -> unregisterTailRead(tailRead));
@@ -494,10 +495,10 @@ public class DurableLog extends AbstractService implements OperationLog {
         final int maxCount;
         final CompletableFuture<Iterator<Operation>> future;
 
-        TailRead(long afterSequenceNumber, int maxCount) {
+        TailRead(long afterSequenceNumber, int maxCount, Duration timeout, ScheduledExecutorService executor) {
             this.afterSequenceNumber = afterSequenceNumber;
             this.maxCount = maxCount;
-            this.future = new CompletableFuture<>();
+            this.future = FutureHelpers.futureWithTimeout(timeout, executor);
         }
 
         @Override

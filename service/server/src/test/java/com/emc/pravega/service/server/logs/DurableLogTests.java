@@ -65,6 +65,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,8 +77,10 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -494,6 +497,46 @@ public class DurableLogTests extends OperationLogTestBase {
     }
 
     /**
+     * Tests the ability to timeout tail reads. This does not actually test the functionality of tail reads - it just
+     * tests that they will time out appropriately.
+     */
+    @Test
+    public void testTailReadsTimeout() {
+        final long segmentId = 1;
+        final String segmentName = Long.toString(segmentId);
+
+        // Setup a DurableLog and start it.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup();
+        @Cleanup
+        DurableLog durableLog = setup.createDurableLog();
+        durableLog.startAsync().awaitRunning();
+
+        // Create a segment, which will be used for testing later.
+        UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
+        segmentMetadata.setDurableLogLength(0);
+
+        Duration shortTimeout = Duration.ofMillis(30);
+
+        // Setup a read operation, and make sure it is blocked (since there is no data).
+        CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
+        Assert.assertFalse("read() returned a completed future when there is no data available.", readFuture.isDone());
+
+        CompletableFuture<Void> controlFuture = CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep((int) (shortTimeout.toMillis() * 1.2));
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
+
+        AssertExtensions.assertThrows(
+                "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
+                () -> CompletableFuture.anyOf(controlFuture, readFuture),
+                ex -> ex instanceof TimeoutException);
+    }
+
+    /**
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations triggered by the number of operations processed.
      */
     @Test
@@ -527,6 +570,7 @@ public class DurableLogTests extends OperationLogTestBase {
      *                                        calculates the expected number of injected operations that should exist.
      * @throws Exception
      */
+
     private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int waitForProcessingFrequency, BiFunction<Integer, Integer, Double> calculateExpectedInjectionCount) throws Exception {
         int streamSegmentCount = 500;
         int appendsPerStreamSegment = 20;
