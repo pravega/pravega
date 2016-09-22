@@ -108,10 +108,10 @@ project('service:storage') {
 
 project('service:storage:impl') {
     dependencies {
-        compile ('com.twitter:distributedlog-core:0.3.51-RC1') {
+        compile('com.twitter:distributedlog-core:0.3.51-RC1') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
-        compile ('com.twitter:distributedlog-client:0.3.51-RC1') {
+        compile('com.twitter:distributedlog-client:0.3.51-RC1') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
         compile project(':common')
@@ -206,13 +206,10 @@ project('controller') {
 
 project('controller:contract') {
 
-    apply plugin: "org.jruyi.thrift"
-
-    compileThrift {
-        recurse true
-        sourceDir "$projectDir/src/main/thrift"
-        outputDir "$projectDir/src/generated"
-        generator 'java', 'private-members', 'hashcode'
+    task compileThrift(type: Exec) {
+        println "Using Docker [Image: thrift:0.9.3] to compile thrift files"
+        commandLine 'docker', 'run', '-v', "$projectDir:/data", 'thrift:0.9.3', 'thrift',
+                '-o', '/data/src/generated', '--gen', 'java:private-members,hashcode', '-r', '/data/src/main/thrift/Controller.thrift'
     }
 
     sourceSets {
@@ -246,16 +243,16 @@ project('controller:server') {
 }
 
 if (System.env.TRAVIS == 'true') {
-  allprojects {
-    tasks.withType(GroovyCompile) {
-      groovyOptions.fork = false
+    allprojects {
+        tasks.withType(GroovyCompile) {
+            groovyOptions.fork = false
+        }
+        tasks.withType(Test) {
+            // containers (currently) have 2 dedicated cores and 4GB of memory
+            maxParallelForks = 2
+            minHeapSize = '128m'
+        }
     }
-    tasks.withType(Test) {
-      // containers (currently) have 2 dedicated cores and 4GB of memory
-      maxParallelForks = 2
-      minHeapSize = '128m'
-    }
-  }
 }
 
 
