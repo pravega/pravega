@@ -266,12 +266,12 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public CompletableFuture<String> createBatch(String parentStreamSegmentName, Duration timeout) {
+        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Long> mergeBatch(String batchName, Duration timeout) {
+        public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
             return null;
         }
 

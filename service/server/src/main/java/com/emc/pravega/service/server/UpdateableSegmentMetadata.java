@@ -37,7 +37,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     /**
      * Sets the current DurableLog Length for this StreamSegment.
      *
-     * @param value
+     * @param value The new DurableLog length.
      * @throws IllegalArgumentException If the value is invalid.
      */
     void setDurableLogLength(long value);

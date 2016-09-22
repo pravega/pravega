@@ -35,7 +35,7 @@ import java.util.function.Function;
 public class StreamSegmentContainerMetadataTests {
     private static final int CONTAINER_ID = 1234567;
     private static final int SEGMENT_COUNT = 100;
-    private static final int BATCHES_PER_SEGMENT_COUNT = 2;
+    private static final int TRANSACTIONS_PER_SEGMENT_COUNT = 2;
 
     /**
      * Tests SequenceNumber-related operations.
@@ -73,7 +73,7 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
-     * Tests the ability to map new StreamSegments (as well as batches).
+     * Tests the ability to map new StreamSegments (as well as Transactions).
      */
     @Test
     public void testMapStreamSegment() {
@@ -98,34 +98,34 @@ public class StreamSegmentContainerMetadataTests {
                     () -> m.mapStreamSegmentId(segmentName, segmentId + 1),
                     ex -> ex instanceof IllegalArgumentException);
 
-            for (long j = 0; j < BATCHES_PER_SEGMENT_COUNT; j++) {
-                final long batchId = segmentIds.size();
-                segmentIds.add(batchId);
-                String batchName = getName(batchId);
+            for (long j = 0; j < TRANSACTIONS_PER_SEGMENT_COUNT; j++) {
+                final long transactionId = segmentIds.size();
+                segmentIds.add(transactionId);
+                String transactionName = getName(transactionId);
 
                 AssertExtensions.assertThrows(
-                        "mapStreamSegmentId allowed mapping the a batch to an inexistent parent.",
-                        () -> m.mapStreamSegmentId(batchName, batchId, batchId),
+                        "mapStreamSegmentId allowed mapping a Transaction to an inexistent parent.",
+                        () -> m.mapStreamSegmentId(transactionName, transactionId, transactionId),
                         ex -> ex instanceof IllegalArgumentException);
 
                 // This should work.
-                m.mapStreamSegmentId(batchName, batchId, segmentId);
-                Assert.assertEquals("Unexpected value from getStreamSegmentId (batch Segment).", batchId, m.getStreamSegmentId(batchName));
+                m.mapStreamSegmentId(transactionName, transactionId, segmentId);
+                Assert.assertEquals("Unexpected value from getStreamSegmentId (Transaction Segment).", transactionId, m.getStreamSegmentId(transactionName));
 
-                // Now check that we cannot re-map the same BatchId or Name.
+                // Now check that we cannot re-map the same Transaction Id or Name.
                 AssertExtensions.assertThrows(
-                        "mapStreamSegmentId allowed mapping the same Batch SegmentId twice.",
-                        () -> m.mapStreamSegmentId(batchName + "foo", batchId, segmentId),
+                        "mapStreamSegmentId allowed mapping the same Transaction SegmentId twice.",
+                        () -> m.mapStreamSegmentId(transactionName + "foo", transactionId, segmentId),
                         ex -> ex instanceof IllegalArgumentException);
                 AssertExtensions.assertThrows(
-                        "mapStreamSegmentId allowed mapping the same Batch SegmentName twice.",
-                        () -> m.mapStreamSegmentId(batchName, batchId + 1, segmentId),
+                        "mapStreamSegmentId allowed mapping the same Transaction SegmentName twice.",
+                        () -> m.mapStreamSegmentId(transactionName, transactionId + 1, segmentId),
                         ex -> ex instanceof IllegalArgumentException);
 
-                // Now check that we cannot map a batch to another batch.
+                // Now check that we cannot map a Transaction to another Transaction.
                 AssertExtensions.assertThrows(
-                        "mapStreamSegmentId allowed mapping the a batch to another batch.",
-                        () -> m.mapStreamSegmentId(batchName + "foo", batchId + 1, batchId),
+                        "mapStreamSegmentId allowed mapping the a Transaction to another Transaction.",
+                        () -> m.mapStreamSegmentId(transactionName + "foo", transactionId + 1, transactionId),
                         ex -> ex instanceof IllegalArgumentException);
             }
         }
@@ -135,7 +135,7 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
-     * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (batch) StreamSegments.
+     * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (Transaction) StreamSegments.
      */
     @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -146,34 +146,34 @@ public class StreamSegmentContainerMetadataTests {
             final long segmentId = segmentIds.size();
             segmentIds.add(segmentId);
             m.mapStreamSegmentId(getName(segmentId), segmentId);
-            for (long j = 0; j < BATCHES_PER_SEGMENT_COUNT; j++) {
-                final long batchId = segmentIds.size();
-                segmentIds.add(batchId);
-                m.mapStreamSegmentId(getName(batchId), batchId, segmentId);
+            for (long j = 0; j < TRANSACTIONS_PER_SEGMENT_COUNT; j++) {
+                final long transactionId = segmentIds.size();
+                segmentIds.add(transactionId);
+                m.mapStreamSegmentId(getName(transactionId), transactionId, segmentId);
             }
         }
 
-        // By construction (see above, any index i=3n is a parent StreamSegment, and any index i=3n+1 or 3n+2 is a batch).
-        // Let's delete a few parent StreamSegments and verify their batches are also deleted.
-        // Then delete only batches, and verify those are the only ones to be deleted.
-        final int groupSize = BATCHES_PER_SEGMENT_COUNT + 1;
+        // By construction (see above, any index i=3n is a parent StreamSegment, and any index i=3n+1 or 3n+2 is a Transaction).
+        // Let's delete a few parent StreamSegments and verify their Transactions are also deleted.
+        // Then delete only Transactions, and verify those are the only ones to be deleted.
+        final int groupSize = TRANSACTIONS_PER_SEGMENT_COUNT + 1;
         ArrayList<Integer> streamSegmentsToDelete = new ArrayList<>();
-        ArrayList<Integer> batchesToDelete = new ArrayList<>();
+        ArrayList<Integer> transactionsToDelete = new ArrayList<>();
         for (int i = 0; i < segmentIds.size(); i++) {
             if (i < segmentIds.size() / 2) {
-                // In the first half, we only delete the parents (which will force the batches to be deleted too).
+                // In the first half, we only delete the parents (which will force the Transactions to be deleted too).
                 if (i % groupSize == 0) {
                     streamSegmentsToDelete.add(i);
                 }
             } else {
-                // In the second half, we only delete the first batch of any segment.
+                // In the second half, we only delete the first Transaction of any segment.
                 if (i % groupSize == 1) {
-                    batchesToDelete.add(i);
+                    transactionsToDelete.add(i);
                 }
             }
         }
 
-        // Delete stand-alone StreamSegments (and verify batches are also deleted).
+        // Delete stand-alone StreamSegments (and verify Transactions are also deleted).
         Collection<Long> deletedStreamSegmentIds = new HashSet<>();
         for (int index : streamSegmentsToDelete) {
             long segmentId = segmentIds.get(index);
@@ -181,22 +181,22 @@ public class StreamSegmentContainerMetadataTests {
             Collection<String> expectedDeletedSegmentNames = new ArrayList<>();
             expectedDeletedSegmentNames.add(name);
             deletedStreamSegmentIds.add(segmentId);
-            for (int batchIndex = 0; batchIndex < BATCHES_PER_SEGMENT_COUNT; batchIndex++) {
-                long batchId = segmentIds.get(index + batchIndex + 1);
-                deletedStreamSegmentIds.add(batchId);
-                expectedDeletedSegmentNames.add(m.getStreamSegmentMetadata(batchId).getName());
+            for (int transIndex = 0; transIndex < TRANSACTIONS_PER_SEGMENT_COUNT; transIndex++) {
+                long transactionId = segmentIds.get(index + transIndex + 1);
+                deletedStreamSegmentIds.add(transactionId);
+                expectedDeletedSegmentNames.add(m.getStreamSegmentMetadata(transactionId).getName());
             }
 
             Collection<String> deletedSegmentNames = m.deleteStreamSegment(name);
             AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames);
         }
 
-        // Delete batches.
-        for (int index : batchesToDelete) {
-            long batchId = segmentIds.get(index);
-            String name = m.getStreamSegmentMetadata(batchId).getName();
+        // Delete Transactions.
+        for (int index : transactionsToDelete) {
+            long transactionId = segmentIds.get(index);
+            String name = m.getStreamSegmentMetadata(transactionId).getName();
             Collection<String> expectedDeletedSegmentNames = new ArrayList<>();
-            deletedStreamSegmentIds.add(batchId);
+            deletedStreamSegmentIds.add(transactionId);
             expectedDeletedSegmentNames.add(name);
 
             Collection<String> deletedSegmentNames = m.deleteStreamSegment(name);
@@ -233,10 +233,10 @@ public class StreamSegmentContainerMetadataTests {
             final long segmentId = segmentIds.size();
             segmentIds.add(segmentId);
             m.mapStreamSegmentId(getName(segmentId), segmentId);
-            for (long j = 0; j < BATCHES_PER_SEGMENT_COUNT; j++) {
-                final long batchId = segmentIds.size();
-                segmentIds.add(batchId);
-                m.mapStreamSegmentId(getName(batchId), batchId, segmentId);
+            for (long j = 0; j < TRANSACTIONS_PER_SEGMENT_COUNT; j++) {
+                final long transactionId = segmentIds.size();
+                segmentIds.add(transactionId);
+                m.mapStreamSegmentId(getName(transactionId), transactionId, segmentId);
             }
         }
 

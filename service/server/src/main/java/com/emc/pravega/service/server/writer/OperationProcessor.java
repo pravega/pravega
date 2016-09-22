@@ -29,8 +29,6 @@ interface OperationProcessor {
 
     /**
      * Gets the SequenceNumber of the first operation that is not fully committed to Storage.
-     *
-     * @return The result.
      */
     long getLowestUncommittedSequenceNumber();
 }

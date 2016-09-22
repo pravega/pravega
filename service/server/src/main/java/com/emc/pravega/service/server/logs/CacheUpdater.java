@@ -23,7 +23,7 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.storage.Cache;
@@ -75,10 +75,10 @@ public class CacheUpdater {
             // in two different places.
             StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
             result = this.readIndex.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
-        } else if (operation instanceof MergeBatchOperation) {
-            // Record a Merge Batch operation. We call beginMerge here, and the StorageWriter will call completeMerge.
-            MergeBatchOperation mergeOperation = (MergeBatchOperation) operation;
-            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId());
+        } else if (operation instanceof MergeTransactionOperation) {
+            // Record a MergeTransactionOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
+            MergeTransactionOperation mergeOperation = (MergeTransactionOperation) operation;
+            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getStreamSegmentOffset(), mergeOperation.getTransactionSegmentId());
         } else {
             assert !(operation instanceof CachedStreamSegmentAppendOperation) : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";
         }

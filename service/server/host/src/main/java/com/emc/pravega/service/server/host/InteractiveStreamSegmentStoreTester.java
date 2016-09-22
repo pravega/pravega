@@ -143,11 +143,11 @@ public class InteractiveStreamSegmentStoreTester {
                         case Commands.READ:
                             readFromStream(commandParser);
                             break;
-                        case Commands.CREATE_BATCH:
-                            createBatch(commandParser);
+                        case Commands.CREATE_TRANSACTION:
+                            createTransaction(commandParser);
                             break;
-                        case Commands.MERGE_BATCH:
-                            mergeBatch(commandParser);
+                        case Commands.MERGE_TRANSACTION:
+                            mergeTransaction(commandParser);
                             break;
                         default:
                             log("Unknown command '%s'.", commandName);
@@ -237,18 +237,18 @@ public class InteractiveStreamSegmentStoreTester {
                 }));
     }
 
-    private void createBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+    private void createTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String parentName = parsedCommand.getNext();
-        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_BATCH, Commands.PARENT_STREAM_SEGMENT_NAME));
+        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createBatch(parentName, defaultTimeout), r -> log(startTime, "Created BatchStreamSegment %s with parent %s.", r, parentName));
+        await(this.streamSegmentStore.createTransaction(parentName, defaultTimeout), r -> log(startTime, "Created Transaction %s with parent %s.", r, parentName));
     }
 
-    private void mergeBatch(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
-        String batchStreamName = parsedCommand.getNext();
-        checkArguments(batchStreamName != null && batchStreamName.length() > 0, Commands.combine(Commands.MERGE_BATCH, Commands.BATCH_STREAM_SEGMENT_NAME));
+    private void mergeTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
+        String transactionName = parsedCommand.getNext();
+        checkArguments(transactionName != null && transactionName.length() > 0, Commands.combine(Commands.MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.mergeBatch(batchStreamName, defaultTimeout), r -> log(startTime, "Merged BatchStreamSegment %s into parent stream.", batchStreamName));
+        await(this.streamSegmentStore.mergeTransaction(transactionName, defaultTimeout), r -> log(startTime, "Merged Transaction %s into parent segment.", transactionName));
     }
 
     private <T> void await(CompletableFuture<T> future, Consumer<T> callback) {
@@ -314,8 +314,8 @@ public class InteractiveStreamSegmentStoreTester {
         public static final String GET = "get";
         public static final String APPEND = "append";
         public static final String READ = "read";
-        public static final String CREATE_BATCH = "batch-create";
-        public static final String MERGE_BATCH = "batch-merge";
+        public static final String CREATE_TRANSACTION = "transaction-create";
+        public static final String MERGE_TRANSACTION = "transaction-merge";
 
         public static final AbstractMap<String, String> SYNTAXES = new TreeMap<>();
 
@@ -326,12 +326,12 @@ public class InteractiveStreamSegmentStoreTester {
             SYNTAXES.put(READ, Commands.combine(READ, Commands.STREAM_SEGMENT_NAME));
             SYNTAXES.put(SEAL, Commands.combine(SEAL, Commands.STREAM_SEGMENT_NAME));
             SYNTAXES.put(GET, Commands.combine(GET, Commands.STREAM_SEGMENT_NAME, Commands.OFFSET, Commands.LENGTH));
-            SYNTAXES.put(CREATE_BATCH, Commands.combine(CREATE_BATCH, Commands.PARENT_STREAM_SEGMENT_NAME));
-            SYNTAXES.put(MERGE_BATCH, Commands.combine(MERGE_BATCH, Commands.BATCH_STREAM_SEGMENT_NAME));
+            SYNTAXES.put(CREATE_TRANSACTION, Commands.combine(CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
+            SYNTAXES.put(MERGE_TRANSACTION, Commands.combine(MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
         }
 
         private static final String PARENT_STREAM_SEGMENT_NAME = "<parent-stream-segment-name>";
-        private static final String BATCH_STREAM_SEGMENT_NAME = "<batch-stream-segment-name>";
+        private static final String TRANSACTION_STREAM_SEGMENT_NAME = "<transaction-stream-segment-name>";
         private static final String STREAM_SEGMENT_NAME = "<stream-segment-name>";
         private static final String APPEND_DATA = "<append-string>";
         private static final String OFFSET = "<offset>";

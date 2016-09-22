@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
  */
 public class ContainerReadIndexTests {
     private static final int SEGMENT_COUNT = 100;
-    private static final int BATCHES_PER_SEGMENT = 5;
+    private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int THREAD_POOL_SIZE = 50;
     private static final int CONTAINER_ID = 123;
@@ -84,11 +84,11 @@ public class ContainerReadIndexTests {
         @Cleanup
         TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
-        // Merge all batch names into the segment list. For this test, we do not care what kind of Segment we have.
-        batchesBySegment.values().forEach(segmentIds::addAll);
+        // Merge all Transaction names into the segment list. For this test, we do not care what kind of Segment we have.
+        transactionsBySegment.values().forEach(segmentIds::addAll);
 
         // Add a bunch of writes.
         appendData(segmentIds, segmentContents, context);
@@ -98,29 +98,29 @@ public class ContainerReadIndexTests {
     }
 
     /**
-     * Tests the merging of batches into their parent StreamSegments.
+     * Tests the merging of Transactions into their parent StreamSegments.
      */
     @Test
     public void testMerge() throws Exception {
         @Cleanup
         TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         // Put all segment names into one list, for easier appends (but still keep the original lists at hand - we'll need them later).
         ArrayList<Long> allSegmentIds = new ArrayList<>(segmentIds);
-        batchesBySegment.values().forEach(allSegmentIds::addAll);
+        transactionsBySegment.values().forEach(allSegmentIds::addAll);
 
         // Add a bunch of writes.
         appendData(allSegmentIds, segmentContents, context);
 
-        // Begin-merge all batches (part 1/2), and check contents.
-        beginMergeBatches(batchesBySegment, segmentContents, context);
+        // Begin-merge all Transactions (part 1/2), and check contents.
+        beginMergeTransactions(transactionsBySegment, segmentContents, context);
         checkReadIndex("BeginMerge", segmentContents, context);
 
         // Complete the merger (part 2/2), and check contents.
-        completeMergeBatches(batchesBySegment, context);
+        completeMergeTransactiones(transactionsBySegment, context);
         checkReadIndex("CompleteMerge", segmentContents, context);
     }
 
@@ -128,7 +128,7 @@ public class ContainerReadIndexTests {
      * Tests the behavior of Future Reads. Scenarios tested include:
      * * Regular appends
      * * Segment sealing
-     * * Batch merging.
+     * * Transaction merging.
      */
     @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -138,7 +138,7 @@ public class ContainerReadIndexTests {
         @Cleanup
         TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         HashMap<Long, ByteArrayOutputStream> readContents = new HashMap<>();
         HashSet<Long> segmentsToSeal = new HashSet<>();
@@ -147,7 +147,7 @@ public class ContainerReadIndexTests {
 
         // 1. Put all segment names into one list, for easier appends (but still keep the original lists at hand - we'll need them later).
         ArrayList<Long> allSegmentIds = new ArrayList<>(segmentIds);
-        batchesBySegment.values().forEach(allSegmentIds::addAll);
+        transactionsBySegment.values().forEach(allSegmentIds::addAll);
 
         AtomicInteger writeCount = new AtomicInteger();
         Runnable triggerFutureReadsCallback = () -> {
@@ -186,9 +186,9 @@ public class ContainerReadIndexTests {
         // 3. Add a bunch of writes.
         appendData(allSegmentIds, segmentContents, context, triggerFutureReadsCallback);
 
-        // 4. Merge all the batches.
-        beginMergeBatches(batchesBySegment, segmentContents, context);
-        completeMergeBatches(batchesBySegment, context);
+        // 4. Merge all the Transactions.
+        beginMergeTransactions(transactionsBySegment, segmentContents, context);
+        completeMergeTransactiones(transactionsBySegment, context);
         context.readIndex.triggerFutureReads(segmentIds);
 
         // 5. Add more appends (to the parent segments)
@@ -244,7 +244,7 @@ public class ContainerReadIndexTests {
      * Tests the handling of invalid operations. Scenarios include:
      * * Appends at wrong offsets
      * * Bad SegmentIds
-     * * Invalid merge operations or sequences (complete before merge, merging non-batches, etc.)
+     * * Invalid merge operations or sequences (complete before merge, merging non-Transactions, etc.)
      * * Operations not allowed in or not in recovery
      */
     @Test
@@ -252,16 +252,16 @@ public class ContainerReadIndexTests {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Create a segment and a batch.
+        // Create a segment and a Transaction.
         long segmentId = 0;
         String segmentName = getSegmentName((int) segmentId);
         context.metadata.mapStreamSegmentId(segmentName, segmentId);
         initializeSegment(segmentId, context, 0, 0);
 
-        long batchId = segmentId + 1;
-        String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
-        context.metadata.mapStreamSegmentId(batchName, batchId, segmentId);
-        initializeSegment(batchId, context, 0, 0);
+        long transactionId = segmentId + 1;
+        String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+        context.metadata.mapStreamSegmentId(transactionName, transactionId, segmentId);
+        initializeSegment(transactionId, context, 0, 0);
 
         byte[] appendData = "foo".getBytes();
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
@@ -269,10 +269,10 @@ public class ContainerReadIndexTests {
         segmentMetadata.setDurableLogLength(segmentOffset + appendData.length);
         context.readIndex.append(segmentId, segmentOffset, appendData);
 
-        UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
-        long batchOffset = batchMetadata.getDurableLogLength();
-        batchMetadata.setDurableLogLength(batchOffset + appendData.length);
-        context.readIndex.append(batchId, batchOffset, appendData);
+        UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+        long transactionOffset = transactionMetadata.getDurableLogLength();
+        transactionMetadata.setDurableLogLength(transactionOffset + appendData.length);
+        context.readIndex.append(transactionId, transactionOffset, appendData);
 
         // 1. Appends at wrong offsets.
         AssertExtensions.assertThrows(
@@ -288,24 +288,24 @@ public class ContainerReadIndexTests {
         // 2. Appends or reads with wrong SegmentIds
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when provided with invalid SegmentId.",
-                () -> context.readIndex.append(batchId + 1, 0, "foo".getBytes()),
+                () -> context.readIndex.append(transactionId + 1, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "read did not throw the correct exception when provided with invalid SegmentId.",
-                () -> context.readIndex.read(batchId + 1, 0, 1, TIMEOUT),
+                () -> context.readIndex.read(transactionId + 1, 0, 1, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
         // 3. TriggerFutureReads with wrong Segment Ids
         ArrayList<Long> badSegmentIds = new ArrayList<>();
-        badSegmentIds.add(batchId + 1);
+        badSegmentIds.add(transactionId + 1);
         AssertExtensions.assertThrows(
                 "triggerFutureReads did not throw the correct exception when provided with invalid SegmentId.",
                 () -> context.readIndex.triggerFutureReads(badSegmentIds),
                 ex -> ex instanceof IllegalArgumentException);
 
         // 4. Merge with invalid arguments.
-        long secondSegmentId = batchId + 1;
+        long secondSegmentId = transactionId + 1;
         context.metadata.mapStreamSegmentId(getSegmentName((int) secondSegmentId), secondSegmentId);
         initializeSegment(secondSegmentId, context, 0, 0);
         AssertExtensions.assertThrows(
@@ -314,22 +314,22 @@ public class ContainerReadIndexTests {
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "completeMerge did not throw the correct exception when called on a Batch that did not have beginMerge called for.",
-                () -> context.readIndex.completeMerge(segmentId, batchId),
+                "completeMerge did not throw the correct exception when called on a Transaction that did not have beginMerge called for.",
+                () -> context.readIndex.completeMerge(segmentId, transactionId),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "beginMerge did not throw the correct exception when called on a Batch that was not sealed.",
-                () -> context.readIndex.beginMerge(segmentId, 0, batchId),
+                "beginMerge did not throw the correct exception when called on a Transaction that was not sealed.",
+                () -> context.readIndex.beginMerge(segmentId, 0, transactionId),
                 ex -> ex instanceof IllegalArgumentException);
 
-        batchMetadata.markSealed();
+        transactionMetadata.markSealed();
         long mergeOffset = segmentMetadata.getDurableLogLength();
-        segmentMetadata.setDurableLogLength(mergeOffset + batchMetadata.getLength());
-        context.readIndex.beginMerge(segmentId, mergeOffset, batchId);
+        segmentMetadata.setDurableLogLength(mergeOffset + transactionMetadata.getLength());
+        context.readIndex.beginMerge(segmentId, mergeOffset, transactionId);
         AssertExtensions.assertThrows(
-                "append did not throw the correct exception when called on a Batch that was already sealed.",
-                () -> context.readIndex.append(batchId, batchMetadata.getLength(), "foo".getBytes()),
+                "append did not throw the correct exception when called on a Transaction that was already sealed.",
+                () -> context.readIndex.append(transactionId, transactionMetadata.getLength(), "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -342,11 +342,11 @@ public class ContainerReadIndexTests {
         @Cleanup
         TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
-        // Merge all batch names into the segment list. For this test, we do not care what kind of Segment we have.
-        batchesBySegment.values().forEach(segmentIds::addAll);
+        // Merge all Transaction names into the segment list. For this test, we do not care what kind of Segment we have.
+        transactionsBySegment.values().forEach(segmentIds::addAll);
 
         // Create all the segments in storage.
         createSegmentsInStorage(context);
@@ -423,11 +423,11 @@ public class ContainerReadIndexTests {
         @Cleanup
         TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
-        // Merge all batch names into the segment list. For this test, we do not care what kind of Segment we have.
-        batchesBySegment.values().forEach(segmentIds::addAll);
+        // Merge all Transaction names into the segment list. For this test, we do not care what kind of Segment we have.
+        transactionsBySegment.values().forEach(segmentIds::addAll);
 
         // Create all the segments in storage.
         createSegmentsInStorage(context);
@@ -688,41 +688,41 @@ public class ContainerReadIndexTests {
         return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
-    private void completeMergeBatches(HashMap<Long, ArrayList<Long>> batchesBySegment, TestContext context) throws Exception {
-        for (Map.Entry<Long, ArrayList<Long>> e : batchesBySegment.entrySet()) {
+    private void completeMergeTransactiones(HashMap<Long, ArrayList<Long>> transactionsBySegment, TestContext context) throws Exception {
+        for (Map.Entry<Long, ArrayList<Long>> e : transactionsBySegment.entrySet()) {
             long parentId = e.getKey();
-            for (long batchId : e.getValue()) {
-                UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
-                batchMetadata.markDeleted();
-                context.readIndex.completeMerge(parentId, batchId);
+            for (long transactionId : e.getValue()) {
+                UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+                transactionMetadata.markDeleted();
+                context.readIndex.completeMerge(parentId, transactionId);
             }
         }
     }
 
-    private void beginMergeBatches(HashMap<Long, ArrayList<Long>> batchesBySegment, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
-        for (Map.Entry<Long, ArrayList<Long>> e : batchesBySegment.entrySet()) {
+    private void beginMergeTransactions(HashMap<Long, ArrayList<Long>> transactionsBySegment, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
+        for (Map.Entry<Long, ArrayList<Long>> e : transactionsBySegment.entrySet()) {
             long parentId = e.getKey();
             UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
-            for (long batchId : e.getValue()) {
-                UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
+            for (long transactionId : e.getValue()) {
+                UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
 
-                // Batch must be sealed first.
-                batchMetadata.markSealed();
+                // Transaction must be sealed first.
+                transactionMetadata.markSealed();
 
                 // Update parent length.
                 long offset = parentMetadata.getDurableLogLength();
-                parentMetadata.setDurableLogLength(offset + batchMetadata.getDurableLogLength());
+                parentMetadata.setDurableLogLength(offset + transactionMetadata.getDurableLogLength());
 
                 // Do the ReadIndex merge.
-                context.readIndex.beginMerge(parentId, offset, batchId);
+                context.readIndex.beginMerge(parentId, offset, transactionId);
 
                 // Update the metadata.
-                batchMetadata.markMerged();
+                transactionMetadata.markMerged();
 
                 // Update parent contents.
-                segmentContents.get(parentId).write(segmentContents.get(batchId).toByteArray());
-                segmentContents.remove(batchId);
+                segmentContents.get(parentId).write(segmentContents.get(transactionId).toByteArray());
+                segmentContents.remove(transactionId);
             }
         }
     }
@@ -792,25 +792,25 @@ public class ContainerReadIndexTests {
         return segmentIds;
     }
 
-    private HashMap<Long, ArrayList<Long>> createBatches(Collection<Long> segmentIds, TestContext context) {
-        // Create the batches.
-        HashMap<Long, ArrayList<Long>> batches = new HashMap<>();
-        long batchId = Integer.MAX_VALUE;
+    private HashMap<Long, ArrayList<Long>> createTransactions(Collection<Long> segmentIds, TestContext context) {
+        // Create the Transactions.
+        HashMap<Long, ArrayList<Long>> transactions = new HashMap<>();
+        long transactionId = Integer.MAX_VALUE;
         for (long parentId : segmentIds) {
-            ArrayList<Long> segmentBatches = new ArrayList<>();
-            batches.put(parentId, segmentBatches);
+            ArrayList<Long> segmentTransactions = new ArrayList<>();
+            transactions.put(parentId, segmentTransactions);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
-            for (int i = 0; i < BATCHES_PER_SEGMENT; i++) {
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentMetadata.getName());
-                context.metadata.mapStreamSegmentId(batchName, batchId, parentId);
-                initializeSegment(batchId, context, 0, 0);
-                segmentBatches.add(batchId);
-                batchId++;
+            for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
+                String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentMetadata.getName());
+                context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
+                initializeSegment(transactionId, context, 0, 0);
+                segmentTransactions.add(transactionId);
+                transactionId++;
             }
         }
 
-        return batches;
+        return transactions;
     }
 
     private String getSegmentName(int id) {
