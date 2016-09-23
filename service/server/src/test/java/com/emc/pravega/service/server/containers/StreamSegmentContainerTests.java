@@ -443,7 +443,6 @@ public class StreamSegmentContainerTests {
         checkReadIndex(segmentContents, lengths, context);
 
         // 6. Writer moving data to Storage.
-        //Thread.sleep(5000);
         waitForSegmentsInStorage(segmentNames, context).join();
         checkStorage(segmentContents, lengths, context);
 

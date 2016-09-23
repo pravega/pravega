@@ -35,13 +35,13 @@ import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
-import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
@@ -86,7 +86,8 @@ public class StorageWriterTests {
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
                        .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
                        .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
+                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+                       .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 

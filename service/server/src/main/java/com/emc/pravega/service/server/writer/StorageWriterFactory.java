@@ -34,7 +34,7 @@ import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Factory for StorageWriters.
@@ -42,7 +42,7 @@ import java.util.concurrent.Executor;
 public class StorageWriterFactory implements WriterFactory {
     private final WriterConfig config;
     private final StorageFactory storageFactory;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the StorageWriterFactory class.
@@ -51,7 +51,7 @@ public class StorageWriterFactory implements WriterFactory {
      * @param storageFactory The StorageFactory to use for every Writer creation.
      * @param executor       The Executor to use.
      */
-    public StorageWriterFactory(WriterConfig config, StorageFactory storageFactory, Executor executor) {
+    public StorageWriterFactory(WriterConfig config, StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");

@@ -45,7 +45,7 @@ import java.util.Iterator;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,7 +64,7 @@ class StorageWriter extends AbstractService implements Writer {
     private final WriterConfig config;
     private final WriterDataSource dataSource;
     private final Storage storage;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
     private final HashMap<Long, SegmentAggregator> aggregators;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
     private final WriterState state;
@@ -87,7 +87,7 @@ class StorageWriter extends AbstractService implements Writer {
      * @param storage    The Storage to use.
      * @param executor   The Executor to use for async callbacks and operations.
      */
-    StorageWriter(WriterConfig config, WriterDataSource dataSource, Storage storage, Executor executor) {
+    StorageWriter(WriterConfig config, WriterDataSource dataSource, Storage storage, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(dataSource, "dataSource");
         Preconditions.checkNotNull(storage, "storage");
@@ -131,7 +131,7 @@ class StorageWriter extends AbstractService implements Writer {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
-        this.executor.execute(this::runOneIteration);
+        this.executor.execute(this::runNextIteration);
         log.info("{}: Started.", this.traceObjectId);
     }
 
@@ -175,23 +175,33 @@ class StorageWriter extends AbstractService implements Writer {
     // region Iteration Execution
 
     /**
-     * Starts the execution of one iteration.
+     * Starts the execution of one iteration without delay.
      */
-    private void runOneIteration() {
+    private void runNextIteration() {
+        runNextIteration(Duration.ZERO);
+    }
+
+    /**
+     * Starts the execution of one iteration with the specified delay..
+     */
+    private void runNextIteration(Duration initialDelay) {
         assert this.currentIteration.get() == null : "Another iteration is in progress";
         this.iterationId.incrementAndGet();
         this.currentIterationStartTime.set(this.stopwatch.elapsed());
         logStageEvent("Start", null);
 
         // A Writer iteration is made of the following stages:
+        // 0. Delay (if necessary).
         // 1. Read data.
         // 2. Load data into SegmentAggregators.
         // 3. Flush eligible SegmentAggregators.
         // 4. Acknowledge (truncate).
-        CompletableFuture<Void> iterationFuture = readData()
-                .thenAcceptAsync(this::processReadResult, this.executor)
-                .thenCompose(v -> this.flush())
-                .thenCompose(v -> this.acknowledge());
+        CompletableFuture<Void> iterationFuture =
+                FutureHelpers.delayedFuture(initialDelay, this.executor)
+                             .thenCompose(v -> this.readData())
+                             .thenAcceptAsync(this::processReadResult, this.executor)
+                             .thenCompose(v -> this.flush())
+                             .thenCompose(v -> this.acknowledge());
         this.currentIteration.set(iterationFuture);
 
         // 5. When the iteration is complete, process its result, cleanup and start a new iteration, if needed.
@@ -207,7 +217,8 @@ class StorageWriter extends AbstractService implements Writer {
     private void endOfIteration(Void ignored, Throwable ex) {
         this.currentIteration.set(null);
 
-        if (ex != null) {
+        boolean iterationError = ex != null;
+        if (iterationError) {
             boolean critical = isCriticalError(ex);
             if (!critical) {
                 // Perform internal cleanup (get rid of those SegmentAggregators that are closed).
@@ -231,7 +242,7 @@ class StorageWriter extends AbstractService implements Writer {
 
         logStageEvent("Finish", "Elapsed " + this.stopwatch.elapsed().minus(this.currentIterationStartTime.get()).toMillis() + "ms");
         if (isRunning()) {
-            runOneIteration();
+            runNextIteration(getIterationStartDelay(iterationError));
         }
     }
 
@@ -425,8 +436,6 @@ class StorageWriter extends AbstractService implements Writer {
     /**
      * Calculates the amount of time until the first SegmentAggregator will expire (needs to flush). If no Aggregator
      * is registered, a default (large) value is returned.
-     *
-     * @return The calculated value.
      */
     private Duration getReadTimeout() {
         // Find the minimum expiration time among all SegmentAggregators.
@@ -444,6 +453,20 @@ class StorageWriter extends AbstractService implements Writer {
         }
 
         return Duration.ofMillis(timeMillis);
+    }
+
+    /**
+     * Calculates the amount of delay for an iteration start, based on the given input.
+     *
+     * @param previousIterationHasError True if the previous iteration had an exception, false otherwise.
+     */
+    private Duration getIterationStartDelay(boolean previousIterationHasError) {
+        if (previousIterationHasError) {
+            return this.config.getErrorSleepDuration();
+        } else {
+            // No error, we can proceed right away.
+            return Duration.ZERO;
+        }
     }
 
     /**

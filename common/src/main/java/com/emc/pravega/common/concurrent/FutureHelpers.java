@@ -112,8 +112,6 @@ public final class FutureHelpers {
      * Creates a new CompletableFuture that is failed with the given exception.
      *
      * @param exception The exception to fail the CompletableFuture.
-     * @param <T>
-     * @return
      */
     public static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
@@ -126,7 +124,6 @@ public final class FutureHelpers {
      *
      * @param completableFuture The Future to register to.
      * @param exceptionListener The Listener to register.
-     * @param <T>
      */
     public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
@@ -197,6 +194,27 @@ public final class FutureHelpers {
         CompletableFuture<T> result = new CompletableFuture<T>();
         ScheduledFuture sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         result.whenComplete((r, ex) -> sf.cancel(true));
+        return result;
+    }
+
+    /**
+     * Creates a CompletableFuture that will do nothing and complete after a specified delay, without using a thread during
+     * the delay.
+     *
+     * @param delay           The duration of the delay (how much to wait until completing the Future).
+     * @param executorService An ExecutorService that will be used to complete the Future on.
+     * @return A CompletableFuture that will complete after the specified delay.
+     */
+    public static CompletableFuture<Void> delayedFuture(Duration delay, ScheduledExecutorService executorService) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        if (delay.toMillis() == 0) {
+            // Zero delay; no need to bother with scheduling a task in the future.
+            result.complete(null);
+        } else {
+            ScheduledFuture sf = executorService.schedule(() -> result.complete(null), delay.toMillis(), TimeUnit.MILLISECONDS);
+            result.whenComplete((r, ex) -> sf.cancel(true));
+        }
+
         return result;
     }
 
