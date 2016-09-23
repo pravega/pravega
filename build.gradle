@@ -9,17 +9,6 @@
 
 // Apply the java plugin to add support for Java
 
-buildscript {
-    repositories {
-        maven {
-            url "https://plugins.gradle.org/m2/"
-        }
-    }
-    dependencies {
-        classpath "gradle.plugin.org.jruyi.gradle:thrift-gradle-plugin:0.3.1"
-    }
-}
-
 allprojects {
     apply plugin: 'java'
     apply plugin: 'idea'
