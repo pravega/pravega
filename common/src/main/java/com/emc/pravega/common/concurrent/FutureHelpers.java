@@ -52,7 +52,7 @@ public final class FutureHelpers {
             return false;
         }
     }
-    
+
     /**
      * Returns true if the future is done and successful
      */
@@ -181,8 +181,21 @@ public final class FutureHelpers {
      * @param <T>             The Type argument for the CompletableFuture to create.
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, ScheduledExecutorService executorService) {
+        return futureWithTimeout(timeout, null, executorService);
+    }
+
+    /**
+     * Creates a new CompletableFuture that will timeout after the given amount of time.
+     *
+     * @param timeout         The timeout for the future.
+     * @param tag             A tag (identifier) to be used as a parameter to the TimeoutException.
+     * @param executorService An ExecutorService that will be used to invoke the timeout on.
+     * @param <T>             The Type argument for the CompletableFuture to create.
+     * @return The result.
+     */
+    public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, String tag, ScheduledExecutorService executorService) {
         CompletableFuture<T> result = new CompletableFuture<T>();
-        ScheduledFuture sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        ScheduledFuture sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         result.whenComplete((r, ex) -> sf.cancel(true));
         return result;
     }

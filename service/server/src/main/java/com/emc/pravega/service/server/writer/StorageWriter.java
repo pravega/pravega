@@ -48,6 +48,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -68,10 +70,10 @@ class StorageWriter extends AbstractService implements Writer {
     private final WriterState state;
     private final AutoStopwatch stopwatch;
     private final AckCalculator ackCalculator;
-    private CompletableFuture<Void> currentIteration;
-    private Duration currentIterationStartTime;
-    private long iterationId;
-    private boolean closed;
+    private final AtomicReference<CompletableFuture<Void>> currentIteration;
+    private final AtomicReference<Duration> currentIterationStartTime;
+    private final AtomicLong iterationId;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -100,6 +102,10 @@ class StorageWriter extends AbstractService implements Writer {
         this.state = new WriterState();
         this.stopwatch = new AutoStopwatch();
         this.ackCalculator = new AckCalculator(this.state);
+        this.currentIteration = new AtomicReference<>();
+        this.currentIterationStartTime = new AtomicReference<>();
+        this.iterationId = new AtomicLong();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -108,12 +114,12 @@ class StorageWriter extends AbstractService implements Writer {
 
     @Override
     public void close() {
-        if (!this.closed) {
+        if (!this.closed.get()) {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
 
             log.info("{}: Closed.", this.traceObjectId);
-            this.closed = true;
+            this.closed.set(true);
         }
     }
 
@@ -123,7 +129,7 @@ class StorageWriter extends AbstractService implements Writer {
 
     @Override
     protected void doStart() {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
         this.executor.execute(this::runOneIteration);
         log.info("{}: Started.", this.traceObjectId);
@@ -131,14 +137,14 @@ class StorageWriter extends AbstractService implements Writer {
 
     @Override
     protected void doStop() {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         log.info("{}: Stopping ...", this.traceObjectId);
 
         this.executor.execute(() -> {
             Throwable cause = this.stopException.get();
 
             // Cancel the last iteration and wait for it to finish.
-            CompletableFuture<Void> lastIteration = this.currentIteration;
+            CompletableFuture<Void> lastIteration = this.currentIteration.get();
             if (lastIteration != null) {
                 try {
                     // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
@@ -172,9 +178,9 @@ class StorageWriter extends AbstractService implements Writer {
      * Starts the execution of one iteration.
      */
     private void runOneIteration() {
-        assert this.currentIteration == null : "Another iteration is in progress";
-        this.iterationId++;
-        this.currentIterationStartTime = this.stopwatch.elapsed();
+        assert this.currentIteration.get() == null : "Another iteration is in progress";
+        this.iterationId.incrementAndGet();
+        this.currentIterationStartTime.set(this.stopwatch.elapsed());
         logStageEvent("Start", null);
 
         // A Writer iteration is made of the following stages:
@@ -182,13 +188,14 @@ class StorageWriter extends AbstractService implements Writer {
         // 2. Load data into SegmentAggregators.
         // 3. Flush eligible SegmentAggregators.
         // 4. Acknowledge (truncate).
-        this.currentIteration = readData()
+        CompletableFuture<Void> iterationFuture = readData()
                 .thenAcceptAsync(this::processReadResult, this.executor)
                 .thenCompose(v -> this.flush())
                 .thenCompose(v -> this.acknowledge());
+        this.currentIteration.set(iterationFuture);
 
         // 5. When the iteration is complete, process its result, cleanup and start a new iteration, if needed.
-        this.currentIteration.whenComplete(this::endOfIteration);
+        iterationFuture.whenComplete(this::endOfIteration);
     }
 
     /**
@@ -198,7 +205,7 @@ class StorageWriter extends AbstractService implements Writer {
      * @param ex      (Optional) An exception that was thrown during the execution of the iteration.
      */
     private void endOfIteration(Void ignored, Throwable ex) {
-        this.currentIteration = null;
+        this.currentIteration.set(null);
 
         if (ex != null) {
             boolean critical = isCriticalError(ex);
@@ -222,7 +229,7 @@ class StorageWriter extends AbstractService implements Writer {
             }
         }
 
-        logStageEvent("Finish", "Elapsed " + this.stopwatch.elapsed().minus(this.currentIterationStartTime).toMillis() + "ms");
+        logStageEvent("Finish", "Elapsed " + this.stopwatch.elapsed().minus(this.currentIterationStartTime.get()).toMillis() + "ms");
         if (isRunning()) {
             runOneIteration();
         }
@@ -464,7 +471,7 @@ class StorageWriter extends AbstractService implements Writer {
         } else {
             log.debug("{}: Iteration[{}].{} ({}).", this.traceObjectId, this.iterationId, stageName, result);
         }
-        //        System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.iterationId, stageName, result));
+        //System.out.println(String.format("%s: Iteration[%s].%s (%s).", this.traceObjectId, this.iterationId, stageName, result));
     }
 
     private void logError(Throwable ex, boolean critical) {
@@ -474,7 +481,7 @@ class StorageWriter extends AbstractService implements Writer {
         } else {
             log.error("{}: Iteration[{}].Error. {}", this.traceObjectId, this.iterationId, ex);
         }
-        //        System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.iterationId, ex));
+        //System.out.println(String.format("%s: Iteration[%s].Error. %s", this.traceObjectId, this.iterationId, ex));
     }
 
     private void logErrorHandled(Throwable ex) {
