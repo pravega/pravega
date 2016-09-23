@@ -389,7 +389,6 @@ class StorageWriter extends AbstractService implements Writer {
      * Gets, or creates, a SegmentAggregator for the given StorageOperation.
      *
      * @param streamSegmentId The Id of the StreamSegment to get the aggregator for.
-     * @return The result.
      * @throws DataCorruptionException If the Operation refers to a StreamSegmentId that does not exist in Metadata.
      */
     private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {

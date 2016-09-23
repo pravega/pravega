@@ -275,9 +275,8 @@ public class ContainerReadIndex implements ReadIndex {
     /**
      * Gets a reference to the existing StreamSegmentRead index for the given StreamSegment Id.
      *
-     * @param streamSegmentId
+     * @param streamSegmentId    The Id of the StreamSegment whose ReadIndex to get.
      * @param createIfNotPresent If no Read Index is loaded, creates a new one.
-     * @return
      */
     private StreamSegmentReadIndex getReadIndex(long streamSegmentId, boolean createIfNotPresent) {
         StreamSegmentReadIndex index;

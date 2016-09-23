@@ -165,7 +165,7 @@ class DataFrameOutputStream extends OutputStream {
      * A record may span multiple data frames (and thus have multiple DataFrame entries), but the DataFrameOutputStream
      * abstracts all of that.
      *
-     * @throws SerializationException If we are unable to start a new record.
+     * @throws IOException If we are unable to start a new record.
      */
     public void startNewRecord() throws IOException {
         Exceptions.checkNotClosed(this.closed, this);

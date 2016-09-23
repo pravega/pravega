@@ -560,7 +560,7 @@ public class StreamSegmentContainerTests {
         checkStorage(segmentContents, lengths, context);
     }
 
-    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
+    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) {
         for (String segmentName : segmentContents.keySet()) {
             // 1. Deletion status
             SegmentProperties sp = null;

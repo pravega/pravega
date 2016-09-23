@@ -74,7 +74,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     /**
      * Sets the Last Modified date.
      *
-     * @param date
+     * @param date The Date to set.
      */
     void setLastModified(Date date);
 

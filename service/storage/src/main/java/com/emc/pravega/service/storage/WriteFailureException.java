@@ -29,8 +29,6 @@ public class WriteFailureException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the WriteFailureException class.
-     *
-     * @param message
      */
     public WriteFailureException(String message) {
         super(message);
@@ -38,9 +36,6 @@ public class WriteFailureException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the WriteFailureException class.
-     *
-     * @param message
-     * @param cause
      */
     public WriteFailureException(String message, Throwable cause) {
         super(message, cause);

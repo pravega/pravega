@@ -174,12 +174,12 @@ public class AppendsOnlyBenchmark extends Benchmark {
     //region TestOutput
 
     private static class TestOutput implements Comparable<TestOutput> {
-        public final TestInput input;
-        public long totalAppendLength;
-        public long totalDurationNanos;
-        public final SeriesStatistic latencies;
+        final TestInput input;
+        long totalAppendLength;
+        long totalDurationNanos;
+        final SeriesStatistic latencies;
 
-        public TestOutput(TestInput input, SeriesStatistic latencies) {
+        TestOutput(TestInput input, SeriesStatistic latencies) {
             this.input = input;
             this.latencies = latencies;
         }
@@ -200,12 +200,12 @@ public class AppendsOnlyBenchmark extends Benchmark {
     //region TestInput
 
     private static class TestInput implements Comparable<TestInput> {
-        public final int segmentCount;
-        public final int appendsPerSegment;
-        public final int appendSize;
-        public final int burstSize;
+        final int segmentCount;
+        final int appendsPerSegment;
+        final int appendSize;
+        final int burstSize;
 
-        public TestInput(int segmentCount, int appendsPerSegment, int appendSize, int burstSize) {
+        TestInput(int segmentCount, int appendsPerSegment, int appendSize, int burstSize) {
             this.segmentCount = segmentCount;
             this.appendsPerSegment = appendsPerSegment;
             this.appendSize = appendSize;

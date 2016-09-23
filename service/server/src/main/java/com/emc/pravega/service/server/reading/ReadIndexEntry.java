@@ -73,8 +73,6 @@ abstract class ReadIndexEntry {
 
     /**
      * Gets a value indicating the StreamSegment offset for this entry.
-     *
-     * @return
      */
     long getStreamSegmentOffset() {
         return this.streamSegmentOffset;
@@ -82,8 +80,6 @@ abstract class ReadIndexEntry {
 
     /**
      * Gets the length of this entry.
-     *
-     * @return
      */
     long getLength() {
         return this.length;
@@ -91,8 +87,6 @@ abstract class ReadIndexEntry {
 
     /**
      * Gets a value indicating the last Offset in the StreamSegment pertaining to this entry.
-     *
-     * @return
      */
     long getLastStreamSegmentOffset() {
         return this.streamSegmentOffset + this.length - 1;

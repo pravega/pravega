@@ -115,7 +115,6 @@ class LogClient implements AutoCloseable {
     /**
      * Initializes the LogClient.
      *
-     * @throws ObjectClosedException   If the LogClient is closed.
      * @throws IllegalStateException   If the LogClient is already initialized.
      * @throws DurableDataLogException If an exception is thrown during initialization. The actual exception thrown may
      *                                 be a derived exception from this one, which provides more information about
@@ -161,7 +160,7 @@ class LogClient implements AutoCloseable {
      * the Future will contain the exception that caused the failure. All Log-related exceptions will inherit from the
      * DurableDataLogException class.
      */
-     LogHandle getLogHandle(String logName) throws DurableDataLogException {
+    LogHandle getLogHandle(String logName) throws DurableDataLogException {
         LogHandle handle;
         boolean newHandle = false;
         synchronized (this.handles) {

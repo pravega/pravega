@@ -172,8 +172,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
     /**
      * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.
-     *
-     * @return
      */
     long nextOperationSequenceNumber() {
         Preconditions.checkState(!isRecoveryMode(), "Cannot request new Operation Sequence Number in Recovery Mode.");
@@ -182,8 +180,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
     /**
      * Sets the operation sequence number in the transaction.
-     *
-     * @param value
      */
     void setOperationSequenceNumber(long value) {
         Preconditions.checkState(this.isRecoveryMode(), "Can only set new Operation Sequence Number in Recovery Mode.");
@@ -316,8 +312,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Gets all pending changes for the given StreamSegment.
          *
-         * @param streamSegmentId
-         * @return The result
+         * @param streamSegmentId The Id of the Segment to query.
          * @throws MetadataUpdateException If no metadata entry exists for the given StreamSegment Id.
          */
         TemporaryStreamSegmentMetadata getStreamSegmentMetadata(long streamSegmentId) throws MetadataUpdateException {
@@ -354,7 +349,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Sets the new Operation Sequence Number.
          *
-         * @param value
+         * @param value The new Operation Sequence number.
          */
         void setOperationSequenceNumber(long value) {
             Preconditions.checkState(this.newSequenceNumber != null, "Unable to set new Sequence Number");

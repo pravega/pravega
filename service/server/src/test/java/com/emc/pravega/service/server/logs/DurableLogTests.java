@@ -568,9 +568,7 @@ public class DurableLogTests extends OperationLogTestBase {
      *                                        DurableLog before adding others.
      * @param calculateExpectedInjectionCount A function that, given the total number of DurableDataLog writes (and their total lengths),
      *                                        calculates the expected number of injected operations that should exist.
-     * @throws Exception
      */
-
     private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int waitForProcessingFrequency, BiFunction<Integer, Integer, Double> calculateExpectedInjectionCount) throws Exception {
         int streamSegmentCount = 500;
         int appendsPerStreamSegment = 20;
@@ -1025,7 +1023,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //region Helpers
 
-    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog, Cache cache) throws Exception {
+    private void performLogOperationChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, DurableLog durableLog, Cache cache) {
         // Log Operation based checks
         long lastSeqNo = -1;
         Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();

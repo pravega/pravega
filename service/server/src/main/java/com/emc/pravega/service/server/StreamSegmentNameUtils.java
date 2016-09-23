@@ -64,12 +64,7 @@ public final class StreamSegmentNameUtils {
         long part2 = System.currentTimeMillis() & 0xffffffffL;
         part2 = part2 << Integer.SIZE | System.nanoTime() & 0xffffffffL;
 
-        StringBuilder result = new StringBuilder();
-        result.append(parentStreamSegmentName);
-        result.append(DELIMITER);
-        result.append(String.format(PART_FORMAT, part1));
-        result.append(String.format(PART_FORMAT, part2));
-        return result.toString();
+        return parentStreamSegmentName + DELIMITER+ String.format(PART_FORMAT, part1)+String.format(PART_FORMAT, part2);
     }
 
     /**

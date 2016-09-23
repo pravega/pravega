@@ -42,10 +42,10 @@ import java.util.function.Predicate;
 /**
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
  */
-public abstract class OperationLogTestBase {
+abstract class OperationLogTestBase {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    protected void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> transactions, Collection<LogTestHelpers.OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
+    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> transactions, Collection<LogTestHelpers.OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
         // Verify that transactions are merged
         for (long transactionId : transactions.keySet()) {
             SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(transactionId);
@@ -70,7 +70,7 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex) throws Exception {
+    void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex) throws Exception {
         AbstractMap<Long, Integer> expectedLengths = LogTestHelpers.getExpectedLengths(operations);
         AbstractMap<Long, InputStream> expectedData = LogTestHelpers.getExpectedContents(operations);
         for (Map.Entry<Long, InputStream> e : expectedData.entrySet()) {
@@ -91,10 +91,10 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
+    static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
         private final boolean failAtBeginning;
 
-        public FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
+        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
             super(base.getStreamSegmentId(), base.getData(), base.getAppendContext());
             this.failAtBeginning = failAtBeginning;
         }
@@ -109,11 +109,11 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected static class CorruptedMemoryOperationLog extends MemoryOperationLog {
+    static class CorruptedMemoryOperationLog extends MemoryOperationLog {
         private final long corruptAtIndex;
         private final AtomicLong addCount;
 
-        public CorruptedMemoryOperationLog(int corruptAtIndex) {
+        CorruptedMemoryOperationLog(int corruptAtIndex) {
             this.corruptAtIndex = corruptAtIndex;
             this.addCount = new AtomicLong();
         }

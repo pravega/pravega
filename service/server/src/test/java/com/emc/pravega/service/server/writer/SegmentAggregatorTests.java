@@ -1173,7 +1173,7 @@ public class SegmentAggregatorTests {
         }
     }
 
-    private <T extends Throwable> void tryFlushAllSegments(TestContext context, Runnable exceptionReset, Supplier<T> exceptionProvider) throws Exception {
+    private <T extends Throwable> void tryFlushAllSegments(TestContext context, Runnable exceptionReset, Supplier<T> exceptionProvider) {
         // Flush all segments in the TestContext, as long as any of them still has something to flush and is able to
         // flush anything, or an exception was thrown (and expected).
         boolean anythingFlushed = true;

@@ -120,7 +120,7 @@ public class ContainerReadIndexTests {
         checkReadIndex("BeginMerge", segmentContents, context);
 
         // Complete the merger (part 2/2), and check contents.
-        completeMergeTransactiones(transactionsBySegment, context);
+        completeMergeTransactions(transactionsBySegment, context);
         checkReadIndex("CompleteMerge", segmentContents, context);
     }
 
@@ -188,7 +188,7 @@ public class ContainerReadIndexTests {
 
         // 4. Merge all the Transactions.
         beginMergeTransactions(transactionsBySegment, segmentContents, context);
-        completeMergeTransactiones(transactionsBySegment, context);
+        completeMergeTransactions(transactionsBySegment, context);
         context.readIndex.triggerFutureReads(segmentIds);
 
         // 5. Add more appends (to the parent segments)
@@ -236,7 +236,7 @@ public class ContainerReadIndexTests {
             byte[] actualData = readContents.get(segmentId).toByteArray();
             int expectedLength = isSealed ? expectedData.length : nonSealReadLimit;
             Assert.assertEquals("Unexpected read length for segment " + expectedData.length, expectedLength, actualData.length);
-            AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + expectedData, expectedData, 0, actualData, 0, actualData.length);
+            AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentId, expectedData, 0, actualData, 0, actualData.length);
         }
     }
 
@@ -256,12 +256,12 @@ public class ContainerReadIndexTests {
         long segmentId = 0;
         String segmentName = getSegmentName((int) segmentId);
         context.metadata.mapStreamSegmentId(segmentName, segmentId);
-        initializeSegment(segmentId, context, 0, 0);
+        initializeSegment(segmentId, context);
 
         long transactionId = segmentId + 1;
         String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
         context.metadata.mapStreamSegmentId(transactionName, transactionId, segmentId);
-        initializeSegment(transactionId, context, 0, 0);
+        initializeSegment(transactionId, context);
 
         byte[] appendData = "foo".getBytes();
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
@@ -307,7 +307,7 @@ public class ContainerReadIndexTests {
         // 4. Merge with invalid arguments.
         long secondSegmentId = transactionId + 1;
         context.metadata.mapStreamSegmentId(getSegmentName((int) secondSegmentId), secondSegmentId);
-        initializeSegment(secondSegmentId, context, 0, 0);
+        initializeSegment(secondSegmentId, context);
         AssertExtensions.assertThrows(
                 "beginMerge did not throw the correct exception when attempting to merge a stand-along Segment.",
                 () -> context.readIndex.beginMerge(secondSegmentId, 0, segmentId),
@@ -688,7 +688,7 @@ public class ContainerReadIndexTests {
         return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
     }
 
-    private void completeMergeTransactiones(HashMap<Long, ArrayList<Long>> transactionsBySegment, TestContext context) throws Exception {
+    private void completeMergeTransactions(HashMap<Long, ArrayList<Long>> transactionsBySegment, TestContext context) {
         for (Map.Entry<Long, ArrayList<Long>> e : transactionsBySegment.entrySet()) {
             long parentId = e.getKey();
             for (long transactionId : e.getValue()) {
@@ -785,7 +785,7 @@ public class ContainerReadIndexTests {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String name = getSegmentName(i);
             context.metadata.mapStreamSegmentId(name, i);
-            initializeSegment(i, context, 0, 0);
+            initializeSegment(i, context);
             segmentIds.add((long) i);
         }
 
@@ -804,7 +804,7 @@ public class ContainerReadIndexTests {
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentMetadata.getName());
                 context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
-                initializeSegment(transactionId, context, 0, 0);
+                initializeSegment(transactionId, context);
                 segmentTransactions.add(transactionId);
                 transactionId++;
             }
@@ -817,10 +817,10 @@ public class ContainerReadIndexTests {
         return "Segment_" + id;
     }
 
-    private void initializeSegment(long segmentId, TestContext context, long storageLength, long durableLogLength) {
+    private void initializeSegment(long segmentId, TestContext context) {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
-        metadata.setDurableLogLength(durableLogLength);
-        metadata.setStorageLength(storageLength);
+        metadata.setDurableLogLength(0);
+        metadata.setStorageLength(0);
     }
 
     //endregion

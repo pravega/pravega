@@ -26,7 +26,6 @@ import com.emc.pravega.service.storage.DurableDataLogFactory;
  * Represents a DurableDataLogFactory that creates and manages instances of DistributedLogDataLog instances.
  */
 public class DistributedLogDataLogFactory implements DurableDataLogFactory {
-    private final DistributedLogConfig config;
     private final LogClient client;
 
     /**
@@ -38,7 +37,6 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      * @throws IllegalArgumentException If the clientId is invalid.
      */
     public DistributedLogDataLogFactory(String clientId, DistributedLogConfig config) {
-        this.config = config;
         this.client = new LogClient(clientId, config);
     }
 

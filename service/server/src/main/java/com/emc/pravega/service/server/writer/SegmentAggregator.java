@@ -150,8 +150,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     /**
      * Gets a value representing the amount of time since the last successful call to flush(). If no such call has been
      * made yet, this returns the amount of time since the creation of this SegmentAggregator object.
-     *
-     * @return The result.
      */
     Duration getElapsedSinceLastFlush() {
         return this.stopwatch.elapsed().minus(this.lastFlush);
@@ -166,8 +164,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * <li> Too much time has passed since the last call to flush() (getElapsedSinceLastFlush >= FlushThresholdTime)
      * <li> The SegmentAggregator contains a StreamSegmentSealOperation or MergeTransactionOperation (hasSealPending == true)
      * </ul>
-     *
-     * @return The result.
      */
     boolean mustFlush() {
         return exceedsThresholds()
@@ -177,8 +173,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     /**
      * Gets a value indicating whether the Flush thresholds are exceeded for this SegmentAggregator.
-     *
-     * @return The result.
      */
     private boolean exceedsThresholds() {
         return this.outstandingAppendLength >= this.config.getFlushThresholdBytes()

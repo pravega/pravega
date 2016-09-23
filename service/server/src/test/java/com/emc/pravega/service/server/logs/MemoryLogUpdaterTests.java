@@ -137,8 +137,6 @@ public class MemoryLogUpdaterTests {
 
     /**
      * Tests the functionality of the flush() method, and that it can trigger future reads on the ReadIndex.
-     *
-     * @throws Exception
      */
     @Test
     public void testFlush() throws Exception {
@@ -173,8 +171,6 @@ public class MemoryLogUpdaterTests {
     /**
      * Tests the clear() method on the MemoryLogUpdater (clear ReadIndex+MemoryLog; immediate calls to flush() will not
      * trigger any future reads on ReadIndex).
-     *
-     * @throws Exception
      */
     @Test
     public void testClear() throws Exception {

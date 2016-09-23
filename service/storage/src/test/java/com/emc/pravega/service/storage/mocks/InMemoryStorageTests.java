@@ -39,6 +39,8 @@ import java.util.HashMap;
  */
 public class InMemoryStorageTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int SEGMENT_COUNT = 10;
+    private static final int APPENDS_PER_SEGMENT = 10;
 
     /**
      * Tests the write() method.
@@ -97,7 +99,7 @@ public class InMemoryStorageTests {
                     s.read("foo", 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Do some reading.
             for (String segmentName : appendData.keySet()) {
@@ -161,7 +163,7 @@ public class InMemoryStorageTests {
                     s.seal("foo", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
             for (String segmentName : appendData.keySet()) {
                 s.seal(segmentName, TIMEOUT).join();
                 AssertExtensions.assertThrows(
@@ -190,7 +192,7 @@ public class InMemoryStorageTests {
     @Test
     public void testConcat() throws Exception {
         try (Storage s = createStorage()) {
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Check pre-create concat.
             String firstSegmentName = getSegmentName(0);
@@ -258,10 +260,10 @@ public class InMemoryStorageTests {
         return Integer.toString(id);
     }
 
-    private HashMap<String, ByteArrayOutputStream> populate(Storage s, int segmentCount, int appendsPerSegment) throws Exception {
+    private HashMap<String, ByteArrayOutputStream> populate(Storage s) throws Exception {
         HashMap<String, ByteArrayOutputStream> appendData = new HashMap<>();
 
-        for (int segmentId = 0; segmentId < segmentCount; segmentId++) {
+        for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId);
 
             s.create(segmentName, TIMEOUT).join();
@@ -269,7 +271,7 @@ public class InMemoryStorageTests {
             appendData.put(segmentName, writeStream);
 
             long offset = 0;
-            for (int j = 0; j < appendsPerSegment; j++) {
+            for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
                 s.write(segmentName, offset, dataStream, writeData.length, TIMEOUT).join();
@@ -280,7 +282,7 @@ public class InMemoryStorageTests {
         return appendData;
     }
 
-    protected Storage createStorage() {
+    private Storage createStorage() {
         return new InMemoryStorage();
     }
 }

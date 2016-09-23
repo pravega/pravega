@@ -302,9 +302,6 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     /**
      * Cancels those Operations in the given list that have not yet completed with the given exception.
-     *
-     * @param operations
-     * @param failException
      */
     private void cancelIncompleteOperations(List<CompletableOperation> operations, Throwable failException) {
         assert failException != null : "no exception to set";

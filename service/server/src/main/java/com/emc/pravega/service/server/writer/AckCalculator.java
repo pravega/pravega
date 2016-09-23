@@ -53,7 +53,6 @@ class AckCalculator {
      * safely truncate up to LastReadSequenceNumber.
      *
      * @param processors The Processors to inspect for commit status.
-     * @return The result.
      */
     <T extends OperationProcessor> long getHighestCommittedSequenceNumber(Iterable<T> processors) {
         long lowestUncommittedSeqNo = Long.MAX_VALUE;

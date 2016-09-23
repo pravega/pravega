@@ -29,8 +29,6 @@ public class BadOffsetException extends WriteFailureException {
 
     /**
      * Creates a new instance of the BadOffsetException class.
-     *
-     * @param message
      */
     public BadOffsetException(String message) {
         super(message);
@@ -38,9 +36,6 @@ public class BadOffsetException extends WriteFailureException {
 
     /**
      * Creates a new instance of the BadOffsetException class.
-     *
-     * @param message
-     * @param cause
      */
     public BadOffsetException(String message, Throwable cause) {
         super(message, cause);

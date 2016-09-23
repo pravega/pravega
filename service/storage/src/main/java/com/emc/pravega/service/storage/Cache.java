@@ -26,8 +26,6 @@ import com.emc.pravega.common.util.ByteArraySegment;
 public interface Cache extends AutoCloseable {
     /**
      * Gets a value indicating the Id of this cache.
-     *
-     * @return
      */
     String getId();
 
@@ -83,24 +81,17 @@ public interface Cache extends AutoCloseable {
 
         /**
          * Gets a pointer to a byte array representing the serialization of the Cache Key.
-         *
-         * @return
          */
         public abstract byte[] getSerialization();
 
         /**
          * For in-memory representations of the Cache, hashCode() is required.
-         *
-         * @return
          */
         @Override
         public abstract int hashCode();
 
         /**
          * For in-memory representation of the Cache, equals() is required.
-         *
-         * @param obj
-         * @return
          */
         @Override
         public abstract boolean equals(Object obj);

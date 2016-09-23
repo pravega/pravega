@@ -34,7 +34,6 @@ public class ConfigHelpers {
      * Creates a new instance of the DurableLogConfig class with given arguments.
      *
      * @param rawProperties The properties to include.
-     * @return
      */
     public static DurableLogConfig createDurableLogConfig(PropertyBag rawProperties) {
         return new DurableLogConfig(convert(rawProperties, DurableLogConfig.COMPONENT_CODE));
@@ -44,7 +43,6 @@ public class ConfigHelpers {
      * Creates a new instance of the ReadIndexConfig class with given arguments.
      *
      * @param rawProperties The properties to include.
-     * @return
      */
     public static ReadIndexConfig createReadIndexConfigWithInfiniteCachePolicy(PropertyBag rawProperties) {
         rawProperties
@@ -59,7 +57,6 @@ public class ConfigHelpers {
      * Creates a new instance of the WriterConfig class with given arguments.
      *
      * @param rawProperties The properties to include.
-     * @return
      */
     public static WriterConfig createWriterConfig(PropertyBag rawProperties) {
         return new WriterConfig(convert(rawProperties, WriterConfig.COMPONENT_CODE));

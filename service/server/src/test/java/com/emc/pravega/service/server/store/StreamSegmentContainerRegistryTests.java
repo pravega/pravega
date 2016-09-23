@@ -193,11 +193,11 @@ public class StreamSegmentContainerRegistryTests {
 
     private static class TestContainer extends AbstractService implements SegmentContainer {
         private final int id;
-        private Exception startException;
+        private final Exception startException;
         private Exception stopException;
         private boolean closed;
 
-        public TestContainer(int id, Exception startException) {
+        TestContainer(int id, Exception startException) {
             this.id = id;
             this.startException = startException;
         }
