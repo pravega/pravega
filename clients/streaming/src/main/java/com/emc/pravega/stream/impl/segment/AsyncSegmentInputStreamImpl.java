@@ -14,14 +14,6 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
-import javax.annotation.concurrent.GuardedBy;
-
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -39,9 +31,15 @@ import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.base.Preconditions;
-
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
@@ -211,7 +209,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     closeConnection(e);
                 }
             }
-            return Exceptions.<ExecutionException,SegmentRead>handleInterrupted(() -> read.get());
+            return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(() -> read.get());
         });
     }
 
