@@ -587,7 +587,8 @@ public class StorageWriterTests {
             batches.put(parentId, segmentBatches);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
             for (int i = 0; i < BATCHES_PER_SEGMENT; i++) {
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentMetadata.getName());
+                String batchName = StreamSegmentNameUtils.getBatchNameFromId(parentMetadata.getName(),
+                                                                             UUID.randomUUID());
                 context.metadata.mapStreamSegmentId(batchName, batchId, parentId);
                 initializeSegment(batchId, context);
                 segmentBatches.add(batchId);
