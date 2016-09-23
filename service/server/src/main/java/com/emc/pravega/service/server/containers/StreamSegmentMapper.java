@@ -37,7 +37,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
-import com.emc.pravega.service.server.logs.OperationLog;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;

@@ -102,6 +102,7 @@ public class CacheManagerTests {
      * Tests the ability to increment the oldest generation (or not) based on the activity of the clients.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testIncrementOldestGeneration() {
         final int cycleCount = 12345;
         final int defaultOldestGeneration = 0;

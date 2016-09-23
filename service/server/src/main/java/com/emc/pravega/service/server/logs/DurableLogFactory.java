@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.storage.DurableDataLogFactory;

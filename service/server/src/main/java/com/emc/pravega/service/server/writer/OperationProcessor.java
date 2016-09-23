@@ -15,22 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common;
 
-import com.google.common.base.Preconditions;
+package com.emc.pravega.service.server.writer;
 
-public class MathHelpers {
+/**
+ * Defines a general Processor for Operations.
+ */
+interface OperationProcessor {
+    /**
+     * Gets a value indicating whether the SegmentAggregator is closed (for any kind of operations).
+     */
+    boolean isClosed();
 
-    public static int abs(int in) {
-        return in & Integer.MAX_VALUE;
-    }
-
-    public static long abs(long in) {
-        return in & Long.MAX_VALUE;
-    }
-
-    public static long minMax(long value, long min, long max) {
-        Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
-        return Math.max(Math.min(value, max), min);
-    }
+    /**
+     * Gets the SequenceNumber of the first operation that is not fully committed to Storage.
+     *
+     * @return The result.
+     */
+    long getLowestUncommittedSequenceNumber();
 }

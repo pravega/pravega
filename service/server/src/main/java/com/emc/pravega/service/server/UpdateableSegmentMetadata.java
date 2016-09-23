@@ -48,6 +48,13 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void markSealed();
 
     /**
+     * Marks this StreamSegment as sealed in Storage.
+     * This is different from markSealed() in that markSealed() indicates it was sealed in DurableLog, which this indicates
+     * this fact has been persisted in Storage.
+     */
+    void markSealedInStorage();
+
+    /**
      * Marks this StreamSegment as deleted.
      */
     void markDeleted();
@@ -66,6 +73,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
 
     /**
      * Sets the Last Modified date.
+     *
      * @param date
      */
     void setLastModified(Date date);

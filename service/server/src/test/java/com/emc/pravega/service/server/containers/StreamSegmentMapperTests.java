@@ -27,7 +27,8 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
-import com.emc.pravega.service.server.logs.OperationLog;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -380,20 +381,20 @@ public class StreamSegmentMapperTests {
             if (op instanceof StreamSegmentMapOperation) {
                 StreamSegmentMapOperation mapOp = (StreamSegmentMapOperation) op;
                 mapOp.setStreamSegmentId(seqNo.incrementAndGet());
-                context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
-                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setStorageLength(0);
-                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setDurableLogLength(mapOp.getLength());
+                UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
+                segmentMetadata.setStorageLength(0);
+                segmentMetadata.setDurableLogLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
-                    context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).markSealed();
+                    segmentMetadata.markSealed();
                 }
             } else if (op instanceof BatchMapOperation) {
                 BatchMapOperation mapOp = (BatchMapOperation) op;
                 mapOp.setStreamSegmentId(seqNo.incrementAndGet());
-                context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
-                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setStorageLength(0);
-                context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).setDurableLogLength(mapOp.getLength());
+                UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
+                segmentMetadata.setStorageLength(0);
+                segmentMetadata.setDurableLogLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
-                    context.metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).markSealed();
+                    segmentMetadata.markSealed();
                 }
             }
 

@@ -15,22 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common;
 
-import com.google.common.base.Preconditions;
+package com.emc.pravega.service.server;
 
-public class MathHelpers {
+import com.emc.pravega.service.storage.Cache;
 
-    public static int abs(int in) {
-        return in & Integer.MAX_VALUE;
-    }
-
-    public static long abs(long in) {
-        return in & Long.MAX_VALUE;
-    }
-
-    public static long minMax(long value, long min, long max) {
-        Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
-        return Math.max(Math.min(value, max), min);
-    }
+/**
+ * Defines a Factory for Writers.
+ */
+public interface WriterFactory {
+    /**
+     * Creates a new Writer with given arguments.
+     *
+     * @param containerMetadata Metadata for the container that this Writer will be for.
+     * @param operationLog      The OperationLog to attach to.
+     * @param cache             The cache to use.
+     * @return An instance of a class that implements the Writer interface.
+     */
+    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache);
 }

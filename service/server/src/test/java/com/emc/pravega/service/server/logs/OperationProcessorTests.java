@@ -25,6 +25,7 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -492,7 +493,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.storage = new InMemoryStorage(this.executorService.get());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfig(100, 1024);
+            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+                    PropertyBag.create()
+                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService.get());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
             this.memoryLog = new MemoryOperationLog();

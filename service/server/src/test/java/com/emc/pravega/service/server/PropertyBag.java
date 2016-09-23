@@ -15,22 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common;
 
-import com.google.common.base.Preconditions;
+package com.emc.pravega.service.server;
 
-public class MathHelpers {
+import java.util.Properties;
 
-    public static int abs(int in) {
-        return in & Integer.MAX_VALUE;
+/**
+ * Extension to java.util.Properties that implements the Builder pattern.
+ */
+public class PropertyBag extends Properties {
+    public static PropertyBag create() {
+        return new PropertyBag();
     }
 
-    public static long abs(long in) {
-        return in & Long.MAX_VALUE;
-    }
-
-    public static long minMax(long value, long min, long max) {
-        Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
-        return Math.max(Math.min(value, max), min);
+    public PropertyBag with(String key, Object value) {
+        this.setProperty(key, value.toString());
+        return this;
     }
 }

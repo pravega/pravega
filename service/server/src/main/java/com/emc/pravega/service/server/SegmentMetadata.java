@@ -57,6 +57,14 @@ public interface SegmentMetadata extends SegmentProperties {
     boolean isMerged();
 
     /**
+     * Gets a value indicating whether this StreamSegment has been sealed in Storage.
+     * This is different from isSealed(), which returns true if the StreamSegment has been sealed in DurableLog or in Storage.
+     *
+     * @return
+     */
+    boolean isSealedInStorage();
+
+    /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
      *
      * @return

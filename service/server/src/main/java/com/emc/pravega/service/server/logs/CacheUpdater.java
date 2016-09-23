@@ -76,9 +76,9 @@ public class CacheUpdater {
             StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
             result = this.readIndex.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
         } else if (operation instanceof MergeBatchOperation) {
-            // Record a Merge Batch operation. We call beginMerge here, and the LogSynchronizer will call completeMerge.
+            // Record a Merge Batch operation. We call beginMerge here, and the StorageWriter will call completeMerge.
             MergeBatchOperation mergeOperation = (MergeBatchOperation) operation;
-            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getTargetStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId());
+            this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(), mergeOperation.getStreamSegmentOffset(), mergeOperation.getBatchStreamSegmentId());
         } else {
             assert !(operation instanceof CachedStreamSegmentAppendOperation) : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";
         }

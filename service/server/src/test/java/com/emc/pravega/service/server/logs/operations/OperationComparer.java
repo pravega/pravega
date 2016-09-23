@@ -118,7 +118,7 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, StreamSegmentSealOperation expected, StreamSegmentSealOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentLength(), actual.getStreamSegmentLength());
+        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation actual) {
@@ -144,8 +144,8 @@ public class OperationComparer {
 
     private void assertSame(String message, MergeBatchOperation expected, MergeBatchOperation actual) {
         Assert.assertEquals(message + " Unexpected BatchStreamSegmentId.", expected.getBatchStreamSegmentId(), actual.getBatchStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentLength.", expected.getBatchStreamSegmentLength(), actual.getBatchStreamSegmentLength());
-        Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getTargetStreamSegmentOffset(), actual.getTargetStreamSegmentOffset());
+        Assert.assertEquals(message + " Unexpected BatchStreamSegmentLength.", expected.getLength(), actual.getLength());
+        Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, MetadataOperation expected, MetadataOperation actual) {

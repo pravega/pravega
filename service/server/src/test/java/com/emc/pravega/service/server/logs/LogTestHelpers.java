@@ -20,8 +20,10 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMapper;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
@@ -67,9 +69,9 @@ public class LogTestHelpers {
         for (long streamSegmentId = 0; streamSegmentId < streamSegmentCount; streamSegmentId++) {
             result.add(streamSegmentId);
             String name = getStreamSegmentName(streamSegmentId);
-            containerMetadata.mapStreamSegmentId(name, streamSegmentId);
-            containerMetadata.getStreamSegmentMetadata(streamSegmentId).setDurableLogLength(0);
-            containerMetadata.getStreamSegmentMetadata(streamSegmentId).setStorageLength(0);
+            UpdateableSegmentMetadata segmentMetadata = containerMetadata.mapStreamSegmentId(name, streamSegmentId);
+            segmentMetadata.setDurableLogLength(0);
+            segmentMetadata.setStorageLength(0);
         }
 
         return result;
@@ -117,9 +119,9 @@ public class LogTestHelpers {
                 assert result.put(batchId, streamSegmentId) == null : "duplicate BatchId generated: " + batchId;
                 assert !streamSegmentIds.contains(batchId) : "duplicate StreamSegmentId (batch) generated: " + batchId;
                 String batchName = StreamSegmentNameUtils.getBatchNameFromId(streamSegmentName, UUID.randomUUID());
-                containerMetadata.mapStreamSegmentId(batchName, batchId, streamSegmentId);
-                containerMetadata.getStreamSegmentMetadata(batchId).setDurableLogLength(0);
-                containerMetadata.getStreamSegmentMetadata(batchId).setStorageLength(0);
+                UpdateableSegmentMetadata batchMetadata = containerMetadata.mapStreamSegmentId(batchName, batchId, streamSegmentId);
+                batchMetadata.setDurableLogLength(0);
+                batchMetadata.setStorageLength(0);
             }
         }
 
