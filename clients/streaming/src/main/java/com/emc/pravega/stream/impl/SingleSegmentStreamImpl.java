@@ -20,8 +20,10 @@ package com.emc.pravega.stream.impl;
 import java.util.Collection;
 import java.util.Collections;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
@@ -32,6 +34,8 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import com.google.common.base.Preconditions;
 
 import lombok.Getter;
@@ -42,12 +46,15 @@ import lombok.Getter;
 public class SingleSegmentStreamImpl implements Stream {
 
     private final String scope;
-    private final String streamName;
+    @Getter
+    private final String name;
     @Getter
     private final StreamConfiguration config;
-    @Getter
     private final SegmentId segmentId;
-    private final StreamController streamController;
+    private final ControllerApi.Admin apiAdmin;
+    private final ControllerApi.Producer apiProducer;
+    private final ControllerApi.Consumer apiConsumer;
+
     private final EventRouter router = new EventRouter() {
         @Override
         public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
@@ -63,19 +70,22 @@ public class SingleSegmentStreamImpl implements Stream {
         }
     };
 
-    public SingleSegmentStreamImpl(String scope, String streamName, StreamConfiguration config,
-            StreamController streamController) {
-        Preconditions.checkNotNull(streamController);
+    public SingleSegmentStreamImpl(String scope, String name, StreamConfiguration config,
+                                   ControllerApi.Admin apiAdmin, ControllerApi.Producer apiProducer, ControllerApi.Consumer apiConsumer) {
         this.scope = scope;
-        this.streamName = streamName;
+        this.name = name;
         this.config = config;
-        this.streamController = streamController;
-        this.segmentId = new SegmentId(scope, streamName, 1, 0);
+        this.apiAdmin = apiAdmin;
+        this.apiProducer = apiProducer;
+        this.apiConsumer = apiConsumer;
+
+        this.segmentId = getLatestSegments().getSegments().get(0);
     }
 
     @Override
     public StreamSegments getSegments(long time) {
-        return new StreamSegments(Collections.singletonList(segmentId), time);
+        return FutureHelpers.getAndHandleExceptions(
+                apiProducer.getCurrentSegments(name), RuntimeException::new);
     }
 
     @Override
@@ -85,17 +95,14 @@ public class SingleSegmentStreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<>(this, streamController, router, s, config);
+        return new ProducerImpl<>(this, new SegmentManagerProducerImpl(name, apiProducer), router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
-        Preconditions.checkNotNull(s);
-        Preconditions.checkNotNull(config);
-        Preconditions.checkNotNull(startingPosition);
         return new ConsumerImpl<>(this,
-                streamController,
+                new SegmentManagerConsumerImpl(name, apiConsumer),
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
@@ -104,26 +111,12 @@ public class SingleSegmentStreamImpl implements Stream {
     }
     
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
-        Preconditions.checkNotNull(s);
-        Preconditions.checkNotNull(config);
         return new ConsumerImpl<>(this,
-                streamController,
+                new SegmentManagerConsumerImpl(name, apiConsumer),
                 s,
                 new PositionImpl(Collections.singletonMap(segmentId, 0L), Collections.emptyMap()),
                 new SingleStreamOrderer<T>(),
                 null,
                 config);
     }
-
-    @Override
-    public String getQualifiedName() {
-        StringBuffer sb = new StringBuffer();
-        if (scope != null) {
-            sb.append(scope);
-            sb.append('/');
-        }
-        sb.append(streamName);
-        return sb.toString();
-    }
-
 }

@@ -1,3 +1,5 @@
+*.iml
+**/src/generated/**
 .project
 build
 .classpath
@@ -6,8 +8,8 @@ bin/
 .gradle
 output
 .idea
-.iml
 target
 log/
 .metadata/
 .recommenders/
+*.log

@@ -28,11 +28,12 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
+import com.emc.pravega.stream.impl.segment.SegmentManagerConsumer;
 
 public class ConsumerImpl<Type> implements Consumer<Type> {
 
     private final Serializer<Type> deserializer;
-    private final StreamController streamController;
+    private final SegmentManagerConsumer segmentManager;
 
     private final Stream stream;
     private final Orderer<Type> orderer;
@@ -41,11 +42,11 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
     private final Map<SegmentId, Long> futureOwnedLogs = new HashMap<>();
 
-    ConsumerImpl(Stream stream, StreamController streamController, Serializer<Type> deserializer, PositionImpl position,
+    ConsumerImpl(Stream stream, SegmentManagerConsumer segmentManager, Serializer<Type> deserializer, PositionImpl position,
             Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
         this.deserializer = deserializer;
         this.stream = stream;
-        this.streamController = streamController;
+        this.segmentManager = segmentManager;
         this.orderer = orderer;
         this.rateChangeListener = rateChangeListener;
         this.config = config;
@@ -76,7 +77,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         if (replacment.isPresent()) {
             SegmentId segmentId = replacment.get();
             Long position = futureOwnedLogs.remove(segmentId);
-            SegmentInputStream in = streamController.openSegmentForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
+            SegmentInputStream in = segmentManager.openSegmentForReading(segmentId.getQualifiedName(), config.getSegmentConfig());
             in.setOffset(position);
             consumers.add(new SegmentConsumerImpl<>(segmentId, in, deserializer));
             rateChangeListener.rateChanged(stream, false);
@@ -106,7 +107,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             futureOwnedLogs.clear();
             futureOwnedLogs.putAll(position.getFutureOwnedLogs());
             for (SegmentId s : position.getOwnedSegments()) {
-                SegmentInputStream in = streamController.openSegmentForReading(s.getQualifiedName(), config.getSegmentConfig());
+                SegmentInputStream in = segmentManager.openSegmentForReading(s.getQualifiedName(), config.getSegmentConfig());
                 in.setOffset(position.getOffsetForOwnedLog(s));
                 consumers.add(new SegmentConsumerImpl<>(s, in, deserializer));
             }
@@ -121,5 +122,4 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
             }
         }
     }
-
 }

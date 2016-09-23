@@ -1,62 +1,32 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.emc.pravega.stream.impl;
 
-import java.util.UUID;
+import com.emc.pravega.stream.SegmentUri;
 
-import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
-import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+public interface StreamController {
 
-public interface StreamController extends Router {
+    /**
+     * Given a segment return the endpoint that currently is the owner of that segment.
+     * 
+     * The result of this function can be cached until the endpoint is unreachable or indicates it
+     * is no longer the owner.
+     */
+    SegmentUri getEndpointForSegment(String segment);
     
-    /**
-     * Creates a new segment with given name. Returns false if the segment already
-     * existed
-     */
-    boolean createSegment(String segment);
-
-    /**
-     * Creates a new transaction
-     */
-    void createTransaction(Stream stream, UUID txId, long timeout);
-
-    /**
-     * Commits a transaction.
-     */
-    void commitTransaction(Stream stream, UUID txId) throws TxFailedException;
-
-    /**
-     * Drops a transaction (and all data written to it)
-     */
-    void dropTransaction(Stream stream, UUID txId);
-
-    Transaction.Status checkTransactionStatus(Stream stream, UUID txId);
-    
-    /**
-     * Opens a transaction for Appending to a segment.
-     */
-    SegmentOutputStream openTransactionForAppending(String segmentName, UUID txId);
-
-    /**
-     * Opens an existing segment for appending. this operation will fail if the segment does not
-     * exist
-     * This operation may be called multiple times on the same segment from the
-     * same or different clients (i.e., there can be concurrent Stream Writers
-     * in the same process space).
-     */
-    SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config) throws SegmentSealedException;
-
-    /**
-     * Opens an existing segment for reading. This operation will fail if the
-     * segment does not exist.
-     * This operation may be called multiple times on the same stream from the
-     * same client (i.e., there can be concurrent Stream Readers in the same
-     * process space).
-     */
-    SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config);
-
 }

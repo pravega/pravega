@@ -47,7 +47,4 @@ public interface StreamManager extends AutoCloseable {
      * Returns the requested stream.
      */
     Stream getStream(String streamName);
-
-    @Override
-    void close();
 }

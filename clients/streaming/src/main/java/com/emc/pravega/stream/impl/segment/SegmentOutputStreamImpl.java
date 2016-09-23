@@ -42,15 +42,16 @@ import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
+import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
-import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
-import com.emc.pravega.stream.impl.Router;
+import com.emc.pravega.stream.SegmentUri;
+import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.Unpooled;
@@ -67,9 +68,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
-    private static final CompletableFuture<Void> NULL_CALLBACK = CompletableFuture.completedFuture(null);
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
-    private final Router router;
+    private final StreamController controller;
     private final ConnectionFactory connectionFactory;
     private final UUID connectionId;
     private final String segment;
@@ -175,11 +175,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
                 eventNumber++;
                 Append append = new Append(segment, connectionId, eventNumber, Unpooled.wrappedBuffer(buff));
                 inflightEmpty.reset();
-                if (callback == null) {                    
-                    inflight.put(append, NULL_CALLBACK);
-                } else {
-                    inflight.put(append, callback);                    
-                }
+                inflight.put(append, callback);
                 return append;
             }
         }
@@ -247,7 +243,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         }
 
         @Override
-        public void noSuchBatch(NoSuchTransaction noSuchBatch) {
+        public void noSuchBatch(NoSuchBatch noSuchBatch) {
             state.failConnection(new IllegalArgumentException(noSuchBatch.toString()));
         }
 
@@ -271,7 +267,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
 
         private void ackUpTo(long ackLevel) {
             for (CompletableFuture<Void> toAck : state.removeInflightBelow(ackLevel)) {
-                toAck.complete(null);
+                if (toAck != null) {
+                    toAck.complete(null);
+                }
             }
         }
 
@@ -316,9 +314,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            String endpoint = router.getEndpointForSegment(segment);
+            SegmentUri uri = controller.getEndpointForSegment(segment);
             ClientConnection connection = getAndHandleExceptions(connectionFactory
-                .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
+                .establishConnection(uri.getEndpoint(), uri.getPort(), responseProcessor), ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(connectionId, segment);
             connection.send(cmd);
