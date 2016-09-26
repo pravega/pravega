@@ -18,21 +18,11 @@
 
 package com.emc.pravega.integrationtests;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.CommandDecoder;
-import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.integrationtests.mockController.MockController;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -45,27 +35,41 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-
-import static org.junit.Assert.*;
-
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ReadTest {
     
@@ -146,7 +150,7 @@ public class ReadTest {
     @Test
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException {
         String endpoint = "localhost";
-        String segmentName = "abc";
+        String stream = "stream";
         int port = 8765;
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -154,16 +158,27 @@ public class ReadTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false, port);
-        SegmentManagerImpl segmentClient = new SegmentManagerImpl(endpoint, clientCF);
-        segmentClient.createSegment(segmentName);
+        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
+
+        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
+        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+
+        SegmentManagerProducerImpl segmentproducerClient = new SegmentManagerProducerImpl(stream, apiProducer);
+
+        SegmentManagerConsumerImpl segmentConsumerClient = new SegmentManagerConsumerImpl(stream, apiConsumer);
+
+
+        String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new)
+                .getSegments().get(0).getQualifiedName();
+
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentproducerClient.openSegmentForAppending(segmentName, null);
         out.write(ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>());
         out.flush();
         
         @Cleanup("close")
-        SegmentInputStream in = segmentClient.openSegmentForReading(segmentName, new SegmentInputConfiguration());
+        SegmentInputStream in = segmentConsumerClient.openSegmentForReading(segmentName, new SegmentInputConfiguration());
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }
@@ -174,13 +189,24 @@ public class ReadTest {
         String streamName = "abc";
         int port = 8910;
         String testString = "Hello world\n";
+        String scope = "Scope1";
+
+        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
+        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(
+                apiAdmin,
+                apiProducer,
+                apiConsumer,
+                scope);
+
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(endpoint, port, "Scope");
         SingleSegmentStreamImpl stream = (SingleSegmentStreamImpl) streamManager.createStream(streamName, null);
+
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
@@ -196,14 +222,14 @@ public class ReadTest {
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
             StreamSegmentStore segmentStore) {
-        segmentStore.createStreamSegment(segmentName, Duration.ZERO);
-        for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-            AppendContext appendContext = new AppendContext(clientId, eventNumber);
-            try {
+        try {
+            segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
+            for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
+                AppendContext appendContext = new AppendContext(clientId, eventNumber);
                 segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
             }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
         }
     }
 }

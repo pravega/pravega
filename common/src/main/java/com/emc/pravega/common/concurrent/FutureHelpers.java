@@ -42,6 +42,18 @@ import java.util.stream.Collectors;
 public final class FutureHelpers {
 
     /**
+     * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
+     */
+    public static <T> boolean await(CompletableFuture<T> f) {
+        try {
+            Exceptions.handleInterrupted(() -> f.get());
+            return true;
+        } catch (ExecutionException e) {
+            return false;
+        }
+    }
+
+    /**
      * Returns true if the future is done and successful
      */
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
@@ -172,8 +184,21 @@ public final class FutureHelpers {
      * @return The result.
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, ScheduledExecutorService executorService) {
+        return futureWithTimeout(timeout, null, executorService);
+    }
+
+    /**
+     * Creates a new CompletableFuture that will timeout after the given amount of time.
+     *
+     * @param timeout         The timeout for the future.
+     * @param tag             A tag (identifier) to be used as a parameter to the TimeoutException.
+     * @param executorService An ExecutorService that will be used to invoke the timeout on.
+     * @param <T>             The Type argument for the CompletableFuture to create.
+     * @return The result.
+     */
+    public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, String tag, ScheduledExecutorService executorService) {
         CompletableFuture<T> result = new CompletableFuture<T>();
-        ScheduledFuture sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException()), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        ScheduledFuture sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         result.whenComplete((r, ex) -> sf.cancel(true));
         return result;
     }

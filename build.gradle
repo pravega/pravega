@@ -9,6 +9,17 @@
 
 // Apply the java plugin to add support for Java
 
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "gradle.plugin.org.jruyi.gradle:thrift-gradle-plugin:0.3.1"
+    }
+}
+
 allprojects {
     apply plugin: 'java'
     apply plugin: 'idea'
@@ -20,7 +31,7 @@ allprojects {
     checkstyle {
         toolVersion = "7.1"
     }
-    
+
     repositories {
         // Use 'jcenter' for resolving your dependencies.
         // You can declare any Maven/Ivy/file repository here.
@@ -47,14 +58,11 @@ allprojects {
 
         testCompile 'junit:junit:4.12'
         compile group: 'com.google.guava', name: 'guava', version: '19.0'
- 
         compile group: 'commons-lang', name: 'commons-lang', version: '2.6'
         compile group: 'com.google.code.findbugs', name: 'jsr305', version: '1.3.9'
-        
         compile group: 'org.projectlombok', name: 'lombok', version: '1.16.10'
-        
         compile 'io.netty:netty-all:4.0.36.Final'
-        
+
         testCompile "org.mockito:mockito-core:2.+"
     }
 
@@ -72,6 +80,7 @@ project('common') {
 project('clients:streaming') {
     dependencies {
         compile project(':common')
+        compile project(":controller:contract")
         testCompile project(':testcommon')
     }
 }
@@ -169,7 +178,6 @@ project('integrationtests') {
     }
 }
 
-
 project('benchmark') {
     dependencies {
         compile project(':common')
@@ -183,7 +191,6 @@ project('benchmark') {
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
 
-
     task startProducer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartECSProducer"
         classpath = sourceSets.main.runtimeClasspath
@@ -191,6 +198,53 @@ project('benchmark') {
     }
 }
 
+project('controller') {
+    dependencies {
+        testCompile project(':testcommon')
+    }
+}
+
+project('controller:contract') {
+
+    apply plugin: "org.jruyi.thrift"
+
+    compileThrift {
+        recurse true
+        sourceDir "$projectDir/src/main/thrift"
+        outputDir "$projectDir/src/generated"
+        generator 'java', 'private-members', 'hashcode'
+    }
+
+    sourceSets {
+        main.java.srcDirs += "$projectDir/src/generated/gen-java"
+    }
+
+    tasks.compileJava.dependsOn(compileThrift)
+
+    checkstyle {
+        // Exclude generated code from Checkstyle checks
+        sourceSets -= sourceSets.main
+    }
+
+    dependencies {
+        // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
+        compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    }
+}
+
+project('controller:server') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.controller.server.Main"
+    //applicationDefaultJvmArgs = ["-Dlog4j.configuration=conf/log4j.properties"]
+
+    dependencies {
+        compile project(':common')
+        compile project(":controller:contract")
+        compile project(":clients:streaming")
+        compile group: 'com.typesafe', name: 'config', version: '1.3.0'
+    }
+}
 
 if (System.env.TRAVIS == 'true') {
   allprojects {

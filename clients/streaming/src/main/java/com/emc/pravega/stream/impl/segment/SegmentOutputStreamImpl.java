@@ -50,6 +50,8 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
+import com.emc.pravega.stream.SegmentUri;
+import com.emc.pravega.stream.impl.StreamController;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.Unpooled;
@@ -67,8 +69,8 @@ import lombok.extern.slf4j.Slf4j;
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
+    private final StreamController controller;
     private final ConnectionFactory connectionFactory;
-    private final String endpoint;
     private final UUID connectionId;
     private final String segment;
     private final State state = new State();
@@ -220,7 +222,11 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     }
 
     private final class ResponseProcessor extends FailingReplyProcessor {
-
+        @Override
+        public void connectionDropped() {
+            state.failConnection(new ConnectionFailedException()); 
+        }
+        
         @Override
         public void wrongHost(WrongHost wrongHost) {
             state.failConnection(new ConnectionFailedException()); // TODO: Probably something else.
@@ -308,8 +314,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
+            SegmentUri uri = controller.getEndpointForSegment(segment);
             ClientConnection connection = getAndHandleExceptions(connectionFactory
-                .establishConnection(endpoint, responseProcessor), ConnectionFailedException::new);
+                .establishConnection(uri.getEndpoint(), uri.getPort(), responseProcessor), ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(connectionId, segment);
             connection.send(cmd);

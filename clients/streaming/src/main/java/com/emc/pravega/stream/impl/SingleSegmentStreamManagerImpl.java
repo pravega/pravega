@@ -19,36 +19,34 @@ package com.emc.pravega.stream.impl;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerImpl;
 
 /**
  * A StreamManager for the special case where the streams it creates will only ever be composed of one segment.
  */
 public class SingleSegmentStreamManagerImpl implements StreamManager {
 
-    private final SegmentManagerImpl segmentManager;
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
-    private final ConnectionFactory clientCF;
+    private final ControllerApi.Admin apiAdmin;
+    private final ControllerApi.Producer apiProducer;
+    private final ControllerApi.Consumer apiConsumer;
 
-    public SingleSegmentStreamManagerImpl(String endpoint, int port, String scope) {
+    public SingleSegmentStreamManagerImpl(ControllerApi.Admin apiAdmin, ControllerApi.Producer apiProducer, ControllerApi.Consumer apiConsumer, String scope) {
         this.scope = scope;
-        this.clientCF = new ConnectionFactoryImpl(false, port);
-        this.segmentManager = new SegmentManagerImpl(endpoint, clientCF);
+        this.apiAdmin = apiAdmin;
+        this.apiProducer = apiProducer;
+        this.apiConsumer = apiConsumer;
     }
 
     @Override
     public Stream createStream(String streamName, StreamConfiguration config) {
-        boolean existed = created.containsKey(streamName);
         Stream stream = createStreamHelper(streamName, config);
-        if (!existed) {
-            segmentManager.createSegment(stream.getLatestSegments().getSegments().get(0).getQualifiedName());
-        }
         return stream;
     }
 
@@ -58,7 +56,13 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, segmentManager);
+        FutureHelpers.getAndHandleExceptions(
+                apiAdmin.createStream(new StreamConfigurationImpl(streamName,
+                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))),
+                RuntimeException::new);
+
+
+        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, apiAdmin, apiProducer, apiConsumer);
         created.put(streamName, stream);
         return stream;
     }
@@ -69,8 +73,7 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public void close() {
-        clientCF.close();
-    }
+    public void close() throws Exception {
 
+    }
 }

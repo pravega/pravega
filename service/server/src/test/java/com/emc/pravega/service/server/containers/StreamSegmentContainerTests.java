@@ -80,7 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * DurableDataLog.
  */
 public class StreamSegmentContainerTests {
-    private static final int SEGMENT_COUNT = 200;
+    private static final int SEGMENT_COUNT = 100;
     private static final int BATCHES_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CLIENT_COUNT = 10;
@@ -432,7 +432,7 @@ public class StreamSegmentContainerTests {
                     AssertExtensions.assertThrows(
                             "An append was allowed to a merged batch " + batchName,
                             context.container.append(batchName, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT)::join,
-                            ex -> ex instanceof StreamSegmentMergedException);
+                            ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
                 }
             }
         }
@@ -443,6 +443,7 @@ public class StreamSegmentContainerTests {
         checkReadIndex(segmentContents, lengths, context);
 
         // 6. Writer moving data to Storage.
+        //Thread.sleep(5000);
         waitForSegmentsInStorage(segmentNames, context).join();
         checkStorage(segmentContents, lengths, context);
 
