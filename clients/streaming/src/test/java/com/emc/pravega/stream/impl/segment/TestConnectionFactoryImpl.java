@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.google.common.base.Preconditions;
 import com.emc.pravega.stream.impl.Controller;
 
@@ -34,13 +34,13 @@ import lombok.Synchronized;
 
 @RequiredArgsConstructor
 class TestConnectionFactoryImpl implements ConnectionFactory, Controller.Host {
-    Map<SegmentUri, ClientConnection> connections = new HashMap<>();
-    Map<SegmentUri, ReplyProcessor> processors = new HashMap<>();
-    final SegmentUri endpoint;
+    Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
+    Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
+    final PravegaNodeUri endpoint;
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> establishConnection(SegmentUri location, ReplyProcessor rp) {
+    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
         ClientConnection connection = connections.get(location);
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         processors.put(location, rp);
@@ -48,12 +48,12 @@ class TestConnectionFactoryImpl implements ConnectionFactory, Controller.Host {
     }
 
     @Synchronized
-    void provideConnection(SegmentUri location, ClientConnection c) {
+    void provideConnection(PravegaNodeUri location, ClientConnection c) {
         connections.put(location, c);
     }
 
     @Synchronized
-    ReplyProcessor getProcessor(SegmentUri location) {
+    ReplyProcessor getProcessor(PravegaNodeUri location) {
         return processors.get(location);
     }
 
@@ -62,7 +62,7 @@ class TestConnectionFactoryImpl implements ConnectionFactory, Controller.Host {
     }
 
     @Override
-    public SegmentUri getEndpointForSegment(String segment) {
-        return endpoint;
+    public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String segment) {
+        return CompletableFuture.completedFuture(endpoint);
     }
 }

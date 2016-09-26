@@ -6,7 +6,7 @@ import lombok.NonNull;
 
 @Data
 @AllArgsConstructor
-public class SegmentUri {
+public class PravegaNodeUri {
     @NonNull
     private final String endpoint;
     private final int port;

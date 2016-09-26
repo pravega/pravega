@@ -49,7 +49,6 @@ public class SingleSegmentStreamImpl implements Stream {
     private final String streamName;
     @Getter
     private final StreamConfiguration config;
-    private final SegmentId segmentId;
     private final ControllerImpl controller;
     private final ConnectionFactoryImpl connectionFactory;
     
@@ -68,50 +67,28 @@ public class SingleSegmentStreamImpl implements Stream {
         }
     };
 
-    public SingleSegmentStreamImpl(String scope, String streamName, StreamConfiguration config, ControllerImpl controller) {
+    public SingleSegmentStreamImpl(String scope, String streamName, StreamConfiguration config, ControllerImpl controller, ConnectionFactoryImpl connectionFactory) {
         this.scope = scope;
         this.streamName = streamName;
         this.config = config;
         this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.segmentId = getLatestSegments().getSegments().get(0);
-    }
-
-    @Override
-    public StreamSegments getSegments(long time) {
-        return FutureHelpers.getAndHandleExceptions(
-                controller.getCurrentSegments(streamName), RuntimeException::new);
-    }
-
-    @Override
-    public StreamSegments getLatestSegments() {
-        return getSegments(System.currentTimeMillis());
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, new ConnectionFactoryImpl(false)), router, s, config);
+        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, connectionFactory), router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
             RateChangeListener l) {
         return new ConsumerImpl<T>(this,
-                new SegmentInputStreamFactoryImpl(controller, new ConnectionFactoryImpl(false)),
+                new SegmentInputStreamFactoryImpl(controller, connectionFactory),
                 s,
                 startingPosition.asImpl(),
                 new SingleStreamOrderer<T>(),
                 l,
-                config);
-    }
-    
-    public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config) {
-        return new ConsumerImpl<T>(this,
-                new SegmentInputStreamFactoryImpl(controller, new ConnectionFactoryImpl(false)),
-                s,
-                new PositionImpl(Collections.singletonMap(segmentId, 0L), Collections.emptyMap()),
-                new SingleStreamOrderer<T>(),
-                null,
                 config);
     }
 

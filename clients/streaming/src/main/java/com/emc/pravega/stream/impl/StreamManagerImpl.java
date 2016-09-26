@@ -17,27 +17,27 @@
  */
 package com.emc.pravega.stream.impl;
 
+import java.net.URI;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
 
 
 /**
- * A StreamManager for the special case where the streams it creates will only ever be composed of one segment.
+ * A stream manager. Used to bootstrap the client. 
  */
-public class SingleSegmentStreamManagerImpl implements StreamManager {
+public class StreamManagerImpl implements StreamManager {
 
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ControllerImpl controller;
     
-    public SingleSegmentStreamManagerImpl(String scope, String host, int port) {
+    public StreamManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
-        this.controller = new ControllerImpl(host, port);
+        this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
     }
 
     @Override
@@ -52,10 +52,9 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        FutureHelpers.getAndHandleExceptions(
-                controller.createStream(new StreamConfigurationImpl(streamName,
-                        new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))),
-                RuntimeException::new);
+        FutureHelpers.getAndHandleExceptions(controller
+            .createStream(new StreamConfigurationImpl(streamName, config.getScalingingPolicy())),
+                                             RuntimeException::new);
 
 
         Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, controller);

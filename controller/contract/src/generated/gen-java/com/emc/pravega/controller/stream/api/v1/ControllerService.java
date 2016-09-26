@@ -49,7 +49,7 @@ public class ControllerService {
 
     public List<Position> updatePositions(String stream, List<Position> positions) throws org.apache.thrift.TException;
 
-    public SegmentUri getURI(String stream, int segmentNumber) throws org.apache.thrift.TException;
+    public NodeUri getURI(String qualifiedSegmentName) throws org.apache.thrift.TException;
 
   }
 
@@ -65,7 +65,7 @@ public class ControllerService {
 
     public void updatePositions(String stream, List<Position> positions, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException;
 
-    public void getURI(String stream, int segmentNumber, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException;
+    public void getURI(String qualifiedSegmentName, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException;
 
   }
 
@@ -207,21 +207,20 @@ public class ControllerService {
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "updatePositions failed: unknown result");
     }
 
-    public SegmentUri getURI(String stream, int segmentNumber) throws org.apache.thrift.TException
+    public NodeUri getURI(String qualifiedSegmentName) throws org.apache.thrift.TException
     {
-      send_getURI(stream, segmentNumber);
+      send_getURI(qualifiedSegmentName);
       return recv_getURI();
     }
 
-    public void send_getURI(String stream, int segmentNumber) throws org.apache.thrift.TException
+    public void send_getURI(String qualifiedSegmentName) throws org.apache.thrift.TException
     {
       getURI_args args = new getURI_args();
-      args.setStream(stream);
-      args.setSegmentNumber(segmentNumber);
+      args.setQualifiedSegmentName(qualifiedSegmentName);
       sendBase("getURI", args);
     }
 
-    public SegmentUri recv_getURI() throws org.apache.thrift.TException
+    public NodeUri recv_getURI() throws org.apache.thrift.TException
     {
       getURI_result result = new getURI_result();
       receiveBase(result, "getURI");
@@ -418,32 +417,29 @@ public class ControllerService {
       }
     }
 
-    public void getURI(String stream, int segmentNumber, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException {
+    public void getURI(String qualifiedSegmentName, org.apache.thrift.async.AsyncMethodCallback resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      getURI_call method_call = new getURI_call(stream, segmentNumber, resultHandler, this, ___protocolFactory, ___transport);
+      getURI_call method_call = new getURI_call(qualifiedSegmentName, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
 
     public static class getURI_call extends org.apache.thrift.async.TAsyncMethodCall {
-      private String stream;
-      private int segmentNumber;
-      public getURI_call(String stream, int segmentNumber, org.apache.thrift.async.AsyncMethodCallback resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      private String qualifiedSegmentName;
+      public getURI_call(String qualifiedSegmentName, org.apache.thrift.async.AsyncMethodCallback resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
-        this.stream = stream;
-        this.segmentNumber = segmentNumber;
+        this.qualifiedSegmentName = qualifiedSegmentName;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
         prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("getURI", org.apache.thrift.protocol.TMessageType.CALL, 0));
         getURI_args args = new getURI_args();
-        args.setStream(stream);
-        args.setSegmentNumber(segmentNumber);
+        args.setQualifiedSegmentName(qualifiedSegmentName);
         args.write(prot);
         prot.writeMessageEnd();
       }
 
-      public SegmentUri getResult() throws org.apache.thrift.TException {
+      public NodeUri getResult() throws org.apache.thrift.TException {
         if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -590,7 +586,7 @@ public class ControllerService {
 
       public getURI_result getResult(I iface, getURI_args args) throws org.apache.thrift.TException {
         getURI_result result = new getURI_result();
-        result.success = iface.getURI(args.stream, args.segmentNumber);
+        result.success = iface.getURI(args.qualifiedSegmentName);
         return result;
       }
     }
@@ -872,7 +868,7 @@ public class ControllerService {
       }
     }
 
-    public static class getURI<I extends AsyncIface> extends org.apache.thrift.AsyncProcessFunction<I, getURI_args, SegmentUri> {
+    public static class getURI<I extends AsyncIface> extends org.apache.thrift.AsyncProcessFunction<I, getURI_args, NodeUri> {
       public getURI() {
         super("getURI");
       }
@@ -881,10 +877,10 @@ public class ControllerService {
         return new getURI_args();
       }
 
-      public AsyncMethodCallback<SegmentUri> getResultHandler(final AsyncFrameBuffer fb, final int seqid) {
+      public AsyncMethodCallback<NodeUri> getResultHandler(final AsyncFrameBuffer fb, final int seqid) {
         final org.apache.thrift.AsyncProcessFunction fcall = this;
-        return new AsyncMethodCallback<SegmentUri>() { 
-          public void onComplete(SegmentUri o) {
+        return new AsyncMethodCallback<NodeUri>() { 
+          public void onComplete(NodeUri o) {
             getURI_result result = new getURI_result();
             result.success = o;
             try {
@@ -918,8 +914,8 @@ public class ControllerService {
         return false;
       }
 
-      public void start(I iface, getURI_args args, org.apache.thrift.async.AsyncMethodCallback<SegmentUri> resultHandler) throws TException {
-        iface.getURI(args.stream, args.segmentNumber,resultHandler);
+      public void start(I iface, getURI_args args, org.apache.thrift.async.AsyncMethodCallback<NodeUri> resultHandler) throws TException {
+        iface.getURI(args.qualifiedSegmentName,resultHandler);
       }
     }
 
@@ -5095,8 +5091,7 @@ public class ControllerService {
   public static class getURI_args implements org.apache.thrift.TBase<getURI_args, getURI_args._Fields>, java.io.Serializable, Cloneable, Comparable<getURI_args>   {
     private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getURI_args");
 
-    private static final org.apache.thrift.protocol.TField STREAM_FIELD_DESC = new org.apache.thrift.protocol.TField("stream", org.apache.thrift.protocol.TType.STRING, (short)1);
-    private static final org.apache.thrift.protocol.TField SEGMENT_NUMBER_FIELD_DESC = new org.apache.thrift.protocol.TField("segmentNumber", org.apache.thrift.protocol.TType.I32, (short)2);
+    private static final org.apache.thrift.protocol.TField QUALIFIED_SEGMENT_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("qualifiedSegmentName", org.apache.thrift.protocol.TType.STRING, (short)1);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
@@ -5104,13 +5099,11 @@ public class ControllerService {
       schemes.put(TupleScheme.class, new getURI_argsTupleSchemeFactory());
     }
 
-    private String stream; // required
-    private int segmentNumber; // required
+    private String qualifiedSegmentName; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-      STREAM((short)1, "stream"),
-      SEGMENT_NUMBER((short)2, "segmentNumber");
+      QUALIFIED_SEGMENT_NAME((short)1, "qualifiedSegmentName");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -5125,10 +5118,8 @@ public class ControllerService {
        */
       public static _Fields findByThriftId(int fieldId) {
         switch(fieldId) {
-          case 1: // STREAM
-            return STREAM;
-          case 2: // SEGMENT_NUMBER
-            return SEGMENT_NUMBER;
+          case 1: // QUALIFIED_SEGMENT_NAME
+            return QUALIFIED_SEGMENT_NAME;
           default:
             return null;
         }
@@ -5169,15 +5160,11 @@ public class ControllerService {
     }
 
     // isset id assignments
-    private static final int __SEGMENTNUMBER_ISSET_ID = 0;
-    private byte __isset_bitfield = 0;
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-      tmpMap.put(_Fields.STREAM, new org.apache.thrift.meta_data.FieldMetaData("stream", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+      tmpMap.put(_Fields.QUALIFIED_SEGMENT_NAME, new org.apache.thrift.meta_data.FieldMetaData("qualifiedSegmentName", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-      tmpMap.put(_Fields.SEGMENT_NUMBER, new org.apache.thrift.meta_data.FieldMetaData("segmentNumber", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getURI_args.class, metaDataMap);
     }
@@ -5186,24 +5173,19 @@ public class ControllerService {
     }
 
     public getURI_args(
-      String stream,
-      int segmentNumber)
+      String qualifiedSegmentName)
     {
       this();
-      this.stream = stream;
-      this.segmentNumber = segmentNumber;
-      setSegmentNumberIsSet(true);
+      this.qualifiedSegmentName = qualifiedSegmentName;
     }
 
     /**
      * Performs a deep copy on <i>other</i>.
      */
     public getURI_args(getURI_args other) {
-      __isset_bitfield = other.__isset_bitfield;
-      if (other.isSetStream()) {
-        this.stream = other.stream;
+      if (other.isSetQualifiedSegmentName()) {
+        this.qualifiedSegmentName = other.qualifiedSegmentName;
       }
-      this.segmentNumber = other.segmentNumber;
     }
 
     public getURI_args deepCopy() {
@@ -5212,73 +5194,40 @@ public class ControllerService {
 
     @Override
     public void clear() {
-      this.stream = null;
-      setSegmentNumberIsSet(false);
-      this.segmentNumber = 0;
+      this.qualifiedSegmentName = null;
     }
 
-    public String getStream() {
-      return this.stream;
+    public String getQualifiedSegmentName() {
+      return this.qualifiedSegmentName;
     }
 
-    public getURI_args setStream(String stream) {
-      this.stream = stream;
+    public getURI_args setQualifiedSegmentName(String qualifiedSegmentName) {
+      this.qualifiedSegmentName = qualifiedSegmentName;
       return this;
     }
 
-    public void unsetStream() {
-      this.stream = null;
+    public void unsetQualifiedSegmentName() {
+      this.qualifiedSegmentName = null;
     }
 
-    /** Returns true if field stream is set (has been assigned a value) and false otherwise */
-    public boolean isSetStream() {
-      return this.stream != null;
+    /** Returns true if field qualifiedSegmentName is set (has been assigned a value) and false otherwise */
+    public boolean isSetQualifiedSegmentName() {
+      return this.qualifiedSegmentName != null;
     }
 
-    public void setStreamIsSet(boolean value) {
+    public void setQualifiedSegmentNameIsSet(boolean value) {
       if (!value) {
-        this.stream = null;
+        this.qualifiedSegmentName = null;
       }
-    }
-
-    public int getSegmentNumber() {
-      return this.segmentNumber;
-    }
-
-    public getURI_args setSegmentNumber(int segmentNumber) {
-      this.segmentNumber = segmentNumber;
-      setSegmentNumberIsSet(true);
-      return this;
-    }
-
-    public void unsetSegmentNumber() {
-      __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SEGMENTNUMBER_ISSET_ID);
-    }
-
-    /** Returns true if field segmentNumber is set (has been assigned a value) and false otherwise */
-    public boolean isSetSegmentNumber() {
-      return EncodingUtils.testBit(__isset_bitfield, __SEGMENTNUMBER_ISSET_ID);
-    }
-
-    public void setSegmentNumberIsSet(boolean value) {
-      __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __SEGMENTNUMBER_ISSET_ID, value);
     }
 
     public void setFieldValue(_Fields field, Object value) {
       switch (field) {
-      case STREAM:
+      case QUALIFIED_SEGMENT_NAME:
         if (value == null) {
-          unsetStream();
+          unsetQualifiedSegmentName();
         } else {
-          setStream((String)value);
-        }
-        break;
-
-      case SEGMENT_NUMBER:
-        if (value == null) {
-          unsetSegmentNumber();
-        } else {
-          setSegmentNumber((Integer)value);
+          setQualifiedSegmentName((String)value);
         }
         break;
 
@@ -5287,11 +5236,8 @@ public class ControllerService {
 
     public Object getFieldValue(_Fields field) {
       switch (field) {
-      case STREAM:
-        return getStream();
-
-      case SEGMENT_NUMBER:
-        return getSegmentNumber();
+      case QUALIFIED_SEGMENT_NAME:
+        return getQualifiedSegmentName();
 
       }
       throw new IllegalStateException();
@@ -5304,10 +5250,8 @@ public class ControllerService {
       }
 
       switch (field) {
-      case STREAM:
-        return isSetStream();
-      case SEGMENT_NUMBER:
-        return isSetSegmentNumber();
+      case QUALIFIED_SEGMENT_NAME:
+        return isSetQualifiedSegmentName();
       }
       throw new IllegalStateException();
     }
@@ -5325,21 +5269,12 @@ public class ControllerService {
       if (that == null)
         return false;
 
-      boolean this_present_stream = true && this.isSetStream();
-      boolean that_present_stream = true && that.isSetStream();
-      if (this_present_stream || that_present_stream) {
-        if (!(this_present_stream && that_present_stream))
+      boolean this_present_qualifiedSegmentName = true && this.isSetQualifiedSegmentName();
+      boolean that_present_qualifiedSegmentName = true && that.isSetQualifiedSegmentName();
+      if (this_present_qualifiedSegmentName || that_present_qualifiedSegmentName) {
+        if (!(this_present_qualifiedSegmentName && that_present_qualifiedSegmentName))
           return false;
-        if (!this.stream.equals(that.stream))
-          return false;
-      }
-
-      boolean this_present_segmentNumber = true;
-      boolean that_present_segmentNumber = true;
-      if (this_present_segmentNumber || that_present_segmentNumber) {
-        if (!(this_present_segmentNumber && that_present_segmentNumber))
-          return false;
-        if (this.segmentNumber != that.segmentNumber)
+        if (!this.qualifiedSegmentName.equals(that.qualifiedSegmentName))
           return false;
       }
 
@@ -5350,15 +5285,10 @@ public class ControllerService {
     public int hashCode() {
       List<Object> list = new ArrayList<Object>();
 
-      boolean present_stream = true && (isSetStream());
-      list.add(present_stream);
-      if (present_stream)
-        list.add(stream);
-
-      boolean present_segmentNumber = true;
-      list.add(present_segmentNumber);
-      if (present_segmentNumber)
-        list.add(segmentNumber);
+      boolean present_qualifiedSegmentName = true && (isSetQualifiedSegmentName());
+      list.add(present_qualifiedSegmentName);
+      if (present_qualifiedSegmentName)
+        list.add(qualifiedSegmentName);
 
       return list.hashCode();
     }
@@ -5371,22 +5301,12 @@ public class ControllerService {
 
       int lastComparison = 0;
 
-      lastComparison = Boolean.valueOf(isSetStream()).compareTo(other.isSetStream());
+      lastComparison = Boolean.valueOf(isSetQualifiedSegmentName()).compareTo(other.isSetQualifiedSegmentName());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      if (isSetStream()) {
-        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.stream, other.stream);
-        if (lastComparison != 0) {
-          return lastComparison;
-        }
-      }
-      lastComparison = Boolean.valueOf(isSetSegmentNumber()).compareTo(other.isSetSegmentNumber());
-      if (lastComparison != 0) {
-        return lastComparison;
-      }
-      if (isSetSegmentNumber()) {
-        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.segmentNumber, other.segmentNumber);
+      if (isSetQualifiedSegmentName()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.qualifiedSegmentName, other.qualifiedSegmentName);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -5411,16 +5331,12 @@ public class ControllerService {
       StringBuilder sb = new StringBuilder("getURI_args(");
       boolean first = true;
 
-      sb.append("stream:");
-      if (this.stream == null) {
+      sb.append("qualifiedSegmentName:");
+      if (this.qualifiedSegmentName == null) {
         sb.append("null");
       } else {
-        sb.append(this.stream);
+        sb.append(this.qualifiedSegmentName);
       }
-      first = false;
-      if (!first) sb.append(", ");
-      sb.append("segmentNumber:");
-      sb.append(this.segmentNumber);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -5441,8 +5357,6 @@ public class ControllerService {
 
     private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
       try {
-        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
-        __isset_bitfield = 0;
         read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
       } catch (org.apache.thrift.TException te) {
         throw new java.io.IOException(te);
@@ -5467,18 +5381,10 @@ public class ControllerService {
             break;
           }
           switch (schemeField.id) {
-            case 1: // STREAM
+            case 1: // QUALIFIED_SEGMENT_NAME
               if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-                struct.stream = iprot.readString();
-                struct.setStreamIsSet(true);
-              } else { 
-                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
-              }
-              break;
-            case 2: // SEGMENT_NUMBER
-              if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
-                struct.segmentNumber = iprot.readI32();
-                struct.setSegmentNumberIsSet(true);
+                struct.qualifiedSegmentName = iprot.readString();
+                struct.setQualifiedSegmentNameIsSet(true);
               } else { 
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
               }
@@ -5498,14 +5404,11 @@ public class ControllerService {
         struct.validate();
 
         oprot.writeStructBegin(STRUCT_DESC);
-        if (struct.stream != null) {
-          oprot.writeFieldBegin(STREAM_FIELD_DESC);
-          oprot.writeString(struct.stream);
+        if (struct.qualifiedSegmentName != null) {
+          oprot.writeFieldBegin(QUALIFIED_SEGMENT_NAME_FIELD_DESC);
+          oprot.writeString(struct.qualifiedSegmentName);
           oprot.writeFieldEnd();
         }
-        oprot.writeFieldBegin(SEGMENT_NUMBER_FIELD_DESC);
-        oprot.writeI32(struct.segmentNumber);
-        oprot.writeFieldEnd();
         oprot.writeFieldStop();
         oprot.writeStructEnd();
       }
@@ -5524,32 +5427,22 @@ public class ControllerService {
       public void write(org.apache.thrift.protocol.TProtocol prot, getURI_args struct) throws org.apache.thrift.TException {
         TTupleProtocol oprot = (TTupleProtocol) prot;
         BitSet optionals = new BitSet();
-        if (struct.isSetStream()) {
+        if (struct.isSetQualifiedSegmentName()) {
           optionals.set(0);
         }
-        if (struct.isSetSegmentNumber()) {
-          optionals.set(1);
-        }
-        oprot.writeBitSet(optionals, 2);
-        if (struct.isSetStream()) {
-          oprot.writeString(struct.stream);
-        }
-        if (struct.isSetSegmentNumber()) {
-          oprot.writeI32(struct.segmentNumber);
+        oprot.writeBitSet(optionals, 1);
+        if (struct.isSetQualifiedSegmentName()) {
+          oprot.writeString(struct.qualifiedSegmentName);
         }
       }
 
       @Override
       public void read(org.apache.thrift.protocol.TProtocol prot, getURI_args struct) throws org.apache.thrift.TException {
         TTupleProtocol iprot = (TTupleProtocol) prot;
-        BitSet incoming = iprot.readBitSet(2);
+        BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          struct.stream = iprot.readString();
-          struct.setStreamIsSet(true);
-        }
-        if (incoming.get(1)) {
-          struct.segmentNumber = iprot.readI32();
-          struct.setSegmentNumberIsSet(true);
+          struct.qualifiedSegmentName = iprot.readString();
+          struct.setQualifiedSegmentNameIsSet(true);
         }
       }
     }
@@ -5567,7 +5460,7 @@ public class ControllerService {
       schemes.put(TupleScheme.class, new getURI_resultTupleSchemeFactory());
     }
 
-    private SegmentUri success; // required
+    private NodeUri success; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -5632,7 +5525,7 @@ public class ControllerService {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SegmentUri.class)));
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, NodeUri.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getURI_result.class, metaDataMap);
     }
@@ -5641,7 +5534,7 @@ public class ControllerService {
     }
 
     public getURI_result(
-      SegmentUri success)
+      NodeUri success)
     {
       this();
       this.success = success;
@@ -5652,7 +5545,7 @@ public class ControllerService {
      */
     public getURI_result(getURI_result other) {
       if (other.isSetSuccess()) {
-        this.success = new SegmentUri(other.success);
+        this.success = new NodeUri(other.success);
       }
     }
 
@@ -5665,11 +5558,11 @@ public class ControllerService {
       this.success = null;
     }
 
-    public SegmentUri getSuccess() {
+    public NodeUri getSuccess() {
       return this.success;
     }
 
-    public getURI_result setSuccess(SegmentUri success) {
+    public getURI_result setSuccess(NodeUri success) {
       this.success = success;
       return this;
     }
@@ -5695,7 +5588,7 @@ public class ControllerService {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((SegmentUri)value);
+          setSuccess((NodeUri)value);
         }
         break;
 
@@ -5854,7 +5747,7 @@ public class ControllerService {
           switch (schemeField.id) {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
-                struct.success = new SegmentUri();
+                struct.success = new NodeUri();
                 struct.success.read(iprot);
                 struct.setSuccessIsSet(true);
               } else { 
@@ -5913,7 +5806,7 @@ public class ControllerService {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          struct.success = new SegmentUri();
+          struct.success = new NodeUri();
           struct.success.read(iprot);
           struct.setSuccessIsSet(true);
         }

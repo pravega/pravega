@@ -31,7 +31,7 @@ import org.junit.Test;
 
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
@@ -52,7 +52,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
-        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -68,7 +68,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -92,7 +92,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
-        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -164,7 +164,7 @@ public class SegmentOutputStreamTest {
     @Test
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
         TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);

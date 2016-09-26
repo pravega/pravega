@@ -30,7 +30,7 @@ import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.google.common.base.Preconditions;
 
 import io.netty.bootstrap.Bootstrap;
@@ -70,7 +70,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public CompletableFuture<ClientConnection> establishConnection(SegmentUri location, ReplyProcessor rp) {
+    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location);
         final SslContext sslCtx;
         if (ssl) {

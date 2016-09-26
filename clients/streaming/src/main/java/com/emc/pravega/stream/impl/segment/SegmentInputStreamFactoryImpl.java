@@ -38,7 +38,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     
     @Override
     public SegmentInputStream createInputStreamForSegment(SegmentId segment, SegmentInputConfiguration config) {
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment);
+        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getQualifiedName());
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {

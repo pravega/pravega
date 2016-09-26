@@ -35,8 +35,7 @@ public class StartProducer {
         String streamName = "Stream1";
         String testString = "Hello world: ";
 
-        ControllerImpl apiController = new ControllerImpl(endpoint, port);
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiController, apiController, apiController, scope);
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(scope, endpoint, port);
         Stream stream = streamManager.createStream(streamName, null);
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
         Thread.sleep(1000);

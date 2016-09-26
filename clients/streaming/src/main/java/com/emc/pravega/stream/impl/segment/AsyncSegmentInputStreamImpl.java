@@ -29,7 +29,7 @@ import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
@@ -179,13 +179,14 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 return connection;
             }
         }
-        SegmentUri uri = controller.getEndpointForSegment(segment);
-        synchronized (lock) {
-            if (connection == null) {
-                connection = connectionFactory.establishConnection(uri, responseProcessor);
-            }
-            return connection;
-        }
+        return controller.getEndpointForSegment(segment).thenCompose((PravegaNodeUri uri) -> {
+            synchronized (lock) {
+                if (connection == null) {
+                    connection = connectionFactory.establishConnection(uri, responseProcessor);
+                }
+                return connection; 
+            } 
+        });
     }
 
     private void failAllInflight(Exception e) {

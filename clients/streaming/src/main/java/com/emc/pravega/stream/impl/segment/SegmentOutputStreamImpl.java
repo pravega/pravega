@@ -38,7 +38,7 @@ import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
@@ -308,9 +308,11 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            SegmentUri uri = controller.getEndpointForSegment(segmentName);
-            ClientConnection connection = getAndHandleExceptions(connectionFactory
-                .establishConnection(uri, responseProcessor), ConnectionFailedException::new);
+            CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
+                .thenCompose((PravegaNodeUri uri) -> {
+                    return connectionFactory.establishConnection(uri, responseProcessor);
+                });
+            ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(connectionId, segmentName);
             connection.send(cmd);

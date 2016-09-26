@@ -25,12 +25,12 @@ struct StreamConfig {
 
 struct SegmentId {
   1: required string scope,
-  2: required string name,
+  2: required string streamName,
   3: required i32 number,
   4: required i32 previous,
 }
 
-struct SegmentUri {
+struct NodeUri {
   1: required string endpoint;
   2: required i32 port;
 }
@@ -49,6 +49,6 @@ service ControllerService {
     list<SegmentId> getCurrentSegments(1:string stream)
     list<Position> getPositions(1:string stream, 2:i64 timestamp, 3:i32 count)
     list<Position> updatePositions(1:string stream, 2:list<Position> positions)
-    SegmentUri getURI(1: string stream, 2:i32 segmentNumber)
+    NodeUri getURI(1: string qualifiedSegmentName)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

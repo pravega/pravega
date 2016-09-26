@@ -95,7 +95,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 StreamSegments s = stream.getLatestSegments();
                 for (SegmentId segment : s.getSegments()) {
                     if (!producers.containsKey(segment)) {
-                        SegmentOutputStream out = outputStreamFactory.createStreamForSegment(segment,
+                        SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
                                                                                          config.getSegmentConfig());
                         producers.put(segment, new SegmentProducerImpl<>(out, serializer));
                     }
@@ -226,7 +226,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         }
         for (SegmentId s : segmentIds) {
             controller.createTransaction(s, txId, timeout);
-            SegmentOutputStream out = outputStreamFactory.createStreamForTransaction(s, txId);
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

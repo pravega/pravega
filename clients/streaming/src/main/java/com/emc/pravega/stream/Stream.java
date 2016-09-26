@@ -63,16 +63,6 @@ public interface Stream {
     StreamConfiguration getConfig();
 
     /**
-     * Given a time returns the segments of the stream that existed at that time.
-     */
-    StreamSegments getSegments(long time);
-
-    /**
-     * @return The segments that exist now.
-     */
-    StreamSegments getLatestSegments();
-
-    /**
      * Create a new producer that can publish to this stream
      */
     <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);

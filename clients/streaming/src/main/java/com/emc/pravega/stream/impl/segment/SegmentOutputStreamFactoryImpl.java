@@ -28,9 +28,7 @@ import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.Request;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
@@ -52,7 +50,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createStreamForTransaction(SegmentId segment, UUID txId) {
+    public SegmentOutputStream createOutputStreamForTransaction(SegmentId segment, UUID txId) {
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -71,22 +69,23 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                name.complete(info.getTransactionName());
             }
         };
-        SegmentUri endpointForSegment = controller.getEndpointForSegment(segment.getQualifiedName());
-        sendRequestOverNewConnection(new GetTransactionInfo(segment.getQualifiedName(), txId), endpointForSegment, replyProcessor);
+        controller.getEndpointForSegment(segment.getQualifiedName()).thenCompose((PravegaNodeUri endpointForSegment) -> {
+            return cf.establishConnection(endpointForSegment, replyProcessor);
+        }).thenAccept((ClientConnection connection) -> {
+            try {
+                connection.send(new GetTransactionInfo(segment.getQualifiedName(), txId));
+            } catch (ConnectionFailedException e) {
+                throw new RuntimeException(e);
+            } 
+        }).exceptionally((Throwable t) -> {
+            name.completeExceptionally(t);
+            return null;
+        });
         return new SegmentOutputStreamImpl( getAndHandleExceptions(name, RuntimeException::new), controller, cf, UUID.randomUUID());
     }
 
-    private void sendRequestOverNewConnection(Request request, SegmentUri endpoint, ReplyProcessor replyProcessor) {
-        ClientConnection connection = getAndHandleExceptions(cf.establishConnection(endpoint, replyProcessor), RuntimeException::new);
-        try {
-            connection.send(request);
-        } catch (ConnectionFailedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-    
     @Override
-    public SegmentOutputStream createStreamForSegment(SegmentId segment, SegmentOutputConfiguration config)
+    public SegmentOutputStream createOutputStreamForSegment(SegmentId segment, SegmentOutputConfiguration config)
             throws SegmentSealedException {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getQualifiedName(), controller, cf, UUID.randomUUID());
         try {

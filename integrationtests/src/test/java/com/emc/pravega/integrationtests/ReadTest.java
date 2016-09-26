@@ -27,15 +27,18 @@ import java.util.concurrent.ExecutionException;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.integrationtests.mockController.MockController;
+import com.emc.pravega.integrationtests.mockController.MockController.MockHost;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import org.junit.After;
@@ -43,6 +46,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.emc.pravega.common.netty.CommandDecoder;
+import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.service.contracts.AppendContext;
@@ -156,28 +160,29 @@ public class ReadTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+        Controller.Admin adminController = MockController.getAdmin(endpoint, port);
+        adminController.createStream(new StreamConfigurationImpl(stream, null));
 
-        Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
-        apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
+        Controller.Host hostController = MockController.getHost(endpoint, port);
+        Controller.Producer producerController = MockController.getProducer(endpoint, port);
+        Controller.Consumer consumerController = MockController.getConsumer(endpoint, port);
 
-        Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
-        Controller.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+        SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(hostController, clientCF);
 
-        SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(stream, apiProducer);
-
-        SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(stream, apiConsumer);
+        SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(hostController, clientCF);
 
 
-        String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new)
-                .getSegments().get(0).getQualifiedName();
+        SegmentId segment = FutureHelpers.getAndHandleExceptions(producerController.getCurrentSegments(stream), RuntimeException::new)
+                .getSegments().get(0);
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, null);
         out.write(ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>());
         out.flush();
         
         @Cleanup("close")
-        SegmentInputStream in = segmentConsumerClient.openSegmentForReading(segmentName, new SegmentInputConfiguration());
+        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment, new SegmentInputConfiguration());
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }

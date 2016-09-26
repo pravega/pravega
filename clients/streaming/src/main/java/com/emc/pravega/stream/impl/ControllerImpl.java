@@ -17,27 +17,32 @@
  */
 package com.emc.pravega.stream.impl;
 
-import com.emc.pravega.common.netty.SegmentUri;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
-import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.controller.util.ThriftAsyncCallback;
-import com.emc.pravega.controller.util.ThriftHelper;
-import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.impl.Controller.Host;
-import com.emc.pravega.stream.impl.model.ModelHelper;
-import lombok.extern.slf4j.Slf4j;
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
 import org.apache.thrift.async.TAsyncClientManager;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.transport.TNonblockingSocket;
 import org.apache.thrift.transport.TNonblockingTransport;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.util.ThriftAsyncCallback;
+import com.emc.pravega.controller.util.ThriftHelper;
+import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.impl.model.ModelHelper;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * RPC based implementation of Stream Controller V1 API.
@@ -149,15 +154,39 @@ public class ControllerImpl implements Controller.Admin, Controller.Consumer, Co
     }
 
     @Override
-    public CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber) {
+    public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getURI(stream, segmentNumber, callback);
+            client.getURI(qualifiedSegmentName, callback);
             return callback.getResult();
         });
         return callback
                 .getResult()
                 .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
                 .thenApply(ModelHelper::encode);
+    }
+
+    @Override
+    public void commitTransaction(Stream stream, UUID txId) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void dropTransaction(Stream stream, UUID txId) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public Transaction.Status checkTransactionStatus(UUID txId) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public void createTransaction(SegmentId s, UUID txId, long timeout) {
+        // TODO Auto-generated method stub
+        
     }
 }

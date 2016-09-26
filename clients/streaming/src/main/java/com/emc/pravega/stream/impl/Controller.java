@@ -22,7 +22,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Stream;
@@ -30,7 +31,6 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 
-import ch.qos.logback.core.status.Status;
 
 /**
  * Stream Controller APIs.
@@ -109,6 +109,6 @@ public final class Controller {
          * 
          * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link SegmentId#getQualifiedName()}.
          */
-        SegmentUri getEndpointForSegment(String qualifiedSegmentName);
+        CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName);
     }
 }

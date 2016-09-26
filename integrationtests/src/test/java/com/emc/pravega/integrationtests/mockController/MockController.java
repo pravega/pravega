@@ -18,32 +18,40 @@
 
 package com.emc.pravega.integrationtests.mockController;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import org.apache.commons.lang.NotImplementedException;
+
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.Lists;
+
 import lombok.AllArgsConstructor;
-
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-
-import org.apache.commons.lang.NotImplementedException;
 
 public class MockController {
 
+    public static MockHost getHost(String endpoint, int port) {
+        return new MockHost(endpoint, port);
+    }
+    
     public static MockAdmin getAdmin(String endpoint, int port) {
         return new MockAdmin(endpoint, port);
     }
@@ -65,7 +73,7 @@ public class MockController {
         public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
             SegmentId segmentId = new SegmentId(streamConfig.getName(), streamConfig.getName(), 0, -1);
 
-            createSegment(segmentId.getQualifiedName(), new SegmentUri(endpoint, port));
+            createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -80,7 +88,7 @@ public class MockController {
             return null;
         }
         
-        static boolean createSegment(String name, SegmentUri uri) {
+        static boolean createSegment(String name, PravegaNodeUri uri) {
             ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
 
             CompletableFuture<Boolean> result = new CompletableFuture<>();
@@ -106,7 +114,7 @@ public class MockController {
                     result.complete(true);
                 }
             };
-            ClientConnection connection = getAndHandleExceptions(clientCF.establishConnection(uri.getEndpoint(), uri.getPort(), replyProcessor),
+            ClientConnection connection = getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
                     RuntimeException::new);
             try {
                 connection.send(new WireCommands.CreateSegment(name));
@@ -131,9 +139,29 @@ public class MockController {
         }
 
         @Override
-        public CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber) {
-            return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
+        public void commitTransaction(Stream stream, UUID txId) {
+            // TODO Auto-generated method stub
+            
         }
+
+        @Override
+        public void dropTransaction(Stream stream, UUID txId) {
+            // TODO Auto-generated method stub
+            
+        }
+
+        @Override
+        public Transaction.Status checkTransactionStatus(UUID txId) {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        @Override
+        public void createTransaction(SegmentId s, UUID txId, long timeout) {
+            // TODO Auto-generated method stub
+            
+        }
+
     }
 
     @AllArgsConstructor
@@ -150,10 +178,16 @@ public class MockController {
         public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
             return null;
         }
-
+    }
+    
+    @AllArgsConstructor
+    public static class MockHost implements Controller.Host {
+        private final String endpoint;
+        private final int port;
         @Override
-        public CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber) {
-            return CompletableFuture.completedFuture(new SegmentUri(endpoint, port));
+        public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
+            return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
         }
     }
+
 }

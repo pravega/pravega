@@ -31,7 +31,7 @@ import org.junit.Test;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
@@ -44,7 +44,7 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testRetry() throws ConnectionFailedException {
         String segment = "testRetry";
-        SegmentUri endpoint = new SegmentUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
@@ -69,7 +69,7 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testRead() throws ConnectionFailedException {
         String segment = "testRetry";
-        SegmentUri endpoint = new SegmentUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
 
         TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
         @Cleanup
@@ -89,7 +89,7 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         String segment = "testRetry";
-        SegmentUri endpoint = new SegmentUri("localhost", 1234);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);

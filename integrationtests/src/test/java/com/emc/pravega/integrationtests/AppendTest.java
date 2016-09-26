@@ -34,6 +34,7 @@ import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.integrationtests.mockController.MockController;
+import com.emc.pravega.integrationtests.mockController.MockController.MockHost;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -44,6 +45,7 @@ import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -177,15 +179,16 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-        Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
-        apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
+        Controller.Admin adminController = MockController.getAdmin(endpoint, port);
+        MockHost hostController = MockController.getHost(endpoint, port);
+        adminController.createStream(new StreamConfigurationImpl(stream, null));
 
         Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
-        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(stream, apiProducer);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(hostController, clientCF);
 
-        String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new).getSegments().get(0).getQualifiedName();
+        SegmentId segment = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new).getSegments().get(0);
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();
@@ -206,7 +209,7 @@ public class AppendTest {
         Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
         Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
         Controller.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, "Scope");
+        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl("Scope", endpoint, port);
         Stream stream = streamManager.createStream(streamName, null);
 
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));

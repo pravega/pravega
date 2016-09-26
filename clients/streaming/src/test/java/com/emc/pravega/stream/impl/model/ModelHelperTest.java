@@ -33,8 +33,8 @@ import static org.junit.Assert.assertEquals;
 
 public class ModelHelperTest {
 
-    private static SegmentId createSegmentId(String name) {
-        return new SegmentId("scope", name, 2, 1);
+    private static SegmentId createSegmentId(String streamName) {
+        return new SegmentId("scope", streamName, 2, 1);
     }
 
     private static ScalingPolicy createScalingPolicy() {
@@ -73,10 +73,10 @@ public class ModelHelperTest {
 
     @Test
     public void decodeSegmentId() {
-        final String segName = "seg1";
+        final String streamName = "stream1";
 
-        com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(createSegmentId("seg1"));
-        assertEquals(segName, segmentID.getName());
+        com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName));
+        assertEquals(streamName, segmentID.getStreamName());
         assertEquals("scope", segmentID.getScope());
         assertEquals(2, segmentID.getNumber());
         assertEquals(1, segmentID.getPrevious());
@@ -89,8 +89,8 @@ public class ModelHelperTest {
 
     @Test
     public void encodeSegmentId() {
-        SegmentId segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("seg1")));
-        assertEquals("seg1", segment.getName());
+        SegmentId segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1")));
+        assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getNumber());
         assertEquals(1, segment.getPrevious());

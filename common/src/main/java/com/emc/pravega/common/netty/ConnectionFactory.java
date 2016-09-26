@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ConnectionFactory extends AutoCloseable {
 
-    CompletableFuture<ClientConnection> establishConnection(SegmentUri endpoint, ReplyProcessor rp);
+    CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 
     @Override
     void close();

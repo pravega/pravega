@@ -39,7 +39,7 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("SegmentId");
 
   private static final org.apache.thrift.protocol.TField SCOPE_FIELD_DESC = new org.apache.thrift.protocol.TField("scope", org.apache.thrift.protocol.TType.STRING, (short)1);
-  private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)2);
+  private static final org.apache.thrift.protocol.TField STREAM_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("streamName", org.apache.thrift.protocol.TType.STRING, (short)2);
   private static final org.apache.thrift.protocol.TField NUMBER_FIELD_DESC = new org.apache.thrift.protocol.TField("number", org.apache.thrift.protocol.TType.I32, (short)3);
   private static final org.apache.thrift.protocol.TField PREVIOUS_FIELD_DESC = new org.apache.thrift.protocol.TField("previous", org.apache.thrift.protocol.TType.I32, (short)4);
 
@@ -50,14 +50,14 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
   }
 
   private String scope; // required
-  private String name; // required
+  private String streamName; // required
   private int number; // required
   private int previous; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
     SCOPE((short)1, "scope"),
-    NAME((short)2, "name"),
+    STREAM_NAME((short)2, "streamName"),
     NUMBER((short)3, "number"),
     PREVIOUS((short)4, "previous");
 
@@ -76,8 +76,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
       switch(fieldId) {
         case 1: // SCOPE
           return SCOPE;
-        case 2: // NAME
-          return NAME;
+        case 2: // STREAM_NAME
+          return STREAM_NAME;
         case 3: // NUMBER
           return NUMBER;
         case 4: // PREVIOUS
@@ -130,7 +130,7 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
     tmpMap.put(_Fields.SCOPE, new org.apache.thrift.meta_data.FieldMetaData("scope", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
-    tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.STREAM_NAME, new org.apache.thrift.meta_data.FieldMetaData("streamName", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.NUMBER, new org.apache.thrift.meta_data.FieldMetaData("number", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
@@ -145,13 +145,13 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
 
   public SegmentId(
     String scope,
-    String name,
+    String streamName,
     int number,
     int previous)
   {
     this();
     this.scope = scope;
-    this.name = name;
+    this.streamName = streamName;
     this.number = number;
     setNumberIsSet(true);
     this.previous = previous;
@@ -166,8 +166,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     if (other.isSetScope()) {
       this.scope = other.scope;
     }
-    if (other.isSetName()) {
-      this.name = other.name;
+    if (other.isSetStreamName()) {
+      this.streamName = other.streamName;
     }
     this.number = other.number;
     this.previous = other.previous;
@@ -180,7 +180,7 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
   @Override
   public void clear() {
     this.scope = null;
-    this.name = null;
+    this.streamName = null;
     setNumberIsSet(false);
     this.number = 0;
     setPreviousIsSet(false);
@@ -211,27 +211,27 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     }
   }
 
-  public String getName() {
-    return this.name;
+  public String getStreamName() {
+    return this.streamName;
   }
 
-  public SegmentId setName(String name) {
-    this.name = name;
+  public SegmentId setStreamName(String streamName) {
+    this.streamName = streamName;
     return this;
   }
 
-  public void unsetName() {
-    this.name = null;
+  public void unsetStreamName() {
+    this.streamName = null;
   }
 
-  /** Returns true if field name is set (has been assigned a value) and false otherwise */
-  public boolean isSetName() {
-    return this.name != null;
+  /** Returns true if field streamName is set (has been assigned a value) and false otherwise */
+  public boolean isSetStreamName() {
+    return this.streamName != null;
   }
 
-  public void setNameIsSet(boolean value) {
+  public void setStreamNameIsSet(boolean value) {
     if (!value) {
-      this.name = null;
+      this.streamName = null;
     }
   }
 
@@ -291,11 +291,11 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
       }
       break;
 
-    case NAME:
+    case STREAM_NAME:
       if (value == null) {
-        unsetName();
+        unsetStreamName();
       } else {
-        setName((String)value);
+        setStreamName((String)value);
       }
       break;
 
@@ -323,8 +323,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     case SCOPE:
       return getScope();
 
-    case NAME:
-      return getName();
+    case STREAM_NAME:
+      return getStreamName();
 
     case NUMBER:
       return getNumber();
@@ -345,8 +345,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     switch (field) {
     case SCOPE:
       return isSetScope();
-    case NAME:
-      return isSetName();
+    case STREAM_NAME:
+      return isSetStreamName();
     case NUMBER:
       return isSetNumber();
     case PREVIOUS:
@@ -377,12 +377,12 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         return false;
     }
 
-    boolean this_present_name = true && this.isSetName();
-    boolean that_present_name = true && that.isSetName();
-    if (this_present_name || that_present_name) {
-      if (!(this_present_name && that_present_name))
+    boolean this_present_streamName = true && this.isSetStreamName();
+    boolean that_present_streamName = true && that.isSetStreamName();
+    if (this_present_streamName || that_present_streamName) {
+      if (!(this_present_streamName && that_present_streamName))
         return false;
-      if (!this.name.equals(that.name))
+      if (!this.streamName.equals(that.streamName))
         return false;
     }
 
@@ -416,10 +416,10 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     if (present_scope)
       list.add(scope);
 
-    boolean present_name = true && (isSetName());
-    list.add(present_name);
-    if (present_name)
-      list.add(name);
+    boolean present_streamName = true && (isSetStreamName());
+    list.add(present_streamName);
+    if (present_streamName)
+      list.add(streamName);
 
     boolean present_number = true;
     list.add(present_number);
@@ -452,12 +452,12 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetName()).compareTo(other.isSetName());
+    lastComparison = Boolean.valueOf(isSetStreamName()).compareTo(other.isSetStreamName());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetName()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, other.name);
+    if (isSetStreamName()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.streamName, other.streamName);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -510,11 +510,11 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("name:");
-    if (this.name == null) {
+    sb.append("streamName:");
+    if (this.streamName == null) {
       sb.append("null");
     } else {
-      sb.append(this.name);
+      sb.append(this.streamName);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -534,8 +534,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     if (scope == null) {
       throw new org.apache.thrift.protocol.TProtocolException("Required field 'scope' was not present! Struct: " + toString());
     }
-    if (name == null) {
-      throw new org.apache.thrift.protocol.TProtocolException("Required field 'name' was not present! Struct: " + toString());
+    if (streamName == null) {
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'streamName' was not present! Struct: " + toString());
     }
     // alas, we cannot check 'number' because it's a primitive and you chose the non-beans generator.
     // alas, we cannot check 'previous' because it's a primitive and you chose the non-beans generator.
@@ -586,10 +586,10 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 2: // NAME
+          case 2: // STREAM_NAME
             if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
-              struct.name = iprot.readString();
-              struct.setNameIsSet(true);
+              struct.streamName = iprot.readString();
+              struct.setStreamNameIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
@@ -636,9 +636,9 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         oprot.writeString(struct.scope);
         oprot.writeFieldEnd();
       }
-      if (struct.name != null) {
-        oprot.writeFieldBegin(NAME_FIELD_DESC);
-        oprot.writeString(struct.name);
+      if (struct.streamName != null) {
+        oprot.writeFieldBegin(STREAM_NAME_FIELD_DESC);
+        oprot.writeString(struct.streamName);
         oprot.writeFieldEnd();
       }
       oprot.writeFieldBegin(NUMBER_FIELD_DESC);
@@ -665,7 +665,7 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     public void write(org.apache.thrift.protocol.TProtocol prot, SegmentId struct) throws org.apache.thrift.TException {
       TTupleProtocol oprot = (TTupleProtocol) prot;
       oprot.writeString(struct.scope);
-      oprot.writeString(struct.name);
+      oprot.writeString(struct.streamName);
       oprot.writeI32(struct.number);
       oprot.writeI32(struct.previous);
     }
@@ -675,8 +675,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
       TTupleProtocol iprot = (TTupleProtocol) prot;
       struct.scope = iprot.readString();
       struct.setScopeIsSet(true);
-      struct.name = iprot.readString();
-      struct.setNameIsSet(true);
+      struct.streamName = iprot.readString();
+      struct.setStreamNameIsSet(true);
       struct.number = iprot.readI32();
       struct.setNumberIsSet(true);
       struct.previous = iprot.readI32();
