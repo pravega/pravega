@@ -38,11 +38,11 @@ import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
+import com.emc.pravega.common.netty.SegmentUri;
 import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
@@ -50,8 +50,7 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.common.util.ReusableLatch;
-import com.emc.pravega.stream.SegmentUri;
-import com.emc.pravega.stream.impl.StreamController;
+import com.emc.pravega.stream.impl.Controller;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.Unpooled;
@@ -69,10 +68,10 @@ import lombok.extern.slf4j.Slf4j;
 class SegmentOutputStreamImpl extends SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
-    private final StreamController controller;
+    private final String segmentName;
+    private final Controller.Host controller;
     private final ConnectionFactory connectionFactory;
     private final UUID connectionId;
-    private final String segment;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -241,12 +240,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             state.failConnection(new IllegalArgumentException(noSuchSegment.toString()));
         }
-
-        @Override
-        public void noSuchBatch(NoSuchBatch noSuchBatch) {
-            state.failConnection(new IllegalArgumentException(noSuchBatch.toString()));
-        }
-
+        
         @Override
         public void dataAppended(DataAppended dataAppended) {
             long ackLevel = dataAppended.getEventNumber();
@@ -289,7 +283,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
         checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff.remaining());
         ClientConnection connection = getConnection();
-        Append append = state.createNewInflightAppend(connectionId, segment, buff, callback);
+        Append append = state.createNewInflightAppend(connectionId, segmentName, buff, callback);
         try {
             connection.send(append);
         } catch (ConnectionFailedException e) {
@@ -314,11 +308,11 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            SegmentUri uri = controller.getEndpointForSegment(segment);
+            SegmentUri uri = controller.getEndpointForSegment(segmentName);
             ClientConnection connection = getAndHandleExceptions(connectionFactory
-                .establishConnection(uri.getEndpoint(), uri.getPort(), responseProcessor), ConnectionFailedException::new);
+                .establishConnection(uri, responseProcessor), ConnectionFailedException::new);
             state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(connectionId, segment);
+            SetupAppend cmd = new SetupAppend(connectionId, segmentName);
             connection.send(cmd);
         }
     }

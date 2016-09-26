@@ -16,17 +16,26 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.stream;
-
-import com.emc.pravega.controller.stream.api.v1.Status;
+package com.emc.pravega.stream.impl;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
+import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.Transaction;
+
+import ch.qos.logback.core.status.Status;
 
 /**
  * Stream Controller APIs.
  */
-public final class ControllerApi {
+public final class Controller {
 
     /**
      * Controller Apis for administrative action for streams
@@ -58,14 +67,14 @@ public final class ControllerApi {
          */
         CompletableFuture<StreamSegments> getCurrentSegments(String stream);
 
-        /**
-         * Api to get URI for a given segment Id. This will be called when a pravega host fails
-         * to respond for the given segment. The producer can check with controller to find new host
-         * which is responsible for the said segment.
-         * @param segmentId
-         * @return
-         */
-        CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber);
+        void commitTransaction(Stream stream, UUID txId);
+
+        void dropTransaction(Stream stream, UUID txId);
+
+        Transaction.Status checkTransactionStatus(UUID txId);
+
+        void createTransaction(SegmentId s, UUID txId, long timeout);
+
     }
 
     /**
@@ -89,19 +98,17 @@ public final class ControllerApi {
          * @return
          */
         CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions);
-
-        /**
-         * Api to get URI for a given segment Id. This will be called when a pravega host fails
-         * to respond for the given segment. The consumer can check with controller to find new host
-         * which is responsible for the said segment.
-         * @param segmentNumber
-         * @return
-         */
-        CompletableFuture<SegmentUri> getURI(String stream, int segmentNumber);
     }
 
-    //Note: this is not a public interface TODO: Set appropriate scope
-    interface Host {
-        //Placeholder for APIs that pravega host shall call into
+    public interface Host {
+        /**
+         * Given a segment return the endpoint that currently is the owner of that segment.
+         * 
+         * The result of this function can be cached until the endpoint is unreachable or indicates it
+         * is no longer the owner.
+         * 
+         * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link SegmentId#getQualifiedName()}.
+         */
+        SegmentUri getEndpointForSegment(String qualifiedSegmentName);
     }
 }

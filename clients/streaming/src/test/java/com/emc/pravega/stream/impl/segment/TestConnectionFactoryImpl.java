@@ -25,37 +25,36 @@ import java.util.concurrent.CompletableFuture;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.stream.SegmentUri;
-import com.emc.pravega.stream.impl.StreamController;
+import com.emc.pravega.common.netty.SegmentUri;
 import com.google.common.base.Preconditions;
+import com.emc.pravega.stream.impl.Controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-class TestConnectionFactoryImpl implements ConnectionFactory, StreamController {
-    Map<String, ClientConnection> connections = new HashMap<>();
-    Map<String, ReplyProcessor> processors = new HashMap<>();
-    final String endpoint;
-    final int port;
+class TestConnectionFactoryImpl implements ConnectionFactory, Controller.Host {
+    Map<SegmentUri, ClientConnection> connections = new HashMap<>();
+    Map<SegmentUri, ReplyProcessor> processors = new HashMap<>();
+    final SegmentUri endpoint;
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> establishConnection(String endpoint, int port, ReplyProcessor rp) {
-        ClientConnection connection = connections.get(endpoint);
+    public CompletableFuture<ClientConnection> establishConnection(SegmentUri location, ReplyProcessor rp) {
+        ClientConnection connection = connections.get(location);
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
-        processors.put(endpoint, rp);
+        processors.put(location, rp);
         return CompletableFuture.completedFuture(connection);
     }
 
     @Synchronized
-    void provideConnection(String endpoint, ClientConnection c) {
-        connections.put(endpoint, c);
+    void provideConnection(SegmentUri location, ClientConnection c) {
+        connections.put(location, c);
     }
 
     @Synchronized
-    ReplyProcessor getProcessor(String endpoint) {
-        return processors.get(endpoint);
+    ReplyProcessor getProcessor(SegmentUri location) {
+        return processors.get(location);
     }
 
     @Override
@@ -64,6 +63,6 @@ class TestConnectionFactoryImpl implements ConnectionFactory, StreamController {
 
     @Override
     public SegmentUri getEndpointForSegment(String segment) {
-        return new SegmentUri(endpoint, port);
+        return endpoint;
     }
 }

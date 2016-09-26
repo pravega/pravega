@@ -18,18 +18,29 @@
 
 package com.emc.pravega.integrationtests.mockController;
 
+import com.emc.pravega.common.netty.ClientConnection;
+import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.common.netty.ConnectionFailedException;
+import com.emc.pravega.common.netty.FailingReplyProcessor;
+import com.emc.pravega.common.netty.SegmentUri;
+import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.Lists;
 import lombok.AllArgsConstructor;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
+import org.apache.commons.lang.NotImplementedException;
 
 public class MockController {
 
@@ -46,7 +57,7 @@ public class MockController {
     }
 
     @AllArgsConstructor
-    private static class MockAdmin implements ControllerApi.Admin {
+    private static class MockAdmin implements Controller.Admin {
         private final String endpoint;
         private final int port;
 
@@ -54,7 +65,7 @@ public class MockController {
         public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
             SegmentId segmentId = new SegmentId(streamConfig.getName(), streamConfig.getName(), 0, -1);
 
-            com.emc.pravega.stream.impl.segment.SegmentHelper.createSegment(segmentId.getQualifiedName(), new SegmentUri(endpoint, port));
+            createSegment(segmentId.getQualifiedName(), new SegmentUri(endpoint, port));
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
@@ -68,10 +79,46 @@ public class MockController {
         public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
             return null;
         }
+        
+        static boolean createSegment(String name, SegmentUri uri) {
+            ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
+
+            CompletableFuture<Boolean> result = new CompletableFuture<>();
+            FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+                @Override
+                public void connectionDropped() {
+                    result.completeExceptionally(new ConnectionClosedException());
+                }
+
+                @Override
+                public void wrongHost(WireCommands.WrongHost wrongHost) {
+                    result.completeExceptionally(new NotImplementedException());
+                }
+
+                @Override
+                public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+                    result.complete(false);
+                }
+
+                @Override
+                public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
+                    result.complete(true);
+                }
+            };
+            ClientConnection connection = getAndHandleExceptions(clientCF.establishConnection(uri.getEndpoint(), uri.getPort(), replyProcessor),
+                    RuntimeException::new);
+            try {
+                connection.send(new WireCommands.CreateSegment(name));
+            } catch (ConnectionFailedException e) {
+                throw new RuntimeException(e);
+            }
+            return getAndHandleExceptions(result, RuntimeException::new);
+        }
     }
 
     @AllArgsConstructor
-    private static class MockProducer implements ControllerApi.Producer {
+    private static class MockProducer implements Controller.Producer {
 
         private final String endpoint;
         private final int port;
@@ -90,7 +137,7 @@ public class MockController {
     }
 
     @AllArgsConstructor
-    private static class MockConsumer implements ControllerApi.Consumer {
+    private static class MockConsumer implements Controller.Consumer {
         private final String endpoint;
         private final int port;
 

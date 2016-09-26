@@ -14,6 +14,13 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -24,15 +31,12 @@ import org.junit.Test;
 
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
+import com.emc.pravega.common.netty.SegmentUri;
 import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-
-import static org.junit.Assert.*;
-
-import static org.mockito.Mockito.*;
 
 import io.netty.buffer.Unpooled;
 import lombok.Cleanup;
@@ -48,13 +52,14 @@ public class SegmentOutputStreamTest {
     @Test
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
+        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection("endpoint", connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, cf, cid, SEGMENT);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
-        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
         sendEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
@@ -63,13 +68,14 @@ public class SegmentOutputStreamTest {
     @Test
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
+        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection("endpoint", connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, cf, cid, SEGMENT);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
-        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
         sendEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
@@ -86,14 +92,15 @@ public class SegmentOutputStreamTest {
     @Test
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
+        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection("endpoint", connection);
+        cf.provideConnection(uri, connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, cf, cid, SEGMENT);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
-        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked = new CompletableFuture<>();
@@ -113,7 +120,7 @@ public class SegmentOutputStreamTest {
         assertNull(ex.get());
         assertEquals(true, t.isAlive());
         assertEquals(false, acked.isDone());
-        cf.getProcessor("endpoint").dataAppended(new DataAppended(cid, 1));
+        cf.getProcessor(uri).dataAppended(new DataAppended(cid, 1));
         t.join(1000);
         assertNull(ex.get());
         assertEquals(false, t.isAlive());
@@ -157,14 +164,15 @@ public class SegmentOutputStreamTest {
     @Test
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl("endpoint", 1234);
+        SegmentUri uri = new SegmentUri("endpoint", 1234);
+        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection("endpoint", connection);
+        cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(cf, cf, cid, SEGMENT);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
-        cf.getProcessor("endpoint").appendSetup(new AppendSetup(SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
 
         ByteBuffer data = ByteBuffer.allocate(SegmentOutputStream.MAX_WRITE_SIZE + 1);
         CompletableFuture<Void> acked = new CompletableFuture<>();

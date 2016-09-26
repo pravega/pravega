@@ -17,15 +17,15 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.common.netty.SegmentUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
+import com.emc.pravega.stream.impl.Controller.Host;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.async.TAsyncClientManager;
@@ -43,12 +43,12 @@ import java.util.stream.Collectors;
  * RPC based implementation of Stream Controller V1 API.
  */
 @Slf4j
-public class ApiController implements ControllerApi.Admin, ControllerApi.Consumer, ControllerApi.Producer {
+public class ControllerImpl implements Controller.Admin, Controller.Consumer, Controller.Producer, Controller.Host {
 
     private final ControllerService.AsyncClient client;
 
 
-    public ApiController(String host, int port) {
+    public ControllerImpl(String host, int port) {
         try {
             // initialize transport, protocol factory, and async client manager
             final TNonblockingTransport transport = new TNonblockingSocket(host, port);

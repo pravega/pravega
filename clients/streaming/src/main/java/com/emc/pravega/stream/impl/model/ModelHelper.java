@@ -66,8 +66,8 @@ public final class ModelHelper {
         return new PositionImpl(encodeLogMap(position.getOwnedLogs()), encodeLogMap(position.getFutureOwnedLogs()));
     }
 
-    public static com.emc.pravega.stream.SegmentUri encode(SegmentUri uri) {
-        return new com.emc.pravega.stream.SegmentUri(uri.getEndpoint(), uri.getPort());
+    public static com.emc.pravega.common.netty.SegmentUri encode(SegmentUri uri) {
+        return new com.emc.pravega.common.netty.SegmentUri(uri.getEndpoint(), uri.getPort());
     }
 
     public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final SegmentId segmentId) {
@@ -95,7 +95,7 @@ public final class ModelHelper {
                 decodeLogMap(position.asInternalImpl().getFutureOwnedLogs()));
     }
 
-    public static SegmentUri decode(com.emc.pravega.stream.SegmentUri uri) {
+    public static SegmentUri decode(com.emc.pravega.common.netty.SegmentUri uri) {
         return new SegmentUri(uri.getEndpoint(), uri.getPort());
     }
 

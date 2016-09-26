@@ -20,7 +20,7 @@ package com.emc.pravega.demo;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.impl.ApiController;
+import com.emc.pravega.stream.impl.ControllerImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 
@@ -35,7 +35,7 @@ public class StartProducer {
         String streamName = "Stream1";
         String testString = "Hello world: ";
 
-        ApiController apiController = new ApiController(endpoint, port);
+        ControllerImpl apiController = new ControllerImpl(endpoint, port);
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiController, apiController, apiController, scope);
         Stream stream = streamManager.createStream(streamName, null);
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.

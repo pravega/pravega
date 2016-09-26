@@ -20,13 +20,10 @@ package com.emc.pravega.stream.impl;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SingleSegmentStreamControllerImpl;
 
 
 /**
@@ -36,15 +33,11 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
-    private final ControllerApi.Admin apiAdmin;
-    private final ControllerApi.Producer apiProducer;
-    private final ControllerApi.Consumer apiConsumer;
-
-    public SingleSegmentStreamManagerImpl(ControllerApi.Admin apiAdmin, ControllerApi.Producer apiProducer, ControllerApi.Consumer apiConsumer, String scope) {
+    private final ControllerImpl controller;
+    
+    public SingleSegmentStreamManagerImpl(String scope, String host, int port) {
         this.scope = scope;
-        this.apiAdmin = apiAdmin;
-        this.apiProducer = apiProducer;
-        this.apiConsumer = apiConsumer;
+        this.controller = new ControllerImpl(host, port);
     }
 
     @Override
@@ -60,12 +53,12 @@ public class SingleSegmentStreamManagerImpl implements StreamManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(
-                apiAdmin.createStream(new StreamConfigurationImpl(streamName,
+                controller.createStream(new StreamConfigurationImpl(streamName,
                         new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 0, 0, 1))),
                 RuntimeException::new);
 
 
-        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, apiAdmin, apiProducer, apiConsumer);
+        Stream stream = new SingleSegmentStreamImpl(scope, streamName, config, controller);
         created.put(streamName, stream);
         return stream;
     }

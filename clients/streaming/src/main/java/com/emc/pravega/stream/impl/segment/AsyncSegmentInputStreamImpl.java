@@ -14,6 +14,14 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import javax.annotation.concurrent.GuardedBy;
+
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -21,6 +29,7 @@ import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
+import com.emc.pravega.common.netty.SegmentUri;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
@@ -28,18 +37,12 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.ConnectionClosedException;
-import com.emc.pravega.stream.SegmentUri;
-import com.emc.pravega.stream.impl.StreamController;
+import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.impl.Controller;
 import com.google.common.base.Preconditions;
+
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
@@ -53,7 +56,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final StreamController controller;
+    private final Controller.Host controller;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -122,7 +125,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
 
-    public AsyncSegmentInputStreamImpl(StreamController controller, ConnectionFactory connectionFactory, String segment) {
+    public AsyncSegmentInputStreamImpl(Controller.Host controller, ConnectionFactory connectionFactory, String segment) {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);
@@ -179,7 +182,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         SegmentUri uri = controller.getEndpointForSegment(segment);
         synchronized (lock) {
             if (connection == null) {
-                connection = connectionFactory.establishConnection(uri.getEndpoint(), uri.getPort(), responseProcessor);
+                connection = connectionFactory.establishConnection(uri, responseProcessor);
             }
             return connection;
         }

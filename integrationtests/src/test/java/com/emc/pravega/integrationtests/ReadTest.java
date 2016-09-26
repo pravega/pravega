@@ -29,15 +29,15 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.integrationtests.mockController.MockController;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -157,15 +157,15 @@ public class ReadTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
         apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
 
-        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
-        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+        Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
+        Controller.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
 
-        SegmentManagerProducerImpl segmentproducerClient = new SegmentManagerProducerImpl(stream, apiProducer);
+        SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(stream, apiProducer);
 
-        SegmentManagerConsumerImpl segmentConsumerClient = new SegmentManagerConsumerImpl(stream, apiConsumer);
+        SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(stream, apiConsumer);
 
 
         String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new)
@@ -190,9 +190,9 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
 
-        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
-        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
-        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+        Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
+        Controller.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
 
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(
                 apiAdmin,

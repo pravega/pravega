@@ -42,15 +42,15 @@ import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandle
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 
 import io.netty.buffer.ByteBuf;
@@ -177,11 +177,11 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
         apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
 
-        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
-        SegmentManagerProducerImpl segmentClient = new SegmentManagerProducerImpl(stream, apiProducer);
+        Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(stream, apiProducer);
 
         String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new).getSegments().get(0).getQualifiedName();
         @Cleanup("close")
@@ -203,9 +203,9 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
-        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
-        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
+        Controller.Admin apiAdmin = MockController.getAdmin(endpoint, port);
+        Controller.Producer apiProducer = MockController.getProducer(endpoint, port);
+        Controller.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
         SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, "Scope");
         Stream stream = streamManager.createStream(streamName, null);
 

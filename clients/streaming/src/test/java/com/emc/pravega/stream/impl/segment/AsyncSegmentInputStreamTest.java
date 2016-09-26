@@ -31,6 +31,7 @@ import org.junit.Test;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.ReplyProcessor;
+import com.emc.pravega.common.netty.SegmentUri;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
@@ -43,9 +44,8 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testRetry() throws ConnectionFailedException {
         String segment = "testRetry";
-        String endpoint = "localhost";
-        int port = 1234;
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
+        SegmentUri endpoint = new SegmentUri("localhost", 1234);
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
@@ -69,10 +69,9 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testRead() throws ConnectionFailedException {
         String segment = "testRetry";
-        String endpoint = "localhost";
-        int port = 1234;
+        SegmentUri endpoint = new SegmentUri("localhost", 1234);
 
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
@@ -90,9 +89,8 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         String segment = "testRetry";
-        String endpoint = "localhost";
-        int port = 1234;
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
+        SegmentUri endpoint = new SegmentUri("localhost", 1234);
+        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);

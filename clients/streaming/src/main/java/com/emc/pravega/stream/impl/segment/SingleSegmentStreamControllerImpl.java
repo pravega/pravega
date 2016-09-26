@@ -96,15 +96,7 @@ public class SingleSegmentStreamControllerImpl implements StreamController {
         return getAndHandleExceptions(result, RuntimeException::new);
     }
 
-    private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {
-        ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(endpoint, replyProcessor), RuntimeException::new);
-        try {
-            connection.send(request);
-        } catch (ConnectionFailedException e) {
-            throw new RuntimeException(e);
-        }
-    }
+
 
     @Override
     public SegmentOutputStream openSegmentForAppending(String name, SegmentOutputConfiguration config)

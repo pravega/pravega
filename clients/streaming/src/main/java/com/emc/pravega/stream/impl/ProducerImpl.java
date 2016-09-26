@@ -35,7 +35,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentManagerProducer;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
@@ -52,20 +52,24 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Object lock = new Object();
     private final Stream stream;
     private final Serializer<Type> serializer;
-    private final SegmentManagerProducer segmentManager;
+    private final SegmentOutputStreamFactory outputStreamFactory;
+    private final Controller.Producer controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
     @GuardedBy("lock")
     private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(Stream stream, SegmentManagerProducer segmentManager, EventRouter router, Serializer<Type> serializer,
+    ProducerImpl(Stream stream, Controller.Producer controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
             ProducerConfig config) {
         Preconditions.checkNotNull(stream);
+        Preconditions.checkNotNull(controller);
+        Preconditions.checkNotNull(outputStreamFactory);
         Preconditions.checkNotNull(router);
         Preconditions.checkNotNull(serializer);
-        this.segmentManager = segmentManager;
         this.stream = stream;
+        this.controller = controller;
+        this.outputStreamFactory = outputStreamFactory;
         this.router = router;
         this.serializer = serializer;
         this.config = config;
@@ -91,7 +95,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 StreamSegments s = stream.getLatestSegments();
                 for (SegmentId segment : s.getSegments()) {
                     if (!producers.containsKey(segment)) {
-                        SegmentOutputStream out = segmentManager.openSegmentForAppending(segment.getQualifiedName(),
+                        SegmentOutputStream out = outputStreamFactory.createStreamForSegment(segment,
                                                                                          config.getSegmentConfig());
                         producers.put(segment, new SegmentProducerImpl<>(out, serializer));
                     }
@@ -190,17 +194,17 @@ public class ProducerImpl<Type> implements Producer<Type> {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            segmentManager.commitTransaction(txId);
+            controller.commitTransaction(stream, txId);
         }
 
         @Override
         public void drop() {
-            segmentManager.dropTransaction(txId);
+            controller.dropTransaction(stream, txId);
         }
 
         @Override
         public Status checkStatus() {
-            return segmentManager.checkTransactionStatus(txId);
+            return controller.checkTransactionStatus(txId);
         }
 
         @Override
@@ -221,8 +225,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
             segmentIds = new ArrayList<>(producers.keySet());
         }
         for (SegmentId s : segmentIds) {
-            segmentManager.createTransaction(s.getName(), txId, timeout);
-            SegmentOutputStream out = segmentManager.openTransactionForAppending(s.getName(), txId);
+            controller.createTransaction(s, txId, timeout);
+            SegmentOutputStream out = outputStreamFactory.createStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
