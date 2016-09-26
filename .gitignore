@@ -1,5 +1,4 @@
 *.iml
-**/src/generated/gen-java/**
 .project
 build
 .classpath

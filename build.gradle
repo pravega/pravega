@@ -205,8 +205,6 @@ project('controller:contract') {
         main.java.srcDirs += "$projectDir/src/generated/gen-java"
     }
 
-    tasks.compileJava.dependsOn(compileThrift)
-
     checkstyle {
         // Exclude generated code from Checkstyle checks
         sourceSets -= sourceSets.main
