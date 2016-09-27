@@ -21,7 +21,7 @@ import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
@@ -63,7 +63,7 @@ public class AdminApiImpl implements ControllerApi.Admin {
 
     public void notifyNewSegment(String stream, int segmentNumber) {
         // what is previous segment id? There could be multiple previous in case of merge
-        SegmentId segmentId = SegmentHelper.getSegment(stream, segmentNumber, -1);
+        Segment segmentId = SegmentHelper.getSegment(stream, segmentNumber, -1);
         SegmentUri uri = SegmentHelper.getSegmentUri(stream, segmentId.getNumber(), hostStore);
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know

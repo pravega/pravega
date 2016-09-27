@@ -18,28 +18,26 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.controller.store.stream.Segment;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-public class ConsumerApiImpl implements ControllerApi.Consumer {
+public class ConsumerApiImpl implements Controller.Consumer {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
@@ -102,16 +100,16 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
         // create a position object in each iteration of the for loop
         for (int i = 0; i < size; i++) {
             int j = (i < remainder) ? quotient + 1 : quotient;
-            List<SegmentId> current = new ArrayList<>(j);
+            List<Segment> current = new ArrayList<>(j);
             for (int k = 0; k < j; k++, counter++) {
                 Integer number = segmentFutures.getCurrent().get(counter);
-                SegmentId segmentId = SegmentHelper.getSegment(stream, number, -1);
+                Segment segmentId = SegmentHelper.getSegment(stream, number, -1);
                 current.add(segmentId);
             }
 
             // Compute the current and future segments set for position i
-            Map<SegmentId, Long> currentSegments = new HashMap<>();
-            Map<SegmentId, Long> futureSegments = new HashMap<>();
+            Map<Segment, Long> currentSegments = new HashMap<>();
+            Map<Segment, Long> futureSegments = new HashMap<>();
             current.stream().forEach(
                     x -> {
                         // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
@@ -124,7 +122,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
                         if (inverse.containsKey(previous)) {
                             inverse.get(previous).stream().forEach(
                                     y -> {
-                                        SegmentId segmentId = SegmentHelper.getSegment(stream, y, previous);
+                                        Segment segmentId = SegmentHelper.getSegment(stream, y, previous);
                                         futureSegments.put(segmentId, 0L);
                                     }
                             );
@@ -186,7 +184,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
             Map<Integer, Integer> futures = new HashMap<>();
             position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
                     x -> {
-                        int number = x.getKey().getNumber();
+                        int number = x.getKey().getSegmentNumber();
                         current.add(number);
                         Segment segment = streamStore.getSegment(stream, number);
                         // update completed segments set with implicitly completed segments
@@ -194,7 +192,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
                         segmentOffsets.put(number, x.getValue());
                     }
             );
-            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getNumber(), x.getPrevious()));
+            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPreviousNumber()));
             segmentFutures.add(new SegmentFutures(current, futures));
         }
         return segmentFutures;
@@ -204,8 +202,8 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
         List<PositionInternal> resultPositions = new ArrayList<>(segmentFutures.size());
         segmentFutures.stream().forEach(
                 x -> {
-                    Map<SegmentId, Long> currentSegments = new HashMap<>();
-                    Map<SegmentId, Long> futureSegments = new HashMap<>();
+                    Map<Segment, Long> currentSegments = new HashMap<>();
+                    Map<Segment, Long> futureSegments = new HashMap<>();
                     x.getCurrent().stream().forEach(
                             y -> currentSegments.put(SegmentHelper.getSegment(stream, y, -1), segmentOffsets.get(y))
                     );

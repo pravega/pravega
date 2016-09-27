@@ -22,16 +22,15 @@ import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
-import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.SegmentUri;
+import com.emc.pravega.controller.stream.api.v1.SegmentUri;
 
 public class SegmentHelper {
-    public static SegmentId getSegment(String stream, Segment segment) {
-        return new SegmentId(stream, stream + segment.getNumber(), segment.getNumber(), -1);
+    public static com.emc.pravega.stream.Segment getSegment(String stream, Segment segment) {
+        return new com.emc.pravega.stream.Segment(stream, stream + segment.getNumber(), segment.getNumber(), -1);
     }
 
-    public static SegmentId getSegment(String stream, int segmentNumber, int previous) {
-        return new SegmentId(stream, stream + segmentNumber, segmentNumber, previous);
+    public static com.emc.pravega.stream.Segment getSegment(String stream, int segmentNumber, int previous) {
+        return new com.emc.pravega.stream.Segment(stream, stream + segmentNumber, segmentNumber, previous);
     }
 
     public static SegmentUri getSegmentUri(String stream, int segmentNumber, HostControllerStore hostStore) {

@@ -21,7 +21,7 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
 import org.junit.Test;
@@ -33,8 +33,8 @@ import static org.junit.Assert.assertEquals;
 
 public class ModelHelperTest {
 
-    private static SegmentId createSegmentId(String streamName) {
-        return new SegmentId("scope", streamName, 2, 1);
+    private static Segment createSegmentId(String streamName) {
+        return new Segment("scope", streamName, 2, 1);
     }
 
     private static ScalingPolicy createScalingPolicy() {
@@ -57,10 +57,10 @@ public class ModelHelperTest {
     }
 
     private static PositionInternal createPosition() {
-        Map<SegmentId, Long> ownedLogs = new HashMap<>();
+        Map<Segment, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("seg1"), 1L);
 
-        Map<SegmentId, Long> futureOwnedLogs = new HashMap<>();
+        Map<Segment, Long> futureOwnedLogs = new HashMap<>();
         futureOwnedLogs.put(createSegmentId("seg2"), 2L);
 
         return new PositionImpl(ownedLogs, futureOwnedLogs);
@@ -68,7 +68,7 @@ public class ModelHelperTest {
 
     @Test(expected = NullPointerException.class)
     public void decodeSegmentIdNullTest() {
-        ModelHelper.decode((SegmentId) null);
+        ModelHelper.decode((Segment) null);
     }
 
     @Test
@@ -89,11 +89,11 @@ public class ModelHelperTest {
 
     @Test
     public void encodeSegmentId() {
-        SegmentId segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1")));
+        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1")));
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
-        assertEquals(2, segment.getNumber());
-        assertEquals(1, segment.getPrevious());
+        assertEquals(2, segment.getSegmentNumber());
+        assertEquals(1, segment.getPreviousNumber());
     }
 
     @Test(expected = NullPointerException.class)
@@ -180,7 +180,7 @@ public class ModelHelperTest {
         PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
         assertEquals(1, position.asInternalImpl().getOwnedLogs().size());
         assertEquals(1, position.asInternalImpl().getFutureOwnedLogs().size());
-        Map<SegmentId, Long> owndedLogs = position.asInternalImpl().getOwnedLogs();
+        Map<Segment, Long> owndedLogs = position.asInternalImpl().getOwnedLogs();
         assertEquals(1L, position.asInternalImpl().getOwnedLogs().get(createSegmentId("seg1")).longValue());
         assertEquals(2L, position.asInternalImpl().getFutureOwnedLogs().get(createSegmentId("seg2")).longValue());
     }

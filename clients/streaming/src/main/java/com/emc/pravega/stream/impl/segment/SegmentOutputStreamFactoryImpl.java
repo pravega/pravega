@@ -34,7 +34,7 @@ import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.RetriesExaustedException;
 import com.emc.pravega.stream.ConnectionClosedException;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -46,11 +46,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactory {
 
-    private final Controller.Host controller;
+    private final Controller controller;
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(SegmentId segment, UUID txId) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId) {
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -85,7 +85,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(SegmentId segment, SegmentOutputConfiguration config)
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config)
             throws SegmentSealedException {
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getQualifiedName(), controller, cf, UUID.randomUUID());
         try {

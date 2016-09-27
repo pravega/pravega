@@ -26,21 +26,21 @@ import lombok.NonNull;
  * An identifier for a segment of a stream.
  */
 @Data
-public class SegmentId {
+public class Segment {
     private final String scope;
     @NonNull
     private final String streamName;
-    private final int number;
-    private final int previous;
+    private final int segmentNumber;
+    private final int previousNumber;
 
-    public SegmentId(String scope, String streamName, int number, int previous) {
+    public Segment(String scope, String streamName, int number, int previous) {
         super();
         this.scope = scope;
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
         this.streamName = streamName;
-        this.number = number;
-        this.previous = previous;
+        this.segmentNumber = number;
+        this.previousNumber = previous;
     }
 
     public String getQualifiedName() {
@@ -51,16 +51,16 @@ public class SegmentId {
         }
         sb.append(streamName);
         sb.append('/');
-        sb.append(number);
+        sb.append(segmentNumber);
         return sb.toString();
     }
 
     /**
      * @return True if this segment is a replacement or partial replacement for the one passed.
      */
-    public boolean succeeds(SegmentId other) {
+    public boolean succeeds(Segment other) {
         return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && streamName.equals(other.streamName)
-                && previous == other.number;
+                && previousNumber == other.segmentNumber;
     }
 
     public static int getSegmentNumberFromName(String segment) {

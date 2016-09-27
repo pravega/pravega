@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
@@ -35,12 +35,9 @@ import com.emc.pravega.stream.Transaction;
 /**
  * Stream Controller APIs.
  */
-public final class Controller {
+public interface Controller {
 
-    /**
-     * Controller Apis for administrative action for streams
-     */
-    public interface Admin {
+    // Controller Apis for administrative action for streams
         /**
          * Api to create stream
          * @param streamConfig
@@ -54,12 +51,9 @@ public final class Controller {
          * @return
          */
         CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
-    }
-
-    /**
-     * Controller Apis called by pravega producers for getting stream specific information
-     */
-    public interface Producer {
+    
+     // Controller Apis called by pravega producers for getting stream specific information
+     
         /**
          * Api to get list of current segments for the stream to produce to.
          * @param stream
@@ -73,14 +67,10 @@ public final class Controller {
 
         Transaction.Status checkTransactionStatus(UUID txId);
 
-        void createTransaction(SegmentId s, UUID txId, long timeout);
+        void createTransaction(Segment s, UUID txId, long timeout);
 
-    }
+    // Controller Apis that are called by consumers
 
-    /**
-     * Controller Apis that are called by consumers
-     */
-    public interface Consumer {
         /**
          * Returns list of position objects by distributing available segments at the
          * given timestamp into requested number of position objects
@@ -98,17 +88,17 @@ public final class Controller {
          * @return
          */
         CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions);
-    }
 
-    public interface Host {
+    //Controller Apis that are called by producers and consumers
+        
         /**
          * Given a segment return the endpoint that currently is the owner of that segment.
          * 
          * The result of this function can be cached until the endpoint is unreachable or indicates it
          * is no longer the owner.
          * 
-         * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link SegmentId#getQualifiedName()}.
+         * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
          */
         CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName);
-    }
+   
 }

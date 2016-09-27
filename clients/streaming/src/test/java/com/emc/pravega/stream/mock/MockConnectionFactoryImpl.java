@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.stream.impl.segment;
+package com.emc.pravega.stream.mock;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,16 +24,15 @@ import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
-import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
 import com.google.common.base.Preconditions;
-import com.emc.pravega.stream.impl.Controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-class TestConnectionFactoryImpl implements ConnectionFactory, Controller.Host {
+public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
     final PravegaNodeUri endpoint;
@@ -48,21 +47,16 @@ class TestConnectionFactoryImpl implements ConnectionFactory, Controller.Host {
     }
 
     @Synchronized
-    void provideConnection(PravegaNodeUri location, ClientConnection c) {
+    public void provideConnection(PravegaNodeUri location, ClientConnection c) {
         connections.put(location, c);
     }
 
     @Synchronized
-    ReplyProcessor getProcessor(PravegaNodeUri location) {
+    public ReplyProcessor getProcessor(PravegaNodeUri location) {
         return processors.get(location);
     }
 
     @Override
     public void close() {
-    }
-
-    @Override
-    public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String segment) {
-        return CompletableFuture.completedFuture(endpoint);
     }
 }

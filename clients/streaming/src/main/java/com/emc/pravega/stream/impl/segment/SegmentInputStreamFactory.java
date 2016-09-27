@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 
 /**
  * Creates {@link SegmentInputStream} for reading from existing segments.
@@ -30,5 +30,5 @@ public interface SegmentInputStreamFactory {
      * same client (i.e., there can be concurrent Stream Readers in the same
      * process space).
      */
-    SegmentInputStream createInputStreamForSegment(SegmentId segment, SegmentInputConfiguration config);
+    SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config);
 }

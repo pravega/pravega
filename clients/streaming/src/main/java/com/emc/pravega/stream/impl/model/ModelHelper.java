@@ -25,7 +25,7 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
@@ -35,9 +35,9 @@ import com.google.common.base.Preconditions;
  */
 public final class ModelHelper {
 
-    public static final SegmentId encode(final com.emc.pravega.controller.stream.api.v1.SegmentId segment) {
+    public static final Segment encode(final com.emc.pravega.controller.stream.api.v1.SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new SegmentId(segment.getScope(), segment.getStreamName(), segment.getNumber(), segment.getPrevious());
+        return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber(), segment.getPrevious());
     }
 
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
@@ -70,10 +70,10 @@ public final class ModelHelper {
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
     }
 
-    public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final SegmentId segmentId) {
+    public static final com.emc.pravega.controller.stream.api.v1.SegmentId decode(final Segment segmentId) {
         Preconditions.checkNotNull(segmentId, "Segment");
         return new com.emc.pravega.controller.stream.api.v1.SegmentId().setScope(segmentId.getScope()).setStreamName(segmentId.getStreamName())
-                .setNumber(segmentId.getNumber()).setPrevious(segmentId.getPrevious());
+                .setNumber(segmentId.getSegmentNumber()).setPrevious(segmentId.getPreviousNumber());
 
     }
 
@@ -99,12 +99,12 @@ public final class ModelHelper {
         return new NodeUri(uri.getEndpoint(), uri.getPort());
     }
 
-    private static Map<SegmentId, Long> encodeLogMap(final Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> map) {
+    private static Map<Segment, Long> encodeLogMap(final Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> map) {
         Preconditions.checkNotNull(map);
         return map.entrySet().stream().collect(Collectors.toMap(e -> encode(e.getKey()), Map.Entry::getValue));
     }
 
-    private static Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> decodeLogMap(final Map<SegmentId, Long> map) {
+    private static Map<com.emc.pravega.controller.stream.api.v1.SegmentId, Long> decodeLogMap(final Map<Segment, Long> map) {
         Preconditions.checkNotNull(map);
         return map.entrySet().stream().collect(Collectors.toMap(e -> decode(e.getKey()), Map.Entry::getValue));
     }

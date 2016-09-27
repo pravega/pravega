@@ -35,7 +35,7 @@ import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
@@ -48,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
  * RPC based implementation of Stream Controller V1 API.
  */
 @Slf4j
-public class ControllerImpl implements Controller.Admin, Controller.Consumer, Controller.Producer, Controller.Host {
+public class ControllerImpl implements Controller {
 
     private final ControllerService.AsyncClient client;
 
@@ -185,7 +185,7 @@ public class ControllerImpl implements Controller.Admin, Controller.Consumer, Co
     }
 
     @Override
-    public void createTransaction(SegmentId s, UUID txId, long timeout) {
+    public void createTransaction(Segment s, UUID txId, long timeout) {
         // TODO Auto-generated method stub
         
     }

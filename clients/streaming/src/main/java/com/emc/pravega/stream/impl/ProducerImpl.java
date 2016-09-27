@@ -12,7 +12,10 @@
  */
 package com.emc.pravega.stream.impl;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -29,14 +32,13 @@ import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactory;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
@@ -53,14 +55,14 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Stream stream;
     private final Serializer<Type> serializer;
     private final SegmentOutputStreamFactory outputStreamFactory;
-    private final Controller.Producer controller;
+    private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventRouter router;
     private final ProducerConfig config;
     @GuardedBy("lock")
-    private final Map<SegmentId, SegmentProducer<Type>> producers = new HashMap<>();
+    private final Map<Segment, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(Stream stream, Controller.Producer controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
+    ProducerImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
             ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
@@ -88,12 +90,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
      *         retransmitted.
      */
     private List<Event<Type>> setupSegmentProducers() {
-        StreamSegments segments = Retry.withExpBackoff(1, 10, 5)
+        Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
             .run(() -> {
-                StreamSegments s = stream.getLatestSegments();
-                for (SegmentId segment : s.getSegments()) {
+                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getQualifiedName()), RuntimeException::new).getSegments();
+                for (Segment segment : s) {
                     if (!producers.containsKey(segment)) {
                         SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
                                                                                          config.getSegmentConfig());
@@ -104,10 +106,10 @@ public class ProducerImpl<Type> implements Producer<Type> {
             });
         List<Event<Type>> toResend = new ArrayList<>();
 
-        Iterator<Entry<SegmentId, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
+        Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
         while (iter.hasNext()) {
-            Entry<SegmentId, SegmentProducer<Type>> entry = iter.next();
-            if (!segments.segments.contains(entry.getKey())) {
+            Entry<Segment, SegmentProducer<Type>> entry = iter.next();
+            if (!segments.contains(entry.getKey())) {
                 SegmentProducer<Type> producer = entry.getValue();
                 iter.remove();
                 try {
@@ -168,23 +170,23 @@ public class ProducerImpl<Type> implements Producer<Type> {
     }
 
     private SegmentProducer<Type> getSegmentProducer(String routingKey) {
-        SegmentId log = router.getSegmentForEvent(stream, routingKey);
+        Segment log = router.getSegmentForEvent(routingKey);
         return producers.get(log);
     }
 
     private class TransactionImpl implements Transaction<Type> {
 
-        private final Map<SegmentId, SegmentTransaction<Type>> inner;
+        private final Map<Segment, SegmentTransaction<Type>> inner;
         private final UUID txId;
 
-        TransactionImpl(UUID txId, Map<SegmentId, SegmentTransaction<Type>> transactions) {
+        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions) {
             this.txId = txId;
             this.inner = transactions;
         }
 
         @Override
         public void publish(String routingKey, Type event) throws TxFailedException {
-            SegmentId s = router.getSegmentForEvent(stream, routingKey);
+            Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
             transaction.publish(event);
         }
@@ -219,12 +221,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
     @Override
     public Transaction<Type> startTransaction(long timeout) {
         UUID txId = UUID.randomUUID();
-        Map<SegmentId, SegmentTransaction<Type>> transactions = new HashMap<>();
-        ArrayList<SegmentId> segmentIds;
+        Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        ArrayList<Segment> segmentIds;
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
-        for (SegmentId s : segmentIds) {
+        for (Segment s : segmentIds) {
             controller.createTransaction(s, txId, timeout);
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

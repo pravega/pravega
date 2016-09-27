@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutionException;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.netty.ConnectionFactory;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -33,11 +33,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory {
 
-    private final Controller.Host controller;
+    private final Controller controller;
     private final ConnectionFactory cf;
     
     @Override
-    public SegmentInputStream createInputStreamForSegment(SegmentId segment, SegmentInputConfiguration config) {
+    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
         AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getQualifiedName());
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());

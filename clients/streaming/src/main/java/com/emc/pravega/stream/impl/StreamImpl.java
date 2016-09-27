@@ -18,9 +18,8 @@
 package com.emc.pravega.stream.impl;
 
 import java.util.Collection;
-import java.util.Collections;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.stream.Consumer;
 import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.EventRouter;
@@ -28,12 +27,9 @@ import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.RateChangeListener;
-import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentInputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.google.common.base.Preconditions;
@@ -43,22 +39,17 @@ import lombok.Getter;
 /**
  * An implementation of a stream for the special case where the stream is only ever composed of one segment.
  */
-public class SingleSegmentStreamImpl implements Stream {
+public class StreamImpl implements Stream {
 
     private final String scope;
     private final String streamName;
     @Getter
     private final StreamConfiguration config;
-    private final ControllerImpl controller;
-    private final ConnectionFactoryImpl connectionFactory;
+    private final Controller controller;
+    private final ConnectionFactory connectionFactory;
     
-    private final EventRouter router = new EventRouter() {
-        @Override
-        public SegmentId getSegmentForEvent(Stream stream, String routingKey) {
-            return segmentId;
-        }
-    };
-    
+    private final EventRouter router;
+
     private static final class SingleStreamOrderer<T> implements Orderer<T> {
         @Override
         public SegmentConsumer<T> nextConsumer(Collection<SegmentConsumer<T>> logs) {
@@ -67,12 +58,13 @@ public class SingleSegmentStreamImpl implements Stream {
         }
     };
 
-    public SingleSegmentStreamImpl(String scope, String streamName, StreamConfiguration config, ControllerImpl controller, ConnectionFactoryImpl connectionFactory) {
+    public StreamImpl(String scope, String streamName, StreamConfiguration config, Controller controller, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.streamName = streamName;
         this.config = config;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
+        this.router = new EventRouterImpl(this, controller);
     }
 
     @Override

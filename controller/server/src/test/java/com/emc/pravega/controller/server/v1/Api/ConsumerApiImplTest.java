@@ -26,7 +26,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
@@ -121,7 +121,7 @@ public class ConsumerApiImplTest {
 
 
         PositionInternal newPosition = new PositionImpl(
-                Collections.singletonMap(new SegmentId(stream2, stream2 + 5, 5, 2), 0L),
+                Collections.singletonMap(new Segment(stream2, stream2 + 5, 5, 2), 0L),
                 Collections.EMPTY_MAP);
         positions.set(2, newPosition);
         positions = consumer.updatePositions(stream2, positions).get();

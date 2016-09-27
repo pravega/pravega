@@ -37,7 +37,6 @@ import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.common.util.Retry.RetryWithBackoff;
 import com.emc.pravega.stream.ConnectionClosedException;
-import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.impl.Controller;
 import com.google.common.base.Preconditions;
 
@@ -56,7 +55,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final ConcurrentHashMap<Long, ReadFutureImpl> outstandingRequests = new ConcurrentHashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Controller.Host controller;
+    private final Controller controller;
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -125,7 +124,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
 
-    public AsyncSegmentInputStreamImpl(Controller.Host controller, ConnectionFactory connectionFactory, String segment) {
+    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, String segment) {
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
         Preconditions.checkNotNull(segment);

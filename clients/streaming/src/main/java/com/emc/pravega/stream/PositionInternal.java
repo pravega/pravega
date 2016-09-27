@@ -38,26 +38,26 @@ public interface PositionInternal {
      *
      * @return the set of segments currently being read, i.e., ownedSegments set
      */
-    Set<SegmentId> getOwnedSegments();
+    Set<Segment> getOwnedSegments();
 
     /**
      * Completely read segments have offset of -1.
      * @return the read offset for each segment in the ownedSegments set
      */
-    Map<SegmentId, Long> getOwnedSegmentsWithOffsets();
+    Map<Segment, Long> getOwnedSegmentsWithOffsets();
 
     /**
      *
      * @return the set of completely read segments.
      */
-    Set<SegmentId> getCompletedSegments();
+    Set<Segment> getCompletedSegments();
 
     /**
      *
      * @param segmentId input segment
      * @return offset for a specified segment
      */
-    Long getOffsetForOwnedSegment(SegmentId segmentId);
+    Long getOffsetForOwnedSegment(Segment segmentId);
 
     /**
      *
@@ -66,7 +66,7 @@ public interface PositionInternal {
      *
      * @return the futureOwnedSegments set
      */
-    Set<SegmentId> getFutureOwnedSegments();
+    Set<Segment> getFutureOwnedSegments();
 
     PositionImpl asInternalImpl();
 }

@@ -69,7 +69,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
 
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
     private final String segmentName;
-    private final Controller.Host controller;
+    private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final UUID connectionId;
     private final State state = new State();

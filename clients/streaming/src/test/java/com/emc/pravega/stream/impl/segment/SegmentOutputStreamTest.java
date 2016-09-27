@@ -37,6 +37,8 @@ import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
+import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
 
 import io.netty.buffer.Unpooled;
 import lombok.Cleanup;
@@ -53,10 +55,11 @@ public class SegmentOutputStreamTest {
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort());
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
@@ -69,10 +72,11 @@ public class SegmentOutputStreamTest {
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort());
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
@@ -93,11 +97,12 @@ public class SegmentOutputStreamTest {
     public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort());
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));
@@ -165,11 +170,12 @@ public class SegmentOutputStreamTest {
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
-        TestConnectionFactoryImpl cf = new TestConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort());
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, cf, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));

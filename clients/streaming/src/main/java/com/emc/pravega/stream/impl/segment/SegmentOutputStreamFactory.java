@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl.segment;
 
 import java.util.UUID;
 
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 
 /**
  * Creates {@link SegmentOutputStream} for segments and transactions.
@@ -29,7 +29,7 @@ public interface SegmentOutputStreamFactory {
      * Creates a stream for an open transaction. This will fail if the segment does not exist or is sealed.
      * This may be called multiple times for the same transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(SegmentId segment, UUID txId);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -38,5 +38,5 @@ public interface SegmentOutputStreamFactory {
      * same or different clients (i.e., there can be concurrent Stream Writers
      * in the same process space).
      */
-    SegmentOutputStream createOutputStreamForSegment(SegmentId segment, SegmentOutputConfiguration config) throws SegmentSealedException;
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config) throws SegmentSealedException;
 }
