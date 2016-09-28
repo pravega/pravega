@@ -19,83 +19,34 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
 
-import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * In-memory stream store.
  */
-public class InMemoryStreamStore implements StreamMetadataStore {
+public class InMemoryStreamStore extends AbstractStreamMetadataStore {
 
-    private final Map<String, Stream> streams = new HashMap<>();
+    private final Map<String, InMemoryStream> streams = new HashMap<>();
 
-    private Stream getStream(String name) {
+    @Override
+    public InMemoryStream getStream(String name) {
         if (streams.containsKey(name)) {
-            Stream stream = streams.get(name);
-            return stream;
+            return streams.get(name);
         } else {
             throw new StreamNotFoundException(name);
         }
     }
 
-    public void initialize() {
-        // TODO initialize from persistent store, create collections of appropriate size
-    }
-
     @Override
     public boolean createStream(String name, StreamConfiguration configuration) {
         if (!streams.containsKey(name)) {
-            Stream stream = new Stream(name, configuration);
+            InMemoryStream stream = new InMemoryStream(name);
+            stream.create(configuration);
             streams.put(name, stream);
             return true;
         } else {
             throw new StreamAlreadyExistsException(name);
         }
-    }
-
-    @Override
-    public boolean updateConfiguration(String name, StreamConfiguration configuration) {
-        Stream stream = getStream(name);
-        stream.setConfiguration(configuration);
-        return true;
-    }
-
-    @Override
-    public StreamConfiguration getConfiguration(String name) {
-        Stream stream = getStream(name);
-        return stream.getStreamConfiguration();
-    }
-
-    @Override
-    public Segment getSegment(String name, int number) {
-        Stream stream = getStream(name);
-        return stream.getSegment(number);
-    }
-
-    @Override
-    public SegmentFutures getActiveSegments(String name) {
-        Stream stream = getStream(name);
-        return stream.getActiveSegments();
-    }
-
-    @Override
-    public SegmentFutures getActiveSegments(String name, long timestamp) {
-        Stream stream = getStream(name);
-        return stream.getActiveSegments(timestamp);
-    }
-
-    @Override
-    public List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments) {
-        Stream stream = getStream(name);
-        return stream.getNextSegments(completedSegments, currentSegments);
-    }
-
-    @Override
-    public List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        Stream stream = getStream(name);
-        return stream.scale(sealedSegments, newRanges, scaleTimestamp);
     }
 }

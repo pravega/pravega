@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
-    public abstract IStream getStream(String name);
+    public abstract Stream getStream(String name);
 
     @Override
     public abstract boolean createStream(String name, StreamConfiguration configuration);
@@ -63,7 +63,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public SegmentFutures getActiveSegments(String name, long timestamp) {
-        IStream stream = getStream(name);
+        Stream stream = getStream(name);
         List<Integer> activeSegments = stream.getActiveSegments(timestamp);
         List<Integer> currentSegments = new ArrayList<>();
         Map<Integer, Integer> futureSegments = new HashMap<>();
@@ -84,7 +84,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 
-        IStream stream = getStream(name);
+        Stream stream = getStream(name);
 
         // append completed segment set with implicitly completed segments
         positions.forEach(position ->
@@ -146,13 +146,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @param number segment number for which default futures are sought.
      * @return the list of successors of specified segment who have only one predecessor.
      */
-    private List<Integer> getDefaultFutures(IStream stream, int number) {
+    private List<Integer> getDefaultFutures(Stream stream, int number) {
         return stream.getSuccessors(number).stream()
                 .filter(x -> stream.getPredecessors(x).size() == 1)
                 .collect(Collectors.toList());
     }
 
-    private List<SegmentFutures> divideSegments(IStream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
+    private List<SegmentFutures> divideSegments(Stream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
         List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
 
         int quotient = newCurrents.size() / positions.size();
