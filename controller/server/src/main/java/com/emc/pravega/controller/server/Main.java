@@ -26,6 +26,7 @@ import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 
 /**
@@ -56,7 +58,8 @@ public class Main {
         //1) LOAD configuration.
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE),
+                new StoreConfiguration(STREAM_STORE_CONNECTION_STRING));
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));

@@ -35,6 +35,7 @@ public final class Config {
     //Store configuration.
     //Stream store configuration.
     public static final String STREAM_STORE_TYPE = CONFIG.getString("config.controller.server.store.stream.type");
+    public static final String STREAM_STORE_CONNECTION_STRING = CONFIG.getString("config.controller.server.store.stream.connctionString");
 
     //HostStore configuration.
     public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");

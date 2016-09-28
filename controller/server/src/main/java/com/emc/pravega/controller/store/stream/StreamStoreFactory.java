@@ -33,6 +33,7 @@ public class StreamStoreFactory {
             case InMemory:
                 return new InMemoryStreamStore();
             case Zookeeper:
+                return new ZKStreamMetadataStore(config);
             case ECS:
             case S3:
             case HDFS:

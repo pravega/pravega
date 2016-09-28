@@ -23,6 +23,13 @@ import com.emc.pravega.stream.StreamConfiguration;
  * ZK stream metadata store
  */
 public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+
+    private final StoreConfiguration storeConfiguration;
+
+    public ZKStreamMetadataStore(StoreConfiguration storeConfiguration) {
+        this.storeConfiguration = storeConfiguration;
+    }
+
     @Override
     public ZKStream getStream(String name) {
         // Return a new stream object each time.
