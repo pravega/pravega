@@ -26,7 +26,7 @@ import java.util.List;
  * Properties of a stream and operations that can be performed on it.
  * Identifier for a stream is its name.
  */
-public interface Stream {
+interface Stream {
 
     String getName();
 
