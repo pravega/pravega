@@ -360,7 +360,7 @@ class StorageWriter extends AbstractService implements Writer {
         // Flush everything we can flush.
         val flushFutures = this.aggregators.values().stream()
                                            .filter(SegmentAggregator::mustFlush)
-                                           .map(a -> a.flush(this.config.getFlushTimeout()))
+                                           .map(a -> a.flush(this.config.getFlushTimeout(), this.executor))
                                            .collect(Collectors.toList());
 
         return completeStage(flushFutures, "Flush");

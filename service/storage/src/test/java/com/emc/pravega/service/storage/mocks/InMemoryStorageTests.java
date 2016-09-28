@@ -196,14 +196,15 @@ public class InMemoryStorageTests {
 
             // Check pre-create concat.
             String firstSegmentName = getSegmentName(0);
+            long firstSegmentLength = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join().getLength();
             AssertExtensions.assertThrows(
                     "concat() did not throw for non-existent target StreamSegment.",
-                    s.concat("foo1", firstSegmentName, TIMEOUT),
+                    s.concat("foo1", 0, firstSegmentName, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             AssertExtensions.assertThrows(
                     "concat() did not throw for non-existent source StreamSegment.",
-                    s.concat(firstSegmentName, "foo2", TIMEOUT),
+                    s.concat(firstSegmentName, firstSegmentLength, "foo2", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
@@ -216,7 +217,7 @@ public class InMemoryStorageTests {
 
                 AssertExtensions.assertThrows(
                         "Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentName, segmentName, TIMEOUT),
+                        () -> s.concat(firstSegmentName, firstSegmentLength, segmentName, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
 
                 // Seal the source segment and then re-try the concat
@@ -224,7 +225,7 @@ public class InMemoryStorageTests {
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(segmentName, TIMEOUT).join();
 
-                s.concat(firstSegmentName, segmentName, TIMEOUT).join();
+                s.concat(firstSegmentName, firstSegmentLength, segmentName, TIMEOUT).join();
                 concatOrder.add(segmentName);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 AssertExtensions.assertThrows(

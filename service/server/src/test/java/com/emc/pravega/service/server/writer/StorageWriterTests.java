@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
@@ -255,7 +254,7 @@ public class StorageWriterTests {
                 "StorageWriter did not fail when a fatal data corruption error occurred.",
                 () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
                 ex -> ex instanceof IllegalStateException);
-        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
 
     /**
@@ -423,10 +422,7 @@ public class StorageWriterTests {
         for (long transactionId : transactionIds) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(transactionId);
             Assert.assertTrue("Transaction not marked as deleted in metadata: " + transactionId, metadata.isDeleted());
-            AssertExtensions.assertThrows(
-                    "Transaction was not deleted from storage after being merged: " + transactionId,
-                    () -> context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join(),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            Assert.assertFalse("Transaction was not deleted from storage after being merged: " + transactionId, context.storage.exists(metadata.getName(), TIMEOUT).join());
         }
 
         for (long segmentId : segmentContents.keySet()) {

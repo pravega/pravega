@@ -20,19 +20,21 @@ package com.emc.pravega.service.server.writer;
 
 import com.google.common.base.Preconditions;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Represents the result of a Storage Flush Operation.
  */
 class FlushResult {
-    private long flushedBytes;
-    private long mergedBytes;
+    private AtomicLong flushedBytes;
+    private AtomicLong mergedBytes;
 
     /**
      * Creates a new instance of the FlushResult class.
      */
     FlushResult() {
-        this.flushedBytes = 0;
-        this.mergedBytes = 0;
+        this.flushedBytes = new AtomicLong();
+        this.mergedBytes = new AtomicLong();
     }
 
     /**
@@ -43,7 +45,7 @@ class FlushResult {
      */
     FlushResult withFlushedBytes(long flushedBytes) {
         Preconditions.checkArgument(flushedBytes >= 0, "flushedBytes must be a positive number.");
-        this.flushedBytes += flushedBytes;
+        this.flushedBytes.addAndGet(flushedBytes);
         return this;
     }
 
@@ -55,7 +57,7 @@ class FlushResult {
      */
     FlushResult withMergedBytes(long mergedBytes) {
         Preconditions.checkArgument(mergedBytes >= 0, "mergedBytes must be a positive number.");
-        this.mergedBytes += mergedBytes;
+        this.mergedBytes.addAndGet(mergedBytes);
         return this;
     }
 
@@ -66,8 +68,8 @@ class FlushResult {
      * @return This object.
      */
     FlushResult withFlushResult(FlushResult flushResult) {
-        this.flushedBytes += flushResult.flushedBytes;
-        this.mergedBytes += flushResult.mergedBytes;
+        this.flushedBytes.addAndGet(flushResult.flushedBytes.get());
+        this.mergedBytes.addAndGet(flushResult.mergedBytes.get());
         return this;
     }
 
@@ -75,14 +77,14 @@ class FlushResult {
      * Gets a value indicating the total amount of data flushed, in bytes.
      */
     long getFlushedBytes() {
-        return this.flushedBytes;
+        return this.flushedBytes.get();
     }
 
     /**
      * Gets a value indicating the total amount of data that was merged, in bytes.
      */
     long getMergedBytes() {
-        return this.mergedBytes;
+        return this.mergedBytes.get();
     }
 
     @Override

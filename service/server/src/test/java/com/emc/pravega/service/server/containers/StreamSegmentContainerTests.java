@@ -370,10 +370,7 @@ public class StreamSegmentContainerTests {
                             context.container.read(sn, 0, 1, TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentNotExistsException);
 
-                    AssertExtensions.assertThrows(
-                            "Segment not deleted in storage.",
-                            context.storage.getStreamSegmentInfo(sn, TIMEOUT)::join,
-                            ex -> ex instanceof StreamSegmentNotExistsException);
+                    Assert.assertFalse("Segment not deleted in storage.", context.storage.exists(sn, TIMEOUT).join());
                 }
             } else {
                 // Verify the segments and their Transactions are still there.
@@ -572,10 +569,9 @@ public class StreamSegmentContainerTests {
             }
 
             if (sp == null) {
-                AssertExtensions.assertThrows(
+                Assert.assertFalse(
                         "Segment is marked as deleted in metadata but was not deleted in Storage " + segmentName,
-                        context.storage.getStreamSegmentInfo(segmentName, TIMEOUT)::join,
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                        context.storage.exists(segmentName, TIMEOUT).join());
 
                 // No need to do other checks.
                 continue;
