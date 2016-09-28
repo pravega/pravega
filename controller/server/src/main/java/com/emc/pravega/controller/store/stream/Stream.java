@@ -30,12 +30,17 @@ interface Stream {
 
     String getName();
 
+    /**
+     * Create the stream, by creating/modifying underlying data structures.
+     * @param configuration stream configuration.
+     * @return boolean indicating success.
+     */
     boolean create(StreamConfiguration configuration);
 
     /**
      * Updates the configuration of an existing stream.
-     * @param configuration new stream configuration
-     * @return boolean indicating whether the stream was updated
+     * @param configuration new stream configuration.
+     * @return boolean indicating whether the stream was updated.
      */
     boolean updateConfiguration(StreamConfiguration configuration);
 
@@ -46,14 +51,22 @@ interface Stream {
     StreamConfiguration getConfiguration();
 
     /**
-     *
+     * Fetches details of specified segment.
      * @param number segment number.
      * @return segment at given number.
      */
     Segment getSegment(int number);
 
+    /**
+     * @param number segment.
+     * @return successors of specified segment.
+     */
     List<Integer> getSuccessors(int number);
 
+    /**
+     * @param number
+     * @return predecessors of specified segment
+     */
     List<Integer> getPredecessors(int number);
 
     /**
@@ -67,5 +80,12 @@ interface Stream {
      */
     List<Integer> getActiveSegments(long timestamp);
 
+    /**
+     * Scale the stream by sealing few segments and creating few segments
+     * @param sealedSegments segments to be sealed
+     * @param newRanges key ranges of new segments to be created
+     * @param scaleTimestamp scaling timestamp
+     * @return sequence of newly created segments
+     */
     List<Segment> scale(List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 }

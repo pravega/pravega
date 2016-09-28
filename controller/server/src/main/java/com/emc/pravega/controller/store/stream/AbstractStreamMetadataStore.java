@@ -30,8 +30,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Abstract Stream metadata store. It implements most of the operaions on stream object.
- * It is upto the concrete implementation
+ * Abstract Stream metadata store. It implements various read queries using the Stream interface.
+ * Create and update queries are delegated to the specific implementations of this abstract class.
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
@@ -152,6 +152,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Divides the set of new current segments among existing positions and returns the updated positions
+     * @param stream stream
+     * @param newCurrents new set of current segments
+     * @param newFutures new set of future segments
+     * @param positions positions to be updated
+     * @return the updated sequence of positions
+     */
     private List<SegmentFutures> divideSegments(Stream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
         List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
 
