@@ -18,7 +18,6 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -69,7 +68,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
                     SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
 
                     // divide current segments in segmentFutures into at most n positions
-                    return shard(stream, segmentFutures, timestamp, n);
+                    return shard(stream, segmentFutures, n);
                 }
         );
     }
@@ -85,7 +84,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
      * @param n number of shards
      * @return the list of position objects
      */
-    private List<PositionInternal> shard(String stream, SegmentFutures segmentFutures, long timestamp, int n) {
+    private List<PositionInternal> shard(String stream, SegmentFutures segmentFutures, int n) {
         // divide the active segments equally into at most n partition
         int currentCount = segmentFutures.getCurrent().size();
         int quotient = currentCount / n;
@@ -157,7 +156,7 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
 
                     // convert positions to segmentFutures, while updating completedSegments set and
                     // storing segment offsets in segmentOffsets map
-                    List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(stream, positions, completedSegments, segmentOffsets);
+                    List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(positions, segmentOffsets);
 
                     // fetch updated SegmentFutures from stream metadata
                     List<SegmentFutures> updatedSegmentFutures = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
@@ -171,13 +170,11 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
     /**
      * This method converts list of positions into list of segmentFutures.
      * While doing so it updates the completedSegments set and stores segment offsets in a map.
-     * @param stream input stream
      * @param positions input list of positions
-     * @param completedSegments set of completed segments that shall be updated in this method
      * @param segmentOffsets map of segment number of its offset that shall be populated in this method
      * @return the list of segmentFutures objects
      */
-    private List<SegmentFutures> convertPositionsToSegmentFutures(String stream, List<PositionInternal> positions, Set<Integer> completedSegments, Map<Integer, Long> segmentOffsets) {
+    private List<SegmentFutures> convertPositionsToSegmentFutures(List<PositionInternal> positions, Map<Integer, Long> segmentOffsets) {
         List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
 
         // construct SegmentFutures for each position object.
@@ -188,9 +185,6 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
                     x -> {
                         int number = x.getKey().getNumber();
                         current.add(number);
-                        Segment segment = streamStore.getSegment(stream, number);
-                        // update completed segments set with implicitly completed segments
-                        segment.getPredecessors().stream().forEach(y -> completedSegments.add(y));
                         segmentOffsets.put(number, x.getValue());
                     }
             );
