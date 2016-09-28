@@ -33,6 +33,7 @@ import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Unit tests for InMemoryStorage
@@ -196,7 +197,7 @@ public class InMemoryStorageTests {
 
             // Check pre-create concat.
             String firstSegmentName = getSegmentName(0);
-            long firstSegmentLength = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join().getLength();
+            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join().getLength());
             AssertExtensions.assertThrows(
                     "concat() did not throw for non-existent target StreamSegment.",
                     s.concat("foo1", 0, firstSegmentName, TIMEOUT),
@@ -204,7 +205,7 @@ public class InMemoryStorageTests {
 
             AssertExtensions.assertThrows(
                     "concat() did not throw for non-existent source StreamSegment.",
-                    s.concat(firstSegmentName, firstSegmentLength, "foo2", TIMEOUT),
+                    s.concat(firstSegmentName, firstSegmentLength.get(), "foo2", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
@@ -217,7 +218,7 @@ public class InMemoryStorageTests {
 
                 AssertExtensions.assertThrows(
                         "Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentName, firstSegmentLength, segmentName, TIMEOUT),
+                        () -> s.concat(firstSegmentName, firstSegmentLength.get(), segmentName, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
 
                 // Seal the source segment and then re-try the concat
@@ -225,16 +226,14 @@ public class InMemoryStorageTests {
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(segmentName, TIMEOUT).join();
 
-                s.concat(firstSegmentName, firstSegmentLength, segmentName, TIMEOUT).join();
+                s.concat(firstSegmentName, firstSegmentLength.get(), segmentName, TIMEOUT).join();
                 concatOrder.add(segmentName);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                AssertExtensions.assertThrows(
-                        "concat() did not delete source segment",
-                        s.getStreamSegmentInfo(segmentName, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                Assert.assertFalse("concat() did not delete source segment",s.exists(segmentName, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
                 Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
+                firstSegmentLength.set(postConcatTargetProps.getLength());
             }
 
             // Check the contents of the first StreamSegment. We already validated that the length is correct.

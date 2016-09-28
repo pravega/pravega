@@ -334,22 +334,30 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     CompletableFuture<FlushResult> flush(Duration timeout, Executor executor) {
         ensureInitializedAndNotClosed();
 
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        CompletableFuture<FlushResult> result;
         try {
-            TimeoutTimer timer = new TimeoutTimer(timeout);
             switch (this.state.get()) {
                 case Writing:
-                    return flushNormally(timer, executor);
+                    result = flushNormally(timer, executor);
+                    break;
                 case ReconciliationNeeded:
-                    return beginReconciliation(timer)
+                    result = beginReconciliation(timer)
                             .thenComposeAsync(v -> reconcile(timer, executor), executor);
+                    break;
                 case Reconciling:
-                    return reconcile(timer, executor);
+                    result = reconcile(timer, executor);
+                    break;
                 default:
-                    return FutureHelpers.failedFuture(new IllegalStateException(String.format("Unexpected state for SegmentAggregator (%s) for segment '%s'.", this.state, this.metadata.getName())));
+                    result = FutureHelpers.failedFuture(new IllegalStateException(String.format("Unexpected state for SegmentAggregator (%s) for segment '%s'.", this.state, this.metadata.getName())));
+                    break;
             }
         } catch (Exception ex) {
-            return FutureHelpers.failedFuture(ex);
+            // Convert synchronous errors into async errors - it's easier to handle on the receiving end.
+            result = FutureHelpers.failedFuture(ex);
         }
+
+        return result;
     }
 
     /**
@@ -879,7 +887,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         if (storageInfo.isSealed()) {
             // Update metadata and the internal state (this also pops the first Op from the operation list).
             updateStatePostSeal();
-            return CompletableFuture.completedFuture(new FlushResult());// No bytes were flushed or merged.
+            return CompletableFuture.completedFuture(new FlushResult()); // No bytes were flushed or merged.
         } else {
             // A Seal was encountered as an Operation that should have been processed (based on its offset),
             // but the Segment in Storage is not sealed.

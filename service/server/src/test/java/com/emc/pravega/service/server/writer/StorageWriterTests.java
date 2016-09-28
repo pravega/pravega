@@ -66,6 +66,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -263,7 +264,56 @@ public class StorageWriterTests {
      */
     @Test
     public void testWithStorageRecoverableCorruptionErrors() throws Exception {
-        // TODO: implement once the proper code is implemented in StorageWriter/SegmentAggregator.
+        final int failWriteEvery = 3;
+        final int failSealEvery = 7;
+        final int failMergeEvery = 5;
+
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Inject write errors every now and then.
+        AtomicInteger writeCount = new AtomicInteger();
+        AtomicInteger writeFailCount = new AtomicInteger();
+        context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
+            if (writeCount.incrementAndGet() % failWriteEvery == 0) {
+                storage.write(segmentName, offset, data, length, TIMEOUT).join();
+                writeFailCount.incrementAndGet();
+                throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
+            }
+        });
+
+        // Inject Seal errors every now and then.
+        AtomicInteger sealCount = new AtomicInteger();
+        AtomicInteger sealFailCount = new AtomicInteger();
+        context.storage.setSealInterceptor((segmentName, storage) -> {
+            if (sealCount.incrementAndGet() % failSealEvery == 0) {
+                storage.seal(segmentName, TIMEOUT).join();
+                sealFailCount.incrementAndGet();
+                throw new IntentionalException(String.format("S=%s", segmentName));
+            }
+        });
+
+        // Inject Merge/Concat errors every now and then.
+        AtomicInteger mergeCount = new AtomicInteger();
+        AtomicInteger mergeFailCount = new AtomicInteger();
+        context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
+            if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
+                storage.concat(targetSegment, offset, sourceSegment, TIMEOUT).join();
+                mergeFailCount.incrementAndGet();
+                throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
+            }
+        });
+
+        testWriter(context);
+
+        AssertExtensions.assertGreaterThan("Not enough writes were made for this test.", 0, writeCount.get());
+        AssertExtensions.assertGreaterThan("Not enough write failures happened for this test.", 0, writeFailCount.get());
+
+        AssertExtensions.assertGreaterThan("Not enough seals were made for this test.", 0, sealCount.get());
+        AssertExtensions.assertGreaterThan("Not enough seal failures happened for this test.", 0, sealFailCount.get());
+
+        AssertExtensions.assertGreaterThan("Not enough mergers were made for this test.", 0, mergeCount.get());
+        AssertExtensions.assertGreaterThan("Not enough merge failures happened for this test.", 0, mergeFailCount.get());
     }
 
     /**
