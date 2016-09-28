@@ -1,6 +1,7 @@
 package com.emc.pravega.service.storage.hdfs;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Storage;
 
 import java.io.InputStream;
@@ -11,9 +12,13 @@ import java.util.concurrent.Executor;
 public class HDFSStorage implements Storage {
 
     private final Executor executor;
+    private final ServiceBuilderConfig config;
 
-    public HDFSStorage(Executor executor) {
+
+    public HDFSStorage(ServiceBuilderConfig serviceBuilderConfig, Executor executor) {
+        this.config   = serviceBuilderConfig;
         this.executor = executor;
+
     }
 
     @Override
