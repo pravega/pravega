@@ -42,7 +42,7 @@ class Stream {
      * these segments are also ordered in the increaing order of their start times.
      * Segment number is the index of that segment in this list.
      */
-    private List<Segment> segments;
+    private List<InMemorySegment> segments;
 
     /**
      * Stores segment numbers of currently active segments in the stream.
@@ -60,7 +60,7 @@ class Stream {
         IntStream.range(0, numSegments)
                 .forEach(
                         x -> {
-                            Segment segment = new Segment(x, 0, Long.MAX_VALUE, x * keyRange, (x + 1) * keyRange);
+                            InMemorySegment segment = new InMemorySegment(x, 0, Long.MAX_VALUE, x * keyRange, (x + 1) * keyRange);
                             segments.add(segment);
                             currentSegments.add(x);
                         }
@@ -89,7 +89,7 @@ class Stream {
      * @param segment for which default futures are sought.
      * @return the list of successors of specified segment who have only one predecessor.
      */
-    private List<Integer> getDefaultFutures(Segment segment) {
+    private List<Integer> getDefaultFutures(InMemorySegment segment) {
         return segment.getSuccessors().stream()
                 .filter(x -> segments.get(x).getPredecessors().size() == 1)
                 .collect(Collectors.toList());
@@ -115,7 +115,7 @@ class Stream {
         int i = 0;
         while (i < segments.size() && timestamp >= segments.get(i).getStart()) {
             if (segments.get(i).getEnd() >= timestamp) {
-                Segment segment = segments.get(i);
+                InMemorySegment segment = segments.get(i);
                 currentSegments.add(segment.getNumber());
                 // futures is set to all the successors of segment that have this segment as the only predecessor
                 getDefaultFutures(segment).stream()
@@ -147,7 +147,7 @@ class Stream {
         // shall become current and be added to some position
         List<Integer> newCurrents = successors.stream().filter(x ->
                 // 1. all its predecessors completed, and
-                segments.get(x).getPredecessors().stream().allMatch(y -> completedSegments.contains(y))
+                segments.get(x).getPredecessors().stream().allMatch(completedSegments::contains)
                 // 2. it is not completed yet, and
                 && !completedSegments.contains(x)
                 // 3. it is not current in any of the positions
@@ -241,7 +241,7 @@ class Stream {
         // assign status, end times, and successors to sealed segments.
         // assign predecessors to new segments
         for (Integer sealed: sealedSegments) {
-            Segment segment = segments.get(sealed);
+            InMemorySegment segment = segments.get(sealed);
             List<Integer> successors = new ArrayList<>();
 
             for (int i = 0; i < keyRanges.size(); i++) {
@@ -250,7 +250,7 @@ class Stream {
                     predecessors.get(i).add(sealed);
                 }
             }
-            Segment sealedSegment = new Segment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(), segment.getKeyEnd(), Segment.Status.Sealed, successors, segment.getPredecessors());
+            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(), segment.getKeyEnd(), InMemorySegment.Status.Sealed, successors, segment.getPredecessors());
             segments.set(sealed, sealedSegment);
             currentSegments.remove(sealed);
         }
@@ -259,7 +259,7 @@ class Stream {
         // assign start times, numbers to new segments. Add them to segments list and current list.
         for (int i = 0; i < keyRanges.size(); i++) {
             int number = start + i;
-            Segment segment = new Segment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), Segment.Status.Active, new ArrayList<>(), predecessors.get(i));
+            InMemorySegment segment = new InMemorySegment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), InMemorySegment.Status.Active, new ArrayList<>(), predecessors.get(i));
             newSegments.add(segment);
             segments.add(segment);
             currentSegments.add(number);
@@ -269,11 +269,6 @@ class Stream {
     }
 
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Current Segments:\n");
-        sb.append(currentSegments.toString());
-        sb.append("Segments:\n");
-        sb.append(segments.toString());
-        return sb.toString();
+        return String.format("Current Segments:%s\nSegments:%s\n", currentSegments.toString(), segments.toString());
     }
 }
