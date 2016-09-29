@@ -13,7 +13,7 @@ public class HDFSServicebuilder extends DistributedLogServiceBuilder {
 
     @Override
     public StorageFactory createStorageFactory() {
-        return new HDFSStorageFactory(this.serviceBuilderConfig.getDurableLogConfig());
+        return new HDFSStorageFactory(this.serviceBuilderConfig);
     }
 
 
