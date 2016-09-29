@@ -19,15 +19,26 @@ struct ScalingPolicy {
 }
 
 struct StreamConfig {
-  1: required string name,
-  2: required ScalingPolicy policy
+  1: required string scope,
+  2: required string name,
+  3: required ScalingPolicy policy
 }
 
 struct SegmentId {
   1: required string scope,
   2: required string streamName,
-  3: required i32 number,
-  4: required i32 previous,
+  3: required i32 number
+}
+
+struct FutureSegment {
+  1: required SegmentId futureSegment,
+  2: required SegmentId precedingSegment
+} 
+
+struct SegmentRange {
+  1: required SegmentId segmentId,
+  2: required double minKey,
+  3: required double maxKey
 }
 
 struct NodeUri {
@@ -37,7 +48,7 @@ struct NodeUri {
 
 struct Position {
   1: required map<SegmentId, i64> ownedLogs,
-  2: required map<SegmentId, i64> futureOwnedLogs
+  2: required map<FutureSegment, i64> futureOwnedLogs
 }
 
 /*
@@ -46,9 +57,9 @@ struct Position {
 service ControllerService {
     Status createStream (1: StreamConfig streamConfig)
     Status alterStream (1: StreamConfig streamConfig)
-    list<SegmentId> getCurrentSegments(1:string stream)
-    list<Position> getPositions(1:string stream, 2:i64 timestamp, 3:i32 count)
-    list<Position> updatePositions(1:string stream, 2:list<Position> positions)
-    NodeUri getURI(1: string qualifiedSegmentName)
+    list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
+    list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
+    list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
+    NodeUri getURI(1: SegmentId segment)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

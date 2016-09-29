@@ -21,11 +21,14 @@ import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 
+import lombok.EqualsAndHashCode;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@EqualsAndHashCode
 public class PositionImpl implements Position, PositionInternal {
 
     private static final long serialVersionUID = 1L;
@@ -115,22 +118,4 @@ public class PositionImpl implements Position, PositionInternal {
         return Collections.unmodifiableMap(ownedLogs);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        PositionImpl position = (PositionImpl) o;
-
-        if (!ownedLogs.equals(position.ownedLogs)) return false;
-        return futureOwnedLogs.equals(position.futureOwnedLogs);
-
-    }
-
-    @Override
-    public int hashCode() {
-        int result = ownedLogs.hashCode();
-        result = 31 * result + futureOwnedLogs.hashCode();
-        return result;
-    }
 }

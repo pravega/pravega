@@ -44,6 +44,10 @@ public class Segment {
     }
 
     public String getQualifiedName() {
+        return getQualifiedName(scope, streamName, segmentNumber);
+    }
+    
+    public static String getQualifiedName(String scope, String streamName, int segmentNumber) {
         StringBuffer sb = new StringBuffer();
         if (scope != null) {
             sb.append(scope);
@@ -63,9 +67,15 @@ public class Segment {
                 && previousNumber == other.segmentNumber;
     }
 
+    public static String getScopedStreamNameFromName(String segment) {
+        String[] tokens = segment.split("/");
+        Preconditions.checkArgument(tokens.length >= 3);
+        return tokens[0] + "/" + tokens[1];
+    }
+
     public static int getSegmentNumberFromName(String segment) {
         String[] tokens = segment.split("/");
-        assert tokens.length >= 3;
+        Preconditions.checkArgument(tokens.length >= 3);
         return Integer.parseInt(tokens[2]);
     }
 }
