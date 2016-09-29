@@ -232,43 +232,43 @@ public final class FutureHelpers {
     }
 
     /**
-     * Executes a while loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
+     * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
      *
-     * @param whileClause A Supplier that indicates whether to proceed with the loop or not.
-     * @param loopBody    A Supplier that returns a CompletableFuture which represents the body of the while loop. This
-     *                    supplier is invoked every time the while body needs to execute. If this Future returns true,
-     *                    the loop is allowed to continue, otherwise it is interrupted (Return==false is equivalent to a
-     *                    'break' statement in a classic while loop).
-     * @param executor    An Executor that is used to execute the whileClause and the while loop support code.
-     * @return A CompletableFuture that, when completed, indicates the while loop terminated without any exception. If
-     * either the loopBody or whileClause throw/return Exceptions, these will be set as the result of this returned Future.
+     * @param condition A Supplier that indicates whether to proceed with the loop or not.
+     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                  supplier is invoked every time the loopBody needs to execute. If this Future returns true,
+     *                  the loop is allowed to continue, otherwise it is interrupted (Return==false is equivalent to a
+     *                  'break' statement in a classic loop).
+     * @param executor  An Executor that is used to execute the condition and the loop support code.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
-    public static CompletableFuture<Void> whileLoop(Supplier<Boolean> whileClause, Supplier<CompletableFuture<Void>> loopBody, Executor executor) {
-        if (whileClause.get()) {
-            return loopBody.get().thenComposeAsync(v -> whileLoop(whileClause, loopBody, executor), executor);
+    public static CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, Executor executor) {
+        if (condition.get()) {
+            return loopBody.get().thenComposeAsync(v -> loop(condition, loopBody, executor), executor);
         } else {
             return CompletableFuture.completedFuture(null);
         }
     }
 
     /**
-     * Executes a while loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
+     * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
      *
-     * @param whileClause    A Supplier that indicates whether to proceed with the loop or not.
-     * @param loopBody       A Supplier that returns a CompletableFuture which represents the body of the while loop. This
-     *                       supplier is invoked every time the while body needs to execute. If this Future returns true,
+     * @param condition      A Supplier that indicates whether to proceed with the loop or not.
+     * @param loopBody       A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                       supplier is invoked every time the loopBody needs to execute. If this Future returns true,
      *                       the loop is allowed to continue, otherwise it is interrupted (Return==false is equivalent to a
-     *                       'break' statement in a classic while loop).
+     *                       'break' statement in a classic loop).
      * @param resultConsumer A Consumer that will be invoked with the result of every call to loopBody.
-     * @param executor       An Executor that is used to execute the whileClause and the while loop support code.
-     * @return A CompletableFuture that, when completed, indicates the while loop terminated without any exception. If
-     * either the loopBody or whileClause throw/return Exceptions, these will be set as the result of this returned Future.
+     * @param executor       An Executor that is used to execute the condition and the loop support code.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
-    public static <T> CompletableFuture<Void> whileLoop(Supplier<Boolean> whileClause, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
-        if (whileClause.get()) {
+    public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
+        if (condition.get()) {
             return loopBody.get()
                            .thenAccept(resultConsumer)
-                           .thenComposeAsync(v -> whileLoop(whileClause, loopBody, resultConsumer, executor), executor);
+                           .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
         } else {
             return CompletableFuture.completedFuture(null);
         }

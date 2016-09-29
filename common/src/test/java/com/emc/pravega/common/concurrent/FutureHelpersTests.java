@@ -154,29 +154,29 @@ public class FutureHelpersTests {
         AtomicInteger accumulator = new AtomicInteger();
 
         // 1. With no specific accumulator.
-        FutureHelpers.whileLoop(
+        FutureHelpers.loop(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> {
                     accumulator.addAndGet(loopCounter.get());
                     return CompletableFuture.completedFuture(null);
                 },
                 ForkJoinPool.commonPool()).join();
-        Assert.assertEquals("Unexpected result for whileLoop without a specific accumulator.", expectedResult, accumulator.get());
+        Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult, accumulator.get());
 
         //2. With specific accumulator.
         loopCounter.set(0);
         accumulator.set(0);
-        FutureHelpers.whileLoop(
+        FutureHelpers.loop(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> CompletableFuture.completedFuture(loopCounter.get()),
                 accumulator::addAndGet,
                 ForkJoinPool.commonPool()).join();
-        Assert.assertEquals("Unexpected result for whileLoop with a specific accumulator.", expectedResult, accumulator.get());
+        Assert.assertEquals("Unexpected result for loop with a specific accumulator.", expectedResult, accumulator.get());
 
         //3. With exceptions.
         loopCounter.set(0);
         accumulator.set(0);
-        CompletableFuture<Void> loopFuture = FutureHelpers.whileLoop(
+        CompletableFuture<Void> loopFuture = FutureHelpers.loop(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> {
                     if (loopCounter.get() % 3 == 0) {
@@ -189,7 +189,7 @@ public class FutureHelpersTests {
                 ForkJoinPool.commonPool());
 
         AssertExtensions.assertThrows(
-                "whileLoop() did not return a failed Future when one of the loopBody calls returned a failed Future.",
+                "loop() did not return a failed Future when one of the loopBody calls returned a failed Future.",
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());

@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
@@ -54,7 +55,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * Aggregates contents for a specific StreamSegment.
@@ -100,6 +100,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         this.metadata = segmentMetadata;
         Preconditions.checkArgument(this.metadata.getContainerId() == dataSource.getId(), "SegmentMetadata.ContainerId is different from WriterDataSource.Id");
+        this.traceObjectId = String.format("StorageWriter[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
 
         this.config = config;
         this.storage = storage;
@@ -111,7 +112,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.mergeTransactionCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
         this.operations = new ConcurrentLinkedQueue<>();
-        this.traceObjectId = String.format("StorageWriter[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
         this.reconciliationState = new AtomicReference<>();
     }
@@ -123,8 +123,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     @Override
     public void close() {
         if (!isClosed()) {
-            log.info("{}: Closed.");
-            this.state.set(AggregatorState.Closed);
+            setState(AggregatorState.Closed);
         }
     }
 
@@ -227,6 +226,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     CompletableFuture<Void> initialize(Duration timeout) {
         Exceptions.checkNotClosed(isClosed(), this);
         Preconditions.checkState(this.state.get() == AggregatorState.NotInitialized, "SegmentAggregator has already been initialized.");
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
 
         return this.storage
                 .getStreamSegmentInfo(this.metadata.getName(), timeout)
@@ -255,7 +255,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     }
 
                     log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
-                    this.state.set(AggregatorState.Writing);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
+                    setState(AggregatorState.Writing);
                 })
                 .exceptionally(ex -> {
                     ex = ExceptionHelpers.getRealException(ex);
@@ -265,12 +266,13 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // * We processed a TransactionMergeOperation but did not have a chance to ack/truncate the DataSource
                         this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
                         log.warn("{}: Segment does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, ex);
+                        setState(AggregatorState.Writing);
+                        LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
                     } else {
                         // Other kind of error - re-throw.
                         throw new CompletionException(ex);
                     }
 
-                    this.state.set(AggregatorState.Writing);
                     return null;
                 });
     }
@@ -318,6 +320,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         // Always record the last added offset, to ensure that operations are processed in the right order.
         this.lastAddedOffset = lastOffset;
+        log.debug("{}: Add {}; OpCount={}, Length={} MergeCount={}, Seal={}.", this.traceObjectId, operation, this.operations.size(), this.outstandingAppendLength, this.mergeTransactionCount, this.hasSealPending);
     }
 
     //endregion
@@ -333,6 +336,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     CompletableFuture<FlushResult> flush(Duration timeout, Executor executor) {
         ensureInitializedAndNotClosed();
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flush");
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         CompletableFuture<FlushResult> result;
@@ -357,7 +361,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             result = FutureHelpers.failedFuture(ex);
         }
 
-        return result;
+        return result
+                .thenApply(r -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId, r);
+                    return r;
+                });
     }
 
     /**
@@ -370,22 +378,31 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         assert this.state.get() == AggregatorState.Writing : "flushNormally cannot be called if state == " + this.state;
         boolean hasMerge = this.mergeTransactionCount.get() > 0;
         boolean hasSeal = this.hasSealPending.get();
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushNormally", this.operations.size(), this.mergeTransactionCount, hasSeal);
+
+        CompletableFuture<FlushResult> result;
         if (hasSeal || hasMerge) {
             // If we have a Seal or Merge Pending, flush everything until we reach that operation.
-            CompletableFuture<FlushResult> result = flushFully(timer, executor);
+            result = flushFully(timer, executor);
             if (hasMerge) {
+                // If we have a merge, do it after we flush fully.
                 result = result.thenCompose(flushResult -> mergeIfNecessary(flushResult, timer));
             }
 
             if (hasSeal) {
+                // If we have a seal, do it after every other operation.
                 result = result.thenCompose(flushResult -> sealIfNecessary(flushResult, timer));
             }
-
-            return result;
         } else {
             // Otherwise, just flush the excess as long as we have something to flush.
-            return flushExcess(timer, executor);
+            result = flushExcess(timer, executor);
         }
+
+        return result
+                .thenApply(r -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushNormally", traceId, r);
+                    return r;
+                });
     }
 
     /**
@@ -396,12 +413,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
     private CompletableFuture<FlushResult> flushFully(TimeoutTimer timer, Executor executor) {
-        return flushConditionally(
-                timer,
-                () -> {
-                    StorageOperation first = this.operations.peek();
-                    return first != null && isAppendOperation(first);
-                }, executor);
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushFully");
+        FlushResult result = new FlushResult();
+        return FutureHelpers
+                .loop(
+                        () -> isAppendOperation(this.operations.peek()),
+                        () -> flushOnce(timer.getRemaining()),
+                        result::withFlushResult,
+                        executor)
+                .thenApply(v -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushFully", traceId, result);
+                    return result;
+                });
     }
 
     /**
@@ -412,26 +435,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
      */
     private CompletableFuture<FlushResult> flushExcess(TimeoutTimer timer, Executor executor) {
-        return flushConditionally(timer, this::exceedsThresholds, executor);
-    }
-
-    /**
-     * Flushes all Append Operations that can be flushed at the given moment (as long ast he given condition holds true).
-     *
-     * @param timer Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
-     */
-    private CompletableFuture<FlushResult> flushConditionally(TimeoutTimer timer, Supplier<Boolean> condition, Executor executor) {
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushExcess");
         FlushResult result = new FlushResult();
-
-        // Flush all outstanding data as long as the threshold is exceeded.
         return FutureHelpers
-                .whileLoop(
-                        condition,
+                .loop(
+                        this::exceedsThresholds,
                         () -> flushOnce(timer.getRemaining()),
                         result::withFlushResult,
                         executor)
-                .thenApply(v -> result);
+                .thenApply(v -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushExcess", traceId, result);
+                    return result;
+                });
     }
 
     /**
@@ -449,22 +464,30 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return FutureHelpers.failedFuture(ex);
         }
 
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushOnce");
+
         if (flushArgs.getTotalLength() == 0) {
             // Nothing to flush.
-            return CompletableFuture.completedFuture(new FlushResult());
+            FlushResult result = new FlushResult();
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, result);
+            return CompletableFuture.completedFuture(result);
         }
 
         // Flush them.
         InputStream inputStream = flushArgs.getInputStream();
         return this.storage
                 .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getTotalLength(), timeout)
-                .thenApply(v -> updateStatePostFlush(flushArgs))
+                .thenApply(v -> {
+                    FlushResult result = updateStatePostFlush(flushArgs);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, result);
+                    return result;
+                })
                 .exceptionally(ex -> {
                     if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
                         // We attempted to write at an offset that already contained other data. This can happen for a number of
                         // reasons, but we do not have enough information here to determine why. We need to enter reconciliation
                         // mode, and hope for the best.
-                        this.state.set(AggregatorState.ReconciliationNeeded);
+                        setState(AggregatorState.ReconciliationNeeded);
                     }
 
                     // Rethrow all exceptions.
@@ -545,10 +568,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer) {
         ensureInitializedAndNotClosed();
         assert this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID : "Cannot merge into a Transaction StreamSegment.";
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "mergeIfNecessary");
 
         StorageOperation first = this.operations.peek();
         if (first == null || !(first instanceof MergeTransactionOperation)) {
             // Either no operation or first operation is not a MergeTransaction. Nothing to do.
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeIfNecessary", traceId, flushResult);
             return CompletableFuture.completedFuture(flushResult);
         }
 
@@ -556,7 +581,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         MergeTransactionOperation mergeTransactionOperation = (MergeTransactionOperation) first;
         UpdateableSegmentMetadata transactionMetadata = this.dataSource.getStreamSegmentMetadata(mergeTransactionOperation.getTransactionSegmentId());
         return mergeWith(transactionMetadata, mergeTransactionOperation, timer)
-                .thenApply(flushResult::withFlushResult);
+                .thenApply(mergeResult -> {
+                    flushResult.withFlushResult(mergeResult);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeIfNecessary", traceId, flushResult);
+                    return flushResult;
+                });
     }
 
     /**
@@ -572,9 +601,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return FutureHelpers.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted Transaction segment '%s'.", transactionMetadata.getName())));
         }
 
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
         FlushResult result = new FlushResult();
         if (!transactionMetadata.isSealedInStorage() || transactionMetadata.getDurableLogLength() > transactionMetadata.getStorageLength()) {
             // Nothing to do. Given Transaction is not eligible for merger yet.
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
             return CompletableFuture.completedFuture(result);
         }
 
@@ -632,7 +663,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     updateMetadataForTransactionPostMerger(transactionMetadata);
 
                     this.lastFlush = this.stopwatch.elapsed();
-                    return result.withMergedBytes(mergedLength.get());
+                    result.withMergedBytes(mergedLength.get());
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
+                    return result;
                 })
                 .exceptionally(ex -> {
                     Throwable realEx = ExceptionHelpers.getRealException(ex);
@@ -640,7 +673,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // We either attempted to write at an offset that already contained other data or the Transaction
                         // Segment no longer exists. This can happen for a number of reasons, but we do not have enough
                         // information here to determine why. We need to enter reconciliation mode, and hope for the best.
-                        this.state.set(AggregatorState.ReconciliationNeeded);
+                        setState(AggregatorState.ReconciliationNeeded);
                     }
 
                     // Rethrow all exceptions.
@@ -661,6 +694,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(flushResult);
         }
 
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "sealIfNecessary");
         return this.storage
                 .seal(this.metadata.getName(), timer.getRemaining())
                 .handle((v, ex) -> {
@@ -671,6 +705,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     }
 
                     updateStatePostSeal();
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "sealIfNecessary", traceId, flushResult);
                     return flushResult;
                 });
     }
@@ -711,7 +746,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
                     // If we get here, it means we have work to do. Set the state accordingly and move on.
                     this.reconciliationState.set(new ReconciliationState(this.metadata, sp));
-                    this.state.set(AggregatorState.Reconciling);
+                    setState(AggregatorState.Reconciling);
                 });
     }
 
@@ -720,12 +755,13 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         ReconciliationState rc = this.reconciliationState.get();
         assert rc != null : "reconciliationState is null";
         SegmentProperties storageInfo = rc.getStorageInfo();
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "reconcile", rc);
 
         // Process each Operation in sequence, as long as its starting offset is less than ReconciliationState.getStorageInfo().getLength()
         FlushResult result = new FlushResult();
         AtomicBoolean exceededStorageLength = new AtomicBoolean(false);
         return FutureHelpers
-                .whileLoop(
+                .loop(
                         () -> this.operations.size() > 0 && !exceededStorageLength.get(),
                         () -> {
                             StorageOperation op = this.operations.peek();
@@ -737,6 +773,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                                             exceededStorageLength.set(true);
                                         }
 
+                                        log.info("{}: Reconciled {} ({}).", this.traceObjectId, op, partialFlushResult);
                                         return partialFlushResult;
                                     });
                         },
@@ -746,7 +783,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     updateMetadata(storageInfo);
                     recomputeOutstandingAppendLength();
                     this.reconciliationState.set(null);
-                    this.state.set(AggregatorState.Writing);
+                    setState(AggregatorState.Writing);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "reconcile", traceId, result);
                     return result;
                 });
     }
@@ -805,7 +843,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // Read all data from storage.
         byte[] storageData = new byte[(int) readLength];
         return FutureHelpers
-                .whileLoop(
+                .loop(
                         () -> bytesReadSoFar.get() < readLength,
                         () -> this.storage.read(this.metadata.getName(), op.getStreamSegmentOffset() + bytesReadSoFar.get(), storageData, bytesReadSoFar.get(), (int) readLength - bytesReadSoFar.get(), timer.getRemaining()),
                         bytesRead -> {
@@ -1079,12 +1117,21 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return True if an Append Operation (Cached or non-cached), false otherwise.
      */
     private boolean isAppendOperation(StorageOperation op) {
-        return (op instanceof StreamSegmentAppendOperation) || (op instanceof CachedStreamSegmentAppendOperation);
+        return op != null && (op instanceof StreamSegmentAppendOperation) || (op instanceof CachedStreamSegmentAppendOperation);
     }
 
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(isClosed(), this);
         Preconditions.checkState(this.state.get() != AggregatorState.NotInitialized, "SegmentAggregator is not initialized. Cannot execute this operation.");
+    }
+
+    private void setState(AggregatorState newState) {
+        AggregatorState oldState = this.state.get();
+        if (newState != oldState) {
+            log.info("{}: State changed from {} to {}.", this.traceObjectId, oldState, newState);
+        }
+
+        this.state.set(newState);
     }
 
     //endregion

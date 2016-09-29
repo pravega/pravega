@@ -24,7 +24,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -229,7 +228,7 @@ public class InMemoryStorageTests {
                 s.concat(firstSegmentName, firstSegmentLength.get(), segmentName, TIMEOUT).join();
                 concatOrder.add(segmentName);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                Assert.assertFalse("concat() did not delete source segment",s.exists(segmentName, TIMEOUT).join());
+                Assert.assertFalse("concat() did not delete source segment", s.exists(segmentName, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
                 Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());

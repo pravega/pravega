@@ -89,6 +89,6 @@ class FlushResult {
 
     @Override
     public String toString() {
-        return String.format("FlushedBytes = %d, MergedBytes = %d", this.flushedBytes, this.mergedBytes);
+        return String.format("FlushedBytes = %s, MergedBytes = %s", this.flushedBytes, this.mergedBytes);
     }
 }

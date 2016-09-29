@@ -173,7 +173,8 @@ public class StorageWriterTests {
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
                 () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
                 ex -> ex instanceof IllegalStateException);
-        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
+
+        Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
     }
 
     /**

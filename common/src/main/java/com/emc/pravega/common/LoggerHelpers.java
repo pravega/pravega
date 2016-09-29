@@ -74,6 +74,10 @@ public final class LoggerHelpers {
      * @param args         Additional arguments to log.
      */
     public static void traceLeave(Logger log, String method, long traceEnterId, Object... args) {
+        if (!log.isTraceEnabled()) {
+            return;
+        }
+
         if (args.length == 0) {
             log.trace("LEAVE {}#{}.", method, traceEnterId);
         } else {
@@ -91,6 +95,10 @@ public final class LoggerHelpers {
      * @param args         Additional arguments to log.
      */
     public static void traceLeave(Logger log, String objectId, String method, long traceEnterId, Object... args) {
+        if (!log.isTraceEnabled()) {
+            return;
+        }
+
         if (args.length == 0) {
             log.trace("{}: LEAVE {}#{}.", objectId, method, traceEnterId);
         } else {

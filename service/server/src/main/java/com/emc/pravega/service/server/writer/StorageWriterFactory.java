@@ -69,6 +69,8 @@ public class StorageWriterFactory implements WriterFactory {
         return new StorageWriter(this.config, dataSource, storage, this.executor);
     }
 
+    //region StorageWriterDataSource
+
     private static class StorageWriterDataSource implements WriterDataSource {
         private final UpdateableContainerMetadata containerMetadata;
         private final OperationLog operationLog;
@@ -137,4 +139,6 @@ public class StorageWriterFactory implements WriterFactory {
 
         //endregion
     }
+
+    //endregion
 }
