@@ -1,7 +1,7 @@
 package com.emc.pravega.service.storage.hdfs;
 
+import com.emc.pravega.service.config.ServiceBuilderConfig;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Storage;
 
 import java.io.InputStream;
@@ -12,17 +12,25 @@ import java.util.concurrent.Executor;
 public class HDFSStorage implements Storage {
 
     private final Executor executor;
-    private final ServiceBuilderConfig config;
-
+    private final ServiceBuilderConfig serviceBuilderConfig;
 
     public HDFSStorage(ServiceBuilderConfig serviceBuilderConfig, Executor executor) {
-        this.config   = serviceBuilderConfig;
-        this.executor = executor;
-
+        this.serviceBuilderConfig = serviceBuilderConfig;
+        this.executor  = executor;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> releaseLockForSegment(String streamSegmentName) {
         return null;
     }
 

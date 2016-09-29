@@ -19,7 +19,7 @@
 package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.config.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;

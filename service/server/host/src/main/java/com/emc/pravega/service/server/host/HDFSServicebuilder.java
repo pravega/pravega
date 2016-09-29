@@ -1,6 +1,6 @@
 package com.emc.pravega.service.server.host;
 
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.config.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.HDFSStorageFactory;
 import com.emc.pravega.service.storage.StorageFactory;
@@ -13,7 +13,7 @@ public class HDFSServicebuilder extends DistributedLogServiceBuilder {
 
     @Override
     public StorageFactory createStorageFactory() {
-        return new HDFSStorageFactory(this.serviceBuilderConfig);
+        return new HDFSStorageFactory(this.serviceBuilderConfig.getDurableLogConfig());
     }
 
 

@@ -2,9 +2,8 @@ package com.emc.pravega.service.storage;
 
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.config.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.hdfs.HDFSStorage;
-import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;

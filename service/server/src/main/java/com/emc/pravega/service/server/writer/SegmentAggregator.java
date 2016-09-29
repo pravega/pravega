@@ -22,6 +22,7 @@ import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.config.WriterConfig;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

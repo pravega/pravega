@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.service.config.ReadIndexConfig;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;

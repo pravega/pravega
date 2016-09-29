@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.service.config.*;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -28,13 +29,10 @@ import com.emc.pravega.service.server.SegmentContainerRegistry;
 import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerFactory;
-import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
-import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.writer.StorageWriterFactory;
-import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;

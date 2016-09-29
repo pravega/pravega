@@ -41,7 +41,7 @@ import com.emc.pravega.service.server.host.handler.PravegaRequestProcessor;
 import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandler;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.config.ServiceBuilderConfig;
 import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;

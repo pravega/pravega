@@ -113,6 +113,7 @@ public class StreamSegmentMapper {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
                 .create(streamSegmentName, timer.getRemaining())
+               // .thenCompose(this.storage.acquireLockForSegment(streamSegmentName))
                 .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }

@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.service.config.DurableLogConfig;
 import com.google.common.base.Preconditions;
 
 import java.util.concurrent.Executor;

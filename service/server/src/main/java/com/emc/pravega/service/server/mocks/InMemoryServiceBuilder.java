@@ -21,7 +21,7 @@ package com.emc.pravega.service.server.mocks;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.config.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;

@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.ObjectClosedException;
+import com.emc.pravega.service.config.CachePolicy;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
 import org.junit.Assert;

@@ -552,6 +552,20 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
+        public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+            CompletableFuture<Boolean> retVal = new CompletableFuture<Boolean>();
+            retVal.complete(true);
+            return retVal;
+        }
+
+        @Override
+        public CompletableFuture<Boolean> releaseLockForSegment(String streamSegmentName) {
+            CompletableFuture<Boolean> retVal = new CompletableFuture<Boolean>();
+            retVal.complete(true);
+            return retVal;
+        }
+
+        @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             return this.getInfoHandler.apply(streamSegmentName);
         }

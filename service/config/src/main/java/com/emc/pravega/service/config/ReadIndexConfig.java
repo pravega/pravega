@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.reading;
+package com.emc.pravega.service.config;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
