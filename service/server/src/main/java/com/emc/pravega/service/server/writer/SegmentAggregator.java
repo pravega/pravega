@@ -73,8 +73,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private final AtomicLong outstandingAppendLength;
     private final AtomicInteger mergeTransactionCount;
     private final AtomicBoolean hasSealPending;
-    private long lastAddedOffset;
-    private Duration lastFlush;
+    private AtomicLong lastAddedOffset;
+    private AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
 
@@ -106,9 +106,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.storage = storage;
         this.dataSource = dataSource;
         this.stopwatch = stopwatch;
-        this.lastFlush = stopwatch.elapsed();
+        this.lastFlush = new AtomicReference<>(stopwatch.elapsed());
         this.outstandingAppendLength = new AtomicLong();
-        this.lastAddedOffset = -1; // Will be set properly in initialize().
+        this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
         this.mergeTransactionCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
         this.operations = new ConcurrentLinkedQueue<>();
@@ -160,7 +160,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * made yet, this returns the amount of time since the creation of this SegmentAggregator object.
      */
     Duration getElapsedSinceLastFlush() {
-        return this.stopwatch.elapsed().minus(this.lastFlush);
+        return this.stopwatch.elapsed().minus(this.lastFlush.get());
     }
 
     /**
@@ -202,7 +202,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     @Override
     public String toString() {
         return String.format(
-                "[%d: %s] Size = %d|%s, LastOffset = %d, LUSN = %d LastFlush = %ds",
+                "[%d: %s] Size = %d|%s, LastOffset = %s, LUSN = %d LastFlush = %ds",
                 this.metadata.getId(),
                 this.metadata.getName(),
                 this.operations.size(),
@@ -319,7 +319,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         // Always record the last added offset, to ensure that operations are processed in the right order.
-        this.lastAddedOffset = lastOffset;
+        this.lastAddedOffset.set(lastOffset);
         log.debug("{}: Add {}; OpCount={}, Length={} MergeCount={}, Seal={}.", this.traceObjectId, operation, this.operations.size(), this.outstandingAppendLength, this.mergeTransactionCount, this.hasSealPending);
     }
 
@@ -662,7 +662,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     updateMetadata(segmentProperties);
                     updateMetadataForTransactionPostMerger(transactionMetadata);
 
-                    this.lastFlush = this.stopwatch.elapsed();
+                    this.lastFlush.set(this.stopwatch.elapsed());
                     result.withMergedBytes(mergedLength.get());
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
                     return result;
@@ -988,8 +988,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         Preconditions.checkArgument(length >= 0, "Operation '%s' has an invalid length (%s).", operation, operation.getLength());
 
         // Check that operations are contiguous (only for the operations after the first one - as we initialize lastAddedOffset on the first op).
-        if (this.lastAddedOffset >= 0 && offset != this.lastAddedOffset) {
-            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %d, actual: %d.", operation, this.lastAddedOffset, offset));
+        long lastOffset = this.lastAddedOffset.get();
+        if (lastOffset >= 0 && offset != lastOffset) {
+            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.", operation, this.lastAddedOffset, offset));
         }
 
         // Check that the operation does not exceed the DurableLogLength of the StreamSegment.
@@ -1049,7 +1050,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         assert newOutstandingLength >= 0 : "negative outstandingAppendLength";
 
         // Update the last flush checkpoint.
-        this.lastFlush = this.stopwatch.elapsed();
+        this.lastFlush.set(this.stopwatch.elapsed());
         return new FlushResult().withFlushedBytes(flushArgs.getTotalLength());
     }
 
