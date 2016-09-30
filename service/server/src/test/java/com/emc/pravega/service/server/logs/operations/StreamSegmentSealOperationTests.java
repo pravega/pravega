@@ -35,13 +35,13 @@ public class StreamSegmentSealOperationTests extends OperationTestsBase<StreamSe
 
     @Override
     protected boolean isPreSerializationConfigRequired(StreamSegmentSealOperation operation) {
-        return operation.getStreamSegmentLength() < 0;
+        return operation.getStreamSegmentOffset() < 0;
     }
 
     @Override
     protected void configurePreSerialization(StreamSegmentSealOperation operation, Random random) {
-        if (operation.getStreamSegmentLength() < 0) {
-            operation.setStreamSegmentLength(MathHelpers.abs(random.nextLong()));
+        if (operation.getStreamSegmentOffset() < 0) {
+            operation.setStreamSegmentOffset(MathHelpers.abs(random.nextLong()));
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }

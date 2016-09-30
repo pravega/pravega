@@ -56,7 +56,9 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
         this.length = baseOperation.getData().length;
         this.cacheKey = cacheKey;
-        setSequenceNumber(baseOperation.getSequenceNumber());
+        if (baseOperation.getSequenceNumber() >= 0) {
+            setSequenceNumber(baseOperation.getSequenceNumber());
+        }
     }
 
     //endregion
@@ -72,15 +74,6 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
         return this.cacheKey;
     }
 
-    /**
-     * Gets a value indicating the length of the data associated with this AppendOperation.
-     *
-     * @return The result.
-     */
-    public int getLength() {
-        return this.length;
-    }
-
     @Override
     public String toString() {
         return String.format(
@@ -92,7 +85,17 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     //endregion
 
-    //region StorageOperation Implementation
+    //region Operation Implementation
+
+    @Override
+    public long getStreamSegmentOffset() {
+        return this.cacheKey.getOffset();
+    }
+
+    @Override
+    public long getLength() {
+        return this.length;
+    }
 
     @Override
     protected byte getOperationType() {

@@ -40,6 +40,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -162,11 +163,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * Records a Truncation Marker.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param dataFrameSequenceNumber The Sequence Number of the corresponding Data Frame that can be truncated (up to, and including).
+     * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
      */
-    void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
-        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameSequenceNumber = {}.", this.traceObjectId, operationSequenceNumber, dataFrameSequenceNumber);
-        getCurrentTransaction().recordTruncationMarker(operationSequenceNumber, dataFrameSequenceNumber);
+    void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
+        log.debug("{}: RecordTruncationMarker OperationSequenceNumber = {}, DataFrameAddress = {}.", this.traceObjectId, operationSequenceNumber, logAddress);
+        getCurrentTransaction().recordTruncationMarker(operationSequenceNumber, logAddress);
     }
 
     /**
@@ -251,7 +252,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private final HashMap<Long, UpdateableSegmentMetadata> newStreamSegments;
         private final HashMap<String, Long> newStreamSegmentNames;
         private final List<Long> newTruncationPoints;
-        private final HashMap<Long, Long> newTruncationMarkers;
+        private final HashMap<Long, LogAddress> newTruncationMarkers;
         private final UpdateableContainerMetadata containerMetadata;
         private final AtomicLong newSequenceNumber;
         private final String traceObjectId;
@@ -341,13 +342,13 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Records the given Truncation Marker Mapping.
          *
-         * @param operationSequenceNumber
-         * @param dataFrameSequenceNumber
+         * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
+         * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and including).
          */
-        void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+        void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
             Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
-            Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
-            this.newTruncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+            Preconditions.checkNotNull(logAddress, "logAddress");
+            this.newTruncationMarkers.put(operationSequenceNumber, logAddress);
         }
 
         /**
@@ -504,7 +505,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
             streamSegmentMetadata.setStorageLength(operation.getLength());
             streamSegmentMetadata.setDurableLogLength(operation.getLength()); // DurableLogLength must be at least StorageLength.
             if (operation.isSealed()) {
+                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
+                // Seal flags need to be set.
                 streamSegmentMetadata.markSealed();
+                streamSegmentMetadata.markSealedInStorage();
             }
         }
 
@@ -518,7 +522,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
             batchStreamSegmentMetadata.setStorageLength(operation.getLength());
             batchStreamSegmentMetadata.setDurableLogLength(0);
             if (operation.isSealed()) {
+                // MapOperations represent the state of the StreamSegment in Storage. If it is sealed in storage, both
+                // Seal flags need to be set.
                 batchStreamSegmentMetadata.markSealed();
+                batchStreamSegmentMetadata.markSealedInStorage();
             }
         }
 
@@ -582,14 +589,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 }
 
                 //TODO: should we check (again?) if the container metadata has knowledge of this stream?
+                UpdateableSegmentMetadata existingMetadata;
                 if (newMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                    this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
+                    existingMetadata = this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
                 } else {
-                    this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
+                    existingMetadata = this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId());
                 }
 
                 // Update real metadata with all the information from the new metadata.
-                UpdateableSegmentMetadata existingMetadata = this.containerMetadata.getStreamSegmentMetadata(newMetadata.getId());
                 existingMetadata.copyFrom(newMetadata);
             }
         }
@@ -689,9 +696,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
             stream.writeBoolean(sm.isMerged());
             // S7. Sealed.
             stream.writeBoolean(sm.isSealed());
-            // S8. Deleted.
+            // S8. SealedInStorage.
+            stream.writeBoolean(sm.isSealedInStorage());
+            // S9. Deleted.
             stream.writeBoolean(sm.isDeleted());
-            // S9. LastModified.
+            // S10. LastModified.
             stream.writeLong(sm.getLastModified().getTime());
 
             // TODO: determine if we want to snapshot the client ids and their offsets too. This might be a long list, especially if we don't clean it up.
@@ -722,12 +731,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (isSealed) {
                 metadata.markSealed();
             }
-            // S8. Deleted.
+            // S8. SealedInStorage.
+            boolean isSealedInStorage = stream.readBoolean();
+            if (isSealedInStorage) {
+                metadata.markSealedInStorage();
+            }
+            // S9. Deleted.
             boolean isDeleted = stream.readBoolean();
             if (isDeleted) {
                 metadata.markDeleted();
             }
-            // S9. LastModified.
+            // S10. LastModified.
             Date lastModified = new java.util.Date(stream.readLong());
             metadata.setLastModified(lastModified);
         }
@@ -759,8 +773,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
         /**
          * Creates a new instance of the TemporaryStreamSegmentMetadata class.
          *
-         * @param baseMetadata The base StreamSegment Metadata.
-         * @param isRecoveryMode        Whether the metadata is currently in recovery model
+         * @param baseMetadata   The base StreamSegment Metadata.
+         * @param isRecoveryMode Whether the metadata is currently in recovery model
          */
         TemporaryStreamSegmentMetadata(UpdateableSegmentMetadata baseMetadata, boolean isRecoveryMode) {
             assert baseMetadata != null : "baseMetadata is null";
@@ -824,6 +838,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
         @Override
         public boolean isMerged() {
             return this.merged;
+        }
+
+        @Override
+        public boolean isSealedInStorage() {
+            return this.baseMetadata.isSealedInStorage();
         }
 
         @Override
@@ -900,7 +919,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
 
             if (!this.isRecoveryMode) {
                 // Assign entry Stream Length.
-                operation.setStreamSegmentLength(this.currentDurableLogLength);
+                operation.setStreamSegmentOffset(this.currentDurableLogLength);
             }
         }
 
@@ -931,14 +950,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 throw new MetadataUpdateException("Batch StreamSegment to be merged needs to be sealed.");
             }
 
-            long batchLength = operation.getBatchStreamSegmentLength();
+            long batchLength = operation.getLength();
             if (batchLength < 0) {
                 throw new MetadataUpdateException("MergeBatchOperation does not have its Batch StreamSegment Length set.");
             }
 
             if (!this.isRecoveryMode) {
                 // Assign entry Stream offset and update stream offset afterwards.
-                operation.setTargetStreamSegmentOffset(this.currentDurableLogLength);
+                operation.setStreamSegmentOffset(this.currentDurableLogLength);
             }
         }
 
@@ -962,7 +981,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             if (!this.isRecoveryMode) {
-                operation.setBatchStreamSegmentLength(this.currentDurableLogLength);
+                operation.setLength(this.currentDurableLogLength);
             }
         }
 
@@ -997,7 +1016,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          */
         void acceptOperation(StreamSegmentSealOperation operation) throws MetadataUpdateException {
             ensureStreamId(operation);
-            if (operation.getStreamSegmentLength() < 0) {
+            if (operation.getStreamSegmentOffset() < 0) {
                 throw new MetadataUpdateException("StreamSegmentSealOperation cannot be accepted if it hasn't been pre-processed.");
             }
 
@@ -1013,14 +1032,14 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws MetadataUpdateException  If the operation cannot be processed because of the current state of the metadata.
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
-         void acceptAsParentStreamSegment(MergeBatchOperation operation, TemporaryStreamSegmentMetadata batchStreamMetadata) throws MetadataUpdateException {
+        void acceptAsParentStreamSegment(MergeBatchOperation operation, TemporaryStreamSegmentMetadata batchStreamMetadata) throws MetadataUpdateException {
             ensureStreamId(operation);
 
-            if (operation.getTargetStreamSegmentOffset() != this.currentDurableLogLength) {
-                throw new MetadataUpdateException(String.format("MergeBatchOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getTargetStreamSegmentOffset()));
+            if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
+                throw new MetadataUpdateException(String.format("MergeBatchOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
             }
 
-            long batchLength = operation.getBatchStreamSegmentLength();
+            long batchLength = operation.getLength();
             if (batchLength < 0 || batchLength != batchStreamMetadata.currentDurableLogLength) {
                 throw new MetadataUpdateException("MergeBatchOperation does not seem to have been pre-processed.");
             }
@@ -1061,7 +1080,11 @@ class OperationMetadataUpdater implements ContainerMetadata {
             this.baseMetadata.setDurableLogLength(this.currentDurableLogLength);
             if (this.isSealed()) {
                 this.baseMetadata.markSealed();
+                if (this.isSealedInStorage()) {
+                    this.baseMetadata.isSealedInStorage();
+                }
             }
+
             if (this.isMerged()) {
                 this.baseMetadata.markMerged();
             }

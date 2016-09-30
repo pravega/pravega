@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.server.logs.CacheUpdater;
-import com.emc.pravega.service.server.logs.OperationLog;
 
 /**
  * Defines a Factory for DurableLog Components.

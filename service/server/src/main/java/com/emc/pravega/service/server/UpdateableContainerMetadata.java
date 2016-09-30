@@ -29,8 +29,9 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      *
      * @param streamSegmentName The case-sensitive name of the StreamSegment to map.
      * @param streamSegmentId   The Id of the StreamSegment.
+     * @return An UpdateableSegmentMetadata that represents the metadata for the newly mapped StreamSegment.
      */
-    void mapStreamSegmentId(String streamSegmentName, long streamSegmentId);
+    UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId);
 
     /**
      * Maps a new StreamSegment to its Parent StreamSegment.
@@ -39,12 +40,14 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      * @param streamSegmentName     The case-sensitive name of the StreamSegment to map.
      * @param streamSegmentId       The Id of the StreamSegment to map.
      * @param parentStreamSegmentId The Id of the Parent StreamSegment.
+     * @return An UpdateableSegmentMetadata that represents the metadata for the newly mapped StreamSegment.
      * @throws IllegalArgumentException If the parentStreamSegmentId refers to an unknown StreamSegment.
      */
-    void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId);
+    UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId);
 
     /**
      * Gets a collection containing all StreamSegmentIds currently mapped.
+     *
      * @return
      */
     Collection<Long> getAllStreamSegmentIds();

@@ -403,7 +403,11 @@ class StorageReader implements AutoCloseable {
          * @param exception The exception to fail with.
          */
         private void fail(Throwable exception) {
-            Preconditions.checkState(!isDone(), "This Request is already completed.");
+            if (isDone()) {
+                // Nothing to do.
+                return;
+            }
+
             this.resultFuture.completeExceptionally(exception);
         }
 

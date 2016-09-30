@@ -19,8 +19,8 @@
 package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -242,7 +242,7 @@ public class StreamSegmentContainerMetadataTests {
 
         // Add some truncation markers.
         final long truncationMarkerSeqNo = 10;
-        m.recordTruncationMarker(truncationMarkerSeqNo, truncationMarkerSeqNo);
+        m.recordTruncationMarker(truncationMarkerSeqNo, new TestLogAddress(truncationMarkerSeqNo));
         m.setValidTruncationPoint(truncationMarkerSeqNo);
 
         AssertExtensions.assertThrows(
@@ -262,9 +262,9 @@ public class StreamSegmentContainerMetadataTests {
             Assert.assertNull("SegmentMetadata was not reset (getStreamSegmentMetadata).", m.getStreamSegmentMetadata(segmentId));
         }
 
-        long tmSeqNo = m.getClosestTruncationMarker(truncationMarkerSeqNo);
-        AssertExtensions.assertLessThan("Truncation Markers were not reset.", 0, tmSeqNo);
-        Assert.assertFalse("Truncation Points were not reset.", m.isValidTruncationPoint(tmSeqNo));
+        LogAddress tmSeqNo = m.getClosestTruncationMarker(truncationMarkerSeqNo);
+        Assert.assertNull("Truncation Markers were not reset.", tmSeqNo);
+        Assert.assertFalse("Truncation Points were not reset.", m.isValidTruncationPoint(truncationMarkerSeqNo));
     }
 
     /**
@@ -274,23 +274,23 @@ public class StreamSegmentContainerMetadataTests {
     public void testTruncationMarkers() {
         final long maxSeqNo = 1000;
         final int markerFrequency = 13;
-        Function<Long, Long> getDataFrameSequence = seqNo -> Integer.MAX_VALUE + seqNo * seqNo;
+        Function<Long, LogAddress> getFrameAddress = seqNo -> new TestLogAddress(Integer.MAX_VALUE + seqNo * seqNo);
         StreamSegmentContainerMetadata m = new StreamSegmentContainerMetadata(CONTAINER_ID);
 
         // Record some truncation markers, starting a few steps after initial.
         for (long seqNo = markerFrequency; seqNo <= maxSeqNo; seqNo += markerFrequency) {
-            m.recordTruncationMarker(seqNo, getDataFrameSequence.apply(seqNo));
+            m.recordTruncationMarker(seqNo, getFrameAddress.apply(seqNo));
         }
 
         // Verify them.
         for (long seqNo = 0; seqNo < maxSeqNo + markerFrequency; seqNo++) {
-            long expectedTruncationMarker = -1;
+            LogAddress expectedTruncationMarker = null;
             if (seqNo >= markerFrequency) {
                 long input = seqNo > maxSeqNo ? maxSeqNo : seqNo;
-                expectedTruncationMarker = getDataFrameSequence.apply(input - input % markerFrequency);
+                expectedTruncationMarker = getFrameAddress.apply(input - input % markerFrequency);
             }
 
-            long truncationMarker = m.getClosestTruncationMarker(seqNo);
+            LogAddress truncationMarker = m.getClosestTruncationMarker(seqNo);
             Assert.assertEquals("Unexpected truncation marker value for Op Sequence Number " + seqNo, expectedTruncationMarker, truncationMarker);
         }
 
@@ -299,18 +299,18 @@ public class StreamSegmentContainerMetadataTests {
             m.removeTruncationMarkers(seqNo);
 
             // Check that the removal actually made sense (it should return -1 now).
-            long expectedTruncationMarker = -1;
-            long truncationMarker = m.getClosestTruncationMarker(seqNo);
-            Assert.assertEquals("Unexpected truncation marker value after removal for Op Sequence Number " + seqNo, expectedTruncationMarker, truncationMarker);
+            LogAddress truncationMarker = m.getClosestTruncationMarker(seqNo);
+            Assert.assertNull("Unexpected truncation marker value after removal for Op Sequence Number " + seqNo, truncationMarker);
 
             // Check that the next higher up still works.
             long input = seqNo + markerFrequency;
             input = input > maxSeqNo ? maxSeqNo : input;
+            LogAddress expectedTruncationMarker;
             if (seqNo > maxSeqNo - markerFrequency) {
                 // We have already removed all possible truncation markers, so expect the result to be -1.
-                expectedTruncationMarker = -1;
+                expectedTruncationMarker = null;
             } else {
-                expectedTruncationMarker = getDataFrameSequence.apply(input - input % markerFrequency);
+                expectedTruncationMarker = getFrameAddress.apply(input - input % markerFrequency);
             }
 
             truncationMarker = m.getClosestTruncationMarker(input);
@@ -336,5 +336,25 @@ public class StreamSegmentContainerMetadataTests {
 
     private String getName(long id) {
         return "Segment" + id;
+    }
+
+    private static class TestLogAddress extends LogAddress {
+        TestLogAddress(long sequence) {
+            super(sequence);
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(getSequence());
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other instanceof TestLogAddress) {
+                return this.getSequence() == ((TestLogAddress) other).getSequence();
+            }
+
+            return false;
+        }
     }
 }

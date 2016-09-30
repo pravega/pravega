@@ -27,7 +27,6 @@ import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -111,7 +110,7 @@ public class DataFrameReaderTests {
 
             // Delete the first entry in the DataLog.
             ArrayList<Integer> failedIndices = new ArrayList<>();
-            dataLog.truncate(commitFrames.get(0).getDataFrameSequence(), TIMEOUT).join();
+            dataLog.truncate(commitFrames.get(0).getLogAddress(), TIMEOUT).join();
 
             // Given that each TestLogItem's length is larger than a data frame, truncating the first DataFrame will
             // invalidate the first one.
@@ -266,10 +265,10 @@ public class DataFrameReaderTests {
             // Check the monotonicity of the DataFrameSequence. If we encountered a ReadResult with the flag isLastFrameEntry,
             // then we must ensure the DataFrameSequence changes (increases).
             if (expectDifferentDataFrameSequence) {
-                AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameSequence());
+                AssertExtensions.assertGreaterThan("Expecting a different (and larger) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameAddress().getSequence());
                 expectDifferentDataFrameSequence = false;
             } else {
-                AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameSequence());
+                AssertExtensions.assertGreaterThanOrEqual("Expecting a increasing (or equal) DataFrameSequence.", lastDataFrameSequence, readResult.getLastUsedDataFrameAddress().getSequence());
             }
 
             if (readResult.isLastFrameEntry()) {

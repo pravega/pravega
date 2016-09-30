@@ -18,19 +18,20 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.google.common.base.Preconditions;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Default Factory for DurableLogs.
  */
 public class DurableLogFactory implements OperationLogFactory {
     private final DurableDataLogFactory dataLogFactory;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
     private final DurableLogConfig config;
 
     /**
@@ -40,7 +41,7 @@ public class DurableLogFactory implements OperationLogFactory {
      * @param dataLogFactory The DurableDataLogFactory to use.
      * @param executor       The Executor to use.
      */
-    public DurableLogFactory(DurableLogConfig config, DurableDataLogFactory dataLogFactory, Executor executor) {
+    public DurableLogFactory(DurableLogConfig config, DurableDataLogFactory dataLogFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(dataLogFactory, "dataLogFactory");
         Preconditions.checkNotNull(executor, "executor");

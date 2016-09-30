@@ -71,15 +71,6 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     //region StreamSegmentAppendOperation Properties
 
     /**
-     * Gets a value indicating the Offset in the StreamSegment to append at.
-     *
-     * @return The offset.
-     */
-    public long getStreamSegmentOffset() {
-        return this.streamSegmentOffset;
-    }
-
-    /**
      * Sets the Offset in the StreamSegment to append at.
      *
      * @param value The offset.
@@ -110,6 +101,16 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     //endregion
 
     //region Operation Implementation
+
+    @Override
+    public long getStreamSegmentOffset() {
+        return this.streamSegmentOffset;
+    }
+
+    @Override
+    public long getLength() {
+        return this.data.length;
+    }
 
     @Override
     protected byte getOperationType() {

@@ -27,13 +27,13 @@ import java.io.IOException;
 /**
  * Log Operation that indicates a Batch StreamSegment is merged into its parent StreamSegment.
  */
-public class MergeBatchOperation extends com.emc.pravega.service.server.logs.operations.StorageOperation {
+public class MergeBatchOperation extends StorageOperation {
     //region Members
 
     public static final byte OPERATION_TYPE = 3;
     private static final byte VERSION = 0;
-    private long targetStreamSegmentOffset;
-    private long batchStreamSegmentLength;
+    private long streamSegmentOffset;
+    private long length;
     private long batchStreamSegmentId;
 
     //endregion
@@ -49,8 +49,8 @@ public class MergeBatchOperation extends com.emc.pravega.service.server.logs.ope
     public MergeBatchOperation(long streamSegmentId, long batchStreamSegmentId) {
         super(streamSegmentId);
         this.batchStreamSegmentId = batchStreamSegmentId;
-        this.batchStreamSegmentLength = -1;
-        this.targetStreamSegmentOffset = -1;
+        this.length = -1;
+        this.streamSegmentOffset = -1;
     }
 
     protected MergeBatchOperation(OperationHeader header, DataInputStream source) throws SerializationException {
@@ -71,31 +71,13 @@ public class MergeBatchOperation extends com.emc.pravega.service.server.logs.ope
     }
 
     /**
-     * Gets a value indicating the Length of the Batch StreamSegment.
-     *
-     * @return
-     */
-    public long getBatchStreamSegmentLength() {
-        return this.batchStreamSegmentLength;
-    }
-
-    /**
      * Sets the length of the Batch StreamSegment.
      *
      * @param value The length.
      */
-    public void setBatchStreamSegmentLength(long value) {
+    public void setLength(long value) {
         // No need for parameter validation here. We will check for them upon serialization.
-        this.batchStreamSegmentLength = value;
-    }
-
-    /**
-     * Gets a value indicating the Offset in the Target StreamSegment to merge at.
-     *
-     * @return The offset.
-     */
-    public long getTargetStreamSegmentOffset() {
-        return this.targetStreamSegmentOffset;
+        this.length = value;
     }
 
     /**
@@ -103,14 +85,34 @@ public class MergeBatchOperation extends com.emc.pravega.service.server.logs.ope
      *
      * @param value The offset.
      */
-    public void setTargetStreamSegmentOffset(long value) {
+    public void setStreamSegmentOffset(long value) {
         // No need for parameter validation here. We will check for them upon serialization.
-        this.targetStreamSegmentOffset = value;
+        this.streamSegmentOffset = value;
     }
 
     //endregion
 
     //region Operation Implementation
+
+    /**
+     * Gets a value indicating the Offset in the Target StreamSegment to merge at.
+     *
+     * @return The offset.
+     */
+    @Override
+    public long getStreamSegmentOffset() {
+        return this.streamSegmentOffset;
+    }
+
+    /**
+     * Gets a value indicating the Length of the Batch StreamSegment.
+     *
+     * @return The length.
+     */
+    @Override
+    public long getLength() {
+        return this.length;
+    }
 
     @Override
     protected byte getOperationType() {
@@ -119,14 +121,14 @@ public class MergeBatchOperation extends com.emc.pravega.service.server.logs.ope
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.batchStreamSegmentLength >= 0, "Batch StreamSegment Length has not been assigned for this entry.");
-        ensureSerializationCondition(this.targetStreamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned for this entry.");
+        ensureSerializationCondition(this.length >= 0, "Batch StreamSegment Length has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned for this entry.");
 
         target.writeByte(VERSION);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.batchStreamSegmentId);
-        target.writeLong(this.batchStreamSegmentLength);
-        target.writeLong(this.targetStreamSegmentOffset);
+        target.writeLong(this.length);
+        target.writeLong(this.streamSegmentOffset);
     }
 
     @Override
@@ -134,8 +136,8 @@ public class MergeBatchOperation extends com.emc.pravega.service.server.logs.ope
         byte version = readVersion(source, VERSION);
         setStreamSegmentId(source.readLong());
         this.batchStreamSegmentId = source.readLong();
-        this.batchStreamSegmentLength = source.readLong();
-        this.targetStreamSegmentOffset = source.readLong();
+        this.length = source.readLong();
+        this.streamSegmentOffset = source.readLong();
     }
 
     @Override
@@ -144,8 +146,8 @@ public class MergeBatchOperation extends com.emc.pravega.service.server.logs.ope
                 "%s, StreamSegmentId = %d, Length = %s, ParentOffset = %s",
                 super.toString(),
                 getBatchStreamSegmentId(),
-                toString(getBatchStreamSegmentLength(), -1),
-                toString(getTargetStreamSegmentOffset(), -1));
+                toString(getLength(), -1),
+                toString(getStreamSegmentOffset(), -1));
     }
 
     //endregion

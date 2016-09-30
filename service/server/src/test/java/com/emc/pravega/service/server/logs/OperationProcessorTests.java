@@ -25,6 +25,7 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.TestDurableDataLog;
@@ -44,6 +45,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -445,20 +447,20 @@ public class OperationProcessorTests extends OperationLogTestBase {
             OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem()); // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
 
             // Check truncation markers if this is the last Operation to be written.
-            long dataFrameSeq = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
-            if (readResult.getLastFullDataFrameSequence() >= 0 && readResult.getLastFullDataFrameSequence() != readResult.getLastUsedDataFrameSequence()) {
+            LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
+            if (readResult.getLastFullDataFrameAddress() != null && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameSequence(), dataFrameSeq);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameAddress(), dataFrameAddress);
             } else if (readResult.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameSequence(), dataFrameSeq);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
                 // same as the one for the previous operation.
-                long expectedTruncationMarkerSeqNo = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarkerSeqNo, dataFrameSeq);
+                LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarker, dataFrameAddress);
             }
         }
     }
@@ -492,7 +494,11 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cache = new InMemoryCache(Integer.toString(CONTAINER_ID));
             this.storage = new InMemoryStorage(this.executorService.get());
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
-            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfig(100, 1024);
+            ReadIndexConfig readIndexConfig = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+                    PropertyBag.create()
+                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                               .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService.get());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
             this.memoryLog = new MemoryOperationLog();

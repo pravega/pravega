@@ -17,10 +17,10 @@
  */
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.SegmentId;
 import com.emc.pravega.stream.SegmentUri;
 import com.emc.pravega.stream.StreamConfiguration;

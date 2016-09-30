@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.logs;
+package com.emc.pravega.service.server;
 
-import com.emc.pravega.service.server.Container;
 import com.emc.pravega.service.server.logs.operations.Operation;
 
 import java.time.Duration;

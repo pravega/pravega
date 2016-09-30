@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -96,7 +97,7 @@ public class MemoryLogUpdaterTests {
                     MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTargetStreamSegmentOffset(), invokedMethod.args.get("offset"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
                 }
             }
@@ -148,12 +149,14 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
+        AtomicInteger flushCallbackCallCount = new AtomicInteger();
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
         updater.flush();
-        Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 1, methodInvocations.size());
+        Assert.assertEquals("Unexpected number of calls to the ReadIndex triggerFutureReads method.", 1, methodInvocations.size());
+        Assert.assertEquals("Unexpected number of calls to the flushCallback provided in the constructor.", 1, flushCallbackCallCount.get());
         TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
         Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
         Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");

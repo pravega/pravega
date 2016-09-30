@@ -18,33 +18,11 @@
 
 package com.emc.pravega.integrationtests;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.integrationtests.mockController.MockController;
-import com.emc.pravega.stream.Consumer;
-import com.emc.pravega.stream.ConsumerConfig;
-import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
-import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
-import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.integrationtests.mockController.MockController;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -55,20 +33,43 @@ import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.stream.Consumer;
+import com.emc.pravega.stream.ConsumerConfig;
+import com.emc.pravega.stream.ControllerApi;
+import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.impl.JavaSerializer;
+import com.emc.pravega.stream.impl.SingleSegmentStreamImpl;
+import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
+import com.emc.pravega.stream.impl.segment.SegmentManagerConsumerImpl;
+import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-
-import static org.junit.Assert.*;
-
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ReadTest {
     
@@ -221,14 +222,14 @@ public class ReadTest {
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
             StreamSegmentStore segmentStore) {
-        segmentStore.createStreamSegment(segmentName, Duration.ZERO);
-        for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-            AppendContext appendContext = new AppendContext(clientId, eventNumber);
-            try {
+        try {
+            segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
+            for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
+                AppendContext appendContext = new AppendContext(clientId, eventNumber);
                 segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
             }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
         }
     }
 }

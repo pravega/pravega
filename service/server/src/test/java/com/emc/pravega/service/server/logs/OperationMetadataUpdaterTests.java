@@ -27,6 +27,7 @@ import com.emc.pravega.service.server.MetadataHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
@@ -36,6 +37,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.google.common.base.Supplier;
 import org.junit.Assert;
@@ -91,8 +93,8 @@ public class OperationMetadataUpdaterTests {
         }
 
         // If the StreamSegment was previously marked as deleted.
-        metadata.mapStreamSegmentId("foo", SEGMENT_ID);
-        metadata.getStreamSegmentMetadata(SEGMENT_ID).markDeleted();
+        UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId("foo", SEGMENT_ID);
+        segmentMetadata.markDeleted();
 
         for (StorageOperation op : testOperations) {
             AssertExtensions.assertThrows(
@@ -190,7 +192,7 @@ public class OperationMetadataUpdaterTests {
         metadata.enterRecoveryMode();
         OperationMetadataUpdater recoveryUpdater = createUpdater(metadata);
         recoveryUpdater.preProcessOperation(sealOp);
-        AssertExtensions.assertLessThan("Unexpected StreamSegmentLength after call to preProcess in recovery mode.", 0, sealOp.getStreamSegmentLength());
+        AssertExtensions.assertLessThan("Unexpected StreamSegmentLength after call to preProcess in recovery mode.", 0, sealOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(sealOp, "call to preProcess in recovery mode");
         Assert.assertFalse("preProcess(Seal) seems to have changed the Updater internal state in recovery mode.", recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         Assert.assertFalse("preProcess(Seal) seems to have changed the metadata in recovery mode.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
@@ -199,7 +201,7 @@ public class OperationMetadataUpdaterTests {
         metadata.exitRecoveryMode();
         OperationMetadataUpdater updater = createUpdater(metadata); // Need to create again since we exited recovery mode.
         updater.preProcessOperation(sealOp);
-        Assert.assertEquals("Unexpected StreamSegmentLength after call to preProcess in non-recovery mode.", SEGMENT_LENGTH, sealOp.getStreamSegmentLength());
+        Assert.assertEquals("Unexpected StreamSegmentLength after call to preProcess in non-recovery mode.", SEGMENT_LENGTH, sealOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(sealOp, "call to preProcess in non-recovery mode");
         Assert.assertFalse("preProcess(Seal) seems to have changed the Updater internal state.", recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         Assert.assertFalse("preProcess(Seal) seems to have changed the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
@@ -263,9 +265,9 @@ public class OperationMetadataUpdaterTests {
                 ex -> ex instanceof MetadataUpdateException);
 
         // In recovery mode, the updater does not set the length; it just validates that it has one.
-        recoveryMergeOp.setBatchStreamSegmentLength(metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).getDurableLogLength());
+        recoveryMergeOp.setLength(metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).getDurableLogLength());
         recoveryUpdater.preProcessOperation(recoveryMergeOp);
-        AssertExtensions.assertLessThan("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.", 0, recoveryMergeOp.getTargetStreamSegmentOffset());
+        AssertExtensions.assertLessThan("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.", 0, recoveryMergeOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(recoveryMergeOp, "call to preProcess in recovery mode");
         Assert.assertFalse("preProcess(Merge) seems to have changed the Updater internal state in recovery mode.", recoveryUpdater.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
         Assert.assertFalse("preProcess(Merge) seems to have changed the metadata in recovery mode.", metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
@@ -275,8 +277,8 @@ public class OperationMetadataUpdaterTests {
         metadata.exitRecoveryMode();
         OperationMetadataUpdater updater = createUpdater(metadata);
         updater.preProcessOperation(mergeOp);
-        Assert.assertEquals("Unexpected Batch StreamSegmentLength after call to preProcess in recovery mode.", SEALED_BATCH_LENGTH, mergeOp.getBatchStreamSegmentLength());
-        Assert.assertEquals("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.", SEGMENT_LENGTH, mergeOp.getTargetStreamSegmentOffset());
+        Assert.assertEquals("Unexpected Batch StreamSegmentLength after call to preProcess in recovery mode.", SEALED_BATCH_LENGTH, mergeOp.getLength());
+        Assert.assertEquals("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.", SEGMENT_LENGTH, mergeOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(mergeOp, "call to preProcess in non-recovery mode");
         Assert.assertFalse("preProcess(Merge) seems to have changed the Updater internal state in recovery mode.", recoveryUpdater.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
         Assert.assertFalse("preProcess(Merge) seems to have changed the metadata in recovery mode.", metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).isMerged());
@@ -700,15 +702,16 @@ public class OperationMetadataUpdaterTests {
         // Record 100 entries, and make sure the TruncationMarkerCollection contains them as soon as recorded.
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater u = new OperationMetadataUpdater(metadata);
-        long previousMarker = -1;
+        LogAddress previousMarker = null;
         for (int i = 0; i < recordCount; i++) {
-            long dfSeqNo = i * i;
-            u.recordTruncationMarker(i, dfSeqNo);
-            long actualMarker = metadata.getClosestTruncationMarker(i);
+            LogAddress dfAddress = new LogAddress(i * i) {
+            };
+            u.recordTruncationMarker(i, dfAddress);
+            LogAddress actualMarker = metadata.getClosestTruncationMarker(i);
             Assert.assertEquals("Unexpected value for truncation marker (pre-commit) for Operation Sequence Number " + i, previousMarker, actualMarker);
             u.commit();
             actualMarker = metadata.getClosestTruncationMarker(i);
-            Assert.assertEquals("Unexpected value for truncation marker (post-commit) for Operation Sequence Number " + i, dfSeqNo, actualMarker);
+            Assert.assertEquals("Unexpected value for truncation marker (post-commit) for Operation Sequence Number " + i, dfAddress, actualMarker);
             previousMarker = actualMarker;
         }
     }
@@ -719,18 +722,18 @@ public class OperationMetadataUpdaterTests {
 
     private UpdateableContainerMetadata createMetadata() {
         UpdateableContainerMetadata metadata = createBlankMetadata();
-        metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
-        metadata.getStreamSegmentMetadata(SEGMENT_ID).setDurableLogLength(SEGMENT_LENGTH);
-        metadata.getStreamSegmentMetadata(SEGMENT_ID).setStorageLength(SEGMENT_LENGTH - 1); // Different from DurableLogOffset.
+        UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
+        segmentMetadata.setDurableLogLength(SEGMENT_LENGTH);
+        segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from DurableLogOffset.
 
-        metadata.mapStreamSegmentId(SEALED_BATCH_NAME, SEALED_BATCH_ID, SEGMENT_ID);
-        metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).setDurableLogLength(SEALED_BATCH_LENGTH);
-        metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).setStorageLength(SEALED_BATCH_LENGTH);
-        metadata.getStreamSegmentMetadata(SEALED_BATCH_ID).markSealed();
+        segmentMetadata = metadata.mapStreamSegmentId(SEALED_BATCH_NAME, SEALED_BATCH_ID, SEGMENT_ID);
+        segmentMetadata.setDurableLogLength(SEALED_BATCH_LENGTH);
+        segmentMetadata.setStorageLength(SEALED_BATCH_LENGTH);
+        segmentMetadata.markSealed();
 
-        metadata.mapStreamSegmentId(NOTSEALED_BATCH_NAME, NOTSEALED_BATCH_ID, SEGMENT_ID);
-        metadata.getStreamSegmentMetadata(NOTSEALED_BATCH_ID).setDurableLogLength(0);
-        metadata.getStreamSegmentMetadata(NOTSEALED_BATCH_ID).setStorageLength(0);
+        segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_BATCH_NAME, NOTSEALED_BATCH_ID, SEGMENT_ID);
+        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setStorageLength(0);
 
         return metadata;
     }

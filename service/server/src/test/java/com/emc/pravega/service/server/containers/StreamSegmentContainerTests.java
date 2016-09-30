@@ -30,13 +30,16 @@ import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CloseableExecutorService;
+import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
+import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
-import com.emc.pravega.service.server.ConfigHelpers;
+import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.logs.DurableLogFactory;
 import com.emc.pravega.service.server.mocks.InMemoryCacheFactory;
@@ -45,10 +48,13 @@ import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
 import com.emc.pravega.service.server.reading.ContainerReadIndexFactory;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.writer.StorageWriterFactory;
+import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
+import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
@@ -70,11 +76,11 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Tests for StreamSegmentContainer class.
  * These are not really unit tests. They are more like integration/end-to-end tests, since they test a real StreamSegmentContainer
- * using a real DurableLog, real ReadIndex and real LogSynchronizer(TBD) - but all against in-memory mocks of Storage and
+ * using a real DurableLog, real ReadIndex and real StorageWriter - but all against in-memory mocks of Storage and
  * DurableDataLog.
  */
 public class StreamSegmentContainerTests {
-    private static final int SEGMENT_COUNT = 200;
+    private static final int SEGMENT_COUNT = 100;
     private static final int BATCHES_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CLIENT_COUNT = 10;
@@ -84,8 +90,23 @@ public class StreamSegmentContainerTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
-    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(10, 100, 10 * 1024 * 1024);
-    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfig(100, 1024);
+    private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
+            PropertyBag.create()
+                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, 10)
+                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, 100)
+                       .with(DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024));
+
+    private static final ReadIndexConfig DEFAULT_READ_INDEX_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
+            PropertyBag.create()
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
+                       .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+
+    private static final WriterConfig DEFAULT_WRITER_CONFIG = ConfigHelpers.createWriterConfig(
+            PropertyBag.create()
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1)
+                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 25)
+                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250));
 
     /**
      * Tests the createSegment, append, read, getSegmentInfo, getLastAppendContext.
@@ -141,6 +162,10 @@ public class StreamSegmentContainerTests {
         // 4. Reads (regular reads, not tail reads).
         checkReadIndex(segmentContents, lengths, context);
 
+        // 5. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
+
         context.container.stopAsync().awaitTerminated();
     }
 
@@ -157,16 +182,20 @@ public class StreamSegmentContainerTests {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
 
-        for (int i = 0; i < appendsPerSegment; i++) {
-            for (String segmentName : segmentNames) {
+        for (String segmentName : segmentNames) {
+            ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
+            segmentContents.put(segmentName, segmentStream);
+            for (int i = 0; i < appendsPerSegment; i++) {
                 byte[] appendData = getAppendData(segmentName, i);
                 appendFutures.add(context.container.append(segmentName, appendData, new AppendContext(UUID.randomUUID(), 0), TIMEOUT));
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                segmentStream.write(appendData);
             }
         }
 
@@ -196,7 +225,10 @@ public class StreamSegmentContainerTests {
                 Assert.assertFalse("Segment is sealed when it shouldn't be " + segmentName, sp.isSealed());
 
                 // Verify we can still append to these segments.
-                context.container.append(segmentName, "foo".getBytes(), new AppendContext(UUID.randomUUID(), Integer.MAX_VALUE), TIMEOUT).join();
+                byte[] appendData = "foo".getBytes();
+                context.container.append(segmentName, appendData, new AppendContext(UUID.randomUUID(), Integer.MAX_VALUE), TIMEOUT).join();
+                segmentContents.get(segmentName).write(appendData);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
             }
         }
 
@@ -232,6 +264,10 @@ public class StreamSegmentContainerTests {
             Assert.assertEquals("Unexpected number of bytes read.", totalReadLength, readLength);
             Assert.assertTrue("ReadResult was not closed when reaching the end of sealed segment" + segmentName, readResult.isClosed());
         }
+
+        // 5. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
     }
@@ -333,6 +369,11 @@ public class StreamSegmentContainerTests {
                             "read did not throw expected exception when called on a deleted StreamSegment.",
                             context.container.read(sn, 0, 1, TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentNotExistsException);
+
+                    AssertExtensions.assertThrows(
+                            "Segment not deleted in storage.",
+                            context.storage.getStreamSegmentInfo(sn, TIMEOUT)::join,
+                            ex -> ex instanceof StreamSegmentNotExistsException);
                 }
             } else {
                 // Verify the segments and their batches are still there.
@@ -345,6 +386,9 @@ public class StreamSegmentContainerTests {
 
                     @Cleanup
                     ReadResult rr = context.container.read(sn, 0, 1, TIMEOUT).join();
+
+                    // Verify the segment still exists in storage.
+                    context.storage.getStreamSegmentInfo(sn, TIMEOUT).join();
                 }
             }
         }
@@ -388,13 +432,20 @@ public class StreamSegmentContainerTests {
                     AssertExtensions.assertThrows(
                             "An append was allowed to a merged batch " + batchName,
                             context.container.append(batchName, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT)::join,
-                            ex -> ex instanceof StreamSegmentMergedException);
+                            ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
                 }
             }
         }
 
+        FutureHelpers.allOf(appendFutures).join();
+
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
+
+        // 6. Writer moving data to Storage.
+        //Thread.sleep(5000);
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
     }
@@ -503,6 +554,48 @@ public class StreamSegmentContainerTests {
             Assert.assertEquals("Unexpected read length for segment " + segmentName, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentName, expectedData, 0, actualData, 0, actualData.length);
         }
+
+        // 6. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
+    }
+
+    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
+        for (String segmentName : segmentContents.keySet()) {
+            // 1. Deletion status
+            SegmentProperties sp = null;
+            try {
+                sp = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            } catch (Exception ex) {
+                if (!(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                    throw ex;
+                }
+            }
+
+            if (sp == null) {
+                AssertExtensions.assertThrows(
+                        "Segment is marked as deleted in metadata but was not deleted in Storage " + segmentName,
+                        context.storage.getStreamSegmentInfo(segmentName, TIMEOUT)::join,
+                        ex -> ex instanceof StreamSegmentNotExistsException);
+
+                // No need to do other checks.
+                continue;
+            }
+
+            // 2. Seal Status
+            SegmentProperties storageProps = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            Assert.assertEquals("Segment seal status disagree between Metadata and Storage for segment " + segmentName, sp.isSealed(), storageProps.isSealed());
+
+            // 3. Contents.
+            long expectedLength = lengths.get(segmentName);
+            Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedLength, storageProps.getLength());
+
+            byte[] expectedData = segmentContents.get(segmentName).toByteArray();
+            byte[] actualData = new byte[expectedData.length];
+            int actualLength = context.storage.read(segmentName, 0, actualData, 0, actualData.length, TIMEOUT).join();
+            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedLength, actualLength);
+            Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
+        }
     }
 
     private static void checkReadIndex(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
@@ -510,7 +603,7 @@ public class StreamSegmentContainerTests {
             long expectedLength = lengths.get(segmentName);
             long segmentLength = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
 
-            Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, segmentLength);
+            Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedLength, segmentLength);
             byte[] expectedData = segmentContents.get(segmentName).toByteArray();
 
             long expectedCurrentOffset = 0;
@@ -652,19 +745,37 @@ public class StreamSegmentContainerTests {
         return String.format("%s_%s", segmentName, clientId);
     }
 
+    private CompletableFuture<Void> waitForSegmentsInStorage(Collection<String> segmentNames, TestContext context) {
+        ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
+        for (String segmentName : segmentNames) {
+            SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, TIMEOUT).join();
+            if (sp.isSealed()) {
+                // Sealed - add a seal trigger.
+                segmentsCompletion.add(context.storage.registerSealTrigger(segmentName, TIMEOUT));
+            } else {
+                // Not sealed - add a size trigger.
+                segmentsCompletion.add(context.storage.registerSizeTrigger(segmentName, sp.getLength(), TIMEOUT));
+            }
+        }
+
+        return FutureHelpers.allOf(segmentsCompletion);
+    }
+
     //region TestContext
 
     private static class TestContext implements AutoCloseable {
-        public final SegmentContainer container;
+        final SegmentContainer container;
         private final MetadataRepository metadataRepository;
         private final CloseableExecutorService executorService;
         private final StorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
+        private final WriterFactory writerFactory;
         private final CacheFactory cacheFactory;
+        private final InMemoryStorage storage;
 
-        public TestContext() {
+        TestContext() {
             this.metadataRepository = new InMemoryMetadataRepository();
             this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
             this.storageFactory = new InMemoryStorageFactory(this.executorService.get());
@@ -672,8 +783,10 @@ public class StreamSegmentContainerTests {
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService.get());
             this.cacheFactory = new InMemoryCacheFactory();
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.storageFactory, this.executorService.get());
-            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.storageFactory, this.cacheFactory, this.executorService.get());
+            this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, this.storageFactory, this.executorService.get());
+            StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executorService.get());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
+            this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
         }
 
         @Override
