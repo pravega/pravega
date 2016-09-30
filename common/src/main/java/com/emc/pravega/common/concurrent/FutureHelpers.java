@@ -236,9 +236,7 @@ public final class FutureHelpers {
      *
      * @param condition A Supplier that indicates whether to proceed with the loop or not.
      * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
-     *                  supplier is invoked every time the loopBody needs to execute. If this Future returns true,
-     *                  the loop is allowed to continue, otherwise it is interrupted (Return==false is equivalent to a
-     *                  'break' statement in a classic loop).
+     *                  supplier is invoked every time the loopBody needs to execute.
      * @param executor  An Executor that is used to execute the condition and the loop support code.
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
@@ -256,9 +254,7 @@ public final class FutureHelpers {
      *
      * @param condition      A Supplier that indicates whether to proceed with the loop or not.
      * @param loopBody       A Supplier that returns a CompletableFuture which represents the body of the loop. This
-     *                       supplier is invoked every time the loopBody needs to execute. If this Future returns true,
-     *                       the loop is allowed to continue, otherwise it is interrupted (Return==false is equivalent to a
-     *                       'break' statement in a classic loop).
+     *                       supplier is invoked every time the loopBody needs to execute.
      * @param resultConsumer A Consumer that will be invoked with the result of every call to loopBody.
      * @param executor       An Executor that is used to execute the condition and the loop support code.
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If

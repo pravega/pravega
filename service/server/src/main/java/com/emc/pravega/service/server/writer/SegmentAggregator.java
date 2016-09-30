@@ -178,7 +178,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return exceedsThresholds()
                 || this.hasSealPending.get()
                 || this.mergeTransactionCount.get() > 0
-                || this.operations.size() > 0 && isReconciling();
+                || (this.operations.size() > 0 && isReconciling());
     }
 
     /**
@@ -893,13 +893,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // Verify that the transaction segment does not exist in Storage anymore.
         return this.storage
                 .exists(transactionMeta.getName(), timer.getRemaining())
-                .thenAccept(exists -> {
+                .thenApply(exists -> {
                     if (exists) {
                         throw new CompletionException(new ReconciliationFailureException(
                                 String.format("Cannot reconcile operation '%s' because the transaction segment still exists in Storage.", op), this.metadata, storageInfo));
                     }
-                })
-                .thenAccept(v -> {
+
                     // Pop the first operation off the list and update the metadata for the transaction segment.
                     StorageOperation processedOperation = this.operations.poll();
                     assert processedOperation != null && processedOperation instanceof MergeTransactionOperation : "First outstanding operation was not a MergeTransactionOperation";
@@ -908,8 +907,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     assert newCount >= 0 : "Negative value for mergeTransactionCount";
 
                     updateMetadataForTransactionPostMerger(transactionMeta);
-                })
-                .thenApply(v -> new FlushResult().withMergedBytes(op.getLength()));
+                    return new FlushResult().withMergedBytes(op.getLength());
+                });
     }
 
     /**
