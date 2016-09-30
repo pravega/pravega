@@ -17,27 +17,24 @@
  */
 package com.emc.pravega.controller.server;
 
+import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
-import com.emc.pravega.controller.server.v1.Api.AdminApiImpl;
-import com.emc.pravega.controller.server.v1.Api.ConsumerApiImpl;
-import com.emc.pravega.controller.server.v1.Api.ProducerApiImpl;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import lombok.extern.slf4j.Slf4j;
-import com.emc.pravega.stream.ControllerApi;
 import com.google.common.collect.Sets;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
-import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Entry point of controller server.
@@ -61,19 +58,9 @@ public class Main {
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-        //2) initialize implementation objects, with right parameters/configuration.
-        //2.1) initialize implementation of ControllerApi.ApiAdmin
-        ControllerApi.Admin adminApi = new AdminApiImpl(streamStore, hostStore);
-
-        //2.2) initialize implementation of ControllerApi.ApiConsumer
-        ControllerApi.Consumer consumerApi = new ConsumerApiImpl(streamStore, hostStore);
-
-        //2.3) initialize implementation of ControllerApi.ApiProducer
-        ControllerApi.Producer producerApi = new ProducerApiImpl(streamStore, hostStore);
-
-        //3) start the Server implementations.
-        //3.1) start RPC server with v1 implementation. Enable other versions if required.
+        //2) start the Server implementations.
+        //2.1) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceImpl(adminApi, consumerApi, producerApi));
+        RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
     }
 }

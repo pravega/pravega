@@ -45,6 +45,10 @@ public class ModelHelperTest {
     private static StreamConfiguration createStreamConfig(String name) {
         return new StreamConfiguration() {
             @Override
+            public String getScope() {
+                return "scope";
+            }
+            @Override
             public String getName() {
                 return name;
             }
@@ -79,17 +83,16 @@ public class ModelHelperTest {
         assertEquals(streamName, segmentID.getStreamName());
         assertEquals("scope", segmentID.getScope());
         assertEquals(2, segmentID.getNumber());
-        assertEquals(1, segmentID.getPrevious());
     }
 
     @Test(expected = NullPointerException.class)
     public void encodeSegmentIdNullInput() {
-        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null);
+        ModelHelper.encode((com.emc.pravega.controller.stream.api.v1.SegmentId) null, 0);
     }
 
     @Test
     public void encodeSegmentId() {
-        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1")));
+        Segment segment = ModelHelper.encode(ModelHelper.decode(createSegmentId("stream1")), 1);
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());
@@ -164,10 +167,10 @@ public class ModelHelperTest {
     @Test
     public void decodePosition() {
         com.emc.pravega.controller.stream.api.v1.Position position = ModelHelper.decode(createPosition());
-        assertEquals(1, position.getOwnedLogs().size());
-        assertEquals(1, position.getFutureOwnedLogs().size());
-        assertEquals(1L, position.getOwnedLogs().get(ModelHelper.decode(createSegmentId("seg1"))).longValue());
-        assertEquals(2L, position.getFutureOwnedLogs().get(ModelHelper.decode(createSegmentId("seg2"))).longValue());
+        assertEquals(1, position.getOwnedSegments().size());
+        assertEquals(1, position.getFutureOwnedSegments().size());
+        assertEquals(1L, position.getOwnedSegments().get(ModelHelper.decode(createSegmentId("seg1"))).longValue());
+        assertEquals(2L, position.getFutureOwnedSegments().get(ModelHelper.decode(createSegmentId("seg2"))).longValue());
     }
 
     @Test(expected = NullPointerException.class)

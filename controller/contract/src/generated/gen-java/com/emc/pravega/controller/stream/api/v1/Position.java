@@ -38,8 +38,8 @@ import org.slf4j.LoggerFactory;
 public class Position implements org.apache.thrift.TBase<Position, Position._Fields>, java.io.Serializable, Cloneable, Comparable<Position> {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("Position");
 
-  private static final org.apache.thrift.protocol.TField OWNED_LOGS_FIELD_DESC = new org.apache.thrift.protocol.TField("ownedLogs", org.apache.thrift.protocol.TType.MAP, (short)1);
-  private static final org.apache.thrift.protocol.TField FUTURE_OWNED_LOGS_FIELD_DESC = new org.apache.thrift.protocol.TField("futureOwnedLogs", org.apache.thrift.protocol.TType.MAP, (short)2);
+  private static final org.apache.thrift.protocol.TField OWNED_SEGMENTS_FIELD_DESC = new org.apache.thrift.protocol.TField("ownedSegments", org.apache.thrift.protocol.TType.MAP, (short)1);
+  private static final org.apache.thrift.protocol.TField FUTURE_OWNED_SEGMENTS_FIELD_DESC = new org.apache.thrift.protocol.TField("futureOwnedSegments", org.apache.thrift.protocol.TType.MAP, (short)2);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -47,13 +47,13 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     schemes.put(TupleScheme.class, new PositionTupleSchemeFactory());
   }
 
-  private Map<SegmentId,Long> ownedLogs; // required
-  private Map<FutureSegment,Long> futureOwnedLogs; // required
+  private Map<SegmentId,Long> ownedSegments; // required
+  private Map<FutureSegment,Long> futureOwnedSegments; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-    OWNED_LOGS((short)1, "ownedLogs"),
-    FUTURE_OWNED_LOGS((short)2, "futureOwnedLogs");
+    OWNED_SEGMENTS((short)1, "ownedSegments"),
+    FUTURE_OWNED_SEGMENTS((short)2, "futureOwnedSegments");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -68,10 +68,10 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
      */
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
-        case 1: // OWNED_LOGS
-          return OWNED_LOGS;
-        case 2: // FUTURE_OWNED_LOGS
-          return FUTURE_OWNED_LOGS;
+        case 1: // OWNED_SEGMENTS
+          return OWNED_SEGMENTS;
+        case 2: // FUTURE_OWNED_SEGMENTS
+          return FUTURE_OWNED_SEGMENTS;
         default:
           return null;
       }
@@ -115,11 +115,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
-    tmpMap.put(_Fields.OWNED_LOGS, new org.apache.thrift.meta_data.FieldMetaData("ownedLogs", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.OWNED_SEGMENTS, new org.apache.thrift.meta_data.FieldMetaData("ownedSegments", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
             new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SegmentId.class), 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64))));
-    tmpMap.put(_Fields.FUTURE_OWNED_LOGS, new org.apache.thrift.meta_data.FieldMetaData("futureOwnedLogs", org.apache.thrift.TFieldRequirementType.REQUIRED, 
+    tmpMap.put(_Fields.FUTURE_OWNED_SEGMENTS, new org.apache.thrift.meta_data.FieldMetaData("futureOwnedSegments", org.apache.thrift.TFieldRequirementType.REQUIRED, 
         new org.apache.thrift.meta_data.MapMetaData(org.apache.thrift.protocol.TType.MAP, 
             new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, FutureSegment.class), 
             new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64))));
@@ -131,47 +131,47 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
   }
 
   public Position(
-    Map<SegmentId,Long> ownedLogs,
-    Map<FutureSegment,Long> futureOwnedLogs)
+    Map<SegmentId,Long> ownedSegments,
+    Map<FutureSegment,Long> futureOwnedSegments)
   {
     this();
-    this.ownedLogs = ownedLogs;
-    this.futureOwnedLogs = futureOwnedLogs;
+    this.ownedSegments = ownedSegments;
+    this.futureOwnedSegments = futureOwnedSegments;
   }
 
   /**
    * Performs a deep copy on <i>other</i>.
    */
   public Position(Position other) {
-    if (other.isSetOwnedLogs()) {
-      Map<SegmentId,Long> __this__ownedLogs = new HashMap<SegmentId,Long>(other.ownedLogs.size());
-      for (Map.Entry<SegmentId, Long> other_element : other.ownedLogs.entrySet()) {
+    if (other.isSetOwnedSegments()) {
+      Map<SegmentId,Long> __this__ownedSegments = new HashMap<SegmentId,Long>(other.ownedSegments.size());
+      for (Map.Entry<SegmentId, Long> other_element : other.ownedSegments.entrySet()) {
 
         SegmentId other_element_key = other_element.getKey();
         Long other_element_value = other_element.getValue();
 
-        SegmentId __this__ownedLogs_copy_key = new SegmentId(other_element_key);
+        SegmentId __this__ownedSegments_copy_key = new SegmentId(other_element_key);
 
-        Long __this__ownedLogs_copy_value = other_element_value;
+        Long __this__ownedSegments_copy_value = other_element_value;
 
-        __this__ownedLogs.put(__this__ownedLogs_copy_key, __this__ownedLogs_copy_value);
+        __this__ownedSegments.put(__this__ownedSegments_copy_key, __this__ownedSegments_copy_value);
       }
-      this.ownedLogs = __this__ownedLogs;
+      this.ownedSegments = __this__ownedSegments;
     }
-    if (other.isSetFutureOwnedLogs()) {
-      Map<FutureSegment,Long> __this__futureOwnedLogs = new HashMap<FutureSegment,Long>(other.futureOwnedLogs.size());
-      for (Map.Entry<FutureSegment, Long> other_element : other.futureOwnedLogs.entrySet()) {
+    if (other.isSetFutureOwnedSegments()) {
+      Map<FutureSegment,Long> __this__futureOwnedSegments = new HashMap<FutureSegment,Long>(other.futureOwnedSegments.size());
+      for (Map.Entry<FutureSegment, Long> other_element : other.futureOwnedSegments.entrySet()) {
 
         FutureSegment other_element_key = other_element.getKey();
         Long other_element_value = other_element.getValue();
 
-        FutureSegment __this__futureOwnedLogs_copy_key = new FutureSegment(other_element_key);
+        FutureSegment __this__futureOwnedSegments_copy_key = new FutureSegment(other_element_key);
 
-        Long __this__futureOwnedLogs_copy_value = other_element_value;
+        Long __this__futureOwnedSegments_copy_value = other_element_value;
 
-        __this__futureOwnedLogs.put(__this__futureOwnedLogs_copy_key, __this__futureOwnedLogs_copy_value);
+        __this__futureOwnedSegments.put(__this__futureOwnedSegments_copy_key, __this__futureOwnedSegments_copy_value);
       }
-      this.futureOwnedLogs = __this__futureOwnedLogs;
+      this.futureOwnedSegments = __this__futureOwnedSegments;
     }
   }
 
@@ -181,95 +181,95 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
 
   @Override
   public void clear() {
-    this.ownedLogs = null;
-    this.futureOwnedLogs = null;
+    this.ownedSegments = null;
+    this.futureOwnedSegments = null;
   }
 
-  public int getOwnedLogsSize() {
-    return (this.ownedLogs == null) ? 0 : this.ownedLogs.size();
+  public int getOwnedSegmentsSize() {
+    return (this.ownedSegments == null) ? 0 : this.ownedSegments.size();
   }
 
-  public void putToOwnedLogs(SegmentId key, long val) {
-    if (this.ownedLogs == null) {
-      this.ownedLogs = new HashMap<SegmentId,Long>();
+  public void putToOwnedSegments(SegmentId key, long val) {
+    if (this.ownedSegments == null) {
+      this.ownedSegments = new HashMap<SegmentId,Long>();
     }
-    this.ownedLogs.put(key, val);
+    this.ownedSegments.put(key, val);
   }
 
-  public Map<SegmentId,Long> getOwnedLogs() {
-    return this.ownedLogs;
+  public Map<SegmentId,Long> getOwnedSegments() {
+    return this.ownedSegments;
   }
 
-  public Position setOwnedLogs(Map<SegmentId,Long> ownedLogs) {
-    this.ownedLogs = ownedLogs;
+  public Position setOwnedSegments(Map<SegmentId,Long> ownedSegments) {
+    this.ownedSegments = ownedSegments;
     return this;
   }
 
-  public void unsetOwnedLogs() {
-    this.ownedLogs = null;
+  public void unsetOwnedSegments() {
+    this.ownedSegments = null;
   }
 
-  /** Returns true if field ownedLogs is set (has been assigned a value) and false otherwise */
-  public boolean isSetOwnedLogs() {
-    return this.ownedLogs != null;
+  /** Returns true if field ownedSegments is set (has been assigned a value) and false otherwise */
+  public boolean isSetOwnedSegments() {
+    return this.ownedSegments != null;
   }
 
-  public void setOwnedLogsIsSet(boolean value) {
+  public void setOwnedSegmentsIsSet(boolean value) {
     if (!value) {
-      this.ownedLogs = null;
+      this.ownedSegments = null;
     }
   }
 
-  public int getFutureOwnedLogsSize() {
-    return (this.futureOwnedLogs == null) ? 0 : this.futureOwnedLogs.size();
+  public int getFutureOwnedSegmentsSize() {
+    return (this.futureOwnedSegments == null) ? 0 : this.futureOwnedSegments.size();
   }
 
-  public void putToFutureOwnedLogs(FutureSegment key, long val) {
-    if (this.futureOwnedLogs == null) {
-      this.futureOwnedLogs = new HashMap<FutureSegment,Long>();
+  public void putToFutureOwnedSegments(FutureSegment key, long val) {
+    if (this.futureOwnedSegments == null) {
+      this.futureOwnedSegments = new HashMap<FutureSegment,Long>();
     }
-    this.futureOwnedLogs.put(key, val);
+    this.futureOwnedSegments.put(key, val);
   }
 
-  public Map<FutureSegment,Long> getFutureOwnedLogs() {
-    return this.futureOwnedLogs;
+  public Map<FutureSegment,Long> getFutureOwnedSegments() {
+    return this.futureOwnedSegments;
   }
 
-  public Position setFutureOwnedLogs(Map<FutureSegment,Long> futureOwnedLogs) {
-    this.futureOwnedLogs = futureOwnedLogs;
+  public Position setFutureOwnedSegments(Map<FutureSegment,Long> futureOwnedSegments) {
+    this.futureOwnedSegments = futureOwnedSegments;
     return this;
   }
 
-  public void unsetFutureOwnedLogs() {
-    this.futureOwnedLogs = null;
+  public void unsetFutureOwnedSegments() {
+    this.futureOwnedSegments = null;
   }
 
-  /** Returns true if field futureOwnedLogs is set (has been assigned a value) and false otherwise */
-  public boolean isSetFutureOwnedLogs() {
-    return this.futureOwnedLogs != null;
+  /** Returns true if field futureOwnedSegments is set (has been assigned a value) and false otherwise */
+  public boolean isSetFutureOwnedSegments() {
+    return this.futureOwnedSegments != null;
   }
 
-  public void setFutureOwnedLogsIsSet(boolean value) {
+  public void setFutureOwnedSegmentsIsSet(boolean value) {
     if (!value) {
-      this.futureOwnedLogs = null;
+      this.futureOwnedSegments = null;
     }
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
-    case OWNED_LOGS:
+    case OWNED_SEGMENTS:
       if (value == null) {
-        unsetOwnedLogs();
+        unsetOwnedSegments();
       } else {
-        setOwnedLogs((Map<SegmentId,Long>)value);
+        setOwnedSegments((Map<SegmentId,Long>)value);
       }
       break;
 
-    case FUTURE_OWNED_LOGS:
+    case FUTURE_OWNED_SEGMENTS:
       if (value == null) {
-        unsetFutureOwnedLogs();
+        unsetFutureOwnedSegments();
       } else {
-        setFutureOwnedLogs((Map<FutureSegment,Long>)value);
+        setFutureOwnedSegments((Map<FutureSegment,Long>)value);
       }
       break;
 
@@ -278,11 +278,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
-    case OWNED_LOGS:
-      return getOwnedLogs();
+    case OWNED_SEGMENTS:
+      return getOwnedSegments();
 
-    case FUTURE_OWNED_LOGS:
-      return getFutureOwnedLogs();
+    case FUTURE_OWNED_SEGMENTS:
+      return getFutureOwnedSegments();
 
     }
     throw new IllegalStateException();
@@ -295,10 +295,10 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     }
 
     switch (field) {
-    case OWNED_LOGS:
-      return isSetOwnedLogs();
-    case FUTURE_OWNED_LOGS:
-      return isSetFutureOwnedLogs();
+    case OWNED_SEGMENTS:
+      return isSetOwnedSegments();
+    case FUTURE_OWNED_SEGMENTS:
+      return isSetFutureOwnedSegments();
     }
     throw new IllegalStateException();
   }
@@ -316,21 +316,21 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     if (that == null)
       return false;
 
-    boolean this_present_ownedLogs = true && this.isSetOwnedLogs();
-    boolean that_present_ownedLogs = true && that.isSetOwnedLogs();
-    if (this_present_ownedLogs || that_present_ownedLogs) {
-      if (!(this_present_ownedLogs && that_present_ownedLogs))
+    boolean this_present_ownedSegments = true && this.isSetOwnedSegments();
+    boolean that_present_ownedSegments = true && that.isSetOwnedSegments();
+    if (this_present_ownedSegments || that_present_ownedSegments) {
+      if (!(this_present_ownedSegments && that_present_ownedSegments))
         return false;
-      if (!this.ownedLogs.equals(that.ownedLogs))
+      if (!this.ownedSegments.equals(that.ownedSegments))
         return false;
     }
 
-    boolean this_present_futureOwnedLogs = true && this.isSetFutureOwnedLogs();
-    boolean that_present_futureOwnedLogs = true && that.isSetFutureOwnedLogs();
-    if (this_present_futureOwnedLogs || that_present_futureOwnedLogs) {
-      if (!(this_present_futureOwnedLogs && that_present_futureOwnedLogs))
+    boolean this_present_futureOwnedSegments = true && this.isSetFutureOwnedSegments();
+    boolean that_present_futureOwnedSegments = true && that.isSetFutureOwnedSegments();
+    if (this_present_futureOwnedSegments || that_present_futureOwnedSegments) {
+      if (!(this_present_futureOwnedSegments && that_present_futureOwnedSegments))
         return false;
-      if (!this.futureOwnedLogs.equals(that.futureOwnedLogs))
+      if (!this.futureOwnedSegments.equals(that.futureOwnedSegments))
         return false;
     }
 
@@ -341,15 +341,15 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
   public int hashCode() {
     List<Object> list = new ArrayList<Object>();
 
-    boolean present_ownedLogs = true && (isSetOwnedLogs());
-    list.add(present_ownedLogs);
-    if (present_ownedLogs)
-      list.add(ownedLogs);
+    boolean present_ownedSegments = true && (isSetOwnedSegments());
+    list.add(present_ownedSegments);
+    if (present_ownedSegments)
+      list.add(ownedSegments);
 
-    boolean present_futureOwnedLogs = true && (isSetFutureOwnedLogs());
-    list.add(present_futureOwnedLogs);
-    if (present_futureOwnedLogs)
-      list.add(futureOwnedLogs);
+    boolean present_futureOwnedSegments = true && (isSetFutureOwnedSegments());
+    list.add(present_futureOwnedSegments);
+    if (present_futureOwnedSegments)
+      list.add(futureOwnedSegments);
 
     return list.hashCode();
   }
@@ -362,22 +362,22 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
 
     int lastComparison = 0;
 
-    lastComparison = Boolean.valueOf(isSetOwnedLogs()).compareTo(other.isSetOwnedLogs());
+    lastComparison = Boolean.valueOf(isSetOwnedSegments()).compareTo(other.isSetOwnedSegments());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetOwnedLogs()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.ownedLogs, other.ownedLogs);
+    if (isSetOwnedSegments()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.ownedSegments, other.ownedSegments);
       if (lastComparison != 0) {
         return lastComparison;
       }
     }
-    lastComparison = Boolean.valueOf(isSetFutureOwnedLogs()).compareTo(other.isSetFutureOwnedLogs());
+    lastComparison = Boolean.valueOf(isSetFutureOwnedSegments()).compareTo(other.isSetFutureOwnedSegments());
     if (lastComparison != 0) {
       return lastComparison;
     }
-    if (isSetFutureOwnedLogs()) {
-      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.futureOwnedLogs, other.futureOwnedLogs);
+    if (isSetFutureOwnedSegments()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.futureOwnedSegments, other.futureOwnedSegments);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -402,19 +402,19 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     StringBuilder sb = new StringBuilder("Position(");
     boolean first = true;
 
-    sb.append("ownedLogs:");
-    if (this.ownedLogs == null) {
+    sb.append("ownedSegments:");
+    if (this.ownedSegments == null) {
       sb.append("null");
     } else {
-      sb.append(this.ownedLogs);
+      sb.append(this.ownedSegments);
     }
     first = false;
     if (!first) sb.append(", ");
-    sb.append("futureOwnedLogs:");
-    if (this.futureOwnedLogs == null) {
+    sb.append("futureOwnedSegments:");
+    if (this.futureOwnedSegments == null) {
       sb.append("null");
     } else {
-      sb.append(this.futureOwnedLogs);
+      sb.append(this.futureOwnedSegments);
     }
     first = false;
     sb.append(")");
@@ -423,11 +423,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
 
   public void validate() throws org.apache.thrift.TException {
     // check for required fields
-    if (ownedLogs == null) {
-      throw new org.apache.thrift.protocol.TProtocolException("Required field 'ownedLogs' was not present! Struct: " + toString());
+    if (ownedSegments == null) {
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'ownedSegments' was not present! Struct: " + toString());
     }
-    if (futureOwnedLogs == null) {
-      throw new org.apache.thrift.protocol.TProtocolException("Required field 'futureOwnedLogs' was not present! Struct: " + toString());
+    if (futureOwnedSegments == null) {
+      throw new org.apache.thrift.protocol.TProtocolException("Required field 'futureOwnedSegments' was not present! Struct: " + toString());
     }
     // check for sub-struct validity
   }
@@ -466,11 +466,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
           break;
         }
         switch (schemeField.id) {
-          case 1: // OWNED_LOGS
+          case 1: // OWNED_SEGMENTS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
                 org.apache.thrift.protocol.TMap _map0 = iprot.readMapBegin();
-                struct.ownedLogs = new HashMap<SegmentId,Long>(2*_map0.size);
+                struct.ownedSegments = new HashMap<SegmentId,Long>(2*_map0.size);
                 SegmentId _key1;
                 long _val2;
                 for (int _i3 = 0; _i3 < _map0.size; ++_i3)
@@ -478,20 +478,20 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
                   _key1 = new SegmentId();
                   _key1.read(iprot);
                   _val2 = iprot.readI64();
-                  struct.ownedLogs.put(_key1, _val2);
+                  struct.ownedSegments.put(_key1, _val2);
                 }
                 iprot.readMapEnd();
               }
-              struct.setOwnedLogsIsSet(true);
+              struct.setOwnedSegmentsIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 2: // FUTURE_OWNED_LOGS
+          case 2: // FUTURE_OWNED_SEGMENTS
             if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
               {
                 org.apache.thrift.protocol.TMap _map4 = iprot.readMapBegin();
-                struct.futureOwnedLogs = new HashMap<FutureSegment,Long>(2*_map4.size);
+                struct.futureOwnedSegments = new HashMap<FutureSegment,Long>(2*_map4.size);
                 FutureSegment _key5;
                 long _val6;
                 for (int _i7 = 0; _i7 < _map4.size; ++_i7)
@@ -499,11 +499,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
                   _key5 = new FutureSegment();
                   _key5.read(iprot);
                   _val6 = iprot.readI64();
-                  struct.futureOwnedLogs.put(_key5, _val6);
+                  struct.futureOwnedSegments.put(_key5, _val6);
                 }
                 iprot.readMapEnd();
               }
-              struct.setFutureOwnedLogsIsSet(true);
+              struct.setFutureOwnedSegmentsIsSet(true);
             } else { 
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
@@ -523,11 +523,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
-      if (struct.ownedLogs != null) {
-        oprot.writeFieldBegin(OWNED_LOGS_FIELD_DESC);
+      if (struct.ownedSegments != null) {
+        oprot.writeFieldBegin(OWNED_SEGMENTS_FIELD_DESC);
         {
-          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRUCT, org.apache.thrift.protocol.TType.I64, struct.ownedLogs.size()));
-          for (Map.Entry<SegmentId, Long> _iter8 : struct.ownedLogs.entrySet())
+          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRUCT, org.apache.thrift.protocol.TType.I64, struct.ownedSegments.size()));
+          for (Map.Entry<SegmentId, Long> _iter8 : struct.ownedSegments.entrySet())
           {
             _iter8.getKey().write(oprot);
             oprot.writeI64(_iter8.getValue());
@@ -536,11 +536,11 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
         }
         oprot.writeFieldEnd();
       }
-      if (struct.futureOwnedLogs != null) {
-        oprot.writeFieldBegin(FUTURE_OWNED_LOGS_FIELD_DESC);
+      if (struct.futureOwnedSegments != null) {
+        oprot.writeFieldBegin(FUTURE_OWNED_SEGMENTS_FIELD_DESC);
         {
-          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRUCT, org.apache.thrift.protocol.TType.I64, struct.futureOwnedLogs.size()));
-          for (Map.Entry<FutureSegment, Long> _iter9 : struct.futureOwnedLogs.entrySet())
+          oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRUCT, org.apache.thrift.protocol.TType.I64, struct.futureOwnedSegments.size()));
+          for (Map.Entry<FutureSegment, Long> _iter9 : struct.futureOwnedSegments.entrySet())
           {
             _iter9.getKey().write(oprot);
             oprot.writeI64(_iter9.getValue());
@@ -567,16 +567,16 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     public void write(org.apache.thrift.protocol.TProtocol prot, Position struct) throws org.apache.thrift.TException {
       TTupleProtocol oprot = (TTupleProtocol) prot;
       {
-        oprot.writeI32(struct.ownedLogs.size());
-        for (Map.Entry<SegmentId, Long> _iter10 : struct.ownedLogs.entrySet())
+        oprot.writeI32(struct.ownedSegments.size());
+        for (Map.Entry<SegmentId, Long> _iter10 : struct.ownedSegments.entrySet())
         {
           _iter10.getKey().write(oprot);
           oprot.writeI64(_iter10.getValue());
         }
       }
       {
-        oprot.writeI32(struct.futureOwnedLogs.size());
-        for (Map.Entry<FutureSegment, Long> _iter11 : struct.futureOwnedLogs.entrySet())
+        oprot.writeI32(struct.futureOwnedSegments.size());
+        for (Map.Entry<FutureSegment, Long> _iter11 : struct.futureOwnedSegments.entrySet())
         {
           _iter11.getKey().write(oprot);
           oprot.writeI64(_iter11.getValue());
@@ -589,7 +589,7 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
       TTupleProtocol iprot = (TTupleProtocol) prot;
       {
         org.apache.thrift.protocol.TMap _map12 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRUCT, org.apache.thrift.protocol.TType.I64, iprot.readI32());
-        struct.ownedLogs = new HashMap<SegmentId,Long>(2*_map12.size);
+        struct.ownedSegments = new HashMap<SegmentId,Long>(2*_map12.size);
         SegmentId _key13;
         long _val14;
         for (int _i15 = 0; _i15 < _map12.size; ++_i15)
@@ -597,13 +597,13 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
           _key13 = new SegmentId();
           _key13.read(iprot);
           _val14 = iprot.readI64();
-          struct.ownedLogs.put(_key13, _val14);
+          struct.ownedSegments.put(_key13, _val14);
         }
       }
-      struct.setOwnedLogsIsSet(true);
+      struct.setOwnedSegmentsIsSet(true);
       {
         org.apache.thrift.protocol.TMap _map16 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.STRUCT, org.apache.thrift.protocol.TType.I64, iprot.readI32());
-        struct.futureOwnedLogs = new HashMap<FutureSegment,Long>(2*_map16.size);
+        struct.futureOwnedSegments = new HashMap<FutureSegment,Long>(2*_map16.size);
         FutureSegment _key17;
         long _val18;
         for (int _i19 = 0; _i19 < _map16.size; ++_i19)
@@ -611,10 +611,10 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
           _key17 = new FutureSegment();
           _key17.read(iprot);
           _val18 = iprot.readI64();
-          struct.futureOwnedLogs.put(_key17, _val18);
+          struct.futureOwnedSegments.put(_key17, _val18);
         }
       }
-      struct.setFutureOwnedLogsIsSet(true);
+      struct.setFutureOwnedSegmentsIsSet(true);
     }
   }
 

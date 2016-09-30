@@ -26,6 +26,7 @@ import lombok.Data;
 @Data
 public class StreamConfigurationImpl implements StreamConfiguration {
 
+    private final String scope;
     private final String name;
     private final ScalingPolicy scalingPolicy;
 

@@ -41,7 +41,6 @@ import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.mock.MockStreamManager;
-import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import io.netty.util.ResourceLeakDetector;
@@ -104,7 +103,7 @@ public class TransactionTest {
         producer.publish(routingKey, nonTxEvent);
         AssertExtensions.assertThrows(TxFailedException.class,
                                       () -> transaction.publish(routingKey, txnEvent));
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig());
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
@@ -166,7 +165,7 @@ public class TransactionTest {
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.publish(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
         
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig());
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
         producer.publish(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.getNextEvent(1500));

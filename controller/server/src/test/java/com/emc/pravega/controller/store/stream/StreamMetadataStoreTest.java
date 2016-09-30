@@ -37,12 +37,13 @@ import java.util.List;
  */
 public class StreamMetadataStoreTest {
 
+    private final String scope = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy1);
-    private final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy2);
+    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(scope, stream1, policy1);
+    private final StreamConfiguration configuration2 = new StreamConfigurationImpl(scope, stream2, policy2);
 
     private final StreamMetadataStore store =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);

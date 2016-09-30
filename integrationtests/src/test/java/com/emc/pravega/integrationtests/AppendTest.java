@@ -172,6 +172,7 @@ public class AppendTest {
         String endpoint = "localhost";
         int port = 8765;
         String testString = "Hello world\n";
+        String scope = "scope";
         String stream = "stream";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -180,7 +181,7 @@ public class AppendTest {
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port);
-        controller.createStream(new StreamConfigurationImpl(stream, null));
+        controller.createStream(new StreamConfigurationImpl(scope, stream, null));
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 

@@ -47,8 +47,8 @@ struct NodeUri {
 }
 
 struct Position {
-  1: required map<SegmentId, i64> ownedLogs,
-  2: required map<FutureSegment, i64> futureOwnedLogs
+  1: required map<SegmentId, i64> ownedSegments,
+  2: required map<FutureSegment, i64> futureOwnedSegments
 }
 
 /*

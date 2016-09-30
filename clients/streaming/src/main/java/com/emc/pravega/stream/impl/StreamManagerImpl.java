@@ -57,7 +57,7 @@ public class StreamManagerImpl implements StreamManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller
-            .createStream(new StreamConfigurationImpl(streamName, config.getScalingingPolicy())),
+            .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingingPolicy())),
                                              RuntimeException::new);
 
 

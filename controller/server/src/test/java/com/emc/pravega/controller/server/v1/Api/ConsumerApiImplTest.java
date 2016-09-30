@@ -18,21 +18,7 @@
 
 package com.emc.pravega.controller.server.v1.Api;
 
-import com.emc.pravega.controller.store.host.Host;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.stream.PositionInternal;
-import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.PositionImpl;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import static org.junit.Assert.assertEquals;
-import org.junit.Before;
-import org.junit.Test;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -44,11 +30,32 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.thrift.TException;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+
 /**
  * ConsumerApiImpl test
  */
 public class ConsumerApiImplTest {
 
+    private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
 
@@ -60,15 +67,15 @@ public class ConsumerApiImplTest {
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-    private final ConsumerApiImpl consumer = new ConsumerApiImpl(streamStore, hostStore);
+    private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore);
 
     @Before
     public void prepareStreamStore() {
 
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy1);
-        final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy2);
+        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+        final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
         streamStore.createStream(stream1, configuration1);
@@ -95,22 +102,22 @@ public class ConsumerApiImplTest {
     }
 
     @Test
-    public void testMethods() throws InterruptedException, ExecutionException {
-        List<PositionInternal> positions;
+    public void testMethods() throws InterruptedException, ExecutionException, TException {
+        List<Position> positions;
 
-        positions = consumer.getPositions(stream1, 10, 3).get();
+        positions = consumer.getPositions(SCOPE, stream1, 10, 3);
         assertEquals(2, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
         assertEquals(2, positions.get(1).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream1, 10, 1).get();
+        positions = consumer.getPositions(SCOPE, stream1, 10, 1);
         assertEquals(1, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
         assertEquals(2, positions.get(0).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream2, 10, 3).get();
+        positions = consumer.getPositions(SCOPE, stream2, 10, 3);
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -120,11 +127,11 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
 
 
-        PositionInternal newPosition = new PositionImpl(
-                Collections.singletonMap(new Segment(stream2, stream2 + 5, 5, 2), 0L),
+        Position newPosition = new Position(
+                Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),
                 Collections.EMPTY_MAP);
         positions.set(2, newPosition);
-        positions = consumer.updatePositions(stream2, positions).get();
+        positions = consumer.updatePositions(SCOPE, stream2, positions);
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -133,14 +140,14 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream2, 10, 2).get();
+        positions = consumer.getPositions(SCOPE, stream2, 10, 2);
         assertEquals(2, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
         assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream1, 25, 3).get();
+        positions = consumer.getPositions(SCOPE, stream1, 25, 3);
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -149,12 +156,12 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream1, 25, 1).get();
+        positions = consumer.getPositions(SCOPE, stream1, 25, 1);
         assertEquals(1, positions.size());
         assertEquals(3, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream2, 25, 3).get();
+        positions = consumer.getPositions(SCOPE, stream2, 25, 3);
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -163,7 +170,7 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(stream2, 25, 2).get();
+        positions = consumer.getPositions(SCOPE, stream2, 25, 2);
         assertEquals(2, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
