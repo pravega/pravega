@@ -148,10 +148,10 @@ class LogHandle implements AutoCloseable {
      * Initializes the LogHandle and binds it to a Stream in the given DistributedLogNamespace.
      *
      * @param namespace The DistributedLog Namespace to bind to.
-     * @throws DataLogInitializationException
-     * @throws DataLogWriterNotPrimaryException
-     * @throws DataLogNotAvailableException
-     * @throws DurableDataLogException
+     * @throws DataLogInitializationException   If a general initialization error occurred.
+     * @throws DataLogWriterNotPrimaryException If this client lost its exclusive write privileges for this log.
+     * @throws DataLogNotAvailableException     If the DurableDataLog cannot be reached.
+     * @throws DurableDataLogException          General error.
      */
     void initialize(DistributedLogNamespace namespace) throws DurableDataLogException {
         Preconditions.checkNotNull(namespace, "namespace");
@@ -200,8 +200,6 @@ class LogHandle implements AutoCloseable {
 
     /**
      * Gets a value indicating the DistributedLog LogName for this Handle.
-     *
-     * @return
      */
     String getLogName() {
         return this.logName;
@@ -210,8 +208,6 @@ class LogHandle implements AutoCloseable {
     /**
      * Gets a value indicating the Id of the Last Transaction that was processed through this Handle/Log. If the Log is
      * currently empty, its value is 0.
-     *
-     * @return
      */
     long getLastTransactionId() {
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
@@ -356,7 +352,7 @@ class LogHandle implements AutoCloseable {
     //region DistributedLogReader
 
     private static class DistributedLogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> {
-        public final String traceObjectId;
+        final String traceObjectId;
         private final DistributedLogManager logManager;
         private final Consumer<DistributedLogReader> closeCallback;
         private long lastTransactionId;
@@ -364,7 +360,7 @@ class LogHandle implements AutoCloseable {
 
         //region Constructor
 
-        public DistributedLogReader(long afterTransactionId, DistributedLogManager logManager, Consumer<DistributedLogReader> closeCallback) throws IOException {
+        DistributedLogReader(long afterTransactionId, DistributedLogManager logManager, Consumer<DistributedLogReader> closeCallback) throws IOException {
             Preconditions.checkNotNull(logManager, "logManager");
             Preconditions.checkNotNull(closeCallback, "closeCallback");
 
@@ -417,7 +413,7 @@ class LogHandle implements AutoCloseable {
         private static class ReadItem implements DurableDataLog.ReadItem {
             private final LogRecordWithDLSN baseRecord;
 
-            public ReadItem(LogRecordWithDLSN baseRecord) {
+            ReadItem(LogRecordWithDLSN baseRecord) {
                 this.baseRecord = baseRecord;
             }
 

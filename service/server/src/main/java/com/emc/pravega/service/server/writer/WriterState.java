@@ -48,8 +48,6 @@ class WriterState {
 
     /**
      * Gets a value indicating the Sequence Number of the last Truncated Operation.
-     *
-     * @return The result.
      */
     long getLastTruncatedSequenceNumber() {
         return this.lastTruncatedSequenceNumber;
@@ -67,8 +65,6 @@ class WriterState {
 
     /**
      * Gets a value indicating the Sequence Number of the last read Operation (from the Operation Log).
-     *
-     * @return The result.
      */
     long getLastReadSequenceNumber() {
         return this.lastReadSequenceNumber;

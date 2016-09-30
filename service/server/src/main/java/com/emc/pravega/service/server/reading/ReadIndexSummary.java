@@ -100,8 +100,6 @@ class ReadIndexSummary {
 
     /**
      * Generates a CacheManager.CacheStatus object with the information in this ReadIndexSummary object.
-     *
-     * @return The result
      */
     synchronized CacheManager.CacheStatus toCacheStatus() {
         AtomicInteger oldestGeneration = new AtomicInteger(Integer.MAX_VALUE);

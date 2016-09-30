@@ -28,7 +28,7 @@ import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
@@ -93,12 +93,12 @@ public class MemoryLogUpdaterTests {
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
-                } else if (expected instanceof MergeBatchOperation) {
-                    MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
+                } else if (expected instanceof MergeTransactionOperation) {
+                    MergeTransactionOperation mergeOp = (MergeTransactionOperation) expected;
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTransactionSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
                 }
             }
         }
@@ -106,7 +106,7 @@ public class MemoryLogUpdaterTests {
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
                 "MemoryLogUpdater accepted an operation that was out of order.",
-                () -> updater.process(new MergeBatchOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
+                () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
@@ -137,8 +137,6 @@ public class MemoryLogUpdaterTests {
 
     /**
      * Tests the functionality of the flush() method, and that it can trigger future reads on the ReadIndex.
-     *
-     * @throws Exception
      */
     @Test
     public void testFlush() throws Exception {
@@ -173,8 +171,6 @@ public class MemoryLogUpdaterTests {
     /**
      * Tests the clear() method on the MemoryLogUpdater (clear ReadIndex+MemoryLog; immediate calls to flush() will not
      * trigger any future reads on ReadIndex).
-     *
-     * @throws Exception
      */
     @Test
     public void testClear() throws Exception {
@@ -215,7 +211,7 @@ public class MemoryLogUpdaterTests {
                 appendOp.setStreamSegmentOffset(offset);
                 offset += appendOp.getData().length;
                 operations.add(appendOp);
-                operations.add(new MergeBatchOperation(i, j));
+                operations.add(new MergeTransactionOperation(i, j));
             }
         }
 

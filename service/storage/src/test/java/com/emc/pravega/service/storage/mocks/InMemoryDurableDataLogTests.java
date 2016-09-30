@@ -134,7 +134,7 @@ public class InMemoryDurableDataLogTests {
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
-            TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
+            populate(log, WRITE_COUNT);
 
             // Create a reader and read one item.
             @Cleanup

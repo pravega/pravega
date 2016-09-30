@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.server.store;
 
-import java.util.Properties;
-
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
 import com.emc.pravega.common.util.MissingPropertyException;
+
+import java.util.Properties;
 
 /**
  * General Service Configuration.
@@ -61,8 +61,6 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of containers in the system.
-     *
-     * @return
      */
     public int getContainerCount() {
         return this.containerCount;
@@ -70,8 +68,6 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of threads in the common thread pool.
-     *
-     * @return
      */
     public int getThreadPoolSize() {
         return this.threadPoolSize;
@@ -79,8 +75,6 @@ public class ServiceConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the TCP Port number to listed to.
-     *
-     * @return
      */
     public int getListeningPort() {
         return this.listeningPort;

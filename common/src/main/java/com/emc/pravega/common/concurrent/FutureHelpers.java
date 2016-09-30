@@ -157,7 +157,6 @@ public final class FutureHelpers {
      *
      * @param futures A Collection of CompletableFutures to wait on.
      * @param <T>     The type of the results items.
-     * @return The results.
      */
     public static <T> CompletableFuture<Collection<T>> allOfWithResults(Collection<CompletableFuture<T>> futures) {
         CompletableFuture<Void> allDoneFuture = CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
@@ -169,7 +168,6 @@ public final class FutureHelpers {
      *
      * @param futures A Collection of CompletableFutures to wait on.
      * @param <T>     The type of the results items.
-     * @return The results.
      */
     public static <T> CompletableFuture<Void> allOf(Collection<CompletableFuture<T>> futures) {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
@@ -181,7 +179,6 @@ public final class FutureHelpers {
      * @param timeout         The timeout for the future.
      * @param executorService An ExecutorService that will be used to invoke the timeout on.
      * @param <T>             The Type argument for the CompletableFuture to create.
-     * @return The result.
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, ScheduledExecutorService executorService) {
         return futureWithTimeout(timeout, null, executorService);

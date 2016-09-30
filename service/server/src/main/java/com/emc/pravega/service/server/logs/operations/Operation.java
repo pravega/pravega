@@ -92,8 +92,6 @@ public abstract class Operation implements LogItem {
 
     /**
      * Gets an internal unique number representing the type of this operation.
-     *
-     * @return The result.
      */
     protected abstract byte getOperationType();
 

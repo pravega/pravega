@@ -21,7 +21,7 @@ package com.emc.pravega.service.contracts;
 /**
  * An exception that is related to a particular Container.
  */
-public abstract class ContainerException extends StreamingException {
+abstract class ContainerException extends StreamingException {
     /**
      *
      */
@@ -34,7 +34,7 @@ public abstract class ContainerException extends StreamingException {
      * @param containerId The Id of the ContainerException.
      * @param message     The message for this exception.
      */
-    public ContainerException(int containerId, String message) {
+    ContainerException(int containerId, String message) {
         this(containerId, message, null);
     }
 
@@ -45,15 +45,13 @@ public abstract class ContainerException extends StreamingException {
      * @param message     The message for this exception.
      * @param cause       The causing exception.
      */
-    public ContainerException(int containerId, String message, Throwable cause) {
+    private ContainerException(int containerId, String message, Throwable cause) {
         super(String.format("%s (%d).", message, containerId), cause);
         this.containerId = containerId;
     }
 
     /**
      * Gets a value indicating the Container Id.
-     *
-     * @return
      */
     public int getContainerId() {
         return this.containerId;

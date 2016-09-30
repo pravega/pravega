@@ -70,7 +70,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Creates a new instance of the StreamSegmentMetadata class for a child (batch) StreamSegment.
+     * Creates a new instance of the StreamSegmentMetadata class for a child (Transaction) StreamSegment.
      *
      * @param streamSegmentName     The name of the StreamSegment.
      * @param streamSegmentId       The Id of the StreamSegment.
@@ -232,7 +232,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-batch StreamSegment.");
+        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;

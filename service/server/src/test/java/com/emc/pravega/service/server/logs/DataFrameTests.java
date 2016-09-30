@@ -32,7 +32,7 @@ import java.util.List;
  */
 public class DataFrameTests {
     private static final long DEFAULT_PREVIOUS_SEQUENCE = 12345;
-    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accesible from here.
+    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accessible from here.
 
     /**
      * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.

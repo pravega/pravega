@@ -103,7 +103,6 @@ public class ByteArraySegment {
      * Gets the value of the ByteArraySegment at the specified index.
      *
      * @param index The index to query.
-     * @return The result.
      * @throws ArrayIndexOutOfBoundsException If index is invalid.
      */
     public byte get(int index) {
@@ -277,8 +276,6 @@ public class ByteArraySegment {
      * Returns a new ByteArraySegment that wraps the same underlying array that this ByteSegmentDoes, except that the
      * new instance is marked as Read-Only.
      * If this instance is already Read-Only, this instance is returned instead.
-     *
-     * @return The result.
      */
     public ByteArraySegment asReadOnly() {
         if (isReadOnly()) {

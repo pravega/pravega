@@ -24,8 +24,8 @@ package com.emc.pravega.service.storage.impl.distributedlog;
 class ContainerToLogNameConverter {
     /**
      * Generates a DistributedLog Log Name from a Stream Segment Container Id.
-     * @param containerId
-     * @return
+     *
+     * @param containerId The Id of the Container to get the log name for.
      */
     static String getLogName(int containerId) {
         return String.format("container_%d", containerId);

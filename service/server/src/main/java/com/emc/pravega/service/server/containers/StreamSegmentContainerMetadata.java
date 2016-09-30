@@ -148,14 +148,14 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
             UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
 
-        log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
 
@@ -171,7 +171,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
             if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                // We have no knowledge in our metadata about this StreamSegment. This means it has no batches associated
+                // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
                 return result;
@@ -183,7 +183,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                 segmentMetadata.markDeleted();
             }
 
-            // Find any batches that point to this StreamSegment (as a parent).
+            // Find any transactions that point to this StreamSegment (as a parent).
             CollectionHelpers.forEach(
                     this.segmentMetadata.values(),
                     m -> m.getParentId() == streamSegmentId,

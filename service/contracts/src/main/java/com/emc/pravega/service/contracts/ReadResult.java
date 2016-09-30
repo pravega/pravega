@@ -49,31 +49,23 @@ import java.util.Iterator;
 public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
     /**
      * Gets a value indicating the Offset within the StreamSegment where this ReadResult starts at.
-     *
-     * @return
      */
     long getStreamSegmentStartOffset();
 
     /**
      * Gets a value indicating the maximum length that this read result can have.
-     *
-     * @return
      */
     int getMaxResultLength();
 
     /**
      * Gets a value indicating the number of bytes that have been consumed via the next() method invocations.
      * Note that this does not track the individual consumption within the objects returned by next().
-     *
-     * @return
      */
     int getConsumedLength();
 
     /**
      * Gets a value indicating whether this ReadResult is fully consumed (either because it was read in its entirety
      * or because it was closed externally).
-     *
-     * @return
      */
     boolean isClosed();
 

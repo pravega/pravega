@@ -73,8 +73,6 @@ class FlushResult {
 
     /**
      * Gets a value indicating the total amount of data flushed, in bytes.
-     *
-     * @return The result.
      */
     long getFlushedBytes() {
         return this.flushedBytes;
@@ -82,8 +80,6 @@ class FlushResult {
 
     /**
      * Gets a value indicating the total amount of data that was merged, in bytes.
-     *
-     * @return The result.
      */
     long getMergedBytes() {
         return this.mergedBytes;

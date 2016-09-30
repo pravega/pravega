@@ -69,8 +69,6 @@ class FlushArgs {
     /**
      * Gets a new InputStream that represents all the added byte arrays (via the add() method), in the order in which
      * they were added.
-     *
-     * @return The result.
      */
     InputStream getInputStream() {
         return new SequenceInputStream(Iterators.asEnumeration(this.streams.iterator()));
@@ -78,8 +76,6 @@ class FlushArgs {
 
     /**
      * Gets a value indicating the total length of the data that was added.
-     *
-     * @return The result.
      */
     int getTotalLength() {
         return this.totalLength;
@@ -87,8 +83,6 @@ class FlushArgs {
 
     /**
      * Gets a value indicating the total number of byte arrays added via the add() method.
-     *
-     * @return The result.
      */
     int getCount() {
         return this.streams.size();

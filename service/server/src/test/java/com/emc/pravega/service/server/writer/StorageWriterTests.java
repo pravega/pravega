@@ -35,9 +35,9 @@ import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
-import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
@@ -76,7 +76,7 @@ import java.util.function.Supplier;
 public class StorageWriterTests {
     private static final int CONTAINER_ID = 1;
     private static final int SEGMENT_COUNT = 10;
-    private static final int BATCHES_PER_SEGMENT = 5;
+    private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 1000;
     private static final int APPENDS_PER_SEGMENT_RECOVERY = 500; // We use depth-first, which has slower performance.
     private static final int METADATA_CHECKPOINT_FREQUENCY = 50;
@@ -145,7 +145,7 @@ public class StorageWriterTests {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // Create a bunch of segments and batches.
+        // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
 
         // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
@@ -214,7 +214,7 @@ public class StorageWriterTests {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // Create a bunch of segments and batches.
+        // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
 
         // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
@@ -284,11 +284,11 @@ public class StorageWriterTests {
         context.dataSource.setAckEffective(false); // Disable ack-ing.
         context.writer.startAsync();
 
-        // Create a bunch of segments and batches.
+        // Create a bunch of segments and Transaction.
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
-        ArrayList<Long> batchIds = new ArrayList<>();
-        batchesBySegment.values().forEach(batchIds::addAll);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
+        ArrayList<Long> transactionIds = new ArrayList<>();
+        transactionsBySegment.values().forEach(transactionIds::addAll);
 
         // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
@@ -305,23 +305,23 @@ public class StorageWriterTests {
         // Parent segments have 50% of data written
         appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
 
-        List<Long> firstThirdBatches = batchIds.subList(0, batchIds.size() / 3);
-        List<Long> secondThirdBatches = batchIds.subList(batchIds.size() / 3, batchIds.size() * 2 / 3);
-        List<Long> lastThirdBatches = batchIds.subList(batchIds.size() * 2 / 3, batchIds.size());
+        List<Long> firstThirdTransactions = transactionIds.subList(0, transactionIds.size() / 3);
+        List<Long> secondThirdTransactions = transactionIds.subList(transactionIds.size() / 3, transactionIds.size() * 2 / 3);
+        List<Long> lastThirdTransactions = transactionIds.subList(transactionIds.size() * 2 / 3, transactionIds.size());
 
-        // First and second 1/3 of batches have full data.
-        appendDataDepthFirst(firstThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
-        appendDataDepthFirst(secondThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
+        // First and second 1/3 of Transactions have full data.
+        appendDataDepthFirst(firstThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
+        appendDataDepthFirst(secondThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
 
-        // Third 1/3 of batches have 50% of data.
-        appendDataDepthFirst(lastThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+        // Third 1/3 of Transactions have 50% of data.
+        appendDataDepthFirst(lastThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
 
-        // First 1/3 of batches are merged into parent.
-        sealSegments(firstThirdBatches, context);
-        mergeBatches(firstThirdBatches, segmentContents, context);
+        // First 1/3 of Transactions are merged into parent.
+        sealSegments(firstThirdTransactions, context);
+        mergeTransactions(firstThirdTransactions, segmentContents, context);
 
-        // Second 1/3 of batches are sealed, but not merged into parent.
-        sealSegments(secondThirdBatches, context);
+        // Second 1/3 of Transactions are sealed, but not merged into parent.
+        sealSegments(secondThirdTransactions, context);
 
         // Wait for the writer to complete its job.
         metadataCheckpoint(context);
@@ -343,14 +343,14 @@ public class StorageWriterTests {
         // Add the last 50% of data to the parent segments.
         appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
 
-        // Seal & merge second 1/3 of batches.
-        sealSegments(secondThirdBatches, context);
-        mergeBatches(secondThirdBatches, segmentContents, context);
+        // Seal & merge second 1/3 of Transactions.
+        sealSegments(secondThirdTransactions, context);
+        mergeTransactions(secondThirdTransactions, segmentContents, context);
 
-        // Add remaining data, seal & merge last 1/3 of batches.
-        appendDataDepthFirst(lastThirdBatches, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
-        sealSegments(lastThirdBatches, context);
-        mergeBatches(lastThirdBatches, segmentContents, context);
+        // Add remaining data, seal & merge last 1/3 of Transactions.
+        appendDataDepthFirst(lastThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+        sealSegments(lastThirdTransactions, context);
+        mergeTransactions(lastThirdTransactions, segmentContents, context);
 
         // Seal the parents.
         sealSegments(segmentIds, context);
@@ -363,14 +363,14 @@ public class StorageWriterTests {
         ackEverything2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify final output.
-        verifyFinalOutput(segmentContents, batchIds, context);
+        verifyFinalOutput(segmentContents, transactionIds, context);
     }
 
     /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
-     * 1. Add Appends (Cached/non-cached) to both Parent and Batch segments
-     * 2. Seal and merge the batches
+     * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments
+     * 2. Seal and merge the Transactions
      * 3. Seal the parent segments.
      * 4. Wait for everything to be ack-ed and check the result.
      *
@@ -379,11 +379,11 @@ public class StorageWriterTests {
     private void testWriter(TestContext context) throws Exception {
         context.writer.startAsync();
 
-        // Create a bunch of segments and batches.
+        // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
-        HashMap<Long, ArrayList<Long>> batchesBySegment = createBatches(segmentIds, context);
-        ArrayList<Long> batchIds = new ArrayList<>();
-        batchesBySegment.values().forEach(batchIds::addAll);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
+        ArrayList<Long> transactionIds = new ArrayList<>();
+        transactionsBySegment.values().forEach(transactionIds::addAll);
 
         // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
@@ -397,11 +397,11 @@ public class StorageWriterTests {
         // Append data.
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
-        appendDataBreadthFirst(batchIds, segmentContents, context);
+        appendDataBreadthFirst(transactionIds, segmentContents, context);
 
-        // Merge batches.
-        sealSegments(batchIds, context);
-        mergeBatches(batchIds, segmentContents, context);
+        // Merge Transaction.
+        sealSegments(transactionIds, context);
+        mergeTransactions(transactionIds, segmentContents, context);
 
         // Seal the parents.
         sealSegments(segmentIds, context);
@@ -412,18 +412,18 @@ public class StorageWriterTests {
         ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify final output.
-        verifyFinalOutput(segmentContents, batchIds, context);
+        verifyFinalOutput(segmentContents, transactionIds, context);
     }
 
     //region Helpers
 
-    private void verifyFinalOutput(HashMap<Long, ByteArrayOutputStream> segmentContents, Collection<Long> batchIds, TestContext context) {
-        // Verify all batches are deleted.
-        for (long batchId : batchIds) {
-            SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(batchId);
-            Assert.assertTrue("Batch not marked as deleted in metadata: " + batchId, metadata.isDeleted());
+    private void verifyFinalOutput(HashMap<Long, ByteArrayOutputStream> segmentContents, Collection<Long> transactionIds, TestContext context) {
+        // Verify all Transactions are deleted.
+        for (long transactionId : transactionIds) {
+            SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(transactionId);
+            Assert.assertTrue("Transaction not marked as deleted in metadata: " + transactionId, metadata.isDeleted());
             AssertExtensions.assertThrows(
-                    "Batch segment was not deleted from storage after being merged: " + batchId,
+                    "Transaction was not deleted from storage after being merged: " + transactionId,
                     () -> context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join(),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
@@ -431,7 +431,7 @@ public class StorageWriterTests {
         for (long segmentId : segmentContents.keySet()) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
             Assert.assertNotNull("Setup error: No metadata for segment " + segmentId, metadata);
-            Assert.assertEquals("Setup error: Not expecting a batch segment in the final list: " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
+            Assert.assertEquals("Setup error: Not expecting a Transaction segment in the final list: " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
 
             Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
             Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
@@ -448,33 +448,33 @@ public class StorageWriterTests {
         }
     }
 
-    private void mergeBatches(Iterable<Long> batchIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
-        for (long batchId : batchIds) {
-            UpdateableSegmentMetadata batchMetadata = context.metadata.getStreamSegmentMetadata(batchId);
-            UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(batchMetadata.getParentId());
-            Assert.assertFalse("Batch already merged", batchMetadata.isMerged());
-            Assert.assertTrue("Batch not sealed prior to merger", batchMetadata.isSealed());
+    private void mergeTransactions(Iterable<Long> transactionIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+        for (long transactionId : transactionIds) {
+            UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
+            UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
+            Assert.assertFalse("Transaction already merged", transactionMetadata.isMerged());
+            Assert.assertTrue("Transaction not sealed prior to merger", transactionMetadata.isSealed());
             Assert.assertFalse("Parent is sealed already merged", parentMetadata.isSealed());
 
             // Create the Merge Op
-            MergeBatchOperation op = new MergeBatchOperation(parentMetadata.getId(), batchMetadata.getId());
-            op.setLength(batchMetadata.getLength());
+            MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+            op.setLength(transactionMetadata.getLength());
             op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
 
             // Update metadata
-            parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + batchMetadata.getDurableLogLength());
-            batchMetadata.markMerged();
+            parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + transactionMetadata.getDurableLogLength());
+            transactionMetadata.markMerged();
 
             // Process the merge op
             context.dataSource.add(op);
 
             try {
-                segmentContents.get(parentMetadata.getId()).write(segmentContents.get(batchMetadata.getId()).toByteArray());
+                segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionMetadata.getId()).toByteArray());
             } catch (IOException ex) {
                 throw new AssertionError(ex);
             }
 
-            segmentContents.remove(batchId);
+            segmentContents.remove(transactionId);
         }
     }
 
@@ -578,30 +578,30 @@ public class StorageWriterTests {
         return segmentIds;
     }
 
-    private HashMap<Long, ArrayList<Long>> createBatches(Collection<Long> segmentIds, TestContext context) {
-        // Create the batches.
-        HashMap<Long, ArrayList<Long>> batches = new HashMap<>();
-        long batchId = Integer.MAX_VALUE;
+    private HashMap<Long, ArrayList<Long>> createTransactions(Collection<Long> segmentIds, TestContext context) {
+        // Create the Transactions.
+        HashMap<Long, ArrayList<Long>> transactions = new HashMap<>();
+        long transactionId = Integer.MAX_VALUE;
         for (long parentId : segmentIds) {
-            ArrayList<Long> segmentBatches = new ArrayList<>();
-            batches.put(parentId, segmentBatches);
+            ArrayList<Long> segmentTransactions = new ArrayList<>();
+            transactions.put(parentId, segmentTransactions);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
-            for (int i = 0; i < BATCHES_PER_SEGMENT; i++) {
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentMetadata.getName());
-                context.metadata.mapStreamSegmentId(batchName, batchId, parentId);
-                initializeSegment(batchId, context);
-                segmentBatches.add(batchId);
+            for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
+                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(parentMetadata.getName());
+                context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
+                initializeSegment(transactionId, context);
+                segmentTransactions.add(transactionId);
 
                 // Add the operation to the log.
-                BatchMapOperation mapOp = new BatchMapOperation(parentId, context.storage.getStreamSegmentInfo(batchName, TIMEOUT).join());
-                mapOp.setStreamSegmentId(batchId);
+                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
+                mapOp.setStreamSegmentId(transactionId);
                 context.dataSource.add(mapOp);
 
-                batchId++;
+                transactionId++;
             }
         }
 
-        return batches;
+        return transactions;
     }
 
     private void initializeSegment(long segmentId, TestContext context) {
