@@ -180,7 +180,7 @@ public class StreamSegmentMapperTests {
             for (int j = 0; j < transactionsPerSegment; j++) {
                 // There is a small chance of a name conflict here, but we don't care. As long as we get at least one
                 // Transaction per segment, we should be fine.
-                String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
                 storageSegments.add(transactionName);
             }
         }
@@ -264,7 +264,7 @@ public class StreamSegmentMapperTests {
     @Test
     public void testGetOrAssignStreamSegmentIdWithFailures() {
         final String segmentName = "Segment";
-        final String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+        final String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
@@ -293,14 +293,14 @@ public class StreamSegmentMapperTests {
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // 2b. Transaction does not exist.
-        final String inexistentTransactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+        final String inexistentTransactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent Transaction.",
                 context.mapper.getOrAssignStreamSegmentId(inexistentTransactionName, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // 2c. Transaction exists, but not its parent.
-        final String noValidParentTransactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName("foo");
+        final String noValidParentTransactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName("foo");
         storageSegments.add(noValidParentTransactionName);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Transaction with an inexistent parent.",

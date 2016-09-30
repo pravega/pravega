@@ -40,9 +40,9 @@ public class StreamSegmentNameUtilsTests {
         Assert.assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
 
         for (int i = 0; i < batchCount; i++) {
-            String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
-            AssertExtensions.assertNotNullOrEmpty("generateBatchStreamSegmentName() did not generate any Segment Name.", batchName);
-            AssertExtensions.assertGreaterThan("generateBatchStreamSegmentName() generated a Segment Name that is shorter than the base.", segmentName.length(), batchName.length());
+            String batchName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
+            AssertExtensions.assertNotNullOrEmpty("generateTransactionStreamSegmentName() did not generate any Segment Name.", batchName);
+            AssertExtensions.assertGreaterThan("generateTransactionStreamSegmentName() generated a Segment Name that is shorter than the base.", segmentName.length(), batchName.length());
             parentName = StreamSegmentNameUtils.getParentStreamSegmentName(batchName);
             Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName, parentName);
 
@@ -69,7 +69,7 @@ public class StreamSegmentNameUtilsTests {
         names.push("foo"); // Base segment.
         for (int i = 0; i < recursionCount; i++) {
             // Generate a batch name for the last generated name.
-            names.push(StreamSegmentNameUtils.generateBatchStreamSegmentName(names.peek()));
+            names.push(StreamSegmentNameUtils.generateTransactionStreamSegmentName(names.peek()));
         }
 
         // Make sure we can retrace our roots.

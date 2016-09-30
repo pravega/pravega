@@ -642,7 +642,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     StorageOperation processedOperation = this.operations.poll();
                     assert processedOperation != null && processedOperation instanceof MergeTransactionOperation : "First outstanding operation was not a MergeTransactionOperation";
                     assert ((MergeTransactionOperation) processedOperation).getTransactionSegmentId() == transactionMetadata.getId() : "First outstanding operation was a MergeTransactionOperation for the wrong Transaction id.";
-                    assert ((MergeTransactionOperation) processedOperation).getTransactionSegmentId() == transactionMetadata.getId() : "First outstanding operation was a MergeTransactionOperation for the wrong Transaction id.";
                     int newCount = this.mergeTransactionCount.decrementAndGet();
                     assert newCount >= 0 : "Negative value for mergeTransactionCount";
 

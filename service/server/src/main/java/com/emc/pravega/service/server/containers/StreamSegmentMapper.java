@@ -151,7 +151,7 @@ public class StreamSegmentMapper {
         }
 
         //TODO: verify the Transaction name doesn't already exist. It is possible that two concurrent calls to createTransaction can create the same Transaction name.
-        String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(parentStreamSegmentName);
+        String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(parentStreamSegmentName);
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         if (parentPropertiesFuture == null) {
