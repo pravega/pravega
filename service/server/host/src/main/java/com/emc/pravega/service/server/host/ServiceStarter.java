@@ -24,7 +24,7 @@ import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.config.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import org.slf4j.LoggerFactory;
 

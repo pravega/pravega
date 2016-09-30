@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.writer;
 
-import com.emc.pravega.service.config.WriterConfig;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.ReadIndex;

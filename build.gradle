@@ -98,18 +98,10 @@ project('service:contracts') {
     }
 }
 
-project('service:config') {
-    dependencies {
-        compile project(':common')
-        testCompile project(':testcommon')
-    }
-
-}
 project('service:storage') {
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
-        compile project(':service:config')
         testCompile project(':testcommon')
     }
 }

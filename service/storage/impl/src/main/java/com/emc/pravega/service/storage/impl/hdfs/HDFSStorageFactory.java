@@ -1,9 +1,9 @@
-package com.emc.pravega.service.storage;
+package com.emc.pravega.service.storage.impl.hdfs;
 
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.service.config.ServiceBuilderConfig;
-import com.emc.pravega.service.storage.hdfs.HDFSStorage;
+import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageFactory;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -13,11 +13,11 @@ public class HDFSStorageFactory implements StorageFactory {
     private boolean closed;
 
 
-    public HDFSStorageFactory(ServiceBuilderConfig serviceBuilderConfig,Executor executor) {
+    public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
         this.storage = new HDFSStorage(serviceBuilderConfig,executor);
     }
 
-    public HDFSStorageFactory(ServiceBuilderConfig serviceBuilderConfig) {
+    public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig) {
         this(serviceBuilderConfig,ForkJoinPool.commonPool());
 
     }

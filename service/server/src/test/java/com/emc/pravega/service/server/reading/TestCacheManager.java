@@ -18,8 +18,6 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.service.config.CachePolicy;
-
 import java.util.concurrent.ScheduledExecutorService;
 
 /**

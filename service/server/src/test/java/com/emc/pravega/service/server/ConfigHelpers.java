@@ -18,10 +18,10 @@
 
 package com.emc.pravega.service.server;
 
-import com.emc.pravega.service.config.DurableLogConfig;
-import com.emc.pravega.service.config.ReadIndexConfig;
-import com.emc.pravega.service.config.ServiceBuilderConfig;
-import com.emc.pravega.service.config.WriterConfig;
+import com.emc.pravega.service.server.logs.DurableLogConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.writer.WriterConfig;
 
 import java.util.Map;
 import java.util.Properties;

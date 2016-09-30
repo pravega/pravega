@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
-import com.emc.pravega.service.config.CachePolicy;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;

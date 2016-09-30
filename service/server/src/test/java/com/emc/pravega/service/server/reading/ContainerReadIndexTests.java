@@ -19,8 +19,6 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.config.CachePolicy;
-import com.emc.pravega.service.config.ReadIndexConfig;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;

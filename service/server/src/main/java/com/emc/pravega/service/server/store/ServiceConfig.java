@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.config;
+package com.emc.pravega.service.server.store;
 
 import java.util.Properties;
 

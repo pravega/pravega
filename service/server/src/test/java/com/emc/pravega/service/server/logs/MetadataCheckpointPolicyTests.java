@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.service.config.DurableLogConfig;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.PropertyBag;

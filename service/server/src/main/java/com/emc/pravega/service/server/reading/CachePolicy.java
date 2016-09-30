@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.config;
+package com.emc.pravega.service.server.reading;
 
 import com.google.common.base.Preconditions;
 

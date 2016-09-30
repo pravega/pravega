@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.config;
+package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;

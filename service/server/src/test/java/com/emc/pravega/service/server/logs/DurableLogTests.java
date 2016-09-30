@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.config.DurableLogConfig;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -48,8 +47,8 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.server.reading.CacheManager;
 import com.emc.pravega.service.server.reading.ContainerReadIndex;
-import com.emc.pravega.service.config.ReadIndexConfig;
-import com.emc.pravega.service.config.ServiceBuilderConfig;
+import com.emc.pravega.service.server.reading.ReadIndexConfig;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DataLogNotAvailableException;
 import com.emc.pravega.service.storage.DurableDataLog;

@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
-import com.emc.pravega.service.config.WriterConfig;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;

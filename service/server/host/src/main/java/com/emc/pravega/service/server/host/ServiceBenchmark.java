@@ -20,7 +20,7 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.config.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.host.benchmark.Benchmark;
 import com.emc.pravega.service.server.host.benchmark.RecoveryBenchmark;
 import org.slf4j.LoggerFactory;
