@@ -19,9 +19,7 @@ package com.emc.pravega.stream;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.NavigableMap;
 
 import com.google.common.base.Preconditions;
 
@@ -33,43 +31,34 @@ import lombok.Getter;
  */
 @EqualsAndHashCode
 public class StreamSegments {
-    private final Map<Segment, Double> segments; //Map is ordered by value ascending.
+    private final NavigableMap<Double, Segment> segments;
     @Getter
     private final long time;
     
     /**
      * @param time The time at which these segments make up a stream.
-     * @param segments Segments of a stream, in order, associated with the largest key in their key range.
+     * @param segments Segments of a stream, keyed by the largest key in their key range.
      * IE: If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0
      */
-    public StreamSegments(long time, LinkedHashMap<Segment, Double> segments) {
+    public StreamSegments(long time, NavigableMap<Double, Segment> segments) {
         this.time = time;
-        this.segments = Collections.unmodifiableMap(segments);
+        this.segments = Collections.unmodifiableNavigableMap(segments);
         verifySegments();
     }
 
     private void verifySegments() {
-        Double last = 0.0;
-        for (Double maxKey : segments.values()) {
-            Preconditions.checkArgument(last < maxKey, "Segments are out of order.");
-            maxKey = last;
-        }
-        Preconditions.checkArgument(last >= 1.0, "Last segment missing.");
-        Preconditions.checkArgument(last < 1.00001, "Segments should only go up to 1.0");
+        Preconditions.checkArgument(segments.firstKey() > 0.0, "Nonsense value for segment.");
+        Preconditions.checkArgument(segments.lastKey() >= 1.0, "Last segment missing.");
+        Preconditions.checkArgument(segments.lastKey() < 1.00001, "Segments should only go up to 1.0");
     }
     
     public Segment getSegmentForKey(double key) {
         Preconditions.checkArgument(key >= 0.0);
         Preconditions.checkArgument(key <= 1.0);
-        for (Entry<Segment, Double> entry: segments.entrySet()) {
-            if (entry.getValue() >= key) {
-                return entry.getKey();
-            }
-        }
-        throw new IllegalStateException("");
+        return segments.ceilingEntry(key).getValue();
     }
 
     public Collection<Segment> getSegments() {
-        return segments.keySet();
+        return segments.values();
     }
 }

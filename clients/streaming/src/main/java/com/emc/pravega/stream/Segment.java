@@ -67,13 +67,19 @@ public class Segment {
                 && previousNumber == other.segmentNumber;
     }
 
-    public static String getScopedStreamNameFromName(String segment) {
+    public static String getScopeFromQualifiedName(String segment) {
         String[] tokens = segment.split("/");
         Preconditions.checkArgument(tokens.length >= 3);
-        return tokens[0] + "/" + tokens[1];
+        return tokens[0];
+    }
+    
+    public static String getStreamNameFromQualifiedName(String segment) {
+        String[] tokens = segment.split("/");
+        Preconditions.checkArgument(tokens.length >= 3);
+        return tokens[1];
     }
 
-    public static int getSegmentNumberFromName(String segment) {
+    public static int getSegmentNumberFromQualifiedName(String segment) {
         String[] tokens = segment.split("/");
         Preconditions.checkArgument(tokens.length >= 3);
         return Integer.parseInt(tokens[2]);

@@ -19,6 +19,8 @@ package com.emc.pravega.stream.impl;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ import org.apache.thrift.transport.TNonblockingTransport;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
@@ -144,21 +147,24 @@ public class ControllerImpl implements Controller {
             client.getCurrentSegments(scope, stream, callback);
             return callback.getResult();
         });
-        return callback
-                .getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-                .thenApply(result ->
-                                new StreamSegments(
-                                        result.stream().map(ModelHelper::encode).collect(Collectors.toList()),
-                                        System.currentTimeMillis())
-                );
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult)).thenApply( (List<SegmentRange> ranges) -> {
+                   NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+                   for (SegmentRange r : ranges) {
+                       rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId(), -1)); 
+                   }
+                   return rangeMap; 
+                }).thenApply(map -> new StreamSegments(System.currentTimeMillis(), map));
     }
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getURI(new SegmentId(scope, streamName, number), callback);
+            String scope = Segment.getScopeFromQualifiedName(qualifiedSegmentName);
+            String stream = Segment.getStreamNameFromQualifiedName(qualifiedSegmentName);
+            int number = Segment.getSegmentNumberFromQualifiedName(qualifiedSegmentName);
+            client.getURI(new SegmentId(scope, stream, number), callback);
             return callback.getResult();
         });
         return callback
@@ -186,7 +192,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public void createTransaction(Segment s, UUID txId, long timeout) {
+    public void createTransaction(Stream stream, UUID txId, long timeout) {
         // TODO Auto-generated method stub
         
     }

@@ -21,8 +21,8 @@ package com.emc.pravega.stream.mock;
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -123,8 +123,8 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
-        LinkedHashMap<Segment, Double> segments = new LinkedHashMap<>();
-        segments.put(new Segment(scope, stream, 0, -1), 1.0);
+        TreeMap<Double, Segment> segments = new TreeMap<>();
+        segments.put(1.0, new Segment(scope, stream, 0, -1));
         return CompletableFuture.completedFuture(new StreamSegments(System.currentTimeMillis(), segments));
     }
 
