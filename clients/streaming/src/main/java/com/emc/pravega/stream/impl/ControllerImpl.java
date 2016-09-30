@@ -31,6 +31,7 @@ import org.apache.thrift.transport.TNonblockingTransport;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
@@ -95,12 +96,12 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count) {
+    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
         log.info("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream, timestamp, count);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.getPositions_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getPositions(stream, timestamp, count, callback);
+            client.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count, callback);
             return null;
         });
         return callback
@@ -113,7 +114,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
+    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
         log.info("Invoke ConsumerService.Client.updatePositions() for positions: {} ", positions);
 
         List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
@@ -121,7 +122,7 @@ public class ControllerImpl implements Controller {
 
         ThriftAsyncCallback<ControllerService.AsyncClient.updatePositions_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.updatePositions(stream, transformed, callback);
+            client.updatePositions(stream.getScope(), stream.getStreamName(), transformed, callback);
             return null;
         });
         return callback
@@ -134,13 +135,13 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
+    public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         //Use RPC client to invoke getPositions
         log.info("Invoke ProducerService.Client.getCurrentSegments() for stream: {}", stream);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.getCurrentSegments_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getCurrentSegments(stream, callback);
+            client.getCurrentSegments(scope, stream, callback);
             return callback.getResult();
         });
         return callback
@@ -157,7 +158,7 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.getURI(qualifiedSegmentName, callback);
+            client.getURI(new SegmentId(scope, streamName, number), callback);
             return callback.getResult();
         });
         return callback

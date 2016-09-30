@@ -1,18 +1,14 @@
 package com.emc.pravega.stream.mock;
 
-import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
-import com.emc.pravega.stream.impl.Controller;
-import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -22,12 +18,12 @@ public class MockStreamManager implements StreamManager {
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ConnectionFactoryImpl connectionFactory;
-    private final Controller controller;
+    private final MockController controller;
     
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
         this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.controller = new MockController(endpoint, port);
+        this.controller = new MockController(endpoint, port, connectionFactory);
     }
 
     @Override
@@ -59,12 +55,12 @@ public class MockStreamManager implements StreamManager {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
 
     }
     
     public Position getInitialPosition(String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0, -1), 0L), Collections.emptyMap());
+        return controller.getInitialPosition(stream, stream);
     }
     
 }

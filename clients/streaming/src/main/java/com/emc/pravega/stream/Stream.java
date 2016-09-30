@@ -52,8 +52,19 @@ import com.emc.pravega.stream.impl.Orderer;
  * the most part this is done by calling {@link RebalancerUtils#rebalance}
  */
 public interface Stream {
+    
     /**
-     * @return The name of this stream.
+     * @return The scope of this stream.
+     */
+    String getScope();
+    
+    /**
+     * @return The name of this stream. (Not including the scope)
+     */
+    String getStreamName();
+    
+    /**
+     * @return The scoped name of this stream.
      */
     String getQualifiedName();
 

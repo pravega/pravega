@@ -30,6 +30,7 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxFailedException;
 
 
 /**
@@ -56,18 +57,16 @@ public interface Controller {
      
         /**
          * Api to get list of current segments for the stream to produce to.
-         * @param stream
-         * @return
          */
-        CompletableFuture<StreamSegments> getCurrentSegments(String stream);
+        CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
+        
+        void createTransaction(Stream stream, UUID txId, long timeout);
 
-        void commitTransaction(Stream stream, UUID txId);
+        void commitTransaction(Stream stream, UUID txId) throws TxFailedException;
 
         void dropTransaction(Stream stream, UUID txId);
 
         Transaction.Status checkTransactionStatus(UUID txId);
-
-        void createTransaction(Segment s, UUID txId, long timeout);
 
     // Controller Apis that are called by consumers
 
@@ -79,7 +78,7 @@ public interface Controller {
          * @param count
          * @return
          */
-        CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count);
+        CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count);
 
         /**
          * Called by consumer upon reaching end of segment on some segment in its position obejct
@@ -87,7 +86,7 @@ public interface Controller {
          * @param positions
          * @return
          */
-        CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions);
+        CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions);
 
     //Controller Apis that are called by producers and consumers
         

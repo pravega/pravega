@@ -41,7 +41,9 @@ import lombok.Getter;
  */
 public class StreamImpl implements Stream {
 
+    @Getter
     private final String scope;
+    @Getter
     private final String streamName;
     @Getter
     private final StreamConfiguration config;

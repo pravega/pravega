@@ -48,7 +48,7 @@ public class AsyncSegmentInputStreamTest {
         String segment = "testRetry";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort());
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
@@ -73,9 +73,9 @@ public class AsyncSegmentInputStreamTest {
     public void testRead() throws ConnectionFailedException {
         String segment = "testRetry";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort());
-
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
@@ -95,7 +95,7 @@ public class AsyncSegmentInputStreamTest {
         String segment = "testRetry";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort());
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);

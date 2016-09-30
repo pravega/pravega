@@ -20,6 +20,7 @@ package com.emc.pravega.stream.mock;
 
 import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
@@ -32,7 +33,16 @@ import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
+import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
+import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
+import com.emc.pravega.common.netty.WireCommands.DropTransaction;
+import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.PositionInternal;
@@ -41,8 +51,11 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import com.google.common.collect.ImmutableList;
 
 import lombok.AllArgsConstructor;
 
@@ -51,6 +64,7 @@ public class MockController implements Controller {
 
     private final String endpoint;
     private final int port;
+    private final ConnectionFactory connectionFactory;
 
     @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
@@ -108,49 +122,126 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
+    public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         LinkedHashMap<Segment, Double> segments = new LinkedHashMap<>();
-        segments.put(new Segment(stream, stream, 0, -1), 1.0);
+        segments.put(new Segment(scope, stream, 0, -1), 1.0);
         return CompletableFuture.completedFuture(new StreamSegments(System.currentTimeMillis(), segments));
     }
 
     @Override
-    public void commitTransaction(Stream stream, UUID txId) {
-        // TODO Auto-generated method stub
+    public void commitTransaction(Stream stream, UUID txId) throws TxFailedException {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WrongHost wrongHost) {
+                result.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void transactionCommitted(TransactionCommitted transactionCommitted) {
+                result.complete(null);
+            }
+
+            @Override
+            public void transactionDropped(TransactionDropped transactionDropped) {
+                result.completeExceptionally(new TxFailedException("Transaction already dropped."));
+            }
+        };
+        sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        getAndHandleExceptions(result, TxFailedException::new);
     }
 
     @Override
     public void dropTransaction(Stream stream, UUID txId) {
-        // TODO Auto-generated method stub
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WrongHost wrongHost) {
+                result.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void transactionCommitted(TransactionCommitted transactionCommitted) {
+                result.completeExceptionally(new RuntimeException("Transaction already committed."));
+            }
+
+            @Override
+            public void transactionDropped(TransactionDropped transactionDropped) {
+                result.complete(null);
+            }
+        };
+        sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        getAndHandleExceptions(result, RuntimeException::new);
     }
 
     @Override
     public Transaction.Status checkTransactionStatus(UUID txId) {
-        // TODO Auto-generated method stub
-        return null;
+        throw new NotImplementedException();
     }
 
     @Override
-    public void createTransaction(Segment s, UUID txId, long timeout) {
-        // TODO Auto-generated method stub
+    public void createTransaction(Stream stream, UUID txId, long timeout) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WrongHost wrongHost) {
+                result.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void transactionCreated(TransactionCreated transactionCreated) {
+                result.complete(null);
+            }
+        };
+        sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        getAndHandleExceptions(result, RuntimeException::new);
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int count) {
-        return null;
+    public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
+        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(), stream.getStreamName())));
     }
 
     @Override
-    public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
-        return null;
+    public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
+        return CompletableFuture.completedFuture(positions);
     }
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
+    }
+    
+    public PositionImpl getInitialPosition(String scope, String stream) {
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0, -1), 0L), Collections.emptyMap());
+    }
+    
+    private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {
+        ClientConnection connection = getAndHandleExceptions(connectionFactory
+            .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
+        try {
+            connection.send(request);
+        } catch (ConnectionFailedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
 

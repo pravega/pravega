@@ -94,7 +94,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             .retryingOn(SegmentSealedException.class)
             .throwingOn(RuntimeException.class)
             .run(() -> {
-                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getQualifiedName()), RuntimeException::new).getSegments();
+                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new).getSegments();
                 for (Segment segment : s) {
                     if (!producers.containsKey(segment)) {
                         SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
@@ -226,8 +226,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
+        controller.createTransaction(stream, txId, timeout);
         for (Segment s : segmentIds) {
-            controller.createTransaction(s, txId, timeout);
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);

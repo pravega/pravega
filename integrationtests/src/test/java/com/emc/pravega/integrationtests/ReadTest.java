@@ -164,7 +164,7 @@ public class ReadTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-        Controller controller = new MockController(endpoint, port);
+        Controller controller = new MockController(endpoint, port, clientCF);
         controller.createStream(new StreamConfigurationImpl(scope, stream, null));
 
         SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
@@ -172,7 +172,7 @@ public class ReadTest {
         SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, clientCF);
 
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(stream), RuntimeException::new)
+        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
                 .getSegments().iterator().next();
 
         @Cleanup("close")

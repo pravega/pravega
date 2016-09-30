@@ -62,7 +62,6 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.StreamManagerImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
@@ -180,12 +179,12 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-        Controller controller = new MockController(endpoint, port);
+        Controller controller = new MockController(endpoint, port, clientCF);
         controller.createStream(new StreamConfigurationImpl(scope, stream, null));
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(stream), RuntimeException::new).getSegments().iterator().next();
+        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -205,7 +204,7 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        Controller controller = new MockController(endpoint, port);
+        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         Stream stream = streamManager.createStream(streamName, null);
 
