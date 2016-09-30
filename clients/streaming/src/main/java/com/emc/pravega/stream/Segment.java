@@ -20,12 +20,14 @@ package com.emc.pravega.stream;
 import com.google.common.base.Preconditions;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 
 /**
  * An identifier for a segment of a stream.
  */
 @Data
+@EqualsAndHashCode(exclude="previousNumber")
 public class Segment {
     private final String scope;
     @NonNull

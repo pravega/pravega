@@ -54,7 +54,6 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.PositionImpl;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.ImmutableList;
 
 import lombok.AllArgsConstructor;
@@ -68,7 +67,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-        Segment segmentId = new Segment(streamConfig.getName(), streamConfig.getName(), 0, -1);
+        Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0, -1);
 
         createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
         try {
@@ -85,9 +84,7 @@ public class MockController implements Controller {
         return null;
     }
 
-    static boolean createSegment(String name, PravegaNodeUri uri) {
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-
+    boolean createSegment(String name, PravegaNodeUri uri) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -111,7 +108,7 @@ public class MockController implements Controller {
                 result.complete(true);
             }
         };
-        ClientConnection connection = getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
+        ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(uri, replyProcessor),
                                                              RuntimeException::new);
         try {
             connection.send(new WireCommands.CreateSegment(name));

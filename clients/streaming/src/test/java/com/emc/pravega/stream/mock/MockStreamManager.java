@@ -60,7 +60,7 @@ public class MockStreamManager implements StreamManager {
     }
     
     public Position getInitialPosition(String stream) {
-        return controller.getInitialPosition(stream, stream);
+        return controller.getInitialPosition(scope, stream);
     }
     
 }
