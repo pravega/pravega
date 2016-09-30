@@ -103,7 +103,7 @@ class LogTestHelpers {
                 long transactionId = getTransactionId(streamSegmentId, i);
                 assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
                 assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
-                String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(streamSegmentName);
+                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(streamSegmentName);
                 UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId, streamSegmentId);
                 transactionMetadata.setDurableLogLength(0);
                 transactionMetadata.setStorageLength(0);

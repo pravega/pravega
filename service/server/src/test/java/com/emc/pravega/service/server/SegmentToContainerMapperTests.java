@@ -104,7 +104,7 @@ public class SegmentToContainerMapperTests {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < transactionPerParentCount; i++) {
-                String transactionName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
+                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
                 int transactionContainerId = m.getContainerId(transactionName);
                 Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, transactionContainerId);
             }

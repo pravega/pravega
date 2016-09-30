@@ -49,14 +49,14 @@ public final class StreamSegmentNameUtils {
     //endregion
 
     /**
-     * Generates a name for a Batch StreamSegment based on the name of the current Parent StreamSegment.
+     * Generates a name for a Transaction StreamSegment based on the name of the current Parent StreamSegment.
      * Every call to this method should generate a different name, as long as the calls are at least 1ns apart.
      * The return value from this method can be decomposed using the getParentStreamSegmentName method.
      *
-     * @param parentStreamSegmentName The name of the Parent StreamSegment for this batch.
-     * @return The name of the Batch StreamSegmentId.
+     * @param parentStreamSegmentName The name of the Parent StreamSegment for this Transaction.
+     * @return The name of the Transaction StreamSegmentId.
      */
-    public static String generateBatchStreamSegmentName(String parentStreamSegmentName) {
+    public static String generateTransactionStreamSegmentName(String parentStreamSegmentName) {
         // Part 1 is the the long HashCode for the parentStreamSegmentName.
         long part1 = StringHelpers.longHashCode(parentStreamSegmentName, 0, parentStreamSegmentName.length());
 
@@ -64,7 +64,7 @@ public final class StreamSegmentNameUtils {
         long part2 = System.currentTimeMillis() & 0xffffffffL;
         part2 = part2 << Integer.SIZE | System.nanoTime() & 0xffffffffL;
 
-        return parentStreamSegmentName + DELIMITER+ String.format(PART_FORMAT, part1)+String.format(PART_FORMAT, part2);
+        return parentStreamSegmentName + DELIMITER + String.format(PART_FORMAT, part1) + String.format(PART_FORMAT, part2);
     }
 
     /**
