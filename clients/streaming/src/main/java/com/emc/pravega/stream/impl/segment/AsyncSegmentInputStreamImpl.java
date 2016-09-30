@@ -201,7 +201,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
             }
-
             if (!read.await()) {
                 log.debug("Retransmitting a read request {}", read.request);
                 read.reset();
@@ -212,8 +211,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     closeConnection(e);
                 }
             }
-
-            return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(read::get);
+            return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(() -> read.get());
         });
     }
+
 }
