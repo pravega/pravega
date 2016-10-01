@@ -18,6 +18,8 @@
 
 package com.emc.pravega.service.server;
 
+import com.emc.pravega.service.storage.LogAddress;
+
 /**
  * Defines a repository for Truncation Markers.
  * Truncation Markers are mappings (of Operation Sequence Numbers to DataFrame Sequence Numbers) where the DurableDataLog
@@ -29,10 +31,10 @@ public interface TruncationMarkerRepository {
      * A Truncation Marker is a particular position in the Log where we can execute truncation operations.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param dataFrameSequenceNumber The Sequence Number of the corresponding Data Frame that can be truncated (up to, and including).
+     * @param address                 The LogAddress of the corresponding Data Frame that can be truncated (up to, and including).
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber);
+    void recordTruncationMarker(long operationSequenceNumber, LogAddress address);
 
     /**
      * Removes all truncation markers up to, and including the given Operation Sequence Number.
@@ -46,10 +48,10 @@ public interface TruncationMarkerRepository {
      * Gets the closest Truncation Marker to the given Operation Sequence Number that does not exceed it.
      *
      * @param operationSequenceNumber The Operation Sequence Number to query.
-     * @return The requested Truncation Marker, or -1 if no such marker exists.
+     * @return The requested Truncation Marker, or null if no such marker exists.
      * @throws IllegalStateException If the Metadata is in Recovery Mode.
      */
-    long getClosestTruncationMarker(long operationSequenceNumber);
+    LogAddress getClosestTruncationMarker(long operationSequenceNumber);
 
     /**
      * Records the fact that the given Operation Sequence Number is a valid Truncation Point. We can only truncate on
@@ -65,14 +67,13 @@ public interface TruncationMarkerRepository {
      * setValidTruncationPoint().
      *
      * @param operationSequenceNumber The Sequence number to query.
-     * @return The result.
      */
     boolean isValidTruncationPoint(long operationSequenceNumber);
 
     /**
      * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence Number.
+     *
      * @param operationSequenceNumber The Sequence number to query.
-     * @return The result.
      */
     long getClosestValidTruncationPoint(long operationSequenceNumber);
 }

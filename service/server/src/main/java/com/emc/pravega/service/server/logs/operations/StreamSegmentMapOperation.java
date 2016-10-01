@@ -77,7 +77,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     /**
      * Sets the StreamSegmentId for this operation.
-     * @param value
+     * @param value The Id of the segment to set.
      */
     public void setStreamSegmentId(long value) {
         Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");

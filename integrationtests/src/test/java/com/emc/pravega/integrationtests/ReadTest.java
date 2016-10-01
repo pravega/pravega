@@ -218,14 +218,14 @@ public class ReadTest {
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
             StreamSegmentStore segmentStore) {
-        segmentStore.createStreamSegment(segmentName, Duration.ZERO);
-        for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-            AppendContext appendContext = new AppendContext(clientId, eventNumber);
-            try {
+        try {
+            segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
+            for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
+                AppendContext appendContext = new AppendContext(clientId, eventNumber);
                 segmentStore.append(segmentName, data, appendContext, Duration.ZERO).get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
             }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
         }
     }
 }

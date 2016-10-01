@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
@@ -35,7 +34,7 @@ import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
@@ -75,9 +74,9 @@ public class SegmentAggregatorTests {
     private static final int CONTAINER_ID = 0;
     private static final long SEGMENT_ID = 123;
     private static final String SEGMENT_NAME = "Segment";
-    private static final long BATCH_ID_START = 1000000;
-    private static final String BATCH_NAME_PREFIX = "Batch";
-    private static final int BATCH_COUNT = 10;
+    private static final long TRANSACTION_ID_START = 1000000;
+    private static final String TRANSACTION_NAME_PREFIX = "Transaction";
+    private static final int TRANSACTION_COUNT = 10;
     private static final int THREAD_POOL_SIZE = 10; // We only need this for storage, so no need for a big pool.
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final AppendContext APPEND_CONTEXT = new AppendContext(UUID.randomUUID(), 0);
@@ -99,23 +98,23 @@ public class SegmentAggregatorTests {
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
         // Check behavior for non-existent segments (in Storage).
-        context.batchesAggregators[0].initialize(TIMEOUT).join();
-        Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", context.batchesAggregators[0].getMetadata().isDeleted());
+        context.transactionAggregators[0].initialize(TIMEOUT).join();
+        Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", context.transactionAggregators[0].getMetadata().isDeleted());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
-        context.storage.create(context.batchesAggregators[1].getMetadata().getName(), TIMEOUT).join();
-        context.storage.seal(context.batchesAggregators[1].getMetadata().getName(), TIMEOUT).join();
+        context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
+        context.storage.seal(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
-                () -> context.batchesAggregators[1].initialize(TIMEOUT),
-                ex -> ex instanceof RuntimeStreamingException && ex.getCause() instanceof DataCorruptionException);
+                () -> context.transactionAggregators[1].initialize(TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
 
         // Check behavior for already-sealed segments (in storage, in metadata, but metadata does not reflect Sealed in storage.)
-        context.storage.create(context.batchesAggregators[2].getMetadata().getName(), TIMEOUT).join();
-        context.storage.seal(context.batchesAggregators[2].getMetadata().getName(), TIMEOUT).join();
-        ((UpdateableSegmentMetadata) context.batchesAggregators[2].getMetadata()).markSealed();
-        context.batchesAggregators[2].initialize(TIMEOUT).join();
-        Assert.assertTrue("isSealedInStorage() flag not set on metadata for storage-sealed segment.", context.batchesAggregators[2].getMetadata().isSealedInStorage());
+        context.storage.create(context.transactionAggregators[2].getMetadata().getName(), TIMEOUT).join();
+        context.storage.seal(context.transactionAggregators[2].getMetadata().getName(), TIMEOUT).join();
+        ((UpdateableSegmentMetadata) context.transactionAggregators[2].getMetadata()).markSealed();
+        context.transactionAggregators[2].initialize(TIMEOUT).join();
+        Assert.assertTrue("isSealedInStorage() flag not set on metadata for storage-sealed segment.", context.transactionAggregators[2].getMetadata().isSealedInStorage());
 
         // Check the ability to update Metadata.StorageOffset if it is different.
         final int writeLength = 10;
@@ -157,24 +156,24 @@ public class SegmentAggregatorTests {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // We only needs one batch for this test.
-        SegmentAggregator batchAggregator = context.batchesAggregators[0];
-        SegmentMetadata batchMetadata = batchAggregator.getMetadata();
+        // We only needs one Transaction for this test.
+        SegmentAggregator transactionAggregator = context.transactionAggregators[0];
+        SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
 
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.storage.create(batchMetadata.getName(), TIMEOUT).join();
+        context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
-        batchAggregator.initialize(TIMEOUT).join();
+        transactionAggregator.initialize(TIMEOUT).join();
 
         // Verify Appends with correct parameters work as expected.
         for (int i = 0; i < appendCount; i++) {
             context.segmentAggregator.add(generateAppendAndUpdateMetadata(i, SEGMENT_ID, context));
-            batchAggregator.add(generateAppendAndUpdateMetadata(i, batchMetadata.getId(), context));
+            transactionAggregator.add(generateAppendAndUpdateMetadata(i, transactionMetadata.getId(), context));
         }
 
-        // Seal the batch and add a MergeBatchOperation to the parent.
-        batchAggregator.add(generateSealAndUpdateMetadata(batchMetadata.getId(), context));
-        context.segmentAggregator.add(generateMergeBatchAndUpdateMetadata(batchMetadata.getId(), context));
+        // Seal the Transaction and add a MergeTransactionOperation to the parent.
+        transactionAggregator.add(generateSealAndUpdateMetadata(transactionMetadata.getId(), context));
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(transactionMetadata.getId(), context));
 
         // Add more appends to the parent.
         for (int i = 0; i < appendCount; i++) {
@@ -190,41 +189,41 @@ public class SegmentAggregatorTests {
      */
     @Test
     public void testAddWithBadInput() throws Exception {
-        final long badBatchId = 12345;
+        final long badTransactionId = 12345;
         final long badParentId = 56789;
         final String badParentName = "Foo_Parent";
-        final String badBatchName = "Foo_Batch";
+        final String badTransactionName = "Foo_Transaction";
 
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // We only needs one batch for this test.
-        SegmentAggregator batchAggregator = context.batchesAggregators[0];
-        SegmentMetadata batchMetadata = batchAggregator.getMetadata();
+        // We only needs one Transaction for this test.
+        SegmentAggregator transactionAggregator = context.transactionAggregators[0];
+        SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
 
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.storage.create(batchMetadata.getName(), TIMEOUT).join();
+        context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
-        batchAggregator.initialize(TIMEOUT).join();
+        transactionAggregator.initialize(TIMEOUT).join();
 
-        // Create 2 more segments that can be used to verify MergeBatchOperation.
+        // Create 2 more segments that can be used to verify MergeTransactionOperation.
         context.containerMetadata.mapStreamSegmentId(badParentName, badParentId);
-        UpdateableSegmentMetadata badBatchMeta = context.containerMetadata.mapStreamSegmentId(badBatchName, badBatchId, badParentId);
-        badBatchMeta.setDurableLogLength(0);
-        badBatchMeta.setStorageLength(0);
-        context.storage.create(badBatchMeta.getName(), TIMEOUT).join();
+        UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata.mapStreamSegmentId(badTransactionName, badTransactionId, badParentId);
+        badTransactionMetadata.setDurableLogLength(0);
+        badTransactionMetadata.setStorageLength(0);
+        context.storage.create(badTransactionMetadata.getName(), TIMEOUT).join();
 
-        // 1. MergeBatchOperation
-        // 1a.Verify that MergeBatchOperation cannot be added to the batch segment.
+        // 1. MergeTransactionOperation
+        // 1a.Verify that MergeTransactionOperation cannot be added to the Transaction segment.
         AssertExtensions.assertThrows(
-                "add() allowed a MergeBatchOperation on the batch segment.",
-                () -> batchAggregator.add(generateSimpleMergeBatch(batchMetadata.getId(), context)),
+                "add() allowed a MergeTransactionOperation on the Transaction segment.",
+                () -> transactionAggregator.add(generateSimpleMergeTransaction(transactionMetadata.getId(), context)),
                 ex -> ex instanceof IllegalArgumentException);
 
-        // 1b. Verify that MergeBatchOperation has the right parent.
+        // 1b. Verify that MergeTransactionOperation has the right parent.
         AssertExtensions.assertThrows(
-                "add() allowed a MergeBatchOperation on the parent for a Batch that did not have it as a parent.",
-                () -> batchAggregator.add(generateSimpleMergeBatch(badBatchId, context)),
+                "add() allowed a MergeTransactionOperation on the parent for a Transaction that did not have it as a parent.",
+                () -> transactionAggregator.add(generateSimpleMergeTransaction(badTransactionId, context)),
                 ex -> ex instanceof IllegalArgumentException);
 
         // 2. StreamSegmentSealOperation.
@@ -233,19 +232,19 @@ public class SegmentAggregatorTests {
                 "add() allowed a StreamSegmentSealOperation for a non-sealed segment.",
                 () -> {
                     @Cleanup
-                    SegmentAggregator badBatchAggregator = new SegmentAggregator(badBatchMeta, context.dataSource, context.storage, DEFAULT_CONFIG, context.stopwatch);
-                    badBatchAggregator.initialize(TIMEOUT).join();
-                    badBatchAggregator.add(generateSimpleSeal(badBatchId, context));
+                    SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.stopwatch);
+                    badTransactionAggregator.initialize(TIMEOUT).join();
+                    badTransactionAggregator.add(generateSimpleSeal(badTransactionId, context));
                 },
                 ex -> ex instanceof DataCorruptionException);
 
-        // 2b. Verify that nothing is allowed after Seal (after adding one append to and sealing the Batch Segment).
-        StorageOperation batchAppend1 = generateAppendAndUpdateMetadata(0, batchMetadata.getId(), context);
-        batchAggregator.add(batchAppend1);
-        batchAggregator.add(generateSealAndUpdateMetadata(batchMetadata.getId(), context));
+        // 2b. Verify that nothing is allowed after Seal (after adding one append to and sealing the Transaction Segment).
+        StorageOperation transactionAppend1 = generateAppendAndUpdateMetadata(0, transactionMetadata.getId(), context);
+        transactionAggregator.add(transactionAppend1);
+        transactionAggregator.add(generateSealAndUpdateMetadata(transactionMetadata.getId(), context));
         AssertExtensions.assertThrows(
                 "add() allowed operation after seal.",
-                () -> batchAggregator.add(generateSimpleAppend(batchMetadata.getId(), context)),
+                () -> transactionAggregator.add(generateSimpleAppend(transactionMetadata.getId(), context)),
                 ex -> ex instanceof DataCorruptionException);
 
         // 3. (Cached)StreamSegmentAppendOperation.
@@ -298,9 +297,9 @@ public class SegmentAggregatorTests {
                 "add() allowed an operation with wrong offset (too large, but no pending operations).",
                 () -> {
                     @Cleanup
-                    SegmentAggregator badBatchAggregator = new SegmentAggregator(badBatchMeta, context.dataSource, context.storage, DEFAULT_CONFIG, context.stopwatch);
-                    badBatchMeta.setDurableLogLength(100);
-                    badBatchAggregator.initialize(TIMEOUT).join();
+                    SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.stopwatch);
+                    badTransactionMetadata.setDurableLogLength(100);
+                    badTransactionAggregator.initialize(TIMEOUT).join();
 
                     StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), APPEND_CONTEXT);
                     badOffsetAppend.setStreamSegmentOffset(1);
@@ -328,9 +327,9 @@ public class SegmentAggregatorTests {
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "add() allowed a MergeBatchOperation with wrong SegmentId.",
+                "add() allowed a MergeTransactionOperation with wrong SegmentId.",
                 () -> {
-                    MergeBatchOperation badIdMerge = new MergeBatchOperation(Integer.MAX_VALUE, batchMetadata.getId());
+                    MergeTransactionOperation badIdMerge = new MergeTransactionOperation(Integer.MAX_VALUE, transactionMetadata.getId());
                     badIdMerge.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     badIdMerge.setLength(1);
                     context.segmentAggregator.add(badIdMerge);
@@ -412,28 +411,28 @@ public class SegmentAggregatorTests {
             Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
         }
 
-        // Part 3: batch appends. This will force an internal loop inside flush() to do so repeatedly.
-        final int batchSize = 100;
+        // Part 3: Transaction appends. This will force an internal loop inside flush() to do so repeatedly.
+        final int transactionSize = 100;
         for (int i = 0; i < appendCount / 10; i++) {
-            for (int j = 0; j < batchSize; j++) {
+            for (int j = 0; j < transactionSize; j++) {
                 // Add another operation and record its length.
                 StorageOperation appendOp = generateAppendAndUpdateMetadata(i, SEGMENT_ID, context);
                 outstandingSize += appendOp.getLength();
                 context.segmentAggregator.add(appendOp);
                 getAppendData(appendOp, writtenData, context);
-                Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (batch appends).", appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
+                Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (Transaction appends).", appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
             }
 
             // Call flush() and inspect the result.
-            Assert.assertTrue("Unexpected value returned by mustFlush() (batch appends).", context.segmentAggregator.mustFlush());
+            Assert.assertTrue("Unexpected value returned by mustFlush() (Transaction appends).", context.segmentAggregator.mustFlush());
             FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
 
             // We are always expecting a flush.
-            AssertExtensions.assertGreaterThan("Not enough bytes were flushed (batch appends).", 0, flushResult.getFlushedBytes());
+            AssertExtensions.assertGreaterThan("Not enough bytes were flushed (Transaction appends).", 0, flushResult.getFlushedBytes());
             outstandingSize -= flushResult.getFlushedBytes();
 
-            Assert.assertFalse("Unexpected value returned by mustFlush() after flush (batch appends).", context.segmentAggregator.mustFlush());
-            Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flush (batch appends).", Operation.NO_SEQUENCE_NUMBER, context.segmentAggregator.getLowestUncommittedSequenceNumber());
+            Assert.assertFalse("Unexpected value returned by mustFlush() after flush (Transaction appends).", context.segmentAggregator.mustFlush());
+            Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flush (Transaction appends).", Operation.NO_SEQUENCE_NUMBER, context.segmentAggregator.getLowestUncommittedSequenceNumber());
             Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
         }
 
@@ -725,20 +724,21 @@ public class SegmentAggregatorTests {
     }
 
     /**
-     * Tests the flush() method with Append and MergeBatchOperations.
+     * Tests the flush() method with Append and MergeTransactionOperations.
      * Overall strategy:
-     * 1. Create one Parent Segment and N Batch Segments.
-     * 2. Populate all Batch Segments with data.
-     * 3. Seal the first N/2 Batch Segments.
-     * 4. Add some Appends, interspersed with Merge Batch Ops to the Parent (for all Batches)
-     * 5. Call flush() repeatedly on all Segments, until nothing is flushed anymore. Verify only the first N/2 batches were merged.
-     * 6. Seal the remaining N/2 Batch Segments
-     * 7. Call flush() repeatedly on all Segments, until nothing is flushed anymore. Verify all batches were merged.
-     * 8. Verify the Parent Segment has all the data (from itself and its batches), in the correct order.
+     * 1. Create one Parent Segment and N Transaction Segments.
+     * 2. Populate all Transaction Segments with data.
+     * 3. Seal the first N/2 Transaction Segments.
+     * 4. Add some Appends, interspersed with Merge Transaction Ops to the Parent (for all Transactions)
+     * 5. Call flush() repeatedly on all Segments, until nothing is flushed anymore. Verify only the first N/2 Transactions were merged.
+     * 6. Seal the remaining N/2 Transaction Segments
+     * 7. Call flush() repeatedly on all Segments, until nothing is flushed anymore. Verify all Transactions were merged.
+     * 8. Verify the Parent Segment has all the data (from itself and its Transactions), in the correct order.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testFlushMerge() throws Exception {
-        final int appendCount = 100; // This is number of appends per Segment/Batch - there will be a lot of appends here.
+        final int appendCount = 100; // This is number of appends per Segment/Transaction - there will be a lot of appends here.
         final WriterConfig config = ConfigHelpers.createWriterConfig(
                 PropertyBag.create()
                            .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, appendCount * 50) // Extra high length threshold.
@@ -754,7 +754,7 @@ public class SegmentAggregatorTests {
         // Create and initialize all segments.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
-        for (SegmentAggregator a : context.batchesAggregators) {
+        for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
             a.initialize(TIMEOUT).join();
         }
@@ -762,93 +762,93 @@ public class SegmentAggregatorTests {
         // Store written data by segment - so we can check it later.
         HashMap<Long, ByteArrayOutputStream> dataBySegment = new HashMap<>();
 
-        // Add a few appends to each batch aggregator and to the parent aggregator.
-        // Seal the first half of the batch aggregators (thus, those batches will be fully flushed).
-        HashSet<Long> sealedBatchIds = new HashSet<>();
-        for (int i = 0; i < context.batchesAggregators.length; i++) {
-            SegmentAggregator batchAggregator = context.batchesAggregators[i];
-            long batchId = batchAggregator.getMetadata().getId();
+        // Add a few appends to each Transaction aggregator and to the parent aggregator.
+        // Seal the first half of the Transaction aggregators (thus, those Transactions will be fully flushed).
+        HashSet<Long> sealedTransactionIds = new HashSet<>();
+        for (int i = 0; i < context.transactionAggregators.length; i++) {
+            SegmentAggregator transactionAggregator = context.transactionAggregators[i];
+            long transactionId = transactionAggregator.getMetadata().getId();
             ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
-            dataBySegment.put(batchId, writtenData);
+            dataBySegment.put(transactionId, writtenData);
 
             for (int appendId = 0; appendId < appendCount; appendId++) {
-                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, batchId, context);
-                batchAggregator.add(appendOp);
+                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, transactionId, context);
+                transactionAggregator.add(appendOp);
                 getAppendData(appendOp, writtenData, context);
             }
 
-            if (i < context.batchesAggregators.length / 2) {
+            if (i < context.transactionAggregators.length / 2) {
                 // We only seal the first half.
-                batchAggregator.add(generateSealAndUpdateMetadata(batchId, context));
-                sealedBatchIds.add(batchId);
+                transactionAggregator.add(generateSealAndUpdateMetadata(transactionId, context));
+                sealedTransactionIds.add(transactionId);
             }
         }
 
-        // Add MergeBatchOperations to the parent aggregator, making sure we have both the following cases:
-        // * Two or more consecutive MergeBatchOperations both for Batches that are sealed and for those that are not.
-        // * MergeBatchOperations with appends interspersed between them (in the parent), both for sealed Batches and non-sealed batches.
+        // Add MergeTransactionOperations to the parent aggregator, making sure we have both the following cases:
+        // * Two or more consecutive MergeTransactionOperations both for Transactions that are sealed and for those that are not.
+        // * MergeTransactionOperations with appends interspersed between them (in the parent), both for sealed Transactions and non-sealed Transactions.
         long parentSegmentId = context.segmentAggregator.getMetadata().getId();
         @Cleanup
         ByteArrayOutputStream parentData = new ByteArrayOutputStream();
-        for (int batchIndex = 0; batchIndex < context.batchesAggregators.length; batchIndex++) {
+        for (int transIndex = 0; transIndex < context.transactionAggregators.length; transIndex++) {
             // Every even step, we add an append (but not for odd-numbered steps).
-            // This helps ensure that we have both interspersed appends, and consecutive MergeBatchOperations in the parent.
-            if (batchIndex % 2 == 1) {
-                StorageOperation appendOp = generateAppendAndUpdateMetadata(batchIndex, parentSegmentId, context);
+            // This helps ensure that we have both interspersed appends, and consecutive MergeTransactionOperations in the parent.
+            if (transIndex % 2 == 1) {
+                StorageOperation appendOp = generateAppendAndUpdateMetadata(transIndex, parentSegmentId, context);
                 context.segmentAggregator.add(appendOp);
                 getAppendData(appendOp, parentData, context);
             }
 
-            // Merge this Batch into the parent & record its data in the final parent data array.
-            long batchId = context.batchesAggregators[batchIndex].getMetadata().getId();
-            context.segmentAggregator.add(generateMergeBatchAndUpdateMetadata(batchId, context));
+            // Merge this Transaction into the parent & record its data in the final parent data array.
+            long transactionId = context.transactionAggregators[transIndex].getMetadata().getId();
+            context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(transactionId, context));
 
-            ByteArrayOutputStream batchData = dataBySegment.get(batchId);
-            parentData.write(batchData.toByteArray());
-            batchData.close();
+            ByteArrayOutputStream transactionData = dataBySegment.get(transactionId);
+            parentData.write(transactionData.toByteArray());
+            transactionData.close();
         }
 
         // Flush all the Aggregators as long as at least one of them reports being able to flush and that it did flush something.
         flushAllSegments(context);
 
-        // Now check to see that only those batches that were sealed were merged.
-        for (SegmentAggregator batchAggregator : context.batchesAggregators) {
-            SegmentMetadata batchMetadata = batchAggregator.getMetadata();
-            boolean expectedMerged = sealedBatchIds.contains(batchMetadata.getId());
+        // Now check to see that only those Transactions that were sealed were merged.
+        for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
+            SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
+            boolean expectedMerged = sealedTransactionIds.contains(transactionMetadata.getId());
 
             if (expectedMerged) {
-                Assert.assertTrue("BatchSegment to be merged was not marked as deleted in metadata.", batchMetadata.isDeleted());
+                Assert.assertTrue("Transaction to be merged was not marked as deleted in metadata.", transactionMetadata.isDeleted());
                 AssertExtensions.assertThrows(
-                        "BatchSegment to be merged still exists in storage.",
-                        () -> context.storage.getStreamSegmentInfo(batchMetadata.getName(), TIMEOUT),
+                        "Transaction to be merged still exists in storage.",
+                        () -> context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
             } else {
-                Assert.assertFalse("BatchSegment not to be merged was marked as deleted in metadata.", batchMetadata.isDeleted());
-                SegmentProperties sp = context.storage.getStreamSegmentInfo(batchMetadata.getName(), TIMEOUT).join();
-                Assert.assertFalse("BatchSegment not to be merged is sealed in storage.", sp.isSealed());
+                Assert.assertFalse("Transaction not to be merged was marked as deleted in metadata.", transactionMetadata.isDeleted());
+                SegmentProperties sp = context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT).join();
+                Assert.assertFalse("Transaction not to be merged is sealed in storage.", sp.isSealed());
             }
         }
 
-        // Then seal the rest of the batches and re-run the flush on the parent a few times.
-        for (SegmentAggregator a : context.batchesAggregators) {
-            long batchId = a.getMetadata().getId();
-            if (!sealedBatchIds.contains(batchId)) {
-                // This batch was not sealed (and merged) previously. Do it now.
-                a.add(generateSealAndUpdateMetadata(batchId, context));
-                sealedBatchIds.add(batchId);
+        // Then seal the rest of the Transactions and re-run the flush on the parent a few times.
+        for (SegmentAggregator a : context.transactionAggregators) {
+            long transactionId = a.getMetadata().getId();
+            if (!sealedTransactionIds.contains(transactionId)) {
+                // This Transaction was not sealed (and merged) previously. Do it now.
+                a.add(generateSealAndUpdateMetadata(transactionId, context));
+                sealedTransactionIds.add(transactionId);
             }
         }
 
         // Flush all the Aggregators as long as at least one of them reports being able to flush and that it did flush something.
         flushAllSegments(context);
 
-        // Verify that all batches are now fully merged.
-        for (SegmentAggregator batchAggregator : context.batchesAggregators) {
-            SegmentMetadata batchMetadata = batchAggregator.getMetadata();
-            Assert.assertTrue("Merged BatchSegment was not marked as deleted in metadata.", batchMetadata.isDeleted());
+        // Verify that all Transactions are now fully merged.
+        for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
+            SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
+            Assert.assertTrue("Merged Transaction was not marked as deleted in metadata.", transactionMetadata.isDeleted());
             AssertExtensions.assertThrows(
-                    "Merged BatchSegment still exists in storage.",
-                    () -> context.storage.getStreamSegmentInfo(batchMetadata.getName(), TIMEOUT),
+                    "Merged Transaction still exists in storage.",
+                    () -> context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
@@ -857,12 +857,12 @@ public class SegmentAggregatorTests {
     }
 
     /**
-     * Tests the flush() method with Append and MergeBatchOperations.
+     * Tests the flush() method with Append and MergeTransactionOperations.
      */
     @Test
     public void testFlushMergeWithStorageErrors() throws Exception {
         // Storage Errors
-        final int appendCount = 100; // This is number of appends per Segment/Batch - there will be a lot of appends here.
+        final int appendCount = 100; // This is number of appends per Segment/Transaction - there will be a lot of appends here.
         final int failSyncEvery = 2;
         final int failAsyncEvery = 3;
         final WriterConfig config = ConfigHelpers.createWriterConfig(
@@ -880,7 +880,7 @@ public class SegmentAggregatorTests {
         // Create and initialize all segments.
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
-        for (SegmentAggregator a : context.batchesAggregators) {
+        for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
             a.initialize(TIMEOUT).join();
         }
@@ -888,33 +888,33 @@ public class SegmentAggregatorTests {
         // Store written data by segment - so we can check it later.
         HashMap<Long, ByteArrayOutputStream> dataBySegment = new HashMap<>();
 
-        // Add a few appends to each batch aggregator and to the parent aggregator and seal all batches.
-        for (int i = 0; i < context.batchesAggregators.length; i++) {
-            SegmentAggregator batchAggregator = context.batchesAggregators[i];
-            long batchId = batchAggregator.getMetadata().getId();
+        // Add a few appends to each Transaction aggregator and to the parent aggregator and seal all Transactions.
+        for (int i = 0; i < context.transactionAggregators.length; i++) {
+            SegmentAggregator transactionAggregator = context.transactionAggregators[i];
+            long transactionId = transactionAggregator.getMetadata().getId();
             ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
-            dataBySegment.put(batchId, writtenData);
+            dataBySegment.put(transactionId, writtenData);
 
             for (int appendId = 0; appendId < appendCount; appendId++) {
-                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, batchId, context);
-                batchAggregator.add(appendOp);
+                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, transactionId, context);
+                transactionAggregator.add(appendOp);
                 getAppendData(appendOp, writtenData, context);
             }
 
-            batchAggregator.add(generateSealAndUpdateMetadata(batchId, context));
+            transactionAggregator.add(generateSealAndUpdateMetadata(transactionId, context));
         }
 
-        // Merge all the batches in the parent Segment.
+        // Merge all the Transactions in the parent Segment.
         @Cleanup
         ByteArrayOutputStream parentData = new ByteArrayOutputStream();
-        for (int batchIndex = 0; batchIndex < context.batchesAggregators.length; batchIndex++) {
-            // Merge this Batch into the parent & record its data in the final parent data array.
-            long batchId = context.batchesAggregators[batchIndex].getMetadata().getId();
-            context.segmentAggregator.add(generateMergeBatchAndUpdateMetadata(batchId, context));
+        for (int transIndex = 0; transIndex < context.transactionAggregators.length; transIndex++) {
+            // Merge this Transaction into the parent & record its data in the final parent data array.
+            long transactionId = context.transactionAggregators[transIndex].getMetadata().getId();
+            context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(transactionId, context));
 
-            ByteArrayOutputStream batchData = dataBySegment.get(batchId);
-            parentData.write(batchData.toByteArray());
-            batchData.close();
+            ByteArrayOutputStream transactionData = dataBySegment.get(transactionId);
+            parentData.write(transactionData.toByteArray());
+            transactionData.close();
         }
 
         // Have the writes fail every few attempts with a well known exception.
@@ -930,13 +930,13 @@ public class SegmentAggregatorTests {
         // Flush all the Aggregators, while checking that the right errors get handled and can be recovered from.
         tryFlushAllSegments(context, () -> setException.set(null), setException::get);
 
-        // Verify that all batches are now fully merged.
-        for (SegmentAggregator batchAggregator : context.batchesAggregators) {
-            SegmentMetadata batchMetadata = batchAggregator.getMetadata();
-            Assert.assertTrue("Merged BatchSegment was not marked as deleted in metadata.", batchMetadata.isDeleted());
+        // Verify that all Transactions are now fully merged.
+        for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
+            SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
+            Assert.assertTrue("Merged Transaction was not marked as deleted in metadata.", transactionMetadata.isDeleted());
             AssertExtensions.assertThrows(
-                    "Merged BatchSegment still exists in storage.",
-                    () -> context.storage.getStreamSegmentInfo(batchMetadata.getName(), TIMEOUT),
+                    "Merged Transaction still exists in storage.",
+                    () -> context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
 
@@ -958,6 +958,7 @@ public class SegmentAggregatorTests {
      * in a recovery situation, where we committed the data but did not properly ack/truncate it from the DataSource.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testRecovery() throws Exception {
         final WriterConfig config = DEFAULT_CONFIG;
         final int appendCount = 100;
@@ -967,7 +968,7 @@ public class SegmentAggregatorTests {
         @Cleanup
         TestContext context = new TestContext(config, currentTime::get);
         context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        for (SegmentAggregator a : context.batchesAggregators) {
+        for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
         }
 
@@ -975,38 +976,37 @@ public class SegmentAggregatorTests {
         HashMap<Long, ByteArrayOutputStream> dataBySegment = new HashMap<>();
         ArrayList<StorageOperation> operations = new ArrayList<>();
 
-        // Create a segment and all its batches (do not initialize yet).
-        ArrayList<StorageOperation> parentOperations = new ArrayList<>();
+        // Create a segment and all its Transactions (do not initialize yet).
         ByteArrayOutputStream parentData = new ByteArrayOutputStream();
         dataBySegment.put(context.segmentAggregator.getMetadata().getId(), parentData);
 
-        // All batches have appends (First 1/3 of batches just have appends, that exist in Storage as well)
-        for (int i = 0; i < context.batchesAggregators.length; i++) {
-            SegmentAggregator batchAggregator = context.batchesAggregators[i];
-            long batchId = batchAggregator.getMetadata().getId();
+        // All Transactions have appends (First 1/3 of Transactions just have appends, that exist in Storage as well)
+        for (int i = 0; i < context.transactionAggregators.length; i++) {
+            SegmentAggregator transactionAggregator = context.transactionAggregators[i];
+            long transactionId = transactionAggregator.getMetadata().getId();
             ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
-            dataBySegment.put(batchId, writtenData);
+            dataBySegment.put(transactionId, writtenData);
 
             for (int appendId = 0; appendId < appendCount; appendId++) {
-                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, batchId, context);
+                StorageOperation appendOp = generateAppendAndUpdateMetadata(appendId, transactionId, context);
                 operations.add(appendOp);
                 getAppendData(appendOp, writtenData, context);
             }
 
-            // Second and third 1/3s of batches are sealed, with the seals in storage, but we'll still add them.
-            boolean isSealed = i >= context.batchesAggregators.length / 3;
+            // Second and third 1/3s of Transactions are sealed, with the seals in storage, but we'll still add them.
+            boolean isSealed = i >= context.transactionAggregators.length / 3;
             if (isSealed) {
-                operations.add(generateSealAndUpdateMetadata(batchId, context));
+                operations.add(generateSealAndUpdateMetadata(transactionId, context));
             }
 
-            // Last 1/3 of batches are also merged.
-            boolean isMerged = isSealed && (i >= context.batchesAggregators.length * 2 / 3);
+            // Last 1/3 of Transactions are also merged.
+            boolean isMerged = isSealed && (i >= context.transactionAggregators.length * 2 / 3);
             if (isMerged) {
-                parentOperations.add(generateMergeBatchAndUpdateMetadata(batchId, context));
-                ByteArrayOutputStream batchData = dataBySegment.get(batchId);
-                parentData.write(batchData.toByteArray());
-                batchData.close();
-                dataBySegment.remove(batchId);
+                operations.add(generateMergeTransactionAndUpdateMetadata(transactionId, context));
+                ByteArrayOutputStream transactionData = dataBySegment.get(transactionId);
+                parentData.write(transactionData.toByteArray());
+                transactionData.close();
+                dataBySegment.remove(transactionId);
             }
         }
 
@@ -1020,7 +1020,7 @@ public class SegmentAggregatorTests {
                     TIMEOUT).join();
         }
 
-        for (SegmentAggregator a : context.batchesAggregators) {
+        for (SegmentAggregator a : context.transactionAggregators) {
             if (a.getMetadata().isSealed()) {
                 context.storage.seal(a.getMetadata().getName(), TIMEOUT).join();
             }
@@ -1032,28 +1032,28 @@ public class SegmentAggregatorTests {
 
         // Now initialize the SegmentAggregators
         context.segmentAggregator.initialize(TIMEOUT).join();
-        for (SegmentAggregator a : context.batchesAggregators) {
+        for (SegmentAggregator a : context.transactionAggregators) {
             a.initialize(TIMEOUT).join();
         }
 
         // Add all operations we had so far.
         for (StorageOperation o : operations) {
-            int batchIndex = (int) (o.getStreamSegmentId() - BATCH_ID_START);
-            SegmentAggregator a = batchIndex < 0 ? context.segmentAggregator : context.batchesAggregators[batchIndex];
+            int transactionIndex = (int) (o.getStreamSegmentId() - TRANSACTION_ID_START);
+            SegmentAggregator a = transactionIndex < 0 ? context.segmentAggregator : context.transactionAggregators[transactionIndex];
             a.add(o);
         }
 
-        // And now finish up the operations (merge all batches).
-        for (SegmentAggregator a : context.batchesAggregators) {
+        // And now finish up the operations (merge all Transactions).
+        for (SegmentAggregator a : context.transactionAggregators) {
             if (!a.getMetadata().isSealed()) {
                 a.add(generateSealAndUpdateMetadata(a.getMetadata().getId(), context));
             }
 
             if (!a.getMetadata().isMerged()) {
-                context.segmentAggregator.add(generateMergeBatchAndUpdateMetadata(a.getMetadata().getId(), context));
-                ByteArrayOutputStream batchData = dataBySegment.get(a.getMetadata().getId());
-                parentData.write(batchData.toByteArray());
-                batchData.close();
+                context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(a.getMetadata().getId(), context));
+                ByteArrayOutputStream transactionData = dataBySegment.get(a.getMetadata().getId());
+                parentData.write(transactionData.toByteArray());
+                transactionData.close();
                 dataBySegment.remove(a.getMetadata().getId());
             }
         }
@@ -1087,25 +1087,25 @@ public class SegmentAggregatorTests {
         return result;
     }
 
-    private StorageOperation generateMergeBatchAndUpdateMetadata(long batchId, TestContext context) {
-        UpdateableSegmentMetadata batchMetadata = context.containerMetadata.getStreamSegmentMetadata(batchId);
-        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(batchMetadata.getParentId());
+    private StorageOperation generateMergeTransactionAndUpdateMetadata(long transactionId, TestContext context) {
+        UpdateableSegmentMetadata transactionMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionId);
+        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
 
-        MergeBatchOperation op = new MergeBatchOperation(parentMetadata.getId(), batchMetadata.getId());
-        op.setLength(batchMetadata.getLength());
+        MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+        op.setLength(transactionMetadata.getLength());
         op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
 
-        parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + batchMetadata.getDurableLogLength());
-        batchMetadata.markMerged();
+        parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + transactionMetadata.getDurableLogLength());
+        transactionMetadata.markMerged();
         return op;
     }
 
-    private StorageOperation generateSimpleMergeBatch(long batchId, TestContext context) {
-        UpdateableSegmentMetadata batchMetadata = context.containerMetadata.getStreamSegmentMetadata(batchId);
-        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(batchMetadata.getParentId());
+    private StorageOperation generateSimpleMergeTransaction(long transactionId, TestContext context) {
+        UpdateableSegmentMetadata transactionMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionId);
+        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
 
-        MergeBatchOperation op = new MergeBatchOperation(parentMetadata.getId(), batchMetadata.getId());
-        op.setLength(batchMetadata.getLength());
+        MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+        op.setLength(transactionMetadata.getLength());
         op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
 
         return op;
@@ -1159,10 +1159,10 @@ public class SegmentAggregatorTests {
         boolean anythingFlushed = true;
         while (anythingFlushed) {
             anythingFlushed = false;
-            for (SegmentAggregator batchAggregator : context.batchesAggregators) {
-                if (batchAggregator.mustFlush()) {
-                    FlushResult batchFlushResult = batchAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                    anythingFlushed = anythingFlushed | batchFlushResult.getFlushedBytes() > 0;
+            for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
+                if (transactionAggregator.mustFlush()) {
+                    FlushResult transactionFlushResult = transactionAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    anythingFlushed = anythingFlushed | transactionFlushResult.getFlushedBytes() > 0;
                 }
             }
 
@@ -1173,17 +1173,17 @@ public class SegmentAggregatorTests {
         }
     }
 
-    private <T extends Throwable> void tryFlushAllSegments(TestContext context, Runnable exceptionReset, Supplier<T> exceptionProvider) throws Exception {
+    private <T extends Throwable> void tryFlushAllSegments(TestContext context, Runnable exceptionReset, Supplier<T> exceptionProvider) {
         // Flush all segments in the TestContext, as long as any of them still has something to flush and is able to
         // flush anything, or an exception was thrown (and expected).
         boolean anythingFlushed = true;
         while (anythingFlushed) {
             anythingFlushed = false;
-            for (SegmentAggregator batchAggregator : context.batchesAggregators) {
-                if (batchAggregator.mustFlush()) {
+            for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
+                if (transactionAggregator.mustFlush()) {
                     exceptionReset.run();
-                    FlushResult batchFlushResult = tryFlushSegment(batchAggregator, exceptionProvider);
-                    anythingFlushed = anythingFlushed | (batchFlushResult == null || batchFlushResult.getFlushedBytes() > 0);
+                    FlushResult transactionFlushResult = tryFlushSegment(transactionAggregator, exceptionProvider);
+                    anythingFlushed = anythingFlushed | (transactionFlushResult == null || transactionFlushResult.getFlushedBytes() > 0);
                 }
             }
 
@@ -1231,7 +1231,7 @@ public class SegmentAggregatorTests {
         final Cache cache;
         final AutoStopwatch stopwatch;
         final SegmentAggregator segmentAggregator;
-        final SegmentAggregator[] batchesAggregators;
+        final SegmentAggregator[] transactionAggregators;
 
         TestContext(WriterConfig config) {
             this(config, System::currentTimeMillis);
@@ -1249,19 +1249,19 @@ public class SegmentAggregatorTests {
             dataSourceConfig.autoInsertCheckpointFrequency = TestWriterDataSource.DataSourceConfig.NO_METADATA_CHECKPOINT;
             this.dataSource = new TestWriterDataSource(this.containerMetadata, this.cache, this.executor.get(), dataSourceConfig);
 
-            this.batchesAggregators = new SegmentAggregator[BATCH_COUNT];
+            this.transactionAggregators = new SegmentAggregator[TRANSACTION_COUNT];
             UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
             this.segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, config, this.stopwatch);
-            for (int i = 0; i < BATCH_COUNT; i++) {
-                String name = BATCH_NAME_PREFIX + i;
-                UpdateableSegmentMetadata batchesMetadata = initialize(this.containerMetadata.mapStreamSegmentId(name, BATCH_ID_START + i, SEGMENT_ID));
-                this.batchesAggregators[i] = new SegmentAggregator(batchesMetadata, this.dataSource, this.storage, config, this.stopwatch);
+            for (int i = 0; i < TRANSACTION_COUNT; i++) {
+                String name = TRANSACTION_NAME_PREFIX + i;
+                UpdateableSegmentMetadata transactionMetadata = initialize(this.containerMetadata.mapStreamSegmentId(name, TRANSACTION_ID_START + i, SEGMENT_ID));
+                this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource, this.storage, config, this.stopwatch);
             }
         }
 
         @Override
         public void close() {
-            for (SegmentAggregator aggregator : this.batchesAggregators) {
+            for (SegmentAggregator aggregator : this.transactionAggregators) {
                 aggregator.close();
             }
 

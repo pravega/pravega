@@ -18,13 +18,13 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.Exceptions;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.CancellationException;
-
-import com.emc.pravega.common.Exceptions;
 
 /**
  * Organizes PlaceholderReadResultEntries by their starting offset and provides efficient methods for retrieving those
@@ -64,7 +64,7 @@ class FutureReadResultEntryCollection implements AutoCloseable {
     /**
      * Adds a new Result Entry.
      *
-     * @param entry
+     * @param entry The entry to add.
      */
     public void add(FutureReadResultEntry entry) {
         Exceptions.checkNotClosed(this.closed, this);
@@ -79,7 +79,6 @@ class FutureReadResultEntryCollection implements AutoCloseable {
      * and returns them.
      *
      * @param maxOffset The offset to query against.
-     * @return
      */
     Collection<FutureReadResultEntry> poll(long maxOffset) {
         Exceptions.checkNotClosed(this.closed, this);
@@ -98,8 +97,6 @@ class FutureReadResultEntryCollection implements AutoCloseable {
 
     /**
      * Removes and returns all the Result Entries in the collection.
-     *
-     * @return
      */
     Collection<FutureReadResultEntry> pollAll() {
         return poll(Long.MAX_VALUE);
@@ -119,7 +116,7 @@ class FutureReadResultEntryCollection implements AutoCloseable {
         toCancel.forEach(e -> e.fail(ce));
     }
 
-    protected static int entryComparator(FutureReadResultEntry e1, FutureReadResultEntry e2) {
+    static int entryComparator(FutureReadResultEntry e1, FutureReadResultEntry e2) {
         if (e1.getStreamSegmentOffset() < e2.getStreamSegmentOffset()) {
             return -1;
         } else if (e1.getStreamSegmentOffset() > e2.getStreamSegmentOffset()) {

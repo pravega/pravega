@@ -76,8 +76,6 @@ public class CompletableOperation {
 
     /**
      * Gets a reference to the wrapped Log Operation.
-     *
-     * @return
      */
     public Operation getOperation() {
         return this.operation;

@@ -35,16 +35,17 @@ public class StreamSegmentNameUtilsTests {
      */
     @Test
     public void testSimpleBatchNameGeneration() {
-        int batchCount = 100;
+        int transactionCount = 100;
         String segmentName = "foo";
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(segmentName);
         Assert.assertNull("getParentStreamSegmentName() extracted a parent name when none was expected.", parentName);
 
-        for (int i = 0; i < batchCount; i++) {
-            String batchName = StreamSegmentNameUtils.getBatchNameFromId(segmentName, UUID.randomUUID());
-            AssertExtensions.assertNotNullOrEmpty("generateBatchStreamSegmentName() did not generate any Segment Name.", batchName);
-            AssertExtensions.assertGreaterThan("generateBatchStreamSegmentName() generated a Segment Name that is shorter than the base.", segmentName.length(), batchName.length());
-            parentName = StreamSegmentNameUtils.getParentStreamSegmentName(batchName);
+        for (int i = 0; i < transactionCount; i++) {
+            String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+            AssertExtensions.assertNotNullOrEmpty("getTransactionNameFromId() did not return any Segment Name.", transactionName);
+            AssertExtensions.assertGreaterThan("getTransactionNameFromId() returned a Segment Name that is shorter than the base.", segmentName.length(), transactionName.length());
+
+            parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
             Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName, parentName);
         }
     }
@@ -61,7 +62,7 @@ public class StreamSegmentNameUtilsTests {
         names.push("foo"); // Base segment.
         for (int i = 0; i < recursionCount; i++) {
             // Generate a batch name for the last generated name.
-            names.push(StreamSegmentNameUtils.getBatchNameFromId(names.peek(), UUID.randomUUID()));
+            names.push(StreamSegmentNameUtils.getTransactionNameFromId(names.peek(), UUID.randomUUID()));
         }
 
         // Make sure we can retrace our roots.

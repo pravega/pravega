@@ -20,8 +20,8 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.AssertExtensions;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,7 +32,7 @@ import java.util.List;
  */
 public class DataFrameTests {
     private static final long DEFAULT_PREVIOUS_SEQUENCE = 12345;
-    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accesible from here.
+    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accessible from here.
 
     /**
      * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.
@@ -47,7 +47,6 @@ public class DataFrameTests {
 
         // Append some records.
         DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
-        df.setFrameSequence(123456789);
         int recordsAppended = appendRecords(allRecords, df);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         df.seal();
@@ -70,7 +69,6 @@ public class DataFrameTests {
 
         // Append some records.
         DataFrame writeFrame = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
-        writeFrame.setFrameSequence(123456789);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
@@ -172,8 +170,11 @@ public class DataFrameTests {
         DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
         Assert.assertEquals("Unexpected value for getPreviousSequence().", DEFAULT_PREVIOUS_SEQUENCE, df.getPreviousFrameSequence());
 
-        df.setFrameSequence(newSequence);
-        Assert.assertEquals("Unexpected value for getFrameSequence().", newSequence, df.getFrameSequence());
+        LogAddress a = new LogAddress(newSequence) {
+        };
+
+        df.setAddress(a);
+        Assert.assertEquals("Unexpected value for getFrameSequence().", newSequence, df.getAddress().getSequence());
     }
 
     private int appendRecords(List<ByteArraySegment> allRecords, DataFrame dataFrame) {

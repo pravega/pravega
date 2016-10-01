@@ -57,8 +57,6 @@ public class MetadataCheckpointOperation extends MetadataOperation {
 
     /**
      * Sets the Contents of this MetadataCheckpointOperation.
-     *
-     * @param contents
      */
     public void setContents(ByteArraySegment contents) {
         Preconditions.checkNotNull(contents, "contents");

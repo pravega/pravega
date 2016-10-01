@@ -30,6 +30,7 @@ import com.emc.pravega.service.server.logs.MemoryOperationLog;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Getter;
@@ -140,7 +141,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         // We need to record the Truncation Marker/Point prior to actually adding the operation to the log (because it could
         // get picked up very fast by the Writer, so we need to have everything in place).
         if (isCheckpoint) {
-            this.metadata.recordTruncationMarker(operation.getSequenceNumber(), operation.getSequenceNumber());
+            this.metadata.recordTruncationMarker(operation.getSequenceNumber(), new TestLogAddress(operation.getSequenceNumber()));
             this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
         }
 
@@ -335,5 +336,11 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     static class DataSourceConfig {
         static final int NO_METADATA_CHECKPOINT = -1;
         int autoInsertCheckpointFrequency;
+    }
+
+    private static class TestLogAddress extends LogAddress {
+        public TestLogAddress(long sequence) {
+            super(sequence);
+        }
     }
 }

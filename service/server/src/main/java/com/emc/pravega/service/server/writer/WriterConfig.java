@@ -86,8 +86,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the minimum number of bytes to wait for before flushing aggregated data for a Segment to Storage.
-     *
-     * @return The result.
      */
     public int getFlushThresholdBytes() {
         return this.flushThresholdBytes;
@@ -95,8 +93,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the minimum amount of time to wait for before flushing aggregated data for a Segment to Storage.
-     *
-     * @return The result.
      */
     public Duration getFlushThresholdTime() {
         return this.flushThresholdTime;
@@ -104,8 +100,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the maximum number of bytes that can be flushed with a single write operation.
-     *
-     * @return The result.
      */
     public int getMaxFlushSizeBytes() {
         return this.maxFlushSizeBytes;
@@ -113,8 +107,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the maximum number of items to read every time a read is issued to the OperationLog.
-     *
-     * @return The result.
      */
     public int getMaxItemsToReadAtOnce() {
         return this.maxItemsToReadAtOnce;
@@ -122,8 +114,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the minimum timeout to supply to the WriterDataSource.read() method.
-     *
-     * @return The result.
      */
     public Duration getMinReadTimeout() {
         return this.minReadTimeout;
@@ -131,8 +121,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the maximum timeout to supply to the WriterDataSource.read() method.
-     *
-     * @return The result.
      */
     public Duration getMaxReadTimeout() {
         return this.maxReadTimeout;
@@ -140,8 +128,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the timeout for the Flush Stage.
-     *
-     * @return The result.
      */
     public Duration getFlushTimeout() {
         return this.flushTimeout;
@@ -150,8 +136,6 @@ public class WriterConfig extends ComponentConfig {
     /**
      * Gets a value indicating the timeout for the Shutdown operation (how much to wait for the current iteration to end
      * before giving up).
-     *
-     * @return The result.
      */
     public Duration getShutdownTimeout() {
         return this.shutdownTimeout;
@@ -159,8 +143,6 @@ public class WriterConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the timeout for the Ack Stage.
-     *
-     * @return The result.
      */
     public Duration getAckTimeout() {
         return this.ackTimeout;

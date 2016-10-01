@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamingException;
 import com.emc.pravega.service.server.DataCorruptionException;
@@ -35,6 +36,7 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.OperationFactory;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +48,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -67,9 +70,9 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
     private final Set<TailRead> tailReads;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
     private final AtomicReference<Throwable> stopException = new AtomicReference<>();
-    private boolean closed;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -84,7 +87,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, Executor executor) {
+    public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(dataFrameLogFactory, "dataFrameLogFactory");
@@ -105,6 +108,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryLogUpdater, this.durableDataLog, checkpointPolicy);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -113,13 +117,13 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     public void close() {
-        if (!this.closed) {
+        if (!this.closed.get()) {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
 
             this.operationProcessor.close();
             this.durableDataLog.close();
-            this.closed = true;
+            this.closed.set(true);
         }
     }
 
@@ -212,17 +216,17 @@ public class DurableLog extends AbstractService implements OperationLog {
         long actualTruncationSequenceNumber = upToSequenceNumber - 1;
 
         // Find the closest Truncation Marker (that does not exceed it).
-        long dataFrameSeqNo = this.metadata.getClosestTruncationMarker(actualTruncationSequenceNumber);
-        if (dataFrameSeqNo < 0) {
+        LogAddress truncationFrameAddress = this.metadata.getClosestTruncationMarker(actualTruncationSequenceNumber);
+        if (truncationFrameAddress == null) {
             // Nothing to truncate.
             return CompletableFuture.completedFuture(null);
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameSequenceNumber = {}).", this.traceObjectId, upToSequenceNumber, dataFrameSeqNo);
+        log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameAddress = {}).", this.traceObjectId, upToSequenceNumber, truncationFrameAddress);
 
         return this.durableDataLog
-                .truncate(dataFrameSeqNo, timer.getRemaining())
+                .truncate(truncationFrameAddress, timer.getRemaining())
                 .thenRun(() -> {
                     // Truncate InMemory Transaction Log.
                     this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= actualTruncationSequenceNumber);
@@ -248,7 +252,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 metadataSeqNo = this.metadata.getOperationSequenceNumber();
                 if (metadataSeqNo <= afterSequenceNumber) {
                     // We cannot fulfill this at this moment; let it be triggered when we do get a new operation.
-                    TailRead tailRead = new TailRead(afterSequenceNumber, maxCount);
+                    TailRead tailRead = new TailRead(afterSequenceNumber, maxCount, timeout, this.executor);
                     result = tailRead.future;
                     this.tailReads.add(tailRead);
                     result.whenComplete((r, ex) -> unregisterTailRead(tailRead));
@@ -315,9 +319,8 @@ public class DurableLog extends AbstractService implements OperationLog {
      * Subsequent MetadataCheckpointOperations are ignored (as they contain redundant information - which has already
      * been built up using the Operations up to them).
      *
-     * @param metadataUpdater
+     * @param metadataUpdater The OperationMetadataUpdater to use for updates.
      * @return True if any operations were recovered, false otherwise.
-     * @throws Exception
      */
     private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
         int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
@@ -390,13 +393,15 @@ public class DurableLog extends AbstractService implements OperationLog {
     private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {
         // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
         // or it's the last entry in a DataFrame.
-        if (readResult.getLastFullDataFrameSequence() >= 0 && readResult.getLastFullDataFrameSequence() != readResult.getLastUsedDataFrameSequence()) {
+        LogAddress lastFullAddress = readResult.getLastFullDataFrameAddress();
+        LogAddress lastUsedAddress = readResult.getLastUsedDataFrameAddress();
+        if (lastFullAddress != null && lastFullAddress.getSequence() != lastUsedAddress.getSequence()) {
             // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
             // that ends with a part of it.
-            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), readResult.getLastFullDataFrameSequence());
+            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
         } else if (readResult.isLastFrameEntry()) {
             // The operation was the last one in the frame. This is a Truncation Marker.
-            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), readResult.getLastUsedDataFrameSequence());
+            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
         }
     }
 
@@ -405,7 +410,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region Helpers
 
     private void ensureRunning() {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         if (state() != State.RUNNING) {
             throw new IllegalContainerStateException(this.getId(), state(), State.RUNNING);
         }
@@ -490,10 +495,10 @@ public class DurableLog extends AbstractService implements OperationLog {
         final int maxCount;
         final CompletableFuture<Iterator<Operation>> future;
 
-        TailRead(long afterSequenceNumber, int maxCount) {
+        TailRead(long afterSequenceNumber, int maxCount, Duration timeout, ScheduledExecutorService executor) {
             this.afterSequenceNumber = afterSequenceNumber;
             this.maxCount = maxCount;
-            this.future = new CompletableFuture<>();
+            this.future = FutureHelpers.futureWithTimeout(timeout, executor);
         }
 
         @Override

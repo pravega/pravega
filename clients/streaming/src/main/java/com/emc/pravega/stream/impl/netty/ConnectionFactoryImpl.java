@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream.impl.netty;
 
+
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 import java.security.NoSuchAlgorithmException;
@@ -29,8 +30,8 @@ import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
-import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
 import com.google.common.base.Preconditions;
 
 import io.netty.bootstrap.Bootstrap;
@@ -76,9 +77,9 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         if (ssl) {
             try {
                 sslCtx = SslContextBuilder.forClient()
-                        .trustManager(FingerprintTrustManagerFactory
-                                .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
-                        .build();
+                                          .trustManager(FingerprintTrustManagerFactory
+                                                  .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()))
+                                          .build();
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
@@ -88,23 +89,23 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp);
         Bootstrap b = new Bootstrap();
         b.group(group)
-                .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
-                .option(ChannelOption.TCP_NODELAY, true)
-                .handler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    public void initChannel(SocketChannel ch) throws Exception {
-                        ChannelPipeline p = ch.pipeline();
-                        if (sslCtx != null) {
-                            p.addLast(sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort()));
-                        }
-                        // p.addLast(new LoggingHandler(LogLevel.INFO));
-                        p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),
-                                new CommandEncoder(),
-                                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                                new CommandDecoder(),
-                                handler);
-                    }
-                });
+         .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
+         .option(ChannelOption.TCP_NODELAY, true)
+         .handler(new ChannelInitializer<SocketChannel>() {
+             @Override
+             public void initChannel(SocketChannel ch) throws Exception {
+                 ChannelPipeline p = ch.pipeline();
+                 if (sslCtx != null) {
+                     p.addLast(sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort()));
+                 }
+                 // p.addLast(new LoggingHandler(LogLevel.INFO));
+                 p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),
+                         new CommandEncoder(),
+                         new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                         new CommandDecoder(),
+                         handler);
+             }
+         });
 
         // Start the client.
         CompletableFuture<ClientConnection> result = new CompletableFuture<>();
@@ -131,5 +132,4 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     protected void finalize() {
         group.shutdownGracefully();
     }
-
 }

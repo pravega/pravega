@@ -14,6 +14,8 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import static com.emc.pravega.common.Exceptions.handleInterrupted;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -100,7 +102,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
 
         private SegmentRead get() throws ExecutionException {
-            return Exceptions.handleInterrupted(() -> result.get().get());
+            return handleInterrupted(() -> result.get().get());
         }
 
         private void complete(SegmentRead r) {
@@ -205,7 +207,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             if (!read.await()) {
                 log.debug("Retransmitting a read request {}", read.request);
                 read.reset();
-                ClientConnection c = Exceptions.handleInterrupted(() -> getConnection().get());
+                ClientConnection c = handleInterrupted(() -> getConnection().get());
                 try {
                     c.send(read.request);
                 } catch (ConnectionFailedException e) {

@@ -29,7 +29,6 @@ public class DurableDataLogException extends Exception {
 
     /**
      * Creates a new instance of the DurableDataLogException class.
-     * @param message
      */
     public DurableDataLogException(String message) {
         super(message);
@@ -37,8 +36,6 @@ public class DurableDataLogException extends Exception {
 
     /**
      * Creates a new instance of the DurableDataLogException class.
-     * @param message
-     * @param cause
      */
     public DurableDataLogException(String message, Throwable cause) {
         super(message, cause);

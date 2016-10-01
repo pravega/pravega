@@ -16,44 +16,39 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.contracts;
+package com.emc.pravega.service.storage.impl.distributedlog;
 
-import java.io.InputStream;
+import com.emc.pravega.service.storage.LogAddress;
+import com.google.common.base.Preconditions;
+import com.twitter.distributedlog.DLSN;
 
 /**
- * Contents for a ReadResultEntry.
+ * LogAddress for DistributedLog. Wraps around DistributedLog-specific addressing scheme, using DLSNs, without exposing
+ * such information to the outside.
  */
-public class ReadResultEntryContents {
-    private final int length;
-    private final InputStream data;
+class DLSNAddress extends LogAddress {
+    private final DLSN dlsn;
 
     /**
-     * Creates a new instance of the ReadResultEntryContents class.
+     * Creates a new instance of the LogAddress class.
      *
-     * @param data                The data to retrieve.
-     * @param length              The length of the retrieved data.
+     * @param sequence The sequence of the address (location).
      */
-    public ReadResultEntryContents(InputStream data, int length) {
-        this.data = data;
-        this.length = length;
+    public DLSNAddress(long sequence, DLSN dlsn) {
+        super(sequence);
+        Preconditions.checkNotNull(dlsn, "dlsn");
+        this.dlsn = dlsn;
     }
 
     /**
-     * Gets a value indicating the length of the Data Stream.
+     * Gets the DLSN associated with this LogAddress.
      */
-    public int getLength() {
-        return this.length;
-    }
-
-    /**
-     * Gets an InputStream representing the Data that was retrieved.
-     */
-    public InputStream getData() {
-        return this.data;
+    DLSN getDLSN() {
+        return this.dlsn;
     }
 
     @Override
     public String toString() {
-        return String.format("Length = %d", getLength());
+        return String.format("%s, DLSN = %s", super.toString(), this.dlsn);
     }
 }

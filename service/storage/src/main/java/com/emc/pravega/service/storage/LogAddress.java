@@ -16,23 +16,34 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.contracts;
+package com.emc.pravega.service.storage;
 
 /**
- * An exception that is thrown whenever a Container cannot be found.
+ * Represents the base for an addressing scheme inside a DurableDataLog. This can be used for accurately locating where
+ * DataFrames are stored inside a DurableDataLog.
+ * <p/>
+ * Subclasses would be specific to DurableDataLog implementations.
  */
-public class ContainerNotFoundException extends ContainerException {
-    /**
-     * 
-     */
-    private static final long serialVersionUID = 1L;
+public abstract class LogAddress {
+    private final long sequence;
 
     /**
-     * Creates a new instance of the ContainerNotFoundException.
-     *
-     * @param containerId The Id of the container.
+     * Creates a new instance of the LogAddress class.
+     * @param sequence The sequence of the address (location).
      */
-    public ContainerNotFoundException(int containerId) {
-        super(containerId, "Container Id does not exist.");
+    public LogAddress(long sequence) {
+        this.sequence = sequence;
+    }
+
+    /**
+     * Gets a value indicating the Sequence of the address (location).
+     */
+    public long getSequence() {
+        return this.sequence;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Sequence = %d", this.sequence);
     }
 }

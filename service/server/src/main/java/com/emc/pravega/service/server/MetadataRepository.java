@@ -26,7 +26,6 @@ public interface MetadataRepository {
      * Gets a reference to the UpdateableContainerMetadata with given id.
      *
      * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
-     * @return The result.
      */
     UpdateableContainerMetadata getMetadata(int streamSegmentContainerId);
 }

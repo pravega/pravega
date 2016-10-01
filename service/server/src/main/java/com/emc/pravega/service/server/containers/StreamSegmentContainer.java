@@ -38,7 +38,7 @@ import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.CacheUpdater;
 import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
@@ -243,12 +243,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<String> createBatch(String parentStreamName, UUID batchId, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamName, UUID transactionId, Duration timeout) {
         ensureRunning();
 
-        logRequest("createBatch", parentStreamName);
+        logRequest("createTransaction", parentStreamName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.createNewBatchStreamSegment(parentStreamName, batchId, timer.getRemaining());
+        return this.segmentMapper.createNewTransactionStreamSegment(parentStreamName, transactionId, timer.getRemaining());
     }
 
     @Override
@@ -258,7 +258,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("deleteStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
-        // metadata.deleteStreamSegment will delete the given StreamSegment and all batches associated with it.
+        // metadata.deleteStreamSegment will delete the given StreamSegment and all Transactions associated with it.
         // It returns a collection of names of StreamSegments that were deleted.
         // As soon as this happens, all operations that deal with those segments will start throwing appropriate exceptions
         // or ignore the segments altogether (such as StorageWriter).
@@ -276,20 +276,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Long> mergeBatch(String batchStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
 
-        logRequest("mergeBatch", batchStreamSegmentName);
+        logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
-                .getOrAssignStreamSegmentId(batchStreamSegmentName, timer.getRemaining())
-                .thenCompose(batchStreamSegmentId -> {
-                    SegmentMetadata batchMetadata = this.metadata.getStreamSegmentMetadata(batchStreamSegmentId);
-                    if (batchMetadata == null) {
-                        throw new CompletionException(new StreamSegmentNotExistsException(batchStreamSegmentName));
+                .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
+                .thenCompose(transactionId -> {
+                    SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
+                    if (transactionMetadata == null) {
+                        throw new CompletionException(new StreamSegmentNotExistsException(transactionName));
                     }
 
-                    Operation op = new MergeBatchOperation(batchMetadata.getParentId(), batchMetadata.getId());
+                    Operation op = new MergeTransactionOperation(transactionMetadata.getParentId(), transactionMetadata.getId());
                     return this.durableLog.add(op, timer.getRemaining());
                 });
     }

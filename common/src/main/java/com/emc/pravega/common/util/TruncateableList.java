@@ -174,8 +174,6 @@ public class TruncateableList<T> {
 
     /**
      * Gets a value indicating the current size of the list.
-     *
-     * @return The result.
      */
     public int size() {
         return this.size;

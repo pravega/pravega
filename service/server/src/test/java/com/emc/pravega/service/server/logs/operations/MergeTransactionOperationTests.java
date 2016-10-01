@@ -18,34 +18,35 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
-import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.server.ContainerMetadata;
-
+import com.emc.pravega.common.MathHelpers;
 import org.junit.Assert;
 
-import java.util.Date;
 import java.util.Random;
 
 /**
- * Unit tests for BatchMapOperation class.
+ * Unit tests for MergeTransactionOperation class.
  */
-public class BatchMapOperationTests extends OperationTestsBase<BatchMapOperation> {
+public class MergeTransactionOperationTests extends OperationTestsBase<MergeTransactionOperation> {
     @Override
-    protected BatchMapOperation createOperation(Random random) {
-        return new BatchMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), random.nextBoolean(), new Date()));
+    protected MergeTransactionOperation createOperation(Random random) {
+        return new MergeTransactionOperation(random.nextLong(), random.nextLong());
     }
 
     @Override
-    protected boolean isPreSerializationConfigRequired(BatchMapOperation operation) {
-        return operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID;
+    protected boolean isPreSerializationConfigRequired(MergeTransactionOperation operation) {
+        return operation.getLength() < 0
+                || operation.getStreamSegmentOffset() < 0;
     }
 
     @Override
-    protected void configurePreSerialization(BatchMapOperation operation, Random random) {
-        if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-            operation.setStreamSegmentId(random.nextLong());
+    protected void configurePreSerialization(MergeTransactionOperation operation, Random random) {
+        if (operation.getLength() < 0) {
+            operation.setLength(MathHelpers.abs(random.nextLong()));
+        } else if (operation.getStreamSegmentOffset() < 0) {
+            operation.setStreamSegmentOffset(Math.abs(random.nextLong()));
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }
     }
 }
+

@@ -322,8 +322,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     interface Client {
         /**
          * Gets the current Cache Status.
-         *
-         * @return The result.
          */
         CacheStatus getCacheStatus();
 
@@ -366,8 +364,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         /**
          * Gets a value indicating the total size of the cache items in this particular client.
-         *
-         * @return The result.
          */
         long getSize() {
             return this.size;
@@ -375,8 +371,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         /**
          * Gets a value indicating the oldest generation found in any cache entry.
-         *
-         * @return The result.
          */
         int getOldestGeneration() {
             return this.oldestGeneration;
@@ -384,8 +378,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         /**
          * Gets a value indicating the newest generation found in any cache entry.
-         *
-         * @return The result.
          */
         int getNewestGeneration() {
             return this.newestGeneration;

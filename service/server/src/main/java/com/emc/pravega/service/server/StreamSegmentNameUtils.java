@@ -29,7 +29,7 @@ public final class StreamSegmentNameUtils {
     /**
      * We append this to the end of the Parent StreamName, then we append a unique identifier.
      */
-    private static final String DELIMITER = "#batch.";
+    private static final String DELIMITER = "#transaction.";
 
     /**
      * The unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -49,35 +49,36 @@ public final class StreamSegmentNameUtils {
     //endregion
 
     /**
-     * Returns the batch name for a Batch StreamSegment based on the name of the current Parent StreamSegment, and the batchId
+     * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent StreamSegment, and the transactionId
      *
-     * @param parentStreamSegmentName The name of the Parent StreamSegment for this batch.
-     * @param batchId The unique Id for the batch.
-     * @return The name of the Batch StreamSegmentId.
+     * @param parentStreamSegmentName The name of the Parent StreamSegment for this transaction.
+     * @param transactionId The unique Id for the transaction.
+     * @return The name of the Transaction StreamSegmentId.
      */
-    public static String getBatchNameFromId(String parentStreamSegmentName, UUID batchId) {
+    public static String getTransactionNameFromId(String parentStreamSegmentName, UUID transactionId) {
         StringBuilder result = new StringBuilder();
         result.append(parentStreamSegmentName);
         result.append(DELIMITER);
-        result.append(String.format(PART_FORMAT, batchId.getMostSignificantBits()));
-        result.append(String.format(PART_FORMAT, batchId.getLeastSignificantBits()));
+        result.append(String.format(PART_FORMAT, transactionId.getMostSignificantBits()));
+        result.append(String.format(PART_FORMAT, transactionId.getLeastSignificantBits()));
         return result.toString();
     }
 
+
     /**
-     * Attempts to extract the name of the Parent StreamSegment for the given Batch StreamSegment. This method returns a
-     * valid value only if the batchStreamSegmentName was generated using the {@link #getBatchNameFromId(String, UUID)} method.
-     *
-     * @param batchStreamSegmentName The name of the Batch StreamSegment to extract the name of the Parent StreamSegment.
+     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
+     * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
+     * 
+     * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
      */
-    public static String getParentStreamSegmentName(String batchStreamSegmentName) {
-        // Check to see if the given name is a properly formatted batch.
-        int endOfStreamNamePos = batchStreamSegmentName.lastIndexOf(DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + DELIMITER.length() + ID_LENGTH > batchStreamSegmentName.length()) {
-            // Improperly formatted batch name.
+    public static String getParentStreamSegmentName(String transactionName) {
+        // Check to see if the given name is a properly formatted Transaction.
+        int endOfStreamNamePos = transactionName.lastIndexOf(DELIMITER);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + DELIMITER.length() + ID_LENGTH > transactionName.length()) {
+            // Improperly formatted Transaction name.
             return null;
         }
-        return batchStreamSegmentName.substring(0, endOfStreamNamePos);
+        return transactionName.substring(0, endOfStreamNamePos);
     }
 }

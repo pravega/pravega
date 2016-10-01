@@ -50,8 +50,6 @@ public class DataFrameBuilderTests {
 
     /**
      * Tests the happy case: append a set of LogItems, and make sure that frames that get output contain all of them.
-     *
-     * @throws Exception
      */
     @Test
     public void testAppendNoFailure() throws Exception {

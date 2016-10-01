@@ -60,8 +60,6 @@ public abstract class Benchmark {
 
     /**
      * Gets a value indicating the name of the test. Used for logging purposes.
-     *
-     * @return
      */
     protected abstract String getTestName();
 

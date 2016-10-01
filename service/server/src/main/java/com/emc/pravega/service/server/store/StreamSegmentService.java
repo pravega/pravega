@@ -109,21 +109,21 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<String> createBatch(String parentStreamSegmentName, UUID batchId, Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, "createBatch", parentStreamSegmentName, timeout);
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Duration timeout) {
+        int traceId = LoggerHelpers.traceEnter(log, "createTransaction", parentStreamSegmentName, timeout);
         return withCompletion(
                 () -> getContainer(parentStreamSegmentName)
-                        .thenCompose(container -> container.createBatch(parentStreamSegmentName, batchId, timeout)),
-                r -> traceLeave(log, "createBatch", traceId, r));
+                        .thenCompose(container -> container.createTransaction(parentStreamSegmentName, transactionId, timeout)),
+                r -> traceLeave(log, "createTransaction", traceId, r));
     }
 
     @Override
-    public CompletableFuture<Long> mergeBatch(String batchName, Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, "mergeBatch", batchName, timeout);
+    public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
+        int traceId = LoggerHelpers.traceEnter(log, "mergeTransaction", transactionName, timeout);
         return withCompletion(
-                () -> getContainer(batchName)
-                        .thenCompose(container -> container.mergeBatch(batchName, timeout)),
-                r -> traceLeave(log, "mergeBatch", traceId, r));
+                () -> getContainer(transactionName)
+                        .thenCompose(container -> container.mergeTransaction(transactionName, timeout)),
+                r -> traceLeave(log, "mergeTransaction", traceId, r));
     }
 
     @Override

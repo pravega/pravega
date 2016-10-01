@@ -80,26 +80,26 @@ public interface StreamSegmentStore {
     CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout);
 
     /**
-     * Creates a new Batch and maps it to a Parent StreamSegment.
+     * Creates a new Transaction and maps it to a Parent StreamSegment.
      *
-     * @param parentStreamSegmentName The name of the Parent StreamSegment to create a batch for.
+     * @param parentStreamSegmentName The name of the Parent StreamSegment to create a transaction for.
      * @param timeout                 Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created batch.
+     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created transaction.
      * If the operation failed, it will contain the exception that caused the failure.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<String> createBatch(String parentStreamSegmentName, UUID batchId, Duration timeout);
+    CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Duration timeout);
 
     /**
-     * Merges a Batch into its parent StreamSegment.
+     * Merges a Transaction into its parent StreamSegment.
      *
-     * @param batchName The name of the Batch StreamSegment to merge.
-     * @param timeout   Timeout for the operation.
+     * @param transactionName The name of the Transaction StreamSegment to merge.
+     * @param timeout         Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the offset within the parent StreamSegment
-     * where the batch has been merged at. If the operation failed, it will contain the exception that caused the failure.
+     * where the transaction has been merged at. If the operation failed, it will contain the exception that caused the failure.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<Long> mergeBatch(String batchName, Duration timeout);
+    CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications

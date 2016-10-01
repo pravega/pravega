@@ -80,14 +80,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * DurableDataLog.
  */
 public class StreamSegmentContainerTests {
-    private static final int SEGMENT_COUNT = 200;
-    private static final int BATCHES_PER_SEGMENT = 5;
+    private static final int SEGMENT_COUNT = 100;
+    private static final int TRANSACTIONS_PER_SEGMENT = 5;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int CLIENT_COUNT = 10;
     private static final int CONTAINER_ID = 1234567;
     private static final int THREAD_POOL_SIZE = 50;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
@@ -315,7 +315,7 @@ public class StreamSegmentContainerTests {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
-        HashMap<String, ArrayList<String>> batchesBySegment = createBatches(segmentNames, context);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
@@ -323,8 +323,8 @@ public class StreamSegmentContainerTests {
         for (int i = 0; i < appendsPerSegment; i++) {
             for (String segmentName : segmentNames) {
                 appendFutures.add(context.container.append(segmentName, getAppendData(segmentName, i), new AppendContext(UUID.randomUUID(), 0), TIMEOUT));
-                for (String batchName : batchesBySegment.get(segmentName)) {
-                    appendFutures.add(context.container.append(batchName, getAppendData(batchName, i), new AppendContext(UUID.randomUUID(), 0), TIMEOUT));
+                for (String transactionName : transactionsBySegment.get(segmentName)) {
+                    appendFutures.add(context.container.append(transactionName, getAppendData(transactionName, i), new AppendContext(UUID.randomUUID(), 0), TIMEOUT));
                 }
             }
         }
@@ -340,15 +340,15 @@ public class StreamSegmentContainerTests {
 
         FutureHelpers.allOf(deleteFutures);
 
-        // 4. Verify that only the first half of the segments (and their batches) were deleted, and not the others.
+        // 4. Verify that only the first half of the segments (and their Transactions) were deleted, and not the others.
         for (int i = 0; i < segmentNames.size(); i++) {
             ArrayList<String> toCheck = new ArrayList<>();
             toCheck.add(segmentNames.get(i));
-            toCheck.addAll(batchesBySegment.get(segmentNames.get(i)));
+            toCheck.addAll(transactionsBySegment.get(segmentNames.get(i)));
 
             boolean expectedDeleted = i < segmentNames.size() / 2;
             if (expectedDeleted) {
-                // Verify the segments and their batches are not there anymore.
+                // Verify the segments and their Transactions are not there anymore.
                 for (String sn : toCheck) {
                     AssertExtensions.assertThrows(
                             "getStreamSegmentInfo did not throw expected exception when called on a deleted StreamSegment.",
@@ -376,10 +376,10 @@ public class StreamSegmentContainerTests {
                             ex -> ex instanceof StreamSegmentNotExistsException);
                 }
             } else {
-                // Verify the segments and their batches are still there.
+                // Verify the segments and their Transactions are still there.
                 for (String sn : toCheck) {
                     SegmentProperties props = context.container.getStreamSegmentInfo(sn, TIMEOUT).join();
-                    Assert.assertFalse("Not-deleted segment (or one of its batches) was marked as deleted in metadata.", props.isDeleted());
+                    Assert.assertFalse("Not-deleted segment (or one of its Transactions) was marked as deleted in metadata.", props.isDeleted());
 
                     // Verify we can still append and read from this segment.
                     context.container.append(sn, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT).join();
@@ -397,26 +397,26 @@ public class StreamSegmentContainerTests {
     }
 
     /**
-     * Test the createBatch, append-to-batch, mergeBatch methods.
+     * Test the createTransaction, append-to-Transaction, mergeTransaction methods.
      */
     @Test
-    public void testBatchOperations() throws Exception {
-        // Create Batch and Append to Batch were partially tested in the Delete test, so we will focus on merge Batch here.
+    public void testTransactionOperations() throws Exception {
+        // Create Transaction and Append to Transaction were partially tested in the Delete test, so we will focus on merge Transaction here.
         @Cleanup
         TestContext context = new TestContext();
         context.container.startAsync().awaitRunning();
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
-        HashMap<String, ArrayList<String>> batchesBySegment = createBatches(segmentNames, context);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
 
         // 2. Add some appends.
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        appendToParentsAndBatches(segmentNames, batchesBySegment, lengths, segmentContents, context);
+        appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
 
-        // 3. Merge all the batches.
-        mergeBatches(batchesBySegment, lengths, segmentContents, context);
+        // 3. Merge all the Transaction.
+        mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
         // 4. Add more appends (to the parent segments)
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
@@ -427,18 +427,25 @@ public class StreamSegmentContainerTests {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                // Verify that we can no longer append to batches.
-                for (String batchName : batchesBySegment.get(segmentName)) {
+                // Verify that we can no longer append to Transaction.
+                for (String transactionName : transactionsBySegment.get(segmentName)) {
                     AssertExtensions.assertThrows(
-                            "An append was allowed to a merged batch " + batchName,
-                            context.container.append(batchName, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT)::join,
-                            ex -> ex instanceof StreamSegmentMergedException);
+                            "An append was allowed to a merged Transaction " + transactionName,
+                            context.container.append(transactionName, "foo".getBytes(), new AppendContext(UUID.randomUUID(), 0), TIMEOUT)::join,
+                            ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
                 }
             }
         }
 
+        FutureHelpers.allOf(appendFutures).join();
+
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
+
+        // 6. Writer moving data to Storage.
+        //Thread.sleep(5000);
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
 
         context.container.stopAsync().awaitTerminated();
     }
@@ -447,7 +454,7 @@ public class StreamSegmentContainerTests {
      * Tests the ability to perform future (tail) reads. Scenarios tested include:
      * * Regular appends
      * * Segment sealing
-     * * Batch merging.
+     * * Transaction merging.
      */
     @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -459,7 +466,7 @@ public class StreamSegmentContainerTests {
 
         // 1. Create the StreamSegments.
         ArrayList<String> segmentNames = createSegments(context);
-        HashMap<String, ArrayList<String>> batchesBySegment = createBatches(segmentNames, context);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
         HashMap<String, ReadResult> readsBySegment = new HashMap<>();
         HashMap<String, AsyncReadResultProcessor> processorsBySegment = new HashMap<>();
         HashSet<String> segmentsToSeal = new HashSet<>();
@@ -497,10 +504,10 @@ public class StreamSegmentContainerTests {
         // 3. Add some appends.
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        appendToParentsAndBatches(segmentNames, batchesBySegment, lengths, segmentContents, context);
+        appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
 
-        // 4. Merge all the batches.
-        mergeBatches(batchesBySegment, lengths, segmentContents, context);
+        // 4. Merge all the Transactions.
+        mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
         // 5. Add more appends (to the parent segments)
         ArrayList<CompletableFuture<Long>> operationFutures = new ArrayList<>();
@@ -547,9 +554,13 @@ public class StreamSegmentContainerTests {
             Assert.assertEquals("Unexpected read length for segment " + segmentName, expectedLength, actualData.length);
             AssertExtensions.assertArrayEquals("Unexpected read contents for segment " + segmentName, expectedData, 0, actualData, 0, actualData.length);
         }
+
+        // 6. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
     }
 
-    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
+    private static void checkStorage(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) {
         for (String segmentName : segmentContents.keySet()) {
             // 1. Deletion status
             SegmentProperties sp = null;
@@ -619,7 +630,7 @@ public class StreamSegmentContainerTests {
         }
     }
 
-    private void appendToParentsAndBatches(Collection<String> segmentNames, HashMap<String, ArrayList<String>> batchesBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
+    private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
@@ -628,11 +639,11 @@ public class StreamSegmentContainerTests {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                for (String batchName : batchesBySegment.get(segmentName)) {
-                    appendData = getAppendData(batchName, i);
-                    appendFutures.add(context.container.append(batchName, appendData, new AppendContext(UUID.randomUUID(), 0), TIMEOUT));
-                    lengths.put(batchName, lengths.getOrDefault(batchName, 0L) + appendData.length);
-                    recordAppend(batchName, appendData, segmentContents);
+                for (String transactionName : transactionsBySegment.get(segmentName)) {
+                    appendData = getAppendData(transactionName, i);
+                    appendFutures.add(context.container.append(transactionName, appendData, new AppendContext(UUID.randomUUID(), 0), TIMEOUT));
+                    lengths.put(transactionName, lengths.getOrDefault(transactionName, 0L) + appendData.length);
+                    recordAppend(transactionName, appendData, segmentContents);
                 }
             }
         }
@@ -640,21 +651,21 @@ public class StreamSegmentContainerTests {
         FutureHelpers.allOf(appendFutures).join();
     }
 
-    private void mergeBatches(HashMap<String, ArrayList<String>> batchesBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
+    private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         ArrayList<CompletableFuture<Long>> mergeFutures = new ArrayList<>();
-        for (Map.Entry<String, ArrayList<String>> e : batchesBySegment.entrySet()) {
+        for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
-            for (String batchName : e.getValue()) {
-                mergeFutures.add(context.container.sealStreamSegment(batchName, TIMEOUT));
-                mergeFutures.add(context.container.mergeBatch(batchName, TIMEOUT));
+            for (String transactionName : e.getValue()) {
+                mergeFutures.add(context.container.sealStreamSegment(transactionName, TIMEOUT));
+                mergeFutures.add(context.container.mergeTransaction(transactionName, TIMEOUT));
 
                 // Update parent length.
-                lengths.put(parentName, lengths.get(parentName) + lengths.get(batchName));
-                lengths.remove(batchName);
+                lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
+                lengths.remove(transactionName);
 
                 // Update parent contents.
-                segmentContents.get(parentName).write(segmentContents.get(batchName).toByteArray());
-                segmentContents.remove(batchName);
+                segmentContents.get(parentName).write(segmentContents.get(transactionName).toByteArray());
+                segmentContents.remove(transactionName);
             }
         }
 
@@ -678,33 +689,33 @@ public class StreamSegmentContainerTests {
         return segmentNames;
     }
 
-    private HashMap<String, ArrayList<String>> createBatches(Collection<String> segmentNames, TestContext context) {
-        // Create the batches.
+    private HashMap<String, ArrayList<String>> createTransactions(Collection<String> segmentNames, TestContext context) {
+        // Create the Transaction.
         ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            for (int i = 0; i < BATCHES_PER_SEGMENT; i++) {
-                futures.add(context.container.createBatch(segmentName, UUID.randomUUID(), TIMEOUT));
+            for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
+                futures.add(context.container.createTransaction(segmentName, UUID.randomUUID(), TIMEOUT));
             }
         }
 
         FutureHelpers.allOf(futures).join();
 
-        // Get the batch names and index them by parent segment names.
-        HashMap<String, ArrayList<String>> batches = new HashMap<>();
-        for (CompletableFuture<String> batchFuture : futures) {
-            String batchName = batchFuture.join();
-            String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(batchName);
-            assert parentName != null : "batch created with invalid parent";
-            ArrayList<String> segmentBatches = batches.get(parentName);
-            if (segmentBatches == null) {
-                segmentBatches = new ArrayList<>();
-                batches.put(parentName, segmentBatches);
+        // Get the Transaction names and index them by parent segment names.
+        HashMap<String, ArrayList<String>> transactions = new HashMap<>();
+        for (CompletableFuture<String> transactionFuture : futures) {
+            String transactionName = transactionFuture.join();
+            String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+            assert parentName != null : "Transaction created with invalid parent";
+            ArrayList<String> segmentTransactions = transactions.get(parentName);
+            if (segmentTransactions == null) {
+                segmentTransactions = new ArrayList<>();
+                transactions.put(parentName, segmentTransactions);
             }
 
-            segmentBatches.add(batchName);
+            segmentTransactions.add(transactionName);
         }
 
-        return batches;
+        return transactions;
     }
 
     private void recordAppend(String segmentName, byte[] data, HashMap<String, ByteArrayOutputStream> segmentContents) throws Exception {

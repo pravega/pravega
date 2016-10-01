@@ -63,7 +63,7 @@ class LogClient implements AutoCloseable {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the clientId is invalid.
      */
-    public LogClient(String clientId, DistributedLogConfig config) {
+    LogClient(String clientId, DistributedLogConfig config) {
         Preconditions.checkNotNull(config, "config");
         Exceptions.checkNotNullOrEmpty(clientId, "clientId");
 
@@ -115,7 +115,6 @@ class LogClient implements AutoCloseable {
     /**
      * Initializes the LogClient.
      *
-     * @throws ObjectClosedException   If the LogClient is closed.
      * @throws IllegalStateException   If the LogClient is already initialized.
      * @throws DurableDataLogException If an exception is thrown during initialization. The actual exception thrown may
      *                                 be a derived exception from this one, which provides more information about
@@ -161,7 +160,7 @@ class LogClient implements AutoCloseable {
      * the Future will contain the exception that caused the failure. All Log-related exceptions will inherit from the
      * DurableDataLogException class.
      */
-    public LogHandle getLogHandle(String logName) throws DurableDataLogException {
+    LogHandle getLogHandle(String logName) throws DurableDataLogException {
         LogHandle handle;
         boolean newHandle = false;
         synchronized (this.handles) {

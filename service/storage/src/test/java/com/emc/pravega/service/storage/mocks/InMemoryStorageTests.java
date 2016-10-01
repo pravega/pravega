@@ -39,6 +39,8 @@ import java.util.HashMap;
  */
 public class InMemoryStorageTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int SEGMENT_COUNT = 10;
+    private static final int APPENDS_PER_SEGMENT = 10;
 
     /**
      * Tests the write() method.
@@ -97,7 +99,7 @@ public class InMemoryStorageTests {
                     s.read("foo", 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Do some reading.
             for (String segmentName : appendData.keySet()) {
@@ -161,7 +163,7 @@ public class InMemoryStorageTests {
                     s.seal("foo", TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
             for (String segmentName : appendData.keySet()) {
                 s.seal(segmentName, TIMEOUT).join();
                 AssertExtensions.assertThrows(
@@ -190,7 +192,7 @@ public class InMemoryStorageTests {
     @Test
     public void testConcat() throws Exception {
         try (Storage s = createStorage()) {
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Check pre-create concat.
             String firstSegmentName = getSegmentName(0);
@@ -208,10 +210,17 @@ public class InMemoryStorageTests {
             concatOrder.add(firstSegmentName);
             for (String segmentName : appendData.keySet()) {
                 if (segmentName.equals(firstSegmentName)) {
-                    // FirstSegment is where we'll be concat-ting to.
+                    // FirstSegment is where we'll be concatenating to.
                     continue;
                 }
 
+                AssertExtensions.assertThrows(
+                        "Concat allowed when source segment is not sealed.",
+                        () -> s.concat(firstSegmentName, segmentName, TIMEOUT),
+                        ex -> ex instanceof IllegalStateException);
+
+                // Seal the source segment and then re-try the concat
+                s.seal(segmentName, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(segmentName, TIMEOUT).join();
 
@@ -229,21 +238,21 @@ public class InMemoryStorageTests {
 
             // Check the contents of the first StreamSegment. We already validated that the length is correct.
             SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-            byte[] readbuffer = new byte[(int) segmentProperties.getLength()];
+            byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
 
             // Read the entire StreamSegment.
-            int bytesRead = s.read(firstSegmentName, 0, readbuffer, 0, readbuffer.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read.", readbuffer.length, bytesRead);
+            int bytesRead = s.read(firstSegmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
 
             // Check, concat-by-concat, that the final data is correct.
             int offset = 0;
             for (String segmentName : concatOrder) {
                 byte[] concatData = appendData.get(segmentName).toByteArray();
-                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readbuffer, offset, concatData.length);
+                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset, concatData.length);
                 offset += concatData.length;
             }
 
-            Assert.assertEquals("Concat included more bytes than expected.", offset, readbuffer.length);
+            Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
         }
     }
 
@@ -251,10 +260,10 @@ public class InMemoryStorageTests {
         return Integer.toString(id);
     }
 
-    private HashMap<String, ByteArrayOutputStream> populate(Storage s, int segmentCount, int appendsPerSegment) throws Exception {
+    private HashMap<String, ByteArrayOutputStream> populate(Storage s) throws Exception {
         HashMap<String, ByteArrayOutputStream> appendData = new HashMap<>();
 
-        for (int segmentId = 0; segmentId < segmentCount; segmentId++) {
+        for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId);
 
             s.create(segmentName, TIMEOUT).join();
@@ -262,7 +271,7 @@ public class InMemoryStorageTests {
             appendData.put(segmentName, writeStream);
 
             long offset = 0;
-            for (int j = 0; j < appendsPerSegment; j++) {
+            for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
                 s.write(segmentName, offset, dataStream, writeData.length, TIMEOUT).join();
@@ -273,7 +282,7 @@ public class InMemoryStorageTests {
         return appendData;
     }
 
-    protected Storage createStorage() {
+    private Storage createStorage() {
         return new InMemoryStorage();
     }
 }

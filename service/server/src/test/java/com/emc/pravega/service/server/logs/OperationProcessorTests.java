@@ -45,6 +45,7 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.DurableDataLog;
 import com.emc.pravega.service.storage.DurableDataLogException;
+import com.emc.pravega.service.storage.LogAddress;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -82,9 +83,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
     @Test
     public void testWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
-        int batchesPerStreamSegment = 2;
+        int transactionsPerStreamSegment = 2;
         int appendsPerStreamSegment = 20;
-        boolean mergeBatches = true;
+        boolean mergeTransactions = true;
         boolean sealStreamSegments = true;
 
         @Cleanup
@@ -92,8 +93,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data.
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        AbstractMap<Long, Long> batches = LogTestHelpers.createBatchesInMetadata(streamSegmentIds, batchesPerStreamSegment, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, batches, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeBatches, sealStreamSegments);
+        AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
+        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
@@ -113,7 +114,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.stopAsync().awaitTerminated();
 
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, context.metadata, mergeBatches, sealStreamSegments);
+        performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, context.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
 
@@ -135,7 +136,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         nonExistentStreamSegmentId = streamSegmentIds.size();
         streamSegmentIds.add(nonExistentStreamSegmentId);
@@ -209,7 +210,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -278,7 +279,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -335,7 +336,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -446,20 +447,20 @@ public class OperationProcessorTests extends OperationLogTestBase {
             OperationComparer.DEFAULT.assertEquals(expectedOp, readResult.getItem()); // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
 
             // Check truncation markers if this is the last Operation to be written.
-            long dataFrameSeq = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
-            if (readResult.getLastFullDataFrameSequence() >= 0 && readResult.getLastFullDataFrameSequence() != readResult.getLastUsedDataFrameSequence()) {
+            LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
+            if (readResult.getLastFullDataFrameAddress() != null && readResult.getLastFullDataFrameAddress().getSequence() != readResult.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameSequence(), dataFrameSeq);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.", readResult.getLastFullDataFrameAddress(), dataFrameAddress);
             } else if (readResult.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameSequence(), dataFrameSeq);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.", readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
                 // same as the one for the previous operation.
-                long expectedTruncationMarkerSeqNo = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarkerSeqNo, dataFrameSeq);
+                LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
+                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.", expectedTruncationMarker, dataFrameAddress);
             }
         }
     }

@@ -197,13 +197,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     
     @Override
     public void getTransactionInfo(GetTransactionInfo request) {
-        String batchName = StreamSegmentNameUtils.getBatchNameFromId(request.getSegment(), request.getTxid());
-        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(batchName, TIMEOUT);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
+        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
                 TransactionInfo result = new TransactionInfo(request.getSegment(),
                         request.getTxid(),
-                        batchName,
+                        transactionName,
                         true,
                         properties.isSealed(),
                         properties.isDeleted(),
@@ -212,11 +212,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         properties.getLength());
                 connection.send(result);
             } else {
-                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), batchName, false, true, true, false, 0, 0));
+                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, true, false, 0, 0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
-            handleException(batchName, "Get transaction info", e);
+            handleException(transactionName, "Get transaction info", e);
             return null;
         });
     }
@@ -260,7 +260,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        CompletableFuture<String> future = segmentStore.createBatch(createTransaction.getSegment(), createTransaction.getTxid(), TIMEOUT);
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), TIMEOUT);
         future.thenApply((String txName) -> {
             connection.send(new TransactionCreated(createTransaction.getSegment(), createTransaction.getTxid()));
             return null;
@@ -272,26 +272,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
-        String batchName = StreamSegmentNameUtils.getBatchNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        segmentStore.sealStreamSegment(batchName, TIMEOUT).thenApply((Long length)-> {
-             segmentStore.mergeBatch(batchName, TIMEOUT).thenApply((Long offset) -> {
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
+        segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length)-> {
+             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
                  connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
                  return null;
              }).exceptionally((Throwable e) -> {
-                 handleException(batchName, "Commit transaction", e);
+                 handleException(transactionName, "Commit transaction", e);
                  return null;
              });
              return null;
         }).exceptionally((Throwable e) -> {
-          handleException(batchName, "Commit transaction", e);
+          handleException(transactionName, "Commit transaction", e);
             return null;
         });
     }
 
     @Override
     public void dropTransaction(DropTransaction dropTx) {
-        String batchName = StreamSegmentNameUtils.getBatchNameFromId(dropTx.getSegment(), dropTx.getTxid());
-        CompletableFuture<Void> future = segmentStore.deleteStreamSegment(batchName, TIMEOUT);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
+        CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
         future.thenApply((Void v) -> {
             connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
             return null;
@@ -299,19 +299,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
                 connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
             } else {
-                handleException(batchName, "Drop transaction", e);
+                handleException(transactionName, "Drop transaction", e);
             }
             return null;
         });
     }
 
-    // @Override
-    // public void sealSegment(SealSegment sealSegment) {
-    // getNextRequestProcessor().sealSegment(sealSegment);
-    // }
-    //
-    // @Override
-    // public void deleteSegment(DeleteSegment deleteSegment) {
-    // getNextRequestProcessor().deleteSegment(deleteSegment);
-    // }
 }

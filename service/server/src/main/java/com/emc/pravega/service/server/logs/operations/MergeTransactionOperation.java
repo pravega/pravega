@@ -25,53 +25,53 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 /**
- * Log Operation that indicates a Batch StreamSegment is merged into its parent StreamSegment.
+ * Log Operation that indicates a Transaction StreamSegment is merged into its parent StreamSegment.
  */
-public class MergeBatchOperation extends StorageOperation {
+public class MergeTransactionOperation extends StorageOperation {
     //region Members
 
     public static final byte OPERATION_TYPE = 3;
     private static final byte VERSION = 0;
     private long streamSegmentOffset;
     private long length;
-    private long batchStreamSegmentId;
+    private long transactionSegmentId;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the MergeBatchOperation class.
+     * Creates a new instance of the MergeTransactionOperation class.
      *
      * @param streamSegmentId      The Id of the Parent StreamSegment (the StreamSegment to merge into).
-     * @param batchStreamSegmentId The Id of the Batch StreamSegment (the StreamSegment to be merged).
+     * @param transactionSegmentId The Id of the Transaction StreamSegment (the StreamSegment to be merged).
      */
-    public MergeBatchOperation(long streamSegmentId, long batchStreamSegmentId) {
+    public MergeTransactionOperation(long streamSegmentId, long transactionSegmentId) {
         super(streamSegmentId);
-        this.batchStreamSegmentId = batchStreamSegmentId;
+        this.transactionSegmentId = transactionSegmentId;
         this.length = -1;
         this.streamSegmentOffset = -1;
     }
 
-    protected MergeBatchOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected MergeTransactionOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
     }
 
     //endregion
 
-    //region MergeBatchOperation Properties
+    //region MergeTransactionOperation Properties
 
     /**
-     * Gets a value indicating the Id of the Batch StreamSegment (the StreamSegment to be merged).
+     * Gets a value indicating the Id of the Transaction StreamSegment (the StreamSegment to be merged).
      *
      * @return The Id.
      */
-    public long getBatchStreamSegmentId() {
-        return this.batchStreamSegmentId;
+    public long getTransactionSegmentId() {
+        return this.transactionSegmentId;
     }
 
     /**
-     * Sets the length of the Batch StreamSegment.
+     * Sets the length of the Transaction StreamSegment.
      *
      * @param value The length.
      */
@@ -105,7 +105,7 @@ public class MergeBatchOperation extends StorageOperation {
     }
 
     /**
-     * Gets a value indicating the Length of the Batch StreamSegment.
+     * Gets a value indicating the Length of the Transaction StreamSegment.
      *
      * @return The length.
      */
@@ -121,12 +121,12 @@ public class MergeBatchOperation extends StorageOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.length >= 0, "Batch StreamSegment Length has not been assigned for this entry.");
+        ensureSerializationCondition(this.length >= 0, "Transaction StreamSegment Length has not been assigned for this entry.");
         ensureSerializationCondition(this.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned for this entry.");
 
         target.writeByte(VERSION);
         target.writeLong(getStreamSegmentId());
-        target.writeLong(this.batchStreamSegmentId);
+        target.writeLong(this.transactionSegmentId);
         target.writeLong(this.length);
         target.writeLong(this.streamSegmentOffset);
     }
@@ -135,7 +135,7 @@ public class MergeBatchOperation extends StorageOperation {
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
         byte version = readVersion(source, VERSION);
         setStreamSegmentId(source.readLong());
-        this.batchStreamSegmentId = source.readLong();
+        this.transactionSegmentId = source.readLong();
         this.length = source.readLong();
         this.streamSegmentOffset = source.readLong();
     }
@@ -145,7 +145,7 @@ public class MergeBatchOperation extends StorageOperation {
         return String.format(
                 "%s, StreamSegmentId = %d, Length = %s, ParentOffset = %s",
                 super.toString(),
-                getBatchStreamSegmentId(),
+                getTransactionSegmentId(),
                 toString(getLength(), -1),
                 toString(getStreamSegmentOffset(), -1));
     }

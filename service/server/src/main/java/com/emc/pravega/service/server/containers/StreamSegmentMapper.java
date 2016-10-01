@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.containers;
 
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -35,12 +34,12 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
-import com.emc.pravega.service.server.OperationLog;
-import com.emc.pravega.service.server.logs.operations.BatchMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 
@@ -59,7 +58,6 @@ public class StreamSegmentMapper {
     private final Storage storage;
     private final Executor executor;
     private final HashMap<String, CompletableFuture<Long>> pendingRequests;
-    private final HashSet<Long> pendingIdAssignments;
     private final Object assignmentLock = new Object();
 
     //endregion
@@ -87,7 +85,6 @@ public class StreamSegmentMapper {
         this.storage = storage;
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
-        this.pendingIdAssignments = new HashSet<>();
     }
 
     //endregion
@@ -120,19 +117,22 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Creates a new Batch StreamSegment for an existing Parent StreamSegment and assigns a unique internal Id to it.
+     * Creates a new Transaction StreamSegment for an existing Parent StreamSegment and assigns a unique internal Id to it.
      *
      * @param parentStreamSegmentName The case-sensitive StreamSegment Name of the Parent StreamSegment.
      * @param timeout                 Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Batch StreamSegment.
+     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Transaction StreamSegment.
      * If the operation failed, this will contain the exception that caused the failure.
-     * @throws IllegalArgumentException If the given parent StreamSegment is invalid to have a batch (deleted, sealed, inexistent).
+     * @throws IllegalArgumentException If the given parent StreamSegment cannot have a Transaction (because it is deleted, sealed, inexistent).
      */
-    public CompletableFuture<String> createNewBatchStreamSegment(String parentStreamSegmentName, UUID batchId, Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewBatchStreamSegment", parentStreamSegmentName);
+    public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, UUID transactionId, Duration timeout) {
+        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
 
-        //We cannot create a Batch StreamSegment for a what looks like a parent StreamSegment.
-        Exceptions.checkArgument(StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null, "parentStreamSegmentName", "Given Parent StreamSegmentName looks like a Batch StreamSegment Name. Cannot create a batch for a batch.");
+        //We cannot create a Transaction StreamSegment for a what looks like a parent StreamSegment.
+        Exceptions.checkArgument(
+                StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null,
+                "parentStreamSegmentName",
+                "Given Parent StreamSegmentName looks like a Transaction StreamSegment Name. Cannot create a Transaction for a Transaction.");
 
         // Validate that Parent StreamSegment exists.
         CompletableFuture<SegmentProperties> parentPropertiesFuture = null;
@@ -140,14 +140,19 @@ public class StreamSegmentMapper {
         if (isValidStreamSegmentId(parentStreamSegmentId)) {
             SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
             if (parentMetadata != null) {
-                Exceptions.checkArgument(!isValidStreamSegmentId(parentMetadata.getParentId()), "parentStreamSegmentName", "Given Parent StreamSegment is a Batch StreamSegment. Cannot create a batch for a batch.");
-                Exceptions.checkArgument(!parentMetadata.isDeleted() && !parentMetadata.isSealed(), "parentStreamSegmentName", "Given Parent StreamSegment is deleted or sealed. Cannot create a batch for it.");
+                Exceptions.checkArgument(
+                        !isValidStreamSegmentId(parentMetadata.getParentId()),
+                        "parentStreamSegmentName",
+                        "Given Parent StreamSegment is a Transaction StreamSegment. Cannot create a Transaction for a Transaction.");
+                Exceptions.checkArgument(
+                        !parentMetadata.isDeleted() && !parentMetadata.isSealed(),
+                        "parentStreamSegmentName",
+                        "Given Parent StreamSegment is deleted or sealed. Cannot create a Transaction for it.");
                 parentPropertiesFuture = CompletableFuture.completedFuture(parentMetadata);
             }
         }
 
-        String batchName = StreamSegmentNameUtils.getBatchNameFromId(parentStreamSegmentName, batchId);
-
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentStreamSegmentName, transactionId);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         if (parentPropertiesFuture == null) {
             // We were unable to find this StreamSegment in our metadata. Check in Storage. If the parent StreamSegment
@@ -156,11 +161,11 @@ public class StreamSegmentMapper {
         }
 
         return parentPropertiesFuture
-                .thenCompose(parentInfo -> this.storage.create(batchName, timer.getRemaining()))
-                .thenCompose(batchInfo -> assignBatchStreamSegmentId(batchInfo, parentStreamSegmentId, timer.getRemaining()))
+                .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
+                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))
                 .thenApply(id -> {
-                    LoggerHelpers.traceLeave(log, traceObjectId, "createNewBatchStreamSegment", traceId, parentStreamSegmentName, batchName, id);
-                    return batchName;
+                    LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId, parentStreamSegmentName, transactionName, id);
+                    return transactionName;
                 });
     }
 
@@ -171,8 +176,8 @@ public class StreamSegmentMapper {
      * If multiple requests for assignment arrive for the same StreamSegment in parallel, the subsequent ones (after the
      * first one) will wait for the first one to complete and return the same result (this will not result in double-assignment).
      * <p>
-     * If the given streamSegmentName refers to a Batch StreamSegment, this will attempt to validate that the batch is still
-     * valid, by which means it will check the Parent's existence alongside the batch's existence.
+     * If the given streamSegmentName refers to a Transaction StreamSegment, this will attempt to validate that the Transaction is still
+     * valid, by which means it will check the Parent's existence alongside the Transaction's existence.
      *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           The timeout for the operation.
@@ -204,13 +209,13 @@ public class StreamSegmentMapper {
         }
         // We are the first/only ones requesting this id; go ahead and assign an id.
         if (needsAssignment) {
-            // Determine if given StreamSegmentName is actually a batch StreamSegmentName.
+            // Determine if given StreamSegmentName is actually a Transaction StreamSegmentName.
             String parentStreamSegmentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
             if (parentStreamSegmentName == null) {
                 // Stand-alone StreamSegment.
                 this.executor.execute(() -> assignStreamSegmentId(streamSegmentName, timeout));
             } else {
-                this.executor.execute(() -> assignBatchStreamSegmentId(streamSegmentName, parentStreamSegmentName, timeout));
+                this.executor.execute(() -> assignTransactionStreamSegmentId(streamSegmentName, parentStreamSegmentName, timeout));
             }
         }
 
@@ -218,53 +223,50 @@ public class StreamSegmentMapper {
     }
 
     /**
-     * Attempts to map a batch StreamSegment to its parent StreamSegment (and assign an id in the process).
+     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process).
      *
-     * @param batchStreamSegmentName  The Name for the batch to assign Id for.
-     * @param parentStreamSegmentName The Name of the Parent StreamSegment.
-     * @param timeout                 The timeout for the operation.
+     * @param transactionSegmentName The Name for the Transaction to assign Id for.
+     * @param parentSegmentName      The Name of the Parent StreamSegment.
+     * @param timeout                The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
      * failed, this will contain the exception that caused the failure.
      */
-    private CompletableFuture<Long> assignBatchStreamSegmentId(String batchStreamSegmentName, String parentStreamSegmentName, Duration timeout) {
+    private CompletableFuture<Long> assignTransactionStreamSegmentId(String transactionSegmentName, String parentSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         AtomicReference<Long> parentSegmentId = new AtomicReference<>();
 
         // Get info about parent. This also verifies the parent exists.
         return this
-                .getOrAssignStreamSegmentId(parentStreamSegmentName, timer.getRemaining())
+                .getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining())
                 .thenCompose(id -> {
-                    // Get info about batch itself.
+                    // Get info about Transaction itself.
                     parentSegmentId.set(id);
-                    return this.storage.getStreamSegmentInfo(batchStreamSegmentName, timer.getRemaining());
+                    return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
                 })
-                .thenCompose(batchInfo -> assignBatchStreamSegmentId(batchInfo, parentSegmentId.get(), timer.getRemaining()))
+                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer.getRemaining()))
                 .exceptionally(ex -> {
-                    failAssignment(batchStreamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID, ex);
+                    failAssignment(transactionSegmentName, ex);
                     throw new CompletionException(ex);
                 });
     }
 
     /**
-     * Attempts to map a batch StreamSegment to its parent StreamSegment (and assign an id in the process).
+     * Attempts to map a Transaction StreamSegment to its parent StreamSegment (and assign an id in the process).
      *
-     * @param batchInfo             The SegmentProperties for the batch to assign id for.
+     * @param transInfo             The SegmentProperties for the Transaction to assign id for.
      * @param parentStreamSegmentId The ID of the Parent StreamSegment.
      * @param timeout               The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
      * failed, this will contain the exception that caused the failure.
      */
-    private CompletableFuture<Long> assignBatchStreamSegmentId(SegmentProperties batchInfo, long parentStreamSegmentId, Duration timeout) {
-        assert batchInfo != null : "batchInfo is null";
+    private CompletableFuture<Long> assignTransactionStreamSegmentId(SegmentProperties transInfo, long parentStreamSegmentId, Duration timeout) {
+        assert transInfo != null : "transInfo is null";
         assert parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "parentStreamSegmentId is invalid.";
-        return persistInDurableLog(batchInfo, parentStreamSegmentId, timeout);
+        return persistInDurableLog(transInfo, parentStreamSegmentId, timeout);
     }
 
     /**
      * Assigns a new Id to the given StreamSegmentName.
-     *
-     * @param streamSegmentName
-     * @param timeout
      */
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -272,7 +274,7 @@ public class StreamSegmentMapper {
                 .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
                 .exceptionally(ex -> {
-                    failAssignment(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID, ex);
+                    failAssignment(streamSegmentName, ex);
                     throw new CompletionException(ex);
                 });
     }
@@ -281,8 +283,7 @@ public class StreamSegmentMapper {
      * Generates a unique Id for the StreamSegment with given info and persists that in DurableLog.
      *
      * @param streamSegmentInfo The SegmentProperties for the StreamSegment to generate and persist.
-     * @param timeout
-     * @return
+     * @param timeout           Timeout for the operation.
      */
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, Duration timeout) {
         return persistInDurableLog(streamSegmentInfo, ContainerMetadata.NO_STREAM_SEGMENT_ID, timeout);
@@ -293,14 +294,13 @@ public class StreamSegmentMapper {
      *
      * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given streamSegmentInfo
-     *                              will be mapped as a batch. Otherwise, this will be registered as a standalone StreamSegment.
-     * @param timeout
-     * @return
+     *                              will be mapped as a f. Otherwise, this will be registered as a standalone StreamSegment.
+     * @param timeout               Timeout for the operation.
      */
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, long parentStreamSegmentId, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(streamSegmentInfo.getName(), ContainerMetadata.NO_STREAM_SEGMENT_ID, new StreamSegmentNotExistsException("StreamSegment does not exist."));
+            failAssignment(streamSegmentInfo.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
         }
 
@@ -313,10 +313,10 @@ public class StreamSegmentMapper {
             CompletableFuture<Long> logAddResult;
             StreamSegmentMapping mapping;
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
-                // Batch.
+                // Transaction.
                 SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
                 assert parentMetadata != null : "parentMetadata is null";
-                BatchMapOperation op = new BatchMapOperation(parentStreamSegmentId, streamSegmentInfo);
+                TransactionMapOperation op = new TransactionMapOperation(parentStreamSegmentId, streamSegmentInfo);
                 mapping = op;
                 logAddResult = this.durableLog.add(op, timeout);
             } else {
@@ -333,9 +333,6 @@ public class StreamSegmentMapper {
 
     /**
      * Completes the assignment for the given StreamSegmentName by completing the waiting CompletableFuture.
-     *
-     * @param streamSegmentName
-     * @param streamSegmentId
      */
     private long completeAssignment(String streamSegmentName, long streamSegmentId) {
         assert streamSegmentName != null : "no streamSegmentName given";
@@ -346,7 +343,6 @@ public class StreamSegmentMapper {
         synchronized (assignmentLock) {
             pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
             this.pendingRequests.remove(streamSegmentName);
-            this.pendingIdAssignments.remove(streamSegmentId);
         }
 
         if (pendingRequest != null) {
@@ -358,12 +354,8 @@ public class StreamSegmentMapper {
 
     /**
      * Fails the assignment for the given StreamSegment Id with the given reason.
-     *
-     * @param streamSegmentName Required.
-     * @param streamSegmentId   Optional
-     * @param reason
      */
-    private void failAssignment(String streamSegmentName, long streamSegmentId, Throwable reason) {
+    private void failAssignment(String streamSegmentName, Throwable reason) {
         assert streamSegmentName != null : "no streamSegmentName given";
 
         // Get the pending request and complete it.
@@ -371,7 +363,6 @@ public class StreamSegmentMapper {
         synchronized (assignmentLock) {
             pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
             this.pendingRequests.remove(streamSegmentName);
-            this.pendingIdAssignments.remove(streamSegmentId);
         }
 
         if (pendingRequest != null) {
