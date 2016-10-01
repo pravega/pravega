@@ -18,6 +18,17 @@
 
 package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.ReadResultEntryContents;
+import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.ReadIndex;
+import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
+import com.emc.pravega.testcommon.AssertExtensions;
+import lombok.Cleanup;
+import org.junit.Assert;
+
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,34 +39,21 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
-import org.junit.Assert;
-
-import com.emc.pravega.service.contracts.ReadResult;
-import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.logs.operations.Operation;
-import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
-import com.emc.pravega.testcommon.AssertExtensions;
-
-import lombok.Cleanup;
-
 /**
  * Base class for all Operation Log-based classes (i.e., DurableLog and OperationProcessor).
  */
-public abstract class OperationLogTestBase {
+abstract class OperationLogTestBase {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    protected void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> batches, Collection<LogTestHelpers.OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectBatchesMerged, boolean expectSegmentsSealed) {
-        // Verify that batches are merged
-        for (long batchId : batches.keySet()) {
-            SegmentMetadata batchMetadata = metadata.getStreamSegmentMetadata(batchId);
-            if (invalidStreamSegmentIds.contains(batchId)) {
-                Assert.assertTrue("Unexpected data for a Batch that was invalid.", batchMetadata == null || batchMetadata.getDurableLogLength() == 0);
+    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> transactions, Collection<LogTestHelpers.OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
+        // Verify that transactions are merged
+        for (long transactionId : transactions.keySet()) {
+            SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(transactionId);
+            if (invalidStreamSegmentIds.contains(transactionId)) {
+                Assert.assertTrue("Unexpected data for a Transaction that was invalid.", transactionMetadata == null || transactionMetadata.getDurableLogLength() == 0);
             } else {
-                Assert.assertEquals("Unexpected batch seal state for batch " + batchId, expectBatchesMerged, batchMetadata.isSealed());
-                Assert.assertEquals("Unexpected batch merge state for batch " + batchId, expectBatchesMerged, batchMetadata.isMerged());
+                Assert.assertEquals("Unexpected Transaction seal state for Transaction " + transactionId, expectTransactionsMerged, transactionMetadata.isSealed());
+                Assert.assertEquals("Unexpected Transaction merge state for Transaction " + transactionId, expectTransactionsMerged, transactionMetadata.isMerged());
             }
         }
 
@@ -72,7 +70,7 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex) throws Exception {
+    void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex) throws Exception {
         AbstractMap<Long, Integer> expectedLengths = LogTestHelpers.getExpectedLengths(operations);
         AbstractMap<Long, InputStream> expectedData = LogTestHelpers.getExpectedContents(operations);
         for (Map.Entry<Long, InputStream> e : expectedData.entrySet()) {
@@ -93,10 +91,10 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
+    static class FailedStreamSegmentAppendOperation extends StreamSegmentAppendOperation {
         private final boolean failAtBeginning;
 
-        public FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
+        FailedStreamSegmentAppendOperation(StreamSegmentAppendOperation base, boolean failAtBeginning) {
             super(base.getStreamSegmentId(), base.getData(), base.getAppendContext());
             this.failAtBeginning = failAtBeginning;
         }
@@ -111,11 +109,11 @@ public abstract class OperationLogTestBase {
         }
     }
 
-    protected static class CorruptedMemoryOperationLog extends MemoryOperationLog {
+    static class CorruptedMemoryOperationLog extends MemoryOperationLog {
         private final long corruptAtIndex;
         private final AtomicLong addCount;
 
-        public CorruptedMemoryOperationLog(int corruptAtIndex) {
+        CorruptedMemoryOperationLog(int corruptAtIndex) {
             this.corruptAtIndex = corruptAtIndex;
             this.addCount = new AtomicLong();
         }

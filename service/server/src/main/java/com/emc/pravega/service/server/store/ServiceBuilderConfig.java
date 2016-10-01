@@ -42,7 +42,7 @@ public class ServiceBuilderConfig {
     /**
      * Creates a new instance of the ServiceBuilderConfig class.
      *
-     * @param properties
+     * @param properties The Properties object to wrap.
      */
     public ServiceBuilderConfig(Properties properties) {
         Preconditions.checkNotNull(properties, "properties");
@@ -53,8 +53,6 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a new instance of the ServiceConfig for this builder.
-     *
-     * @return
      */
     public ServiceConfig getServiceConfig() {
         return getConfig(ServiceConfig::new);
@@ -62,8 +60,6 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a new instance of the DurableLogConfig for this builder.
-     *
-     * @return
      */
     public DurableLogConfig getDurableLogConfig() {
         return getConfig(DurableLogConfig::new);
@@ -71,8 +67,6 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a new instance of the WriterConfig for this builder.
-     *
-     * @return
      */
     public WriterConfig getWriterConfig() {
         return getConfig(WriterConfig::new);
@@ -80,8 +74,6 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a new instance of the ReadIndexConfig for this builder.
-     *
-     * @return
      */
     public ReadIndexConfig getReadIndexConfig() {
         return getConfig(ReadIndexConfig::new);
@@ -91,8 +83,6 @@ public class ServiceBuilderConfig {
      * Gets a new instance of a ComponentConfig for this builder.
      *
      * @param constructor The constructor for the new instance.
-     * @param <T>
-     * @return
      */
     public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
         return constructor.apply(this.properties);
@@ -102,8 +92,6 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a default set of configuration values, in absence of any real configuration.
-     *
-     * @return
      */
     public static ServiceBuilderConfig getDefaultConfig() {
         Properties p = new Properties();

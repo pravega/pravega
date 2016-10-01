@@ -32,11 +32,11 @@ public abstract class MetadataOperation extends Operation {
     /**
      * Creates a new instance of the MetadataOperation class.
      */
-    public MetadataOperation() {
+    MetadataOperation() {
         super();
     }
 
-    protected MetadataOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    MetadataOperation(OperationHeader header, DataInputStream source) throws SerializationException {
         super(header, source);
     }
 

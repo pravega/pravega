@@ -29,7 +29,7 @@ public final class StreamSegmentNameUtils {
     /**
      * We append this to the end of the Parent StreamName, then we append a unique identifier.
      */
-    private static final String DELIMITER = "#batch.";
+    private static final String DELIMITER = "#transaction.";
 
     /**
      * The unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -49,14 +49,14 @@ public final class StreamSegmentNameUtils {
     //endregion
 
     /**
-     * Generates a name for a Batch StreamSegment based on the name of the current Parent StreamSegment.
+     * Generates a name for a Transaction StreamSegment based on the name of the current Parent StreamSegment.
      * Every call to this method should generate a different name, as long as the calls are at least 1ns apart.
      * The return value from this method can be decomposed using the getParentStreamSegmentName method.
      *
-     * @param parentStreamSegmentName The name of the Parent StreamSegment for this batch.
-     * @return The name of the Batch StreamSegmentId.
+     * @param parentStreamSegmentName The name of the Parent StreamSegment for this Transaction.
+     * @return The name of the Transaction StreamSegmentId.
      */
-    public static String generateBatchStreamSegmentName(String parentStreamSegmentName) {
+    public static String generateTransactionStreamSegmentName(String parentStreamSegmentName) {
         // Part 1 is the the long HashCode for the parentStreamSegmentName.
         long part1 = StringHelpers.longHashCode(parentStreamSegmentName, 0, parentStreamSegmentName.length());
 
@@ -64,26 +64,21 @@ public final class StreamSegmentNameUtils {
         long part2 = System.currentTimeMillis() & 0xffffffffL;
         part2 = part2 << Integer.SIZE | System.nanoTime() & 0xffffffffL;
 
-        StringBuilder result = new StringBuilder();
-        result.append(parentStreamSegmentName);
-        result.append(DELIMITER);
-        result.append(String.format(PART_FORMAT, part1));
-        result.append(String.format(PART_FORMAT, part2));
-        return result.toString();
+        return parentStreamSegmentName + DELIMITER + String.format(PART_FORMAT, part1) + String.format(PART_FORMAT, part2);
     }
 
     /**
-     * Attempts to extract the name of the Parent StreamSegment for the given Batch StreamSegment. This method returns a
-     * valid value only if the batchStreamSegmentName was generated using the generateBatchStreamSegmentName method.
+     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
+     * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
      *
-     * @param batchStreamSegmentName The name of the Batch StreamSegment to extract the name of the Parent StreamSegment.
+     * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
      */
-    public static String getParentStreamSegmentName(String batchStreamSegmentName) {
-        // Check to see if the given name is a properly formatted batch.
-        int endOfStreamNamePos = batchStreamSegmentName.lastIndexOf(DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + DELIMITER.length() + ID_LENGTH > batchStreamSegmentName.length()) {
-            // Improperly formatted batch name.
+    public static String getParentStreamSegmentName(String transactionName) {
+        // Check to see if the given name is a properly formatted Transaction.
+        int endOfStreamNamePos = transactionName.lastIndexOf(DELIMITER);
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + DELIMITER.length() + ID_LENGTH > transactionName.length()) {
+            // Improperly formatted Transaction name.
             return null;
         }
 
@@ -91,19 +86,19 @@ public final class StreamSegmentNameUtils {
         int decodePos = endOfStreamNamePos + DELIMITER.length();
         long hash;
         try {
-            hash = Long.parseUnsignedLong(batchStreamSegmentName.substring(decodePos, decodePos + PART_LENGTH), 16);
+            hash = Long.parseUnsignedLong(transactionName.substring(decodePos, decodePos + PART_LENGTH), 16);
         } catch (NumberFormatException ex) {
-            // Not a valid batch name.
+            // Not a valid Transaction name.
             return null;
         }
 
         // Determine the hash of the "parent" name.
-        long expectedHash = StringHelpers.longHashCode(batchStreamSegmentName, 0, endOfStreamNamePos);
+        long expectedHash = StringHelpers.longHashCode(transactionName, 0, endOfStreamNamePos);
         if (hash == expectedHash) {
-            return batchStreamSegmentName.substring(0, endOfStreamNamePos);
+            return transactionName.substring(0, endOfStreamNamePos);
         }
 
-        // Hash mismatch. Not a valid batch.
+        // Hash mismatch. Not a valid Transaction.
         return null;
     }
 }

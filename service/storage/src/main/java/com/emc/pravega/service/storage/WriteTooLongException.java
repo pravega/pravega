@@ -39,8 +39,6 @@ public class WriteTooLongException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the WriteTooLongException class.
-     *
-     * @param cause
      */
     public WriteTooLongException(Throwable cause) {
         super("Maximum write length exceeded.", cause);

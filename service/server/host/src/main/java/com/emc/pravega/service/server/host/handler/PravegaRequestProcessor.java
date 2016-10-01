@@ -223,13 +223,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     //
     // @Override
-    // public void createBatch(CreateBatch createBatch) {
-    // getNextRequestProcessor().createBatch(createBatch);
+    // public void createTransaction(CreateBatch createTransaction) {
+    // getNextRequestProcessor().createTransaction(createTransaction);
     // }
     //
     // @Override
-    // public void mergeBatch(MergeBatch mergeBatch) {
-    // getNextRequestProcessor().mergeBatch(mergeBatch);
+    // public void mergeTransaction(MergeBatch mergeTransaction) {
+    // getNextRequestProcessor().mergeTransaction(mergeTransaction);
     // }
     //
     // @Override

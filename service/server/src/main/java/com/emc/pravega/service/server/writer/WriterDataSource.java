@@ -32,8 +32,6 @@ import java.util.concurrent.CompletableFuture;
 public interface WriterDataSource {
     /**
      * Gets a value indicating the Id of the StreamSegmentContainer this WriterDataSource is for.
-     *
-     * @return
      */
     int getId();
 
@@ -79,7 +77,6 @@ public interface WriterDataSource {
      * setValidTruncationPoint().
      *
      * @param operationSequenceNumber The Sequence number to query.
-     * @return The result.
      */
     boolean isValidTruncationPoint(long operationSequenceNumber);
 
@@ -87,7 +84,6 @@ public interface WriterDataSource {
      * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence Number.
      *
      * @param operationSequenceNumber The Sequence number to query.
-     * @return The result.
      */
     long getClosestValidTruncationPoint(long operationSequenceNumber);
 

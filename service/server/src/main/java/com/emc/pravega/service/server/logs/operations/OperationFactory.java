@@ -57,10 +57,10 @@ public class OperationFactory implements LogItemFactory<Operation> {
                 // We purposefully do not create CachedStreamSegmentAppendOperations. Those are in-memory only and need not be serialized.
                 map(StreamSegmentAppendOperation.OPERATION_TYPE, StreamSegmentAppendOperation::new);
                 map(StreamSegmentSealOperation.OPERATION_TYPE, StreamSegmentSealOperation::new);
-                map(MergeBatchOperation.OPERATION_TYPE, MergeBatchOperation::new);
+                map(MergeTransactionOperation.OPERATION_TYPE, MergeTransactionOperation::new);
                 map(MetadataCheckpointOperation.OPERATION_TYPE, MetadataCheckpointOperation::new);
                 map(StreamSegmentMapOperation.OPERATION_TYPE, StreamSegmentMapOperation::new);
-                map(BatchMapOperation.OPERATION_TYPE, BatchMapOperation::new);
+                map(TransactionMapOperation.OPERATION_TYPE, TransactionMapOperation::new);
             } catch (StreamingException se) {
                 throw new ExceptionInInitializerError(se);
             }

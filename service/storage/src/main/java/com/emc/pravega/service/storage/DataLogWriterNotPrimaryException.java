@@ -35,8 +35,6 @@ public class DataLogWriterNotPrimaryException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the DataLogWriterNotPrimaryException class.
-     *
-     * @param message
      */
     public DataLogWriterNotPrimaryException(String message) {
         super(message);
@@ -44,9 +42,6 @@ public class DataLogWriterNotPrimaryException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the DataLogNotAvailable class.
-     *
-     * @param message
-     * @param cause
      */
     public DataLogWriterNotPrimaryException(String message, Throwable cause) {
         super(message, cause);

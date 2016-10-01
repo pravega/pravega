@@ -396,7 +396,6 @@ class StorageWriter extends AbstractService implements Writer {
      * Gets, or creates, a SegmentAggregator for the given StorageOperation.
      *
      * @param streamSegmentId The Id of the StreamSegment to get the aggregator for.
-     * @return The result.
      * @throws DataCorruptionException If the Operation refers to a StreamSegmentId that does not exist in Metadata.
      */
     private SegmentAggregator getSegmentAggregator(long streamSegmentId) throws DataCorruptionException {
@@ -488,7 +487,7 @@ class StorageWriter extends AbstractService implements Writer {
     private void logErrorHandled(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         log.warn("{}: Iteration[{}].HandledError {}", this.traceObjectId, this.iterationId, ex);
-//        System.out.println(String.format("%s: Iteration[%s].Warn. %s", this.traceObjectId, this.iterationId, ex));
+        //        System.out.println(String.format("%s: Iteration[%s].Warn. %s", this.traceObjectId, this.iterationId, ex));
     }
 
     private void checkRunning() {

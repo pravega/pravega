@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.server.logs;
 
-import java.util.Properties;
-
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
 import com.emc.pravega.common.util.MissingPropertyException;
+
+import java.util.Properties;
 
 /**
  * Durable Log Configuration.
@@ -63,8 +63,6 @@ public class DurableLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the minimum number of commits that need to be accumulated in order to trigger a Checkpoint.
-     *
-     * @return
      */
     public int getCheckpointMinCommitCount() {
         return this.checkpointMinCommitCount;
@@ -72,8 +70,6 @@ public class DurableLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of commits that would trigger a Checkpoint.
-     *
-     * @return
      */
     public int getCheckpointCommitCountThreshold() {
         return this.checkpointCommitCountThreshold;
@@ -81,8 +77,6 @@ public class DurableLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the number of bytes appended that would trigger a Checkpoint.
-     *
-     * @return
      */
     public long getCheckpointTotalCommitLengthThreshold() {
         return this.checkpointTotalCommitLengthThreshold;

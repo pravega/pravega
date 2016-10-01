@@ -58,8 +58,6 @@ class CacheReadIndexEntry extends ReadIndexEntry {
 
     /**
      * Gets a pointer to the CacheKey for this entry.
-     *
-     * @return
      */
     CacheKey getCacheKey() {
         return this.cacheKey;
@@ -70,7 +68,6 @@ class CacheReadIndexEntry extends ReadIndexEntry {
      * adjusted by the given amount.
      *
      * @param offsetAdjustment The amount to adjust the offset by.
-     * @return
      */
     CacheReadIndexEntry withAdjustedOffset(long offsetAdjustment) {
         // CacheReadIndexEntry always have length < Int32.MAX_VALUE, so it's safe to cast to int.

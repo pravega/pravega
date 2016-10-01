@@ -67,8 +67,6 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     /**
      * Gets a value indicating the CacheKey to use in order to retrieve the data associated with this operation.
-     *
-     * @return The result.
      */
     public CacheKey getCacheKey() {
         return this.cacheKey;

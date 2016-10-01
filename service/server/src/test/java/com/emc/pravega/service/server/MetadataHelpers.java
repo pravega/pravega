@@ -31,9 +31,6 @@ public class MetadataHelpers {
 
     /**
      * Verify that the given ContainerMetadata objects contain the same data.
-     * @param message
-     * @param expected
-     * @param actual
      */
     public static void assertMetadataEquals(String message, UpdateableContainerMetadata expected, UpdateableContainerMetadata actual) {
         Assert.assertEquals("Unexpected ContainerId.", expected.getContainerId(), actual.getContainerId());
@@ -50,9 +47,6 @@ public class MetadataHelpers {
 
     /**
      * Verifies that the given SegmentMetadata objects contain the same data.
-     * @param message
-     * @param expected
-     * @param actual
      */
     public static void assertSegmentMetadataEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
         String idPrefix = message + " SegmentId " + expected.getId();

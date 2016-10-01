@@ -30,7 +30,6 @@ public class DataLogNotAvailableException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the DataLogNotAvailable class.
-     * @param message
      */
     public DataLogNotAvailableException(String message) {
         super(message);
@@ -38,8 +37,6 @@ public class DataLogNotAvailableException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the DataLogNotAvailable class.
-     * @param message
-     * @param cause
      */
     public DataLogNotAvailableException(String message, Throwable cause) {
         super(message, cause);

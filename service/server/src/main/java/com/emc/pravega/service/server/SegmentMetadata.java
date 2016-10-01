@@ -30,51 +30,37 @@ import java.util.UUID;
 public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating the id of this StreamSegment.
-     *
-     * @return
      */
     long getId();
 
     /**
      * Gets a value indicating the id of this StreamSegment's parent.
-     *
-     * @return
      */
     long getParentId();
 
     /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
-     *
-     * @return
      */
     int getContainerId();
 
     /**
      * Gets a value indicating whether this StreamSegment has been merged into another.
-     *
-     * @return
      */
     boolean isMerged();
 
     /**
      * Gets a value indicating whether this StreamSegment has been sealed in Storage.
      * This is different from isSealed(), which returns true if the StreamSegment has been sealed in DurableLog or in Storage.
-     *
-     * @return
      */
     boolean isSealedInStorage();
 
     /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
-     *
-     * @return
      */
     long getStorageLength();
 
     /**
      * Gets a value indicating the length of this entire StreamSegment (the part in Storage + the part in DurableLog).
-     *
-     * @return
      */
     long getDurableLogLength();
 
@@ -84,14 +70,11 @@ public interface SegmentMetadata extends SegmentProperties {
      * the metadata).
      *
      * @param clientId The Client Id to inquire for.
-     * @return
      */
     AppendContext getLastAppendContext(UUID clientId);
 
     /**
      * Gets a collection of all known Client Ids (mapped to AppendContexts).
-     *
-     * @return
      */
     Collection<UUID> getKnownClientIds();
 }

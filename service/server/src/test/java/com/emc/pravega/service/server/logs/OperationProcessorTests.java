@@ -83,9 +83,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
     @Test
     public void testWithNoFailures() throws Exception {
         int streamSegmentCount = 50;
-        int batchesPerStreamSegment = 2;
+        int transactionsPerStreamSegment = 2;
         int appendsPerStreamSegment = 20;
-        boolean mergeBatches = true;
+        boolean mergeTransactions = true;
         boolean sealStreamSegments = true;
 
         @Cleanup
@@ -93,8 +93,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data.
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
-        AbstractMap<Long, Long> batches = LogTestHelpers.createBatchesInMetadata(streamSegmentIds, batchesPerStreamSegment, context.metadata);
-        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, batches, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeBatches, sealStreamSegments);
+        AbstractMap<Long, Long> transactions = LogTestHelpers.createTransactionsInMetadata(streamSegmentIds, transactionsPerStreamSegment, context.metadata);
+        List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
         // Setup an OperationProcessor and start it.
         @Cleanup
@@ -114,7 +114,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.stopAsync().awaitTerminated();
 
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata, context.cache);
-        performMetadataChecks(streamSegmentIds, new HashSet<>(), batches, completionFutures, context.metadata, mergeBatches, sealStreamSegments);
+        performMetadataChecks(streamSegmentIds, new HashSet<>(), transactions, completionFutures, context.metadata, mergeTransactions, sealStreamSegments);
         performReadIndexChecks(completionFutures, context.readIndex);
     }
 
@@ -136,7 +136,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         nonExistentStreamSegmentId = streamSegmentIds.size();
         streamSegmentIds.add(nonExistentStreamSegmentId);
@@ -210,7 +210,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -279,7 +279,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
@@ -336,7 +336,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
         MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
 
-        // Generate some test data (no need to complicate ourselves with batches here; that is tested in the no-failure test).
+        // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
         List<Operation> operations = LogTestHelpers.generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 

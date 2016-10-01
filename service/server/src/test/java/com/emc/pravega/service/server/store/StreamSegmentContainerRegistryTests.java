@@ -193,11 +193,11 @@ public class StreamSegmentContainerRegistryTests {
 
     private static class TestContainer extends AbstractService implements SegmentContainer {
         private final int id;
-        private Exception startException;
+        private final Exception startException;
         private Exception stopException;
         private boolean closed;
 
-        public TestContainer(int id, Exception startException) {
+        TestContainer(int id, Exception startException) {
             this.id = id;
             this.startException = startException;
         }
@@ -266,12 +266,12 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public CompletableFuture<String> createBatch(String parentStreamSegmentName, Duration timeout) {
+        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Long> mergeBatch(String batchName, Duration timeout) {
+        public CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout) {
             return null;
         }
 
