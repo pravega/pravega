@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Stream metadata test
@@ -48,29 +49,29 @@ public class StreamMetadataStoreTest {
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
     @Test
-    public void testStreamMetadataStore() {
+    public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
         store.createStream(stream1, configuration1);
         store.createStream(stream2, configuration2);
 
-        assertEquals(stream1, store.getConfiguration(stream1).getName());
+        assertEquals(stream1, store.getConfiguration(stream1).get().getName());
         // endregion
 
         // region checkSegments
-        SegmentFutures segmentFutures = store.getActiveSegments(stream1);
+        SegmentFutures segmentFutures = store.getActiveSegments(stream1).get();
         assertEquals(2, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream1, 10);
+        segmentFutures = store.getActiveSegments(stream1, 10).get();
         assertEquals(2, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream2);
+        segmentFutures = store.getActiveSegments(stream2).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream2, 10);
+        segmentFutures = store.getActiveSegments(stream2, 10).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
@@ -81,15 +82,15 @@ public class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
         store.scale(stream1, Collections.singletonList(1), Arrays.asList(segment1, segment2), 20);
 
-        segmentFutures = store.getActiveSegments(stream1);
+        segmentFutures = store.getActiveSegments(stream1).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream1, 30);
+        segmentFutures = store.getActiveSegments(stream1, 30).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream1, 10);
+        segmentFutures = store.getActiveSegments(stream1, 10).get();
         assertEquals(2, segmentFutures.getCurrent().size());
         assertEquals(2, segmentFutures.getFutures().size());
 
@@ -98,11 +99,11 @@ public class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         store.scale(stream2, Arrays.asList(0, 1, 2), Arrays.asList(segment3, segment4, segment5), 20);
 
-        segmentFutures = store.getActiveSegments(stream1);
+        segmentFutures = store.getActiveSegments(stream1).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(0, segmentFutures.getFutures().size());
 
-        segmentFutures = store.getActiveSegments(stream2, 10);
+        segmentFutures = store.getActiveSegments(stream2, 10).get();
         assertEquals(3, segmentFutures.getCurrent().size());
         assertEquals(1, segmentFutures.getFutures().size());
 
@@ -111,20 +112,20 @@ public class StreamMetadataStoreTest {
         // region getNextPosition
 
         SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.EMPTY_MAP);
-        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)), Collections.singletonList(updatedPosition));
+        List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)), Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
         assertTrue(futuresList.get(0).getCurrent().contains(4));
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.EMPTY_MAP);
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)), Collections.singletonList(updatedPosition));
+        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)), Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
 
         updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.EMPTY_MAP);
-        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)), Collections.singletonList(updatedPosition));
+        futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)), Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());

@@ -45,14 +45,18 @@ public class AdminApiImpl implements ControllerApi.Admin {
     @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         String stream = streamConfig.getName();
-        return CompletableFuture.supplyAsync(() -> streamStore.createStream(stream, streamConfig))
+        return streamStore.createStream(stream, streamConfig)
                 .thenApply(result -> {
                     if (result) {
-                        streamStore.getActiveSegments(stream).getCurrent().stream().
-                                parallel().
-                                forEach(i -> notifyNewSegment(stream, i));
+                        streamStore.getActiveSegments(stream)
+                                .thenApply(activeSegments -> {
+                                    activeSegments.getCurrent().stream().parallel().forEach(i -> notifyNewSegment(stream, i));
+                                    return null;
+                                });
                         return Status.SUCCESS;
-                    } else return Status.FAILURE;
+                    } else {
+                        return Status.FAILURE;
+                    }
                 });
     }
 

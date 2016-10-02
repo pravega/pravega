@@ -21,11 +21,12 @@ import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * In-memory stream store.
  */
-public class InMemoryStreamStore extends AbstractStreamMetadataStore {
+public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Map<String, InMemoryStream> streams = new HashMap<>();
 
@@ -39,12 +40,14 @@ public class InMemoryStreamStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public boolean createStream(String name, StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration) {
         if (!streams.containsKey(name)) {
             InMemoryStream stream = new InMemoryStream(name);
             stream.create(configuration);
             streams.put(name, stream);
-            return true;
+            CompletableFuture<Boolean> future = new CompletableFuture<>();
+            future.complete(true);
+            return future;
         } else {
             throw new StreamAlreadyExistsException(name);
         }

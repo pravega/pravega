@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.base.Preconditions;
 
@@ -28,46 +29,48 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
- * Create and update queries are delegated to the specific implementations of this abstract class.
+ * Implementation of create and update queries are delegated to the specific implementations of this abstract class.
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     public abstract Stream getStream(String name);
 
     @Override
-    public boolean updateConfiguration(String name, StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> updateConfiguration(String name, StreamConfiguration configuration) {
         return getStream(name).updateConfiguration(configuration);
     }
 
     @Override
-    public StreamConfiguration getConfiguration(String name) {
+    public CompletableFuture<StreamConfiguration> getConfiguration(String name) {
         return getStream(name).getConfiguration();
     }
 
     @Override
-    public Segment getSegment(String name, int number) {
+    public CompletableFuture<Segment> getSegment(String name, int number) {
         return getStream(name).getSegment(number);
     }
 
     @Override
-    public SegmentFutures getActiveSegments(String name) {
-        List<Integer> currentSegments = getStream(name).getActiveSegments();
-        return new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP);
+    public CompletableFuture<SegmentFutures> getActiveSegments(String name) {
+        return getStream(name)
+                .getActiveSegments()
+                .thenApply(currentSegments -> new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP));
     }
 
     @Override
-    public SegmentFutures getActiveSegments(String name, long timestamp) {
+    public CompletableFuture<SegmentFutures> getActiveSegments(String name, long timestamp) {
         Stream stream = getStream(name);
-        List<Integer> activeSegments = stream.getActiveSegments(timestamp);
-        return constructSegmentFutures(stream, activeSegments);
+        CompletableFuture<List<Integer>> futureActiveSegments = stream.getActiveSegments(timestamp);
+        return futureActiveSegments.thenCompose(activeSegments -> constructSegmentFutures(stream, activeSegments));
     }
 
     @Override
-    public List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> positions) {
+    public CompletableFuture<List<SegmentFutures>> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 
@@ -77,31 +80,62 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         positions.forEach(position ->
                 position.getCurrent().forEach(current::add));
 
-        Set<Integer> implicitCompletedSegments = getImplicitCompletedSegments(stream, completedSegments, current);
+        CompletableFuture<Set<Integer>> implicitCompletedSegments =
+                getImplicitCompletedSegments(stream, completedSegments, current);
 
-        Set<Integer> successors = getSuccessors(stream, implicitCompletedSegments);
+        CompletableFuture<Set<Integer>> successors =
+                implicitCompletedSegments.thenCompose(x -> getSuccessors(stream, x));
 
-        List<Integer> newCurrents = getNewCurrents(stream, successors, implicitCompletedSegments, positions);
+        CompletableFuture<List<Integer>> newCurrents =
+                implicitCompletedSegments.thenCompose(x -> successors.thenCompose(y -> getNewCurrents(stream, y, x, positions)));
 
-        Map<Integer, List<Integer>> newFutures = getNewFutures(stream, successors, implicitCompletedSegments);
+        CompletableFuture<Map<Integer, List<Integer>>> newFutures =
+                implicitCompletedSegments.thenCompose(x -> successors.thenCompose(y -> getNewFutures(stream, y, x)));
 
-        return divideSegments(stream, newCurrents, newFutures, positions);
+        return newCurrents.thenCompose(x -> newFutures.thenCompose(y -> divideSegments(stream, x, y, positions)));
     }
 
     @Override
-    public List<Segment> scale(String name, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp);
     }
 
-    private SegmentFutures constructSegmentFutures(Stream stream, List<Integer> activeSegments) {
+    private CompletableFuture<SegmentFutures> constructSegmentFutures(Stream stream, List<Integer> activeSegments) {
         Map<Integer, Integer> futureSegments = new HashMap<>();
-        for (Integer number: activeSegments) {
-            for (Integer future : getDefaultFutures(stream, number)) {
-                futureSegments.put(future, number);
-            }
-        }
-        return new SegmentFutures(activeSegments, futureSegments);
+        List<CompletableFuture<List<Integer>>> list =
+                activeSegments.stream().map(number -> getDefaultFutures(stream, number)).collect(Collectors.toList());
+
+        CompletableFuture<List<List<Integer>>> futureDefaultFutures = FutureCollectionHelper.sequence(list);
+        return futureDefaultFutures
+                .thenApply(futureList -> {
+                            for (int i = 0; i < futureList.size(); i++) {
+                                for (Integer future : futureList.get(i)) {
+                                    futureSegments.put(future, activeSegments.get(i));
+                                }
+                            }
+                            return new SegmentFutures(new ArrayList(activeSegments), futureSegments);
+                        }
+                );
     }
+
+//    private CompletableFuture<SegmentFutures> constructSegmentFutures(String name, long timestamp) {
+//        Stream stream = getStream(name);
+//        CompletableFuture<List<Integer>> activeSegments = stream.getActiveSegments(timestamp).thenApply(ArrayList::new);
+//
+//        CompletableFuture<Map<Integer, Integer>> futureSegments =
+//                FutureCollectionHelper.foldFutures(activeSegments, new HashMap<>(), (x, y) -> getDefaultSegmentFutures(stream, x, y));
+//
+//        return activeSegments.thenCombine(futureSegments, SegmentFutures::new);
+//    }
+//
+//    private CompletableFuture<Map<Integer, Integer>> getDefaultSegmentFutures(Stream stream, CompletableFuture<Map<Integer, Integer>> futureMap, int number) {
+//        CompletableFuture<List<Integer>> futures = getDefaultFutures(stream, number);
+//        return futures.thenCombine(futureMap,
+//                (list, map) -> {
+//                    list.stream().forEach(x -> map.put(x, number));
+//                    return map;
+//                });
+//    }
 
     /**
      * Finds all successors of a given segment, that have exactly one predecessor,
@@ -109,70 +143,112 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @param stream input stream
      * @param number segment number for which default futures are sought.
      * @return the list of successors of specified segment who have only one predecessor.
+     *
+     *         return stream.getSuccessors(number).stream()
+     *               .filter(x -> stream.getPredecessors(x).size() == 1)
+    .*                collect(Collectors.toList());
      */
-    private List<Integer> getDefaultFutures(Stream stream, int number) {
-        return stream.getSuccessors(number).stream()
-                .filter(x -> stream.getPredecessors(x).size() == 1)
-                .collect(Collectors.toList());
+    private CompletableFuture<List<Integer>> getDefaultFutures(Stream stream, int number) {
+        CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
+
+        CompletableFuture<List<Integer>> futureResult =
+                futureSuccessors.thenCompose(list -> {
+                    List<CompletableFuture<Integer>> predecessorsSizeFuture =
+                            list.stream().map(elem -> stream.getPredecessors(elem).thenApply(List::size)).collect(Collectors.toList());
+                    return FutureCollectionHelper.sequence(predecessorsSizeFuture)
+                            .thenApply(predecessorsSizeList -> {
+                                List<Integer> result = new ArrayList<>();
+                                for (int i = 0; i < predecessorsSizeList.size(); i++) {
+                                    if (predecessorsSizeList.get(i) == 1) {
+                                        result.add(list.get(i));
+                                    }
+                                }
+                                return result;
+                            });
+                });
+        return futureResult;
     }
 
-    private Set<Integer> getImplicitCompletedSegments(Stream stream, Set<Integer> completedSegments, Set<Integer> current) {
+    private CompletableFuture<Set<Integer>> getImplicitCompletedSegments(Stream stream, Set<Integer> completedSegments, Set<Integer> current) {
+        List<CompletableFuture<List<Integer>>> futures = new ArrayList<>();
+        current.stream().forEach(x -> futures.add(stream.getPredecessors(x)));
+
         // append completed segment set with implicitly completed segments
-        current.stream().forEach(number ->
-                stream.getPredecessors(number).stream().forEach(completedSegments::add));
-        return completedSegments;
+        return FutureCollectionHelper.foldFutures(
+                FutureCollectionHelper.sequence(futures),
+                completedSegments,
+                (CompletableFuture<Set<Integer>> x, List<Integer> y) -> x.thenApply(set -> {
+                    set.addAll(y);
+                    return set;
+                })
+        );
     }
 
-    private Set<Integer> getSuccessors(Stream stream, Set<Integer> completedSegments) {
+    private CompletableFuture<Set<Integer>> getSuccessors(Stream stream, Set<Integer> completedSegments) {
         // successors of completed segments are interesting, which means
         // some of them may become current, and
         // some of them may become future
         //Set<Integer> successors = completedSegments.stream().flatMap(x -> stream.getSuccessors(x).stream()).collect(Collectors.toSet());
-        return completedSegments.stream().flatMap(x -> stream.getSuccessors(x).stream()).collect(Collectors.toSet());
+        List<CompletableFuture<List<Integer>>> futures = new ArrayList<>();
+        completedSegments.stream().forEach(x -> futures.add(stream.getSuccessors(x)));
+
+        return FutureCollectionHelper.foldFutures(
+                FutureCollectionHelper.sequence(futures),
+                new HashSet<>(),
+                (CompletableFuture<Set<Integer>> x, List<Integer> y) -> x.thenApply(set -> {
+                    set.addAll(y);
+                    return set;
+                })
+        );
     }
 
-    private List<Integer> getNewCurrents(Stream stream, Set<Integer> successors, Set<Integer> completedSegments, List<SegmentFutures> positions) {
+    private CompletableFuture<List<Integer>> getNewCurrents(Stream stream, Set<Integer> successors, Set<Integer> completedSegments, List<SegmentFutures> positions) {
         // a successor that has
         // 1. it is not completed yet, and
-        // 2. it is not current in any of the positions,
-        // 3. all its predecessors completed, and
+        // 2. it is not current in any of the positions, and
+        // 3. all its predecessors completed.
         // shall become current and be added to some position
         List<Integer> newCurrents = successors.stream().filter(x ->
-                        // 1. it is not completed yet, and
+                        // 2. it is not completed yet, and
                         !completedSegments.contains(x)
-                                // 2. it is not current in any of the positions
-                                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
-                                // 1. all its predecessors completed, and
-                                && stream.getPredecessors(x).stream().allMatch(completedSegments::contains)
+                        // 3. it is not current in any of the positions
+                        && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
         ).collect(Collectors.toList());
-        return newCurrents;
+
+        // 3. all its predecessors completed, and
+        return FutureCollectionHelper.filter(
+                newCurrents,
+                (Integer x) -> stream.getPredecessors(x).thenApply(list -> list.stream().allMatch(completedSegments::contains))
+        );
     }
 
-    private Map<Integer, List<Integer>> getNewFutures(Stream stream, Set<Integer> successors, Set<Integer> completedSegments) {
-
+    private CompletableFuture<Map<Integer, List<Integer>>> getNewFutures(Stream stream, Set<Integer> successors, Set<Integer> completedSegments) {
         List<Integer> subset = successors.stream().filter(x -> !completedSegments.contains(x)).collect(Collectors.toList());
 
-        List<List<Integer>> preds =
-                subset.stream()
-                        .map(number -> stream.getPredecessors(number).stream()
-                                .filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
-                        .collect(Collectors.toList());
+        List<CompletableFuture<List<Integer>>> predecessors = new ArrayList<>();
+        for (Integer number: subset) {
+            predecessors.add(stream.getPredecessors(number)
+                            .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
+            );
+        }
 
-        Map<Integer, List<Integer>> map = new HashMap<>();
-        for (int i = 0; i < preds.size(); i++) {
-            List<Integer> filtered = preds.get(i);
-            if (filtered.size() == 1) {
-                Integer pendingPredecessor = filtered.get(0);
-                if (map.containsKey(pendingPredecessor)) {
-                    map.get(pendingPredecessor).add(subset.get(i));
-                } else {
-                    List<Integer> list = new ArrayList<>();
-                    list.add(subset.get(i));
-                    map.put(pendingPredecessor, list);
+        return FutureCollectionHelper.sequence(predecessors).thenApply((List<List<Integer>> preds) -> {
+            Map<Integer, List<Integer>> map = new HashMap<>();
+            for (int i = 0; i < preds.size(); i++) {
+                List<Integer> filtered = preds.get(i);
+                if (filtered.size() == 1) {
+                    Integer pendingPredecessor = filtered.get(0);
+                    if (map.containsKey(pendingPredecessor)) {
+                        map.get(pendingPredecessor).add(subset.get(i));
+                    } else {
+                        List<Integer> list = new ArrayList<>();
+                        list.add(subset.get(i));
+                        map.put(pendingPredecessor, list);
+                    }
                 }
             }
-        }
-        return map;
+            return map;
+        });
     }
 
     /**
@@ -183,8 +259,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @param positions positions to be updated
      * @return the updated sequence of positions
      */
-    private List<SegmentFutures> divideSegments(Stream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
-        List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
+    private CompletableFuture<List<SegmentFutures>> divideSegments(Stream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
+        List<CompletableFuture<SegmentFutures>> newPositions = new ArrayList<>(positions.size());
 
         int quotient = newCurrents.size() / positions.size();
         int remainder = newCurrents.size() % positions.size();
@@ -208,18 +284,25 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     }
             );
             // add default futures for new and old current segments, if any
-            newCurrent.stream().forEach(
-                    x -> getDefaultFutures(stream, x).stream()
-                            .forEach(
+            List<CompletableFuture<List<Integer>>> defaultFutures =
+                    newCurrent.stream().map(x -> getDefaultFutures(stream, x)).collect(Collectors.toList());
+
+            CompletableFuture<SegmentFutures> segmentFuture =
+                    FutureCollectionHelper.sequence(defaultFutures).thenApply((List<List<Integer>> list) -> {
+                        for (int k = 0; k < list.size(); k++) {
+                            Integer x = newCurrent.get(k);
+                            list.get(k).stream().forEach(
                                     y -> {
                                         if (!newFuture.containsKey(y)) {
                                             newFuture.put(y, x);
                                         }
                                     }
-                            )
-            );
-            newPositions.add(new SegmentFutures(newCurrent, newFuture));
+                            );
+                        }
+                        return new SegmentFutures(newCurrent, newFuture);
+                    });
+            newPositions.add(segmentFuture);
         }
-        return newPositions;
+        return FutureCollectionHelper.sequence(newPositions);
     }
 }

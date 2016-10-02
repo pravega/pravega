@@ -39,11 +39,12 @@ public class ProducerApiImpl implements ControllerApi.Producer {
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String stream) {
         // fetch active segments from segment store
-        return CompletableFuture.supplyAsync(() -> streamStore.getActiveSegments(stream))
-                .thenApply(
-                        result -> new StreamSegments(result.getCurrent().stream()
-                                .map(x -> SegmentHelper.getSegment(stream, streamStore.getSegment(stream, x.intValue())))
-                                .collect(Collectors.toList()), System.currentTimeMillis()));
+        return streamStore.getActiveSegments(stream).thenApply(result ->
+                new StreamSegments(
+                        result.getCurrent().stream()
+                                .map(x -> SegmentHelper.getSegment(stream, x, -1))
+                                .collect(Collectors.toList()), System.currentTimeMillis())
+        );
     }
 
     @Override

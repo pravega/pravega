@@ -21,6 +21,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Properties of a stream and operations that can be performed on it.
@@ -35,50 +36,50 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    boolean create(StreamConfiguration configuration);
+    CompletableFuture<Boolean> create(StreamConfiguration configuration);
 
     /**
      * Updates the configuration of an existing stream.
      * @param configuration new stream configuration.
      * @return boolean indicating whether the stream was updated.
      */
-    boolean updateConfiguration(StreamConfiguration configuration);
+    CompletableFuture<Boolean> updateConfiguration(StreamConfiguration configuration);
 
     /**
      * Fetches the current stream configuration.
      * @return current stream configuration.
      */
-    StreamConfiguration getConfiguration();
+    CompletableFuture<StreamConfiguration> getConfiguration();
 
     /**
      * Fetches details of specified segment.
      * @param number segment number.
      * @return segment at given number.
      */
-    Segment getSegment(int number);
+    CompletableFuture<Segment> getSegment(int number);
 
     /**
-     * @param number segment.
+     * @param number segment number.
      * @return successors of specified segment.
      */
-    List<Integer> getSuccessors(int number);
+    CompletableFuture<List<Integer>> getSuccessors(int number);
 
     /**
-     * @param number
+     * @param number segment number.
      * @return predecessors of specified segment
      */
-    List<Integer> getPredecessors(int number);
+    CompletableFuture<List<Integer>> getPredecessors(int number);
 
     /**
      * @return currently active segments
      */
-    List<Integer> getActiveSegments();
+    CompletableFuture<List<Integer>> getActiveSegments();
 
     /**
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
-    List<Integer> getActiveSegments(long timestamp);
+    CompletableFuture<List<Integer>> getActiveSegments(long timestamp);
 
     /**
      * Scale the stream by sealing few segments and creating few segments
@@ -87,5 +88,5 @@ interface Stream {
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    List<Segment> scale(List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
+    CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 }

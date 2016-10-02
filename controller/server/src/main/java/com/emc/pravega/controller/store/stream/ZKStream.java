@@ -21,6 +21,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * ZK Stream. It understands the following.
@@ -44,47 +45,47 @@ class ZKStream implements Stream {
     }
 
     @Override
-    public boolean create(StreamConfiguration configuration) {
-        return false;
-    }
-
-    @Override
-    public boolean updateConfiguration(StreamConfiguration configuration) {
-        return false;
-    }
-
-    @Override
-    public StreamConfiguration getConfiguration() {
+    public CompletableFuture<Boolean> create(StreamConfiguration configuration) {
         return null;
     }
 
     @Override
-    public Segment getSegment(int number) {
+    public CompletableFuture<Boolean> updateConfiguration(StreamConfiguration configuration) {
         return null;
     }
 
     @Override
-    public List<Integer> getSuccessors(int number) {
+    public CompletableFuture<StreamConfiguration> getConfiguration() {
         return null;
     }
 
     @Override
-    public List<Integer> getPredecessors(int number) {
+    public CompletableFuture<Segment> getSegment(int number) {
         return null;
     }
 
     @Override
-    public List<Integer> getActiveSegments() {
+    public CompletableFuture<List<Integer>> getSuccessors(int number) {
         return null;
     }
 
     @Override
-    public List<Integer> getActiveSegments(long timestamp) {
+    public CompletableFuture<List<Integer>> getPredecessors(int number) {
         return null;
     }
 
     @Override
-    public List<Segment> scale(List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public CompletableFuture<List<Integer>> getActiveSegments() {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         return null;
     }
 }

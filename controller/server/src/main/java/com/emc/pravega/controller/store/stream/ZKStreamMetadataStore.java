@@ -19,6 +19,8 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * ZK stream metadata store
  */
@@ -42,7 +44,7 @@ public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public boolean createStream(String name, StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration) {
         // We do not cache the created stream
         return new ZKStream(name).create(configuration);
     }

@@ -24,6 +24,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
 /**
@@ -51,7 +52,7 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public boolean create(StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> create(StreamConfiguration configuration) {
         this.configuration = configuration;
         int numSegments = configuration.getScalingingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
@@ -63,7 +64,9 @@ class InMemoryStream implements Stream {
                             currentSegments.add(x);
                         }
                 );
-        return true;
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        future.complete(true);
+        return future;
     }
 
     @Override
@@ -72,37 +75,49 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public synchronized boolean updateConfiguration(StreamConfiguration configuration) {
+    public synchronized CompletableFuture<Boolean> updateConfiguration(StreamConfiguration configuration) {
         this.configuration = configuration;
-        return true;
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        future.complete(true);
+        return future;
     }
 
     @Override
-    public synchronized StreamConfiguration getConfiguration() {
-        return this.configuration;
+    public synchronized CompletableFuture<StreamConfiguration> getConfiguration() {
+        CompletableFuture<StreamConfiguration> future = new CompletableFuture<>();
+        future.complete(this.configuration);
+        return future;
     }
 
     @Override
-    public synchronized InMemorySegment getSegment(int number) {
-        return segments.get(number);
+    public synchronized CompletableFuture<Segment> getSegment(int number) {
+        CompletableFuture<Segment> future = new CompletableFuture<>();
+        future.complete(segments.get(number));
+        return future;
     }
 
     @Override
-    public List<Integer> getSuccessors(int number) {
-        return segments.get(number).getSuccessors();
+    public CompletableFuture<List<Integer>> getSuccessors(int number) {
+        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
+        future.complete(segments.get(number).getSuccessors());
+        return future;
     }
 
     @Override
-    public List<Integer> getPredecessors(int number) {
-        return segments.get(number).getPredecessors();
+    public CompletableFuture<List<Integer>> getPredecessors(int number) {
+        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
+        future.complete(segments.get(number).getPredecessors());
+        return future;
     }
 
     /**
      * @return the list of currently active segments
      */
     @Override
-    public synchronized List<Integer> getActiveSegments() {
-        return Collections.unmodifiableList(currentSegments);
+    public synchronized CompletableFuture<List<Integer>> getActiveSegments() {
+        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
+        future.complete(Collections.unmodifiableList(currentSegments));
+        return future;
     }
 
     /**
@@ -113,7 +128,7 @@ class InMemoryStream implements Stream {
      * TODO: maintain a augmented interval tree or segment tree index
      */
     @Override
-    public synchronized List<Integer> getActiveSegments(long timestamp) {
+    public synchronized CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {
         List<Integer> currentSegments = new ArrayList<>();
         int i = 0;
         while (i < segments.size() && timestamp >= segments.get(i).getStart()) {
@@ -123,7 +138,9 @@ class InMemoryStream implements Stream {
             }
             i++;
         }
-        return currentSegments;
+        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
+        future.complete(currentSegments);
+        return future;
     }
 
     /**
@@ -135,7 +152,7 @@ class InMemoryStream implements Stream {
      * @return the list of new segments.
      */
     @Override
-    public synchronized List<Segment> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
+    public synchronized CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(keyRanges);
         Preconditions.checkArgument(sealedSegments.size() > 0);
@@ -174,7 +191,9 @@ class InMemoryStream implements Stream {
             currentSegments.add(number);
         }
 
-        return newSegments;
+        CompletableFuture<List<Segment>> future = new CompletableFuture<>();
+        future.complete(newSegments);
+        return future;
     }
 
     public String toString() {

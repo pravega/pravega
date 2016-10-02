@@ -62,15 +62,11 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
      */
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(String stream, long timestamp, int n) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    // first fetch segments active at specified timestamp from the specified stream
-                    SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
+        // first fetch segments active at specified timestamp from the specified stream
+        CompletableFuture<SegmentFutures> segmentFutures = streamStore.getActiveSegments(stream, timestamp);
 
-                    // divide current segments in segmentFutures into at most n positions
-                    return shard(stream, segmentFutures, n);
-                }
-        );
+        // divide current segments in segmentFutures into at most n positions
+        return segmentFutures.thenApply(value -> shard(stream, value, n));
     }
 
     /**
@@ -148,23 +144,21 @@ public class ConsumerApiImpl implements ControllerApi.Consumer {
      */
     @Override
     public CompletableFuture<List<PositionInternal>> updatePositions(String stream, List<PositionInternal> positions) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    // initialize completed segments set from those found in the list of input position objects
-                    Set<Integer> completedSegments = positions.stream().flatMap(x -> x.getCompletedSegments().stream().map(y -> y.getNumber())).collect(Collectors.toSet());
-                    Map<Integer, Long> segmentOffsets = new HashMap<>();
+        // initialize completed segments set from those found in the list of input position objects
+        Set<Integer> completedSegments = positions.stream().flatMap(x -> x.getCompletedSegments().stream().map(SegmentId::getNumber)).collect(Collectors.toSet());
+        Map<Integer, Long> segmentOffsets = new HashMap<>();
 
-                    // convert positions to segmentFutures, while updating completedSegments set and
-                    // storing segment offsets in segmentOffsets map
-                    List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(positions, segmentOffsets);
+        // convert positions to segmentFutures, while updating completedSegments set and
+        // storing segment offsets in segmentOffsets map
+        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(positions, segmentOffsets);
 
-                    // fetch updated SegmentFutures from stream metadata
-                    List<SegmentFutures> updatedSegmentFutures = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
+        // fetch updated SegmentFutures from stream metadata
 
-                    // finally convert SegmentFutures back to position objects
-                    return convertSegmentFuturesToPositions(stream, updatedSegmentFutures, segmentOffsets);
-                }
-        );
+        CompletableFuture<List<SegmentFutures>> updatedSegmentFutures =
+                streamStore.getNextSegments(stream, completedSegments, segmentFutures);
+
+        // finally convert SegmentFutures back to position objects
+        return updatedSegmentFutures.thenApply(value -> convertSegmentFuturesToPositions(stream, value, segmentOffsets));
     }
 
     /**
