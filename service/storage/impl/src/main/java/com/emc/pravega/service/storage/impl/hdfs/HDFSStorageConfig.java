@@ -25,6 +25,16 @@ import java.util.Properties;
 public class HDFSStorageConfig extends ComponentConfig {
 
     public static final String COMPONENT_CODE = "hdfs";
+    private static final String PROPERTY_HDFSURL = "fs.default.name";
+    private static final String PROPERTY_HDFSROOT = "hdfsroot";
+    private static final String PROPERTY_PRAVEGAID = "pravegaid";
+    private static final String PROPERTY_REPLICATION = "replication";
+    private static final String PROPERTY_BLOCKSIZE = "blocksize";
+    private String hdfsHostURL;
+    private String hdfsRoot;
+    private int pravegaID;
+    private short replication;
+    private long blocksize;
 
     public HDFSStorageConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
@@ -32,6 +42,30 @@ public class HDFSStorageConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
+        this.hdfsHostURL = getProperty(PROPERTY_HDFSURL);
+        this.hdfsRoot    = getProperty(PROPERTY_HDFSROOT);
+        this.pravegaID   = getInt32Property(PROPERTY_PRAVEGAID);
+        this.replication = (short) getInt32Property(PROPERTY_REPLICATION);
+        this.blocksize   = getInt32Property(PROPERTY_BLOCKSIZE);
+    }
 
+    public String getHDFSHostURL() {
+        return this.hdfsHostURL;
+    }
+
+    public String getHdfsRoot() {
+        return this.hdfsRoot;
+    }
+
+    public int getPravegaID() {
+        return this.pravegaID;
+    }
+
+    public short getReplication() {
+        return this.replication;
+    }
+
+    public long getBlockSize() {
+        return this.blocksize;
     }
 }
