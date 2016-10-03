@@ -73,8 +73,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private final AtomicLong outstandingAppendLength;
     private final AtomicInteger mergeTransactionCount;
     private final AtomicBoolean hasSealPending;
-    private AtomicLong lastAddedOffset;
-    private AtomicReference<Duration> lastFlush;
+    private final AtomicLong lastAddedOffset;
+    private final AtomicReference<Duration> lastFlush;
     private final AtomicReference<AggregatorState> state;
     private final AtomicReference<ReconciliationState> reconciliationState;
 
