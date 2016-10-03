@@ -23,11 +23,13 @@ import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.io.IOUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,7 +40,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 @Slf4j
-class HDFSStorage implements Storage {
+public class HDFSStorage implements Storage {
 
     private final Executor executor;
     private final HDFSStorageConfig serviceBuilderConfig;
@@ -95,7 +97,7 @@ class HDFSStorage implements Storage {
                     0,
                     this.serviceBuilderConfig.getReplication(),
                     this.serviceBuilderConfig.getBlockSize(),
-                    null);
+                    null).close();
             return this.getStreamSegmentInfoSync(streamSegmentName, timeout);
         } else throw new IOException("Segment already exists");
     }
@@ -122,13 +124,20 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Boolean> releaseLockForSegment(String streamSegmentName) {
-        return CompletableFuture.supplyAsync(() -> {
-                    return releaseLockForSegmentSync(streamSegmentName);
+        CompletableFuture<Boolean> retVal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                retVal.complete(releaseLockForSegmentSync(streamSegmentName));
+            } catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
         }, executor);
+        return retVal;
     }
 
-    private Boolean releaseLockForSegmentSync(String streamSegmentName) {
-        return false;
+    private Boolean releaseLockForSegmentSync(String streamSegmentName) throws IOException {
+        getFS().rename(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)), new Path(getFullStreamSegmentPath(streamSegmentName)));
+        return null;
     }
 
     @Override
@@ -136,7 +145,7 @@ class HDFSStorage implements Storage {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
                     try {
-                        retVal.complete(writeSync(streamSegmentName, offset, data, timeout));
+                        retVal.complete(writeSync(streamSegmentName, offset, length, data, timeout));
                     } catch (IOException e) {
                         retVal.completeExceptionally(e);
                     }
@@ -145,9 +154,15 @@ class HDFSStorage implements Storage {
         return retVal;
     }
 
-    private Void writeSync(String streamSegmentName, long offset, InputStream data, Duration timeout) throws IOException {
+    private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout) throws IOException {
         //TODO: Write the ownership check and change logic
-        fs.append(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)));
+        FSDataOutputStream stream = fs.append(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)));
+        if(stream.getPos()!= offset) {
+            throw new IOException("Offset in the stream already has some data");
+        }
+        IOUtils.copyBytes(data, stream, length);
+        stream.flush();
+        stream.close();
         return null;
     }
 
@@ -180,12 +195,21 @@ class HDFSStorage implements Storage {
     public CompletableFuture<Void> concat(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
-                    retVal.complete(concatSync(targetStreamSegmentName, sourceStreamSegmentName, timeout));
+            try {
+                retVal.complete(concatSync(targetStreamSegmentName, sourceStreamSegmentName, timeout));
+            } catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
         }, executor);
         return retVal;
     }
 
-    private Void concatSync(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) {
+    private Void concatSync(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) throws IOException {
+        getFS().concat(new Path(getOwnedFullStreamSegmentPath(targetStreamSegmentName)),
+                new Path[]{
+                        new Path(getOwnedFullStreamSegmentPath(targetStreamSegmentName)),
+                        new Path(getOwnedFullStreamSegmentPath(sourceStreamSegmentName))
+                });
         return null;
     }
 
@@ -193,17 +217,28 @@ class HDFSStorage implements Storage {
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
-                    retVal.complete(deleteSync(streamSegmentName, timeout));
+            try {
+                retVal.complete(deleteSync(streamSegmentName, timeout));
+            }catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
         }, executor);
         return retVal;
     }
 
-    private Void deleteSync(String streamSegmentName, Duration timeout) {
+    private Void deleteSync(String streamSegmentName, Duration timeout) throws IOException {
+        getFS().delete(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)), false);
         return null;
     }
 
     @Override
     public void close() {
+        try {
+            getFS().close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        fs = null;
 
     }
 
