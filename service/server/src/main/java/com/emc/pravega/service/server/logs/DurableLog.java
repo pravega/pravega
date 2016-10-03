@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -133,7 +134,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     protected void doStart() {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
 
         this.executor.execute(() -> {
             try {
@@ -141,7 +142,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 this.operationProcessor.startAsync().awaitRunning();
                 if (!anyItemsRecovered) {
                     // If the DurableLog is empty, need to queue a MetadataCheckpointOperation so we have a valid starting state (and wait for it).
-                    queueMetadataCheckpoint().join();
+                    queueMetadataCheckpoint().get(RECOVERY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 }
             } catch (Exception ex) {
                 if (this.operationProcessor.isRunning()) {
@@ -149,7 +150,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                     this.operationProcessor.stopAsync();
                 }
 
-                notifyFailed(ex);
+                notifyFailed(ExceptionHelpers.getRealException(ex));
                 return;
             }
 
@@ -161,7 +162,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     protected void doStop() {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
         this.operationProcessor.stopAsync();
 
         this.executor.execute(() -> {
@@ -279,7 +280,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
         TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
         log.info("{} Recovery started.", this.traceObjectId);
 
@@ -323,7 +324,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @return True if any operations were recovered, false otherwise.
      */
     private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "recoverFromDataFrameLog");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
         int recoveredItemCount = 0;

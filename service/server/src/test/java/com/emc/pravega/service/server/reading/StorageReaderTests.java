@@ -247,5 +247,11 @@ public class StorageReaderTests {
             // This method is not needed.
             return null;
         }
+
+        @Override
+        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+            // This method is not needed.
+            return null;
+        }
     }
 }

@@ -103,7 +103,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, "initialize");
+        long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
