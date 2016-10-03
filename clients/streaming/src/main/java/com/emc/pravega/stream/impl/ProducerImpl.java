@@ -178,6 +178,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         private final Map<Segment, SegmentTransaction<Type>> inner;
         private final UUID txId;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
         TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions) {
             this.txId = txId;
@@ -186,6 +187,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void publish(String routingKey, Type event) throws TxFailedException {
+            Preconditions.checkState(!closed.get());
             Segment s = router.getSegmentForEvent(routingKey);
             SegmentTransaction<Type> transaction = inner.get(s);
             transaction.publish(event);
@@ -197,11 +199,13 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 tx.flush();
             }
             controller.commitTransaction(stream, txId);
+            closed.set(true);
         }
 
         @Override
         public void drop() {
             controller.dropTransaction(stream, txId);
+            closed.set(true);
         }
 
         @Override

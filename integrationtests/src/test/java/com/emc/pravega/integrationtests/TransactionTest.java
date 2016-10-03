@@ -99,9 +99,11 @@ public class TransactionTest {
         transaction.flush();
         producer.publish(routingKey, nonTxEvent);
         transaction.publish(routingKey, txnEvent);
+        producer.flush();
+        transaction.publish(routingKey, txnEvent);
         transaction.commit();
         producer.publish(routingKey, nonTxEvent);
-        AssertExtensions.assertThrows(TxFailedException.class,
+        AssertExtensions.assertThrows(IllegalStateException.class,
                                       () -> transaction.publish(routingKey, txnEvent));
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
@@ -111,6 +113,7 @@ public class TransactionTest {
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
 
+        assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
         assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
         assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
         assertEquals(txnEvent, consumer.getNextEvent(readTimeout));
@@ -162,7 +165,7 @@ public class TransactionTest {
         transaction.flush();
         transaction.drop();
         transaction.drop();
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.publish(routingKey, txnEvent));
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
         
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
