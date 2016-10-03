@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -34,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -112,8 +114,6 @@ public final class FutureHelpers {
      * Creates a new CompletableFuture that is failed with the given exception.
      *
      * @param exception The exception to fail the CompletableFuture.
-     * @param <T>
-     * @return
      */
     public static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
@@ -126,7 +126,6 @@ public final class FutureHelpers {
      *
      * @param completableFuture The Future to register to.
      * @param exceptionListener The Listener to register.
-     * @param <T>
      */
     public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
@@ -201,6 +200,27 @@ public final class FutureHelpers {
     }
 
     /**
+     * Creates a CompletableFuture that will do nothing and complete after a specified delay, without using a thread during
+     * the delay.
+     *
+     * @param delay           The duration of the delay (how much to wait until completing the Future).
+     * @param executorService An ExecutorService that will be used to complete the Future on.
+     * @return A CompletableFuture that will complete after the specified delay.
+     */
+    public static CompletableFuture<Void> delayedFuture(Duration delay, ScheduledExecutorService executorService) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        if (delay.toMillis() == 0) {
+            // Zero delay; no need to bother with scheduling a task in the future.
+            result.complete(null);
+        } else {
+            ScheduledFuture sf = executorService.schedule(() -> result.complete(null), delay.toMillis(), TimeUnit.MILLISECONDS);
+            result.whenComplete((r, ex) -> sf.cancel(true));
+        }
+
+        return result;
+    }
+
+    /**
      * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
      * the future times out (fails with a TimeoutException).
      *
@@ -209,5 +229,44 @@ public final class FutureHelpers {
      */
     public static void onTimeout(CompletableFuture future, Consumer<TimeoutException> callback) {
         exceptionListener(future, TimeoutException.class, callback);
+    }
+
+    /**
+     * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
+     *
+     * @param condition A Supplier that indicates whether to proceed with the loop or not.
+     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                  supplier is invoked every time the loopBody needs to execute.
+     * @param executor  An Executor that is used to execute the condition and the loop support code.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     */
+    public static CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, Executor executor) {
+        if (condition.get()) {
+            return loopBody.get().thenComposeAsync(v -> loop(condition, loopBody, executor), executor);
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
+     * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
+     *
+     * @param condition      A Supplier that indicates whether to proceed with the loop or not.
+     * @param loopBody       A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                       supplier is invoked every time the loopBody needs to execute.
+     * @param resultConsumer A Consumer that will be invoked with the result of every call to loopBody.
+     * @param executor       An Executor that is used to execute the condition and the loop support code.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     */
+    public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
+        if (condition.get()) {
+            return loopBody.get()
+                           .thenAccept(resultConsumer)
+                           .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
     }
 }

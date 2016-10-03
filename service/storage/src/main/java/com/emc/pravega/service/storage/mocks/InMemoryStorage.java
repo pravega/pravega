@@ -152,11 +152,21 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        boolean exists;
+        synchronized (this.lock) {
+            exists = this.streamSegments.containsKey(streamSegmentName);
+        }
+
+        return CompletableFuture.completedFuture(exists);
+    }
+
+    @Override
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
-                                                          .thenCompose(v -> targetData.join().concat(sourceData.join()))
+                                                          .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
                                                           .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
         result.thenRunAsync(() -> {
             fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
@@ -393,11 +403,15 @@ public class InMemoryStorage implements Storage {
             }, this.executor);
         }
 
-        CompletableFuture<Void> concat(StreamSegmentData other) {
+        CompletableFuture<Void> concat(StreamSegmentData other, long offset) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
                     synchronized (this.lock) {
+                        if (offset != this.length) {
+                            throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
+                        }
+
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
                         while (bytesCopied < other.length) {

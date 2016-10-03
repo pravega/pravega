@@ -98,7 +98,7 @@ public class StreamSegmentMapper {
      * If the operation failed, this will contain the exception that caused the failure.
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
             return FutureHelpers.failedFuture(new StreamSegmentExistsException("Given StreamSegmentName is already registered internally. Most likely it already exists."));
@@ -125,7 +125,7 @@ public class StreamSegmentMapper {
      * @throws IllegalArgumentException If the given parent StreamSegment cannot have a Transaction (because it is deleted, sealed, inexistent).
      */
     public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, Duration timeout) {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
 
         //We cannot create a Transaction StreamSegment for a what looks like a parent StreamSegment.
         Exceptions.checkArgument(

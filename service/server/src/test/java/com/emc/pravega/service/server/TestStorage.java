@@ -56,6 +56,14 @@ public class TestStorage implements Storage {
     private ErrorInjector<Exception> readAsyncErrorInjector;
     @Setter
     private ErrorInjector<Exception> getErrorInjector;
+    @Setter
+    private ErrorInjector<Exception> existsErrorInjector;
+    @Setter
+    private WriteInterceptor writeInterceptor;
+    @Setter
+    private SealInterceptor sealInterceptor;
+    @Setter
+    private ConcatInterceptor concatInterceptor;
 
     public TestStorage(Storage wrappedStorage) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
@@ -91,6 +99,12 @@ public class TestStorage implements Storage {
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
+                            .thenAccept(v -> {
+                                WriteInterceptor wi = this.writeInterceptor;
+                                if (wi != null) {
+                                    wi.accept(streamSegmentName, offset, data, length, this.wrappedStorage);
+                                }
+                            })
                             .thenCompose(v -> this.wrappedStorage.write(streamSegmentName, offset, data, length, timeout));
     }
 
@@ -98,14 +112,24 @@ public class TestStorage implements Storage {
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.sealSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.seal(streamSegmentName, timeout));
+                            .thenAccept(v -> {
+                                SealInterceptor wi = this.sealInterceptor;
+                                if (wi != null) {
+                                    wi.accept(streamSegmentName, this.wrappedStorage);
+                                }
+                            }).thenCompose(v -> this.wrappedStorage.seal(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, sourceStreamSegmentName, timeout));
+                            .thenAccept(v -> {
+                                ConcatInterceptor wi = this.concatInterceptor;
+                                if (wi != null) {
+                                    wi.accept(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
+                                }
+                            }).thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
     }
 
     @Override
@@ -125,5 +149,26 @@ public class TestStorage implements Storage {
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.getErrorInjector)
                             .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(streamSegmentName, timeout));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector)
+                            .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
+    }
+
+    @FunctionalInterface
+    public interface WriteInterceptor {
+        void accept(String streamSegmentName, long offset, InputStream data, int length, Storage wrappedStorage);
+    }
+
+    @FunctionalInterface
+    public interface SealInterceptor {
+        void accept(String streamSegmentName, Storage wrappedStorage);
+    }
+
+    @FunctionalInterface
+    public interface ConcatInterceptor {
+        void accept(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage wrappedStorage);
     }
 }

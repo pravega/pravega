@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Data Source for a StorageWriter
  */
-public interface WriterDataSource {
+interface WriterDataSource {
     /**
      * Gets a value indicating the Id of the StreamSegmentContainer this WriterDataSource is for.
      */

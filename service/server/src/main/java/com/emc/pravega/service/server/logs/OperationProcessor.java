@@ -96,7 +96,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     @Override
     protected void run() throws Exception {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
         Throwable closingException = null;
         try {
             while (isRunning()) {

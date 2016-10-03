@@ -38,8 +38,7 @@ public interface ReadOnlyStorage {
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the number of bytes read. If the operation failed,
      * it will contain the cause of the failure.
-     * @throws ArrayIndexOutOfBoundsException If bufferOffset is invalid for the buffer.
-     * @throws ArrayIndexOutOfBoundsException If bufferOffset + length is invalid for the buffer.
+     * @throws ArrayIndexOutOfBoundsException If bufferOffset or bufferOffset + length are invalid for the buffer.
      */
     CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout);
 
@@ -52,4 +51,14 @@ public interface ReadOnlyStorage {
      * If the operation failed, it will contain the cause of the failure.
      */
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
+
+    /**
+     * Determines whether the given StreamSegment exists or not.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the information requested. If the operation failed,
+     * it will contain the cause of the failure.
+     */
+    CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout);
 }

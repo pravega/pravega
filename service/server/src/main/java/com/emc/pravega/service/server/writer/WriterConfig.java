@@ -39,6 +39,7 @@ public class WriterConfig extends ComponentConfig {
     public static final String PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE = "maxItemsToReadAtOnce";
     public static final String PROPERTY_MIN_READ_TIMEOUT_MILLIS = "minReadTimeoutMillis";
     public static final String PROPERTY_MAX_READ_TIMEOUT_MILLIS = "maxReadTimeoutMillis";
+    public static final String PROPERTY_ERROR_SLEEP_MILLIS = "errorSleepMillis";
     public static final String PROPERTY_FLUSH_TIMEOUT_MILLIS = "flushTimeoutMillis";
     public static final String PROPERTY_ACK_TIMEOUT_MILLIS = "ackTimeoutMillis";
     public static final String PROPERTY_SHUTDOWN_TIMEOUT_MILLIS = "shutdownTimeoutMillis";
@@ -49,6 +50,7 @@ public class WriterConfig extends ComponentConfig {
     private static final int DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE = 100;
     private static final int DEFAULT_MIN_READ_TIMEOUT_MILLIS = 2 * 1000; // 2s
     private static final int DEFAULT_MAX_READ_TIMEOUT_MILLIS = 30 * 60 * 1000; // 30 min
+    private static final int DEFAULT_ERROR_SLEEP_MILLIS = 1000; // 1 s
     private static final int DEFAULT_FLUSH_TIMEOUT_MILLIS = 60 * 1000; // 60s
     private static final int DEFAULT_ACK_TIMEOUT_MILLIS = 15 * 1000; // 15s
     private static final int DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000; // 10s
@@ -59,6 +61,7 @@ public class WriterConfig extends ComponentConfig {
     private int maxItemsToReadAtOnce;
     private Duration minReadTimeout;
     private Duration maxReadTimeout;
+    private Duration errorSleepDuration;
     private Duration flushTimeout;
     private Duration ackTimeout;
     private Duration shutdownTimeout;
@@ -127,6 +130,13 @@ public class WriterConfig extends ComponentConfig {
     }
 
     /**
+     * Gets a value indicating the amount of time to sleep if an iteration error was detected.
+     */
+    public Duration getErrorSleepDuration() {
+        return this.errorSleepDuration;
+    }
+
+    /**
      * Gets a value indicating the timeout for the Flush Stage.
      */
     public Duration getFlushTimeout() {
@@ -181,6 +191,8 @@ public class WriterConfig extends ComponentConfig {
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
         this.maxReadTimeout = Duration.ofMillis(maxReadTimeoutMillis);
+        long errorSleepMillis = getInt64Property(PROPERTY_ERROR_SLEEP_MILLIS, DEFAULT_ERROR_SLEEP_MILLIS);
+        this.errorSleepDuration = Duration.ofMillis(errorSleepMillis);
 
         long flushTimeoutMillis = getInt64Property(PROPERTY_FLUSH_TIMEOUT_MILLIS, DEFAULT_FLUSH_TIMEOUT_MILLIS);
         this.flushTimeout = Duration.ofMillis(flushTimeoutMillis);

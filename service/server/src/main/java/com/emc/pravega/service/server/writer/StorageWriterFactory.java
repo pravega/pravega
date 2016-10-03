@@ -30,11 +30,12 @@ import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Factory for StorageWriters.
@@ -42,7 +43,7 @@ import java.util.concurrent.Executor;
 public class StorageWriterFactory implements WriterFactory {
     private final WriterConfig config;
     private final StorageFactory storageFactory;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the StorageWriterFactory class.
@@ -51,7 +52,7 @@ public class StorageWriterFactory implements WriterFactory {
      * @param storageFactory The StorageFactory to use for every Writer creation.
      * @param executor       The Executor to use.
      */
-    public StorageWriterFactory(WriterConfig config, StorageFactory storageFactory, Executor executor) {
+    public StorageWriterFactory(WriterConfig config, StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executor, "executor");
@@ -69,11 +70,15 @@ public class StorageWriterFactory implements WriterFactory {
         return new StorageWriter(this.config, dataSource, storage, this.executor);
     }
 
+    //region StorageWriterDataSource
+
+    @Slf4j
     private static class StorageWriterDataSource implements WriterDataSource {
         private final UpdateableContainerMetadata containerMetadata;
         private final OperationLog operationLog;
         private final Cache cache;
         private final ReadIndex readIndex;
+        private final String traceObjectId;
 
         StorageWriterDataSource(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
             Preconditions.checkNotNull(containerMetadata, "containerMetadata");
@@ -85,6 +90,7 @@ public class StorageWriterFactory implements WriterFactory {
             this.operationLog = operationLog;
             this.readIndex = readIndex;
             this.cache = cache;
+            this.traceObjectId = String.format("WriterDataSource[%d]", containerMetadata.getContainerId());
         }
 
         //region WriterDataSource Implementation
@@ -96,16 +102,19 @@ public class StorageWriterFactory implements WriterFactory {
 
         @Override
         public CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout) {
+            log.debug("{}: Acknowledge (UpToSeqNo={}).", this.traceObjectId, upToSequence);
             return this.operationLog.truncate(upToSequence, timeout);
         }
 
         @Override
         public CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout) {
+            log.debug("{}: Read (AfterSeqNo={}, MaxCount={}).", this.traceObjectId, afterSequence, maxCount);
             return this.operationLog.read(afterSequence, maxCount, timeout);
         }
 
         @Override
         public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
+            log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.performGarbageCollection();
         }
@@ -122,6 +131,7 @@ public class StorageWriterFactory implements WriterFactory {
 
         @Override
         public void deleteStreamSegment(String streamSegmentName) {
+            log.info("{}: DeleteSegment (SegmentName={}).", this.traceObjectId, streamSegmentName);
             this.containerMetadata.deleteStreamSegment(streamSegmentName);
         }
 
@@ -137,4 +147,6 @@ public class StorageWriterFactory implements WriterFactory {
 
         //endregion
     }
+
+    //endregion
 }
