@@ -35,13 +35,12 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 public class SegmentHelper {
 
     public static NodeUri getSegmentUri(String scope, String stream, int segmentNumber, HostControllerStore hostStore) {
-        int container = HashHelper.hash(stream + segmentNumber, hostStore.getContainerCount());
+        int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore.getContainerCount());
         Host host = hostStore.getHostForContainer(container);
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
