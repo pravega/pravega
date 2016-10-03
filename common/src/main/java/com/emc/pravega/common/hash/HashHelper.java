@@ -23,6 +23,8 @@ import com.google.common.hash.Hashing;
 
 public class HashHelper {
 
+    private static final long LEADING_BITS = 0x3ff0000000000000L;
+    private static final long MASK =         0x000fffffffffffffL;
     private HashFunction hash;
 
     private HashHelper(int seed) {
@@ -48,9 +50,6 @@ public class HashHelper {
         return longToDoubleFraction(hash.hashUnencodedChars(str).asLong());
     }
     
-    
-    private static final long LEADING_BITS = 0x3ff0000000000000L;
-    private static final long MASK =         0x000fffffffffffffL;
     /**
      * Turns the leading 54 bits of a long into a double between 0 and 1.
      */

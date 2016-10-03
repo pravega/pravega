@@ -59,7 +59,7 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         this.hostStore = hostStore;
     }
 
-    /***
+    /**
      * Create the stream metadata in the metadata streamStore.
      * Start with creation of minimum number of segments.
      * Asynchronously call createSegment on pravega hosts about segments in the stream
@@ -248,7 +248,7 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                             current -> currentSegments.put(new SegmentId(scope, stream, current), segmentOffsets.get(current))
                     );
                     future.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new SegmentId(scope,stream, y.getValue())), 0L)
+                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new SegmentId(scope, stream, y.getValue())), 0L)
                     );
                     resultPositions.add(new Position(currentSegments, futureSegments));
                 }

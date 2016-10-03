@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -27,7 +27,7 @@ import lombok.NonNull;
  * An identifier for a segment of a stream.
  */
 @Data
-@EqualsAndHashCode(exclude="previousNumber")
+@EqualsAndHashCode(exclude = "previousNumber")
 public class Segment {
     private final String scope;
     @NonNull
@@ -48,7 +48,7 @@ public class Segment {
     public String getQualifiedName() {
         return getQualifiedName(scope, streamName, segmentNumber);
     }
-    
+
     public static String getQualifiedName(String scope, String streamName, int segmentNumber) {
         StringBuffer sb = new StringBuffer();
         if (scope != null) {
@@ -65,8 +65,8 @@ public class Segment {
      * @return True if this segment is a replacement or partial replacement for the one passed.
      */
     public boolean succeeds(Segment other) {
-        return ((scope == null) ? other.scope == null : scope.equals(other.scope)) && streamName.equals(other.streamName)
-                && previousNumber == other.segmentNumber;
+        return ((scope == null) ? other.scope == null : scope.equals(other.scope))
+                && streamName.equals(other.streamName) && previousNumber == other.segmentNumber;
     }
 
     public static String getScopeFromQualifiedName(String segment) {
@@ -74,7 +74,7 @@ public class Segment {
         Preconditions.checkArgument(tokens.length >= 3);
         return tokens[0];
     }
-    
+
     public static String getStreamNameFromQualifiedName(String segment) {
         String[] tokens = segment.split("/");
         Preconditions.checkArgument(tokens.length >= 3);

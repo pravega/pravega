@@ -35,7 +35,7 @@ public class StartProducer {
         String scope = "Scope1";
         String streamName = "Stream1";
         String testString = "Hello world: ";
-        URI controllerUri = new URI(endpoint+":"+port);
+        URI controllerUri = new URI(endpoint + ":" + port);
 
         StreamManagerImpl streamManager = new StreamManagerImpl(scope, controllerUri);
         Stream stream = streamManager.createStream(streamName, null);
