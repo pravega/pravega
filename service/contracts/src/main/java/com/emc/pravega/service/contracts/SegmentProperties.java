@@ -38,11 +38,6 @@ public interface SegmentProperties {
      * Gets a value indicating whether this StreamSegment is deleted (does not exist).
      */
     boolean isDeleted();
-    
-    /**
-     * Gets a value indicating whether this StreamSegment has been merged into another one.
-     */
-    boolean isMerged();
 
     /**
      * Gets a value indicating the last modification time of the StreamSegment.

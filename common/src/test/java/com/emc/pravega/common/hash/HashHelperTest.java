@@ -18,5 +18,5 @@ public class HashHelperTest {
         assertEquals(0.375, HashHelper.longToDoubleFraction(Long.reverse(6)), 0.0000001);
         assertEquals(0.875, HashHelper.longToDoubleFraction(Long.reverse(7)), 0.0000001);
     }
-    
+
 }

@@ -582,10 +582,8 @@ public final class WireCommands {
         @Accessors(fluent = true)
         final boolean exists;
         final boolean isSealed;
-        final boolean isDeleted;
-        final boolean isCommitted;
         final long lastModified;
-        final long segmentLength;
+        final long dataLength;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -600,10 +598,8 @@ public final class WireCommands {
             out.writeUTF(transactionName);
             out.writeBoolean(exists);
             out.writeBoolean(isSealed);
-            out.writeBoolean(isDeleted);
-            out.writeBoolean(isCommitted);
             out.writeLong(lastModified);
-            out.writeLong(segmentLength);
+            out.writeLong(dataLength);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -612,11 +608,9 @@ public final class WireCommands {
             String transactionName = in.readUTF();
             boolean exists = in.readBoolean();
             boolean isSealed = in.readBoolean();
-            boolean isDeleted = in.readBoolean();
-            boolean isCommitted = in.readBoolean();
             long lastModified = in.readLong();
-            long segmentLength = in.readLong();
-            return new TransactionInfo(segment, txid, transactionName, exists, isSealed, isDeleted, isCommitted, lastModified, segmentLength);
+            long dataLength = in.readLong();
+            return new TransactionInfo(segment, txid, transactionName, exists, isSealed, lastModified, dataLength);
         }
     }
 

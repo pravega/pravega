@@ -204,15 +204,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 TransactionInfo result = new TransactionInfo(request.getSegment(),
                         request.getTxid(),
                         transactionName,
-                        true,
+                        !properties.isDeleted(),
                         properties.isSealed(),
-                        properties.isDeleted(),
-                        properties.isMerged(),
                         properties.getLastModified().getTime(),
                         properties.getLength());
                 connection.send(result);
             } else {
-                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, true, false, 0, 0));
+                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, 0, 0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
