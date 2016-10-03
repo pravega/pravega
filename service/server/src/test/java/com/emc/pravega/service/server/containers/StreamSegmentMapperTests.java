@@ -558,7 +558,12 @@ public class StreamSegmentMapperTests {
         }
 
         //region Unimplemented methods
-
+        
+        @Override
+        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+            return null;
+        }
+        
         @Override
         public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
             return null;
@@ -575,7 +580,7 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<Void> concat(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
             return null;
         }
 

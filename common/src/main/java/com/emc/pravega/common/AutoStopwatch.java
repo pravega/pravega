@@ -22,7 +22,8 @@ import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
- * Simple Stopwatch that returns the time since its creation.
+ * Simple Stopwatch that returns the time since its creation. This class is not susceptible to system clock changes
+ * and its usage should be preferred to doing Date arithmetic using the current system time.
  */
 public final class AutoStopwatch {
     private final long initialMillis;

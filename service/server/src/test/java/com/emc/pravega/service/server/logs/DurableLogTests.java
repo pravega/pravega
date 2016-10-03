@@ -77,7 +77,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -522,14 +521,7 @@ public class DurableLogTests extends OperationLogTestBase {
         CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
         Assert.assertFalse("read() returned a completed future when there is no data available.", readFuture.isDone());
 
-        CompletableFuture<Void> controlFuture = CompletableFuture.runAsync(() -> {
-            try {
-                Thread.sleep((int) (shortTimeout.toMillis() * 1.2));
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        });
-
+        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis((int) (shortTimeout.toMillis() * 1.2)), setup.executorService.get());
         AssertExtensions.assertThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),

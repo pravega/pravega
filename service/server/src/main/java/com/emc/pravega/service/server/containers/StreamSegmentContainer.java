@@ -144,7 +144,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     protected void doStart() {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
         this.durableLog.startAsync();
         this.executor.execute(() -> {
             this.durableLog.awaitRunning();
@@ -161,7 +161,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     protected void doStop() {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
         this.writer.stopAsync();
         this.durableLog.stopAsync();
         this.executor.execute(() -> {

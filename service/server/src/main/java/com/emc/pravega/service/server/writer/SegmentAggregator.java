@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
@@ -49,10 +50,11 @@ import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Aggregates contents for a specific StreamSegment.
@@ -68,13 +70,13 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private final String traceObjectId;
     private final Storage storage;
     private final WriterDataSource dataSource;
-    private Duration lastFlush;
     private final AtomicLong outstandingAppendLength;
     private final AtomicInteger mergeTransactionCount;
     private final AtomicBoolean hasSealPending;
-    private long lastAddedOffset;
-    private boolean closed;
-    private boolean isInitialized;
+    private final AtomicLong lastAddedOffset;
+    private final AtomicReference<Duration> lastFlush;
+    private final AtomicReference<AggregatorState> state;
+    private final AtomicReference<ReconciliationState> reconciliationState;
 
     //endregion
 
@@ -98,18 +100,20 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         this.metadata = segmentMetadata;
         Preconditions.checkArgument(this.metadata.getContainerId() == dataSource.getId(), "SegmentMetadata.ContainerId is different from WriterDataSource.Id");
+        this.traceObjectId = String.format("StorageWriter[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
 
         this.config = config;
         this.storage = storage;
         this.dataSource = dataSource;
         this.stopwatch = stopwatch;
-        this.lastFlush = stopwatch.elapsed();
+        this.lastFlush = new AtomicReference<>(stopwatch.elapsed());
         this.outstandingAppendLength = new AtomicLong();
-        this.lastAddedOffset = -1; // Will be set properly in initialize().
+        this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
         this.mergeTransactionCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
         this.operations = new ConcurrentLinkedQueue<>();
-        this.traceObjectId = String.format("StorageWriter[%d-%d]", this.metadata.getContainerId(), this.metadata.getId());
+        this.state = new AtomicReference<>(AggregatorState.NotInitialized);
+        this.reconciliationState = new AtomicReference<>();
     }
 
     //endregion
@@ -118,9 +122,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     @Override
     public void close() {
-        if (!this.closed) {
-            log.info("{}: Closed.");
-            this.closed = true;
+        if (!isClosed()) {
+            setState(AggregatorState.Closed);
         }
     }
 
@@ -136,7 +139,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     @Override
     public boolean isClosed() {
-        return this.closed;
+        return this.state.get() == AggregatorState.Closed;
     }
 
     //endregion
@@ -157,7 +160,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * made yet, this returns the amount of time since the creation of this SegmentAggregator object.
      */
     Duration getElapsedSinceLastFlush() {
-        return this.stopwatch.elapsed().minus(this.lastFlush);
+        return this.stopwatch.elapsed().minus(this.lastFlush.get());
     }
 
     /**
@@ -168,12 +171,14 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * <li> There is more data in the SegmentAggregator than the configuration allows (getOutstandingLength >= FlushThresholdBytes)
      * <li> Too much time has passed since the last call to flush() (getElapsedSinceLastFlush >= FlushThresholdTime)
      * <li> The SegmentAggregator contains a StreamSegmentSealOperation or MergeTransactionOperation (hasSealPending == true)
+     * <li> The SegmentAggregator is currently in a Reconciliation State (recovering from an inconsistency in Storage).
      * </ul>
      */
     boolean mustFlush() {
         return exceedsThresholds()
                 || this.hasSealPending.get()
-                || this.mergeTransactionCount.get() > 0;
+                || this.mergeTransactionCount.get() > 0
+                || (this.operations.size() > 0 && isReconciling());
     }
 
     /**
@@ -185,10 +190,19 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 || (length > 0 && getElapsedSinceLastFlush().compareTo(this.config.getFlushThresholdTime()) >= 0);
     }
 
+    /**
+     * Gets a value indicating whether the SegmentAggregator is currently in a Reconciliation state.
+     */
+    private boolean isReconciling() {
+        AggregatorState currentState = this.state.get();
+        return currentState == AggregatorState.ReconciliationNeeded
+                || currentState == AggregatorState.Reconciling;
+    }
+
     @Override
     public String toString() {
         return String.format(
-                "[%d: %s] Size = %d|%s, LastOffset = %d, LUSN = %d LastFlush = %ds",
+                "[%d: %s] Size = %d|%s, LastOffset = %s, LUSN = %d LastFlush = %ds",
                 this.metadata.getId(),
                 this.metadata.getName(),
                 this.operations.size(),
@@ -210,8 +224,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * errors occurred during the operation, the Future will be completed with the appropriate exception.
      */
     CompletableFuture<Void> initialize(Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(!this.isInitialized, "SegmentAggregator has already been initialized.");
+        Exceptions.checkNotClosed(isClosed(), this);
+        Preconditions.checkState(this.state.get() == AggregatorState.NotInitialized, "SegmentAggregator has already been initialized.");
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
 
         return this.storage
                 .getStreamSegmentInfo(this.metadata.getName(), timeout)
@@ -240,7 +255,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     }
 
                     log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
-                    this.isInitialized = true;
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
+                    setState(AggregatorState.Writing);
                 })
                 .exceptionally(ex -> {
                     ex = ExceptionHelpers.getRealException(ex);
@@ -250,12 +266,13 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         // * We processed a TransactionMergeOperation but did not have a chance to ack/truncate the DataSource
                         this.metadata.markDeleted(); // Update metadata, just in case it is not already updated.
                         log.warn("{}: Segment does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, ex);
+                        setState(AggregatorState.Writing);
+                        LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
                     } else {
                         // Other kind of error - re-throw.
                         throw new CompletionException(ex);
                     }
 
-                    this.isInitialized = true;
                     return null;
                 });
     }
@@ -302,7 +319,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         }
 
         // Always record the last added offset, to ensure that operations are processed in the right order.
-        this.lastAddedOffset = lastOffset;
+        this.lastAddedOffset.set(lastOffset);
+        log.debug("{}: Add {}; OpCount={}, Length={} MergeCount={}, Seal={}.", this.traceObjectId, operation, this.operations.size(), this.outstandingAppendLength, this.mergeTransactionCount, this.hasSealPending);
     }
 
     //endregion
@@ -310,38 +328,81 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     //region Flushing and Merging
 
     /**
-     * Flushes the contents of the Aggregator to the given Storage.
+     * Flushes the contents of the Aggregator to the Storage.
      *
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a summary of the flush operation. If any errors
      * occurred during the flush, the Future will be completed with the appropriate exception.
      */
-    CompletableFuture<FlushResult> flush(Duration timeout) {
+    CompletableFuture<FlushResult> flush(Duration timeout, Executor executor) {
         ensureInitializedAndNotClosed();
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flush");
 
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        CompletableFuture<FlushResult> result;
         try {
-            TimeoutTimer timer = new TimeoutTimer(timeout);
-            boolean hasMerge = this.mergeTransactionCount.get() > 0;
-            boolean hasSeal = this.hasSealPending.get();
-            if (hasSeal || hasMerge) {
-                // If we have a Seal or Merge Pending, flush everything until we reach that operation.
-                CompletableFuture<FlushResult> result = flushFully(timer);
-                if (hasMerge) {
-                    result = result.thenCompose(flushResult -> mergeIfNecessary(flushResult, timer));
-                }
-
-                if (hasSeal) {
-                    result = result.thenCompose(flushResult -> sealIfNecessary(flushResult, timer));
-                }
-
-                return result;
-            } else {
-                // Otherwise, just flush the excess as long as we have something to flush.
-                return flushExcess(timer);
+            switch (this.state.get()) {
+                case Writing:
+                    result = flushNormally(timer, executor);
+                    break;
+                case ReconciliationNeeded:
+                    result = beginReconciliation(timer)
+                            .thenComposeAsync(v -> reconcile(timer, executor), executor);
+                    break;
+                case Reconciling:
+                    result = reconcile(timer, executor);
+                    break;
+                default:
+                    result = FutureHelpers.failedFuture(new IllegalStateException(String.format("Unexpected state for SegmentAggregator (%s) for segment '%s'.", this.state, this.metadata.getName())));
+                    break;
             }
         } catch (Exception ex) {
-            return FutureHelpers.failedFuture(ex);
+            // Convert synchronous errors into async errors - it's easier to handle on the receiving end.
+            result = FutureHelpers.failedFuture(ex);
         }
+
+        return result
+                .thenApply(r -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId, r);
+                    return r;
+                });
+    }
+
+    /**
+     * Flushes the contents of the Aggregator to the Storage in a 'normal' mode (where it does not need to do any reconciliation).
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
+     */
+    private CompletableFuture<FlushResult> flushNormally(TimeoutTimer timer, Executor executor) {
+        assert this.state.get() == AggregatorState.Writing : "flushNormally cannot be called if state == " + this.state;
+        boolean hasMerge = this.mergeTransactionCount.get() > 0;
+        boolean hasSeal = this.hasSealPending.get();
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushNormally", this.operations.size(), this.mergeTransactionCount, hasSeal);
+
+        CompletableFuture<FlushResult> result;
+        if (hasSeal || hasMerge) {
+            // If we have a Seal or Merge Pending, flush everything until we reach that operation.
+            result = flushFully(timer, executor);
+            if (hasMerge) {
+                // If we have a merge, do it after we flush fully.
+                result = result.thenCompose(flushResult -> mergeIfNecessary(flushResult, timer));
+            }
+
+            if (hasSeal) {
+                // If we have a seal, do it after every other operation.
+                result = result.thenCompose(flushResult -> sealIfNecessary(flushResult, timer));
+            }
+        } else {
+            // Otherwise, just flush the excess as long as we have something to flush.
+            result = flushExcess(timer, executor);
+        }
+
+        return result
+                .thenApply(r -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushNormally", traceId, r);
+                    return r;
+                });
     }
 
     /**
@@ -350,13 +411,20 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
-     * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
      */
-    private CompletableFuture<FlushResult> flushFully(TimeoutTimer timer) throws DataCorruptionException {
-        return flushConditionally(timer, () -> {
-            StorageOperation first = this.operations.peek();
-            return first != null && isAppendOperation(first);
-        });
+    private CompletableFuture<FlushResult> flushFully(TimeoutTimer timer, Executor executor) {
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushFully");
+        FlushResult result = new FlushResult();
+        return FutureHelpers
+                .loop(
+                        () -> isAppendOperation(this.operations.peek()),
+                        () -> flushOnce(timer.getRemaining()),
+                        result::withFlushResult,
+                        executor)
+                .thenApply(v -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushFully", traceId, result);
+                    return result;
+                });
     }
 
     /**
@@ -365,30 +433,20 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *
      * @param timer Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
-     * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
      */
-    private CompletableFuture<FlushResult> flushExcess(TimeoutTimer timer) throws DataCorruptionException {
-        return flushConditionally(timer, this::exceedsThresholds);
-    }
-
-    /**
-     * Flushes all Append Operations that can be flushed at the given moment (as long ast he given condition holds true).
-     *
-     * @param timer Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
-     * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
-     */
-    private CompletableFuture<FlushResult> flushConditionally(TimeoutTimer timer, Supplier<Boolean> condition) throws DataCorruptionException {
+    private CompletableFuture<FlushResult> flushExcess(TimeoutTimer timer, Executor executor) {
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushExcess");
         FlushResult result = new FlushResult();
-
-        // Flush all outstanding data as long as the threshold is exceeded.
-        while (condition.get()) {
-            // TODO: figure out how to get rid of this join. Is there something like an AsyncLoop with Futures?
-            FlushResult partialFlushResult = flushOnce(timer.getRemaining()).join();
-            result.withFlushResult(partialFlushResult);
-        }
-
-        return CompletableFuture.completedFuture(result);
+        return FutureHelpers
+                .loop(
+                        this::exceedsThresholds,
+                        () -> flushOnce(timer.getRemaining()),
+                        result::withFlushResult,
+                        executor)
+                .thenApply(v -> {
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushExcess", traceId, result);
+                    return result;
+                });
     }
 
     /**
@@ -396,29 +454,40 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the result from the flush operation.
-     * @throws DataCorruptionException If a CachedStreamSegmentAppendOperation does not have any data in the cache.
      */
-    private CompletableFuture<FlushResult> flushOnce(Duration timeout) throws DataCorruptionException {
+    private CompletableFuture<FlushResult> flushOnce(Duration timeout) {
         // Gather an InputStream made up of all the operations we can flush.
-        FlushArgs flushArgs = getFlushArgs();
+        FlushArgs flushArgs;
+        try {
+            flushArgs = getFlushArgs();
+        } catch (DataCorruptionException ex) {
+            return FutureHelpers.failedFuture(ex);
+        }
+
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flushOnce");
 
         if (flushArgs.getTotalLength() == 0) {
             // Nothing to flush.
-            return CompletableFuture.completedFuture(new FlushResult());
+            FlushResult result = new FlushResult();
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, result);
+            return CompletableFuture.completedFuture(result);
         }
 
         // Flush them.
         InputStream inputStream = flushArgs.getInputStream();
         return this.storage
                 .write(this.metadata.getName(), this.metadata.getStorageLength(), inputStream, flushArgs.getTotalLength(), timeout)
-                .thenApply(v -> updateStatePostFlush(flushArgs))
+                .thenApply(v -> {
+                    FlushResult result = updateStatePostFlush(flushArgs);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flushOnce", traceId, result);
+                    return result;
+                })
                 .exceptionally(ex -> {
                     if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
-                        // This is a bad one. We attempted to write at an offset that already contained other data.
-                        // TODO: when we implement BadOffset Reconciliation, consider starting from here.
-                        ex = new DataCorruptionException(String.format(
-                                "Attempted to write at offset %d that is not the end of the segment in storage (Segment=%s).",
-                                this.metadata.getStorageLength(), this.metadata.getName()), ex);
+                        // We attempted to write at an offset that already contained other data. This can happen for a number of
+                        // reasons, but we do not have enough information here to determine why. We need to enter reconciliation
+                        // mode, and hope for the best.
+                        setState(AggregatorState.ReconciliationNeeded);
                     }
 
                     // Rethrow all exceptions.
@@ -499,18 +568,24 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer) {
         ensureInitializedAndNotClosed();
         assert this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID : "Cannot merge into a Transaction StreamSegment.";
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "mergeIfNecessary");
 
         StorageOperation first = this.operations.peek();
         if (first == null || !(first instanceof MergeTransactionOperation)) {
             // Either no operation or first operation is not a MergeTransaction. Nothing to do.
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeIfNecessary", traceId, flushResult);
             return CompletableFuture.completedFuture(flushResult);
         }
 
         // TODO: This only processes one merge at a time. If we had several, that would mean each is done in a different iteration. Should we improve this?
         MergeTransactionOperation mergeTransactionOperation = (MergeTransactionOperation) first;
         UpdateableSegmentMetadata transactionMetadata = this.dataSource.getStreamSegmentMetadata(mergeTransactionOperation.getTransactionSegmentId());
-        return mergeWith(transactionMetadata, timer)
-                .thenApply(flushResult::withFlushResult);
+        return mergeWith(transactionMetadata, mergeTransactionOperation, timer)
+                .thenApply(mergeResult -> {
+                    flushResult.withFlushResult(mergeResult);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeIfNecessary", traceId, flushResult);
+                    return flushResult;
+                });
     }
 
     /**
@@ -521,14 +596,16 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the number of bytes that were merged into this
      * StreamSegment. If failed, the Future will contain the exception that caused it.
      */
-    private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, TimeoutTimer timer) {
+    private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, MergeTransactionOperation mergeOp, TimeoutTimer timer) {
         if (transactionMetadata.isDeleted()) {
             return FutureHelpers.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted Transaction segment '%s'.", transactionMetadata.getName())));
         }
 
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
         FlushResult result = new FlushResult();
         if (!transactionMetadata.isSealedInStorage() || transactionMetadata.getDurableLogLength() > transactionMetadata.getStorageLength()) {
             // Nothing to do. Given Transaction is not eligible for merger yet.
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
             return CompletableFuture.completedFuture(result);
         }
 
@@ -547,9 +624,18 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                                 transProperties.getLength())));
                     }
 
+                    if (transProperties.getLength() != mergeOp.getLength()) {
+                        throw new CompletionException(new DataCorruptionException(String.format(
+                                "Transaction Segment '%s' cannot be merged into parent '%s' because the declared length in the operation disagrees with the Storage. Operation.Length=%d, Storage.StorageLength=%d",
+                                transactionMetadata.getName(),
+                                this.metadata.getName(),
+                                mergeOp.getLength(),
+                                transProperties.getLength())));
+                    }
+
                     mergedLength.set(transProperties.getLength());
                 })
-                .thenCompose(v1 -> storage.concat(this.metadata.getName(), transactionMetadata.getName(), timer.getRemaining()))
+                .thenCompose(v1 -> storage.concat(this.metadata.getName(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()))
                 .thenCompose(v2 -> storage.getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining()))
                 .thenApply(segmentProperties -> {
                     // We have processed a MergeTransactionOperation, pop the first operation off and decrement the counter.
@@ -575,8 +661,22 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     updateMetadata(segmentProperties);
                     updateMetadataForTransactionPostMerger(transactionMetadata);
 
-                    this.lastFlush = this.stopwatch.elapsed();
-                    return result.withMergedBytes(mergedLength.get());
+                    this.lastFlush.set(this.stopwatch.elapsed());
+                    result.withMergedBytes(mergedLength.get());
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
+                    return result;
+                })
+                .exceptionally(ex -> {
+                    Throwable realEx = ExceptionHelpers.getRealException(ex);
+                    if (realEx instanceof BadOffsetException || realEx instanceof StreamSegmentNotExistsException) {
+                        // We either attempted to write at an offset that already contained other data or the Transaction
+                        // Segment no longer exists. This can happen for a number of reasons, but we do not have enough
+                        // information here to determine why. We need to enter reconciliation mode, and hope for the best.
+                        setState(AggregatorState.ReconciliationNeeded);
+                    }
+
+                    // Rethrow all exceptions.
+                    throw new CompletionException(ex);
                 });
     }
 
@@ -593,6 +693,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(flushResult);
         }
 
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "sealIfNecessary");
         return this.storage
                 .seal(this.metadata.getName(), timer.getRemaining())
                 .handle((v, ex) -> {
@@ -602,16 +703,232 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         throw new CompletionException(ex);
                     }
 
-                    // Update metadata.
-                    this.metadata.markSealedInStorage();
-                    this.operations.poll();
-
-                    // Validate we have no more unexpected items and then close (as we shouldn't be getting anything else).
-                    assert this.operations.size() == 0 : "Processed StreamSegmentSeal operation but more operations are outstanding.";
-                    this.hasSealPending.set(false);
-                    close();
+                    updateStatePostSeal();
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "sealIfNecessary", traceId, flushResult);
                     return flushResult;
                 });
+    }
+
+    //endregion
+
+    //region Reconciliation
+
+    /**
+     * Initiates the Storage reconciliation procedure. Gets the current state of the Segment from Storage, and based on that,
+     * does one of the following:
+     * * Nothing, if the Storage agrees with the Metadata.
+     * * Throws a show-stopping DataCorruptionException (wrapped in a CompletionException) if the situation is unrecoverable.
+     * * Initiates the Reconciliation Procedure, which allows the reconcile() method to execute.
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that indicates when the operation completed.
+     */
+    private CompletableFuture<Void> beginReconciliation(TimeoutTimer timer) {
+        assert this.state.get() == AggregatorState.ReconciliationNeeded : "beginReconciliation cannot be called if state == " + this.state;
+        return this.storage
+                .getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining())
+                .thenAccept(sp -> {
+                    if (sp.getLength() > this.metadata.getDurableLogLength()) {
+                        // The length of the Segment in Storage is beyond what we have in our DurableLog. This is not
+                        // possible in a correct scenario and is usually indicative of an internal bug or some other external
+                        // actor altering the Segment. We cannot recover automatically from this situation.
+                        throw new CompletionException(new ReconciliationFailureException("Actual Segment length in Storage is larger than the Metadata DurableLogLength.", this.metadata, sp));
+                    } else if (sp.getLength() < this.metadata.getStorageLength()) {
+                        // The length of the Segment in Storage is less than what we thought it was. This is not possible
+                        // in a correct scenario, and is usually indicative of an internal bug or a real data loss in Storage.
+                        // We cannot recover automatically from this situation.
+                        throw new CompletionException(new ReconciliationFailureException("Actual Segment length in Storage is smaller than the Metadata StorageLength.", this.metadata, sp));
+                    } else if (sp.getLength() == this.metadata.getStorageLength()) {
+                        // Nothing to do.
+                        return;
+                    }
+
+                    // If we get here, it means we have work to do. Set the state accordingly and move on.
+                    this.reconciliationState.set(new ReconciliationState(this.metadata, sp));
+                    setState(AggregatorState.Reconciling);
+                });
+    }
+
+    private CompletableFuture<FlushResult> reconcile(TimeoutTimer timer, Executor executor) {
+        assert this.state.get() == AggregatorState.Reconciling : "reconcile cannot be called if state == " + this.state;
+        ReconciliationState rc = this.reconciliationState.get();
+        assert rc != null : "reconciliationState is null";
+        SegmentProperties storageInfo = rc.getStorageInfo();
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "reconcile", rc);
+
+        // Process each Operation in sequence, as long as its starting offset is less than ReconciliationState.getStorageInfo().getLength()
+        FlushResult result = new FlushResult();
+        AtomicBoolean exceededStorageLength = new AtomicBoolean(false);
+        return FutureHelpers
+                .loop(
+                        () -> this.operations.size() > 0 && !exceededStorageLength.get(),
+                        () -> {
+                            StorageOperation op = this.operations.peek();
+                            return reconcileOperation(op, storageInfo, timer, executor)
+                                    .thenApply(partialFlushResult -> {
+                                        if (op.getLastStreamSegmentOffset() >= storageInfo.getLength()) {
+                                            // This operation crosses the boundary of StorageLength. It has been reconciled,
+                                            // and as such it is the last operation that we need to inspect.
+                                            exceededStorageLength.set(true);
+                                        }
+
+                                        log.info("{}: Reconciled {} ({}).", this.traceObjectId, op, partialFlushResult);
+                                        return partialFlushResult;
+                                    });
+                        },
+                        result::withFlushResult,
+                        executor)
+                .thenApply(v -> {
+                    updateMetadata(storageInfo);
+                    recomputeOutstandingAppendLength();
+                    this.reconciliationState.set(null);
+                    setState(AggregatorState.Writing);
+                    LoggerHelpers.traceLeave(log, this.traceObjectId, "reconcile", traceId, result);
+                    return result;
+                });
+    }
+
+    /**
+     * Attempts to reconcile the given StorageOperation.
+     *
+     * @param op          The Operation to reconcile.
+     * @param storageInfo The current state of the Segment in Storage.
+     * @param timer       Timer for the operation.
+     * @param executor    An Executor to use for async tasks.
+     * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a ReconciliationFailureException,
+     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
+     */
+    private CompletableFuture<FlushResult> reconcileOperation(StorageOperation op, SegmentProperties storageInfo, TimeoutTimer timer, Executor executor) {
+        if (isAppendOperation(op)) {
+            return reconcileAppendOperation(op, storageInfo, timer, executor);
+        } else if (op instanceof MergeTransactionOperation) {
+            return reconcileMergeOperation((MergeTransactionOperation) op, storageInfo, timer);
+        } else if (op instanceof StreamSegmentSealOperation) {
+            return reconcileSealOperation(storageInfo);
+        } else {
+            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Operation '%s' is not supported for reconciliation.", op), this.metadata, storageInfo));
+        }
+    }
+
+    /**
+     * Attempts to reconcile the given Append Operation. Since Append Operations can be partially flushed, reconciliation
+     * may be for the full operation or for a part of it.
+     *
+     * @param op          The Operation (StreamSegmentAppendOperation or CachedStreamSegmentAppendOperation) to reconcile.
+     * @param storageInfo The current state of the Segment in Storage.
+     * @param timer       Timer for the operation.
+     * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a ReconciliationFailureException,
+     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
+     */
+    private CompletableFuture<FlushResult> reconcileAppendOperation(StorageOperation op, SegmentProperties storageInfo, TimeoutTimer timer, Executor executor) {
+        // Read data from Storage, and compare byte-by-byte.
+        AtomicReference<byte[]> appendData = new AtomicReference<>();
+        if (op instanceof StreamSegmentAppendOperation) {
+            appendData.set(((StreamSegmentAppendOperation) op).getData());
+        } else if (op instanceof CachedStreamSegmentAppendOperation) {
+            CacheKey key = ((CachedStreamSegmentAppendOperation) op).getCacheKey();
+            appendData.set(this.dataSource.getAppendData(key));
+        }
+
+        if (appendData.get() == null) {
+            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
+        }
+
+        // Only read as much data as we need.
+        long readLength = Math.min(op.getLastStreamSegmentOffset(), storageInfo.getLength()) - op.getStreamSegmentOffset();
+        assert readLength > 0 : "Append Operation to be reconciled is beyond the Segment's StorageLength " + op;
+        AtomicInteger bytesReadSoFar = new AtomicInteger();
+
+        // Read all data from storage.
+        byte[] storageData = new byte[(int) readLength];
+        return FutureHelpers
+                .loop(
+                        () -> bytesReadSoFar.get() < readLength,
+                        () -> this.storage.read(this.metadata.getName(), op.getStreamSegmentOffset() + bytesReadSoFar.get(), storageData, bytesReadSoFar.get(), (int) readLength - bytesReadSoFar.get(), timer.getRemaining()),
+                        bytesRead -> {
+                            assert bytesRead > 0 : String.format("Unable to make any read progress when reconciling operation '%s' after reading %s bytes.", op, bytesReadSoFar);
+                            bytesReadSoFar.addAndGet(bytesRead);
+                        },
+                        executor)
+                .thenApply(v -> {
+                    // Compare, byte-by-byte, the contents of the append.
+                    byte[] data = appendData.get();
+                    for (int i = 0; i < storageData.length; i++) {
+                        if (data[i] != storageData[i]) {
+                            throw new CompletionException(new ReconciliationFailureException(String.format("Unable to reconcile operation '%s' because of data differences at SegmentOffset %d.", op, op.getStreamSegmentOffset() + i), this.metadata, storageInfo));
+                        }
+                    }
+
+                    if (readLength >= data.length && op.getLastStreamSegmentOffset() <= storageInfo.getLength()) {
+                        // Operation has been completely validated; pop it off the list.
+                        StorageOperation removedOp = this.operations.poll();
+                        assert op == removedOp : "Reconciled operation is not the same as removed operation";
+                    }
+
+                    return new FlushResult().withFlushedBytes(readLength);
+                });
+    }
+
+    /**
+     * Attempts to reconcile the given MergeTransactionOperation.
+     *
+     * @param op          The Operation to reconcile.
+     * @param storageInfo The current state of the Segment in Storage.
+     * @param timer       Timer for the operation
+     * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a ReconciliationFailureException,
+     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
+     */
+    private CompletableFuture<FlushResult> reconcileMergeOperation(MergeTransactionOperation op, SegmentProperties storageInfo, TimeoutTimer timer) {
+        // Verify that the transaction segment is still registered in metadata.
+        UpdateableSegmentMetadata transactionMeta = this.dataSource.getStreamSegmentMetadata(op.getTransactionSegmentId());
+        if (transactionMeta == null || transactionMeta.isDeleted()) {
+            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Cannot reconcile operation '%s' because the transaction segment is deleted or missing from the metadata.", op), this.metadata, storageInfo));
+        }
+
+        // Verify that the operation fits fully within this segment (mergers are atomic - they either merge all or nothing).
+        if (op.getLastStreamSegmentOffset() > storageInfo.getLength()) {
+            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Cannot reconcile operation '%s' because the transaction segment is not fully merged into the parent.", op), this.metadata, storageInfo));
+        }
+
+        // Verify that the transaction segment does not exist in Storage anymore.
+        return this.storage
+                .exists(transactionMeta.getName(), timer.getRemaining())
+                .thenApply(exists -> {
+                    if (exists) {
+                        throw new CompletionException(new ReconciliationFailureException(
+                                String.format("Cannot reconcile operation '%s' because the transaction segment still exists in Storage.", op), this.metadata, storageInfo));
+                    }
+
+                    // Pop the first operation off the list and update the metadata for the transaction segment.
+                    StorageOperation processedOperation = this.operations.poll();
+                    assert processedOperation != null && processedOperation instanceof MergeTransactionOperation : "First outstanding operation was not a MergeTransactionOperation";
+
+                    int newCount = this.mergeTransactionCount.decrementAndGet();
+                    assert newCount >= 0 : "Negative value for mergeTransactionCount";
+
+                    updateMetadataForTransactionPostMerger(transactionMeta);
+                    return new FlushResult().withMergedBytes(op.getLength());
+                });
+    }
+
+    /**
+     * Attempts to reconcile a StreamSegmentSealOperation.
+     *
+     * @param storageInfo The current state of the Segment in Storage.
+     * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a ReconciliationFailureException,
+     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
+     */
+    private CompletableFuture<FlushResult> reconcileSealOperation(SegmentProperties storageInfo) {
+        // All we need to do is verify that the Segment is actually sealed in Storage.
+        if (storageInfo.isSealed()) {
+            // Update metadata and the internal state (this also pops the first Op from the operation list).
+            updateStatePostSeal();
+            return CompletableFuture.completedFuture(new FlushResult()); // No bytes were flushed or merged.
+        } else {
+            // A Seal was encountered as an Operation that should have been processed (based on its offset),
+            // but the Segment in Storage is not sealed.
+            return FutureHelpers.failedFuture(new ReconciliationFailureException("Segment was supposed to be sealed in storage but it is not.", this.metadata, storageInfo));
+        }
     }
 
     //endregion
@@ -656,9 +973,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *                                  corrupting issues).
      */
     private void checkValidOperation(StorageOperation operation) throws DataCorruptionException {
-        boolean hasSeal = this.hasSealPending.get();
-        if (hasSeal) {
-            // After a StreamSegmentSeal, we do not allow any other operation.
+        if (this.hasSealPending.get()) {
+            // Even though the DurableLog should take care of this, doesn't hurt to check again that we cannot add anything
+            // after a StreamSegmentSealOperation.
             throw new DataCorruptionException(String.format("No operation is allowed for a sealed segment; received '%s' .", operation));
         }
 
@@ -669,14 +986,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         Preconditions.checkArgument(length >= 0, "Operation '%s' has an invalid length (%s).", operation, operation.getLength());
 
         // Check that operations are contiguous (only for the operations after the first one - as we initialize lastAddedOffset on the first op).
-        if (this.lastAddedOffset >= 0 && offset != this.lastAddedOffset) {
-            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %d, actual: %d.", operation, this.lastAddedOffset, offset));
-        }
-
-        // Even though the DurableLog should take care of this, doesn't hurt to check again that we cannot add anything
-        // after a StreamSegmentSealOperation.
-        if (hasSeal) {
-            throw new DataCorruptionException(String.format("Cannot add any operation after sealing a Segment; received '%s'.", operation));
+        long lastOffset = this.lastAddedOffset.get();
+        if (lastOffset >= 0 && offset != lastOffset) {
+            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.", operation, this.lastAddedOffset, offset));
         }
 
         // Check that the operation does not exceed the DurableLogLength of the StreamSegment.
@@ -736,8 +1048,22 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         assert newOutstandingLength >= 0 : "negative outstandingAppendLength";
 
         // Update the last flush checkpoint.
-        this.lastFlush = this.stopwatch.elapsed();
+        this.lastFlush.set(this.stopwatch.elapsed());
         return new FlushResult().withFlushedBytes(flushArgs.getTotalLength());
+    }
+
+    /**
+     * Updates the metadata and the internal state after a Seal was completed.
+     */
+    private void updateStatePostSeal() {
+        // Update metadata.
+        this.metadata.markSealedInStorage();
+        this.operations.poll();
+
+        // Validate we have no more unexpected items and then close (as we shouldn't be getting anything else).
+        assert this.operations.size() == 0 : "Processed StreamSegmentSeal operation but more operations are outstanding.";
+        this.hasSealPending.set(false);
+        close();
     }
 
     /**
@@ -763,19 +1089,73 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     }
 
     /**
+     * Recalculates the outstanding Append Length based on the operations we have in our list and the current Segment Metadata.
+     */
+    private void recomputeOutstandingAppendLength() {
+        long storageLength = this.metadata.getStorageLength();
+        long outstandingLength = this.operations
+                .stream()
+                .filter(this::isAppendOperation)
+                .mapToLong(op -> {
+                    if (op.getStreamSegmentOffset() < storageLength) {
+                        return op.getLastStreamSegmentOffset() - storageLength;
+                    } else {
+                        return op.getLength();
+                    }
+                })
+                .sum();
+
+        assert outstandingLength >= 0 : "Negative recomputed outstanding append length";
+        this.outstandingAppendLength.set(outstandingLength);
+    }
+
+    /**
      * Determines if the given StorageOperation is an Append Operation.
      *
      * @param op The operation to test.
      * @return True if an Append Operation (Cached or non-cached), false otherwise.
      */
     private boolean isAppendOperation(StorageOperation op) {
-        return (op instanceof StreamSegmentAppendOperation) || (op instanceof CachedStreamSegmentAppendOperation);
+        return op != null && (op instanceof StreamSegmentAppendOperation) || (op instanceof CachedStreamSegmentAppendOperation);
     }
 
     private void ensureInitializedAndNotClosed() {
-        Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.isInitialized, "SegmentAggregator is not initialized. Cannot execute this operation.");
+        Exceptions.checkNotClosed(isClosed(), this);
+        Preconditions.checkState(this.state.get() != AggregatorState.NotInitialized, "SegmentAggregator is not initialized. Cannot execute this operation.");
+    }
+
+    private void setState(AggregatorState newState) {
+        AggregatorState oldState = this.state.get();
+        if (newState != oldState) {
+            log.info("{}: State changed from {} to {}.", this.traceObjectId, oldState, newState);
+        }
+
+        this.state.set(newState);
     }
 
     //endregion
+
+    private static class ReconciliationState {
+        private final SegmentProperties storageInfo;
+        private final long initialStorageLength;
+
+        ReconciliationState(SegmentMetadata segmentMetadata, SegmentProperties storageInfo) {
+            Preconditions.checkNotNull(storageInfo, "storageInfo");
+            this.storageInfo = storageInfo;
+            this.initialStorageLength = segmentMetadata.getStorageLength();
+        }
+
+        long getInitialStorageLength() {
+            return this.initialStorageLength;
+        }
+
+        SegmentProperties getStorageInfo() {
+            return this.storageInfo;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Metadata.StorageLength = %d, Storage.Length = %d", this.initialStorageLength, this.storageInfo.getLength());
+        }
+    }
 }
