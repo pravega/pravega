@@ -21,11 +21,14 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.storage.Storage;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -157,7 +160,7 @@ public class HDFSStorage implements Storage {
     private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout) throws IOException {
         //TODO: Write the ownership check and change logic
         FSDataOutputStream stream = fs.append(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)));
-        if(stream.getPos()!= offset) {
+        if (stream.getPos() != offset) {
             throw new IOException("Offset in the stream already has some data");
         }
         IOUtils.copyBytes(data, stream, length);
@@ -192,11 +195,11 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         CompletableFuture<Void> retVal = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
             try {
-                retVal.complete(concatSync(targetStreamSegmentName, sourceStreamSegmentName, timeout));
+                retVal.complete(concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
             } catch (IOException e) {
                 retVal.completeExceptionally(e);
             }
@@ -204,7 +207,7 @@ public class HDFSStorage implements Storage {
         return retVal;
     }
 
-    private Void concatSync(String targetStreamSegmentName, String sourceStreamSegmentName, Duration timeout) throws IOException {
+    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
         getFS().concat(new Path(getOwnedFullStreamSegmentPath(targetStreamSegmentName)),
                 new Path[]{
                         new Path(getOwnedFullStreamSegmentPath(targetStreamSegmentName)),
@@ -219,7 +222,7 @@ public class HDFSStorage implements Storage {
         CompletableFuture.runAsync(() -> {
             try {
                 retVal.complete(deleteSync(streamSegmentName, timeout));
-            }catch (IOException e) {
+            } catch (IOException e) {
                 retVal.completeExceptionally(e);
             }
         }, executor);
@@ -245,13 +248,21 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         CompletableFuture<Integer> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout)), executor);
+        CompletableFuture.runAsync(() -> {
+            try {
+                retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
+            } catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
+        }, executor);
         return retVal;
     }
 
-    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return 0;
+    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
+        FSDataInputStream stream = getFS().open(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)));
+        return stream.read(offset, buffer, bufferOffset, length);
     }
+
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
@@ -265,6 +276,24 @@ public class HDFSStorage implements Storage {
                 },
                 executor);
         return retVal;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        CompletableFuture<Boolean> retVal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+                    try {
+                        retVal.complete(existsSync(streamSegmentName, timeout));
+                    } catch (IOException e) {
+                        retVal.completeExceptionally(e);
+                    }
+                },
+                executor);
+        return retVal;
+    }
+
+    private Boolean existsSync(String streamSegmentName, Duration timeout) throws IOException {
+        return getFS().exists(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)));
     }
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
