@@ -67,7 +67,7 @@ public class ModelHelperTest {
         ownedLogs.put(createSegmentId("stream", 1), 1L);
 
         Map<Segment, Long> futureOwnedLogs = new HashMap<>();
-        futureOwnedLogs.put(createSegmentId("stream", 3), 2L);
+        futureOwnedLogs.put(createSegmentId("stream", 2), 2L);
 
         return new PositionImpl(ownedLogs, futureOwnedLogs);
     }
@@ -173,9 +173,8 @@ public class ModelHelperTest {
         assertEquals(1, position.getFutureOwnedSegments().size());
         SegmentId id = ModelHelper.decode(createSegmentId("stream", 1));
         assertEquals(1L, position.getOwnedSegments().get(id).longValue());
-        id = ModelHelper.decode(createSegmentId("stream", 3));
-        SegmentId previous = ModelHelper.decode(createSegmentId("stream", 2));
-        Long val = position.getFutureOwnedSegments().get(new FutureSegment(id, previous));
+        SegmentId future = ModelHelper.decode(createSegmentId("stream", 2));
+        Long val = position.getFutureOwnedSegments().get(new FutureSegment(future, id));
         assertEquals(2L, val.longValue());
     }
 
@@ -192,6 +191,6 @@ public class ModelHelperTest {
         assertEquals(1, ownedLogs.size());
         assertEquals(1, futureOwnedLogs.size());
         assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());
-        assertEquals(2L, futureOwnedLogs.get(createSegmentId("stream", 3)).longValue());
+        assertEquals(2L, futureOwnedLogs.get(createSegmentId("stream", 2)).longValue());
     }
 }

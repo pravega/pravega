@@ -23,6 +23,7 @@ import com.emc.pravega.stream.Segment;
 import com.google.common.base.Preconditions;
 
 import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import java.util.Collections;
 import java.util.Map;
@@ -30,6 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @EqualsAndHashCode
+@ToString
 public class PositionImpl implements Position, PositionInternal {
 
     private static final long serialVersionUID = 1L;
