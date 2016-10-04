@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
@@ -60,13 +61,27 @@ public interface Controller {
          */
         CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
         
-        void createTransaction(Stream stream, UUID txId, long timeout);
+        /**
+         * Api to create a new transaction with the specified ID. 
+         * The transaction timeout is relative to the creation time.
+         */
+        CompletableFuture<Void> createTransaction(Stream stream, UUID txId, long timeout);
 
-        void commitTransaction(Stream stream, UUID txId) throws TxFailedException;
+        /**
+         * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
+         * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+         */
+        CompletableFuture<Void> commitTransaction(Stream stream, UUID txId);
 
-        void dropTransaction(Stream stream, UUID txId);
+        /**
+         * Drops a transaction. No events published to it may be read, and no further events may be published.
+         */
+        CompletableFuture<Void> dropTransaction(Stream stream, UUID txId);
 
-        Transaction.Status checkTransactionStatus(UUID txId);
+        /**
+         * Returns the status of the specified transaction.
+         */
+        CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId);
 
     // Controller Apis that are called by consumers
 

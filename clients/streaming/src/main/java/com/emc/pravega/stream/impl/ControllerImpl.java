@@ -43,7 +43,6 @@ import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamSegments;
-import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 
 import lombok.extern.slf4j.Slf4j;
@@ -174,26 +173,28 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public void commitTransaction(Stream stream, UUID txId) {
-        // TODO Auto-generated method stub
-        
-    }
-
-    @Override
-    public void dropTransaction(Stream stream, UUID txId) {
-        // TODO Auto-generated method stub
-        
-    }
-
-    @Override
-    public Transaction.Status checkTransactionStatus(UUID txId) {
+    public CompletableFuture<Void> createTransaction(Stream stream, UUID txId, long timeout) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void createTransaction(Stream stream, UUID txId, long timeout) {
+    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
         // TODO Auto-generated method stub
-        
+        return null;
     }
+
+    @Override
+    public CompletableFuture<Void> dropTransaction(Stream stream, UUID txId) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<com.emc.pravega.stream.Transaction.Status> checkTransactionStatus(Stream stream,
+            UUID txId) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
 }

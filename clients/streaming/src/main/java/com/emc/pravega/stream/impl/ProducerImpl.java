@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Producer;
@@ -198,19 +199,19 @@ public class ProducerImpl<Type> implements Producer<Type> {
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
-            controller.commitTransaction(stream, txId);
+            FutureHelpers.getAndHandleExceptions(controller.commitTransaction(stream, txId), TxFailedException::new);
             closed.set(true);
         }
 
         @Override
         public void drop() {
-            controller.dropTransaction(stream, txId);
+            FutureHelpers.getAndHandleExceptions(controller.dropTransaction(stream, txId), RuntimeException::new);
             closed.set(true);
         }
 
         @Override
         public Status checkStatus() {
-            return controller.checkTransactionStatus(txId);
+            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
         }
 
         @Override
@@ -230,7 +231,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
-        controller.createTransaction(stream, txId, timeout);
+        FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, txId, timeout), RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

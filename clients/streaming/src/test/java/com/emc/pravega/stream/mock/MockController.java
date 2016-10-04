@@ -126,7 +126,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public void commitTransaction(Stream stream, UUID txId) throws TxFailedException {
+    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -151,11 +151,11 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
-        getAndHandleExceptions(result, TxFailedException::new);
+        return result;
     }
 
     @Override
-    public void dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> dropTransaction(Stream stream, UUID txId) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -180,16 +180,16 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
-        getAndHandleExceptions(result, RuntimeException::new);
+        return result;
     }
 
     @Override
-    public Transaction.Status checkTransactionStatus(UUID txId) {
+    public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
         throw new NotImplementedException();
     }
 
     @Override
-    public void createTransaction(Stream stream, UUID txId, long timeout) {
+    public CompletableFuture<Void> createTransaction(Stream stream, UUID txId, long timeout) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -209,7 +209,7 @@ public class MockController implements Controller {
             }
         };
         sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
-        getAndHandleExceptions(result, RuntimeException::new);
+        return result;
     }
 
     @Override
