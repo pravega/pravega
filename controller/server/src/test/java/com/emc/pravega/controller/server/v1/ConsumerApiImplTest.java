@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.controller.server.v1.Api;
+package com.emc.pravega.controller.server.v1;
 
 import static org.junit.Assert.assertEquals;
 
@@ -43,11 +43,8 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 
 /**

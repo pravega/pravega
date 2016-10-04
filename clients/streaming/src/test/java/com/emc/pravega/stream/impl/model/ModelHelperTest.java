@@ -64,10 +64,10 @@ public class ModelHelperTest {
 
     private static PositionInternal createPosition() {
         Map<Segment, Long> ownedLogs = new HashMap<>();
-        ownedLogs.put(createSegmentId("stream",1), 1L);
+        ownedLogs.put(createSegmentId("stream", 1), 1L);
 
         Map<Segment, Long> futureOwnedLogs = new HashMap<>();
-        futureOwnedLogs.put(createSegmentId("stream",3), 2L);
+        futureOwnedLogs.put(createSegmentId("stream", 3), 2L);
 
         return new PositionImpl(ownedLogs, futureOwnedLogs);
     }
@@ -191,6 +191,6 @@ public class ModelHelperTest {
         assertEquals(1, position.asInternalImpl().getFutureOwnedLogs().size());
         Map<Segment, Long> owndedLogs = position.asInternalImpl().getOwnedLogs();
         assertEquals(1L, position.asInternalImpl().getOwnedLogs().get(createSegmentId("stream", 1)).longValue());
-        assertEquals(2L, position.asInternalImpl().getFutureOwnedLogs().get(createSegmentId("stream",3)).longValue());
+        assertEquals(2L, position.asInternalImpl().getFutureOwnedLogs().get(createSegmentId("stream", 3)).longValue());
     }
 }

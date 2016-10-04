@@ -18,7 +18,6 @@
 package com.emc.pravega.stream.impl;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 import java.io.Serializable;
 import java.util.HashMap;
