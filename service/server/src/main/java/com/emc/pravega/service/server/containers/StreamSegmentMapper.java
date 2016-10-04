@@ -120,6 +120,7 @@ public class StreamSegmentMapper {
      * Creates a new Transaction StreamSegment for an existing Parent StreamSegment and assigns a unique internal Id to it.
      *
      * @param parentStreamSegmentName The case-sensitive StreamSegment Name of the Parent StreamSegment.
+     * @param transactionId           A unique identifier for the transaction to be created.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Transaction StreamSegment.
      * If the operation failed, this will contain the exception that caused the failure.

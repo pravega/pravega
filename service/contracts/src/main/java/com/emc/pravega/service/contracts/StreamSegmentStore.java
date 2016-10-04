@@ -83,6 +83,7 @@ public interface StreamSegmentStore {
      * Creates a new Transaction and maps it to a Parent StreamSegment.
      *
      * @param parentStreamSegmentName The name of the Parent StreamSegment to create a transaction for.
+     * @param transactionId           A unique identifier for the transaction to be created.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the name of the newly created transaction.
      * If the operation failed, it will contain the exception that caused the failure.

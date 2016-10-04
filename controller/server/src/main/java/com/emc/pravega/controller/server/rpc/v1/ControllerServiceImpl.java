@@ -235,7 +235,7 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                         segmentOffsets.put(number, x.getValue());
                     }
             );
-            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPreviousNumber()));
+            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPrecedingNumber()));
             segmentFutures.add(new SegmentFutures(current, futures));
         }
         return segmentFutures;

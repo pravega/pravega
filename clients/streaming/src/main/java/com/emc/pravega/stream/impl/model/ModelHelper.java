@@ -41,9 +41,14 @@ import com.google.common.base.Preconditions;
  */
 public final class ModelHelper {
 
-    public static final Segment encode(final SegmentId segment, int previous) {
+    public static final Segment encode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
+        return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber());
+    }
+    
+    public static final com.emc.pravega.stream.impl.FutureSegment encode(final SegmentId segment, int previous) {
+        Preconditions.checkNotNull(segment, "Segment");
+        return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
     }
 
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
@@ -100,8 +105,8 @@ public final class ModelHelper {
 
     public static final Position decode(final PositionInternal position) {
         Preconditions.checkNotNull(position, "Position");
-        return new Position(decodeSegmentMap(position.asInternalImpl().getOwnedLogs()),
-                decodeFutureSegmentMap(position.asInternalImpl().getFutureOwnedLogs()));
+        return new Position(decodeSegmentMap(position.getOwnedSegmentsWithOffsets()),
+                decodeFutureSegmentMap(position.getFutureOwnedSegmentsWithOffsets()));
     }
 
     public static NodeUri decode(PravegaNodeUri uri) {
@@ -112,28 +117,28 @@ public final class ModelHelper {
         Preconditions.checkNotNull(map);
         HashMap<Segment, Long> result = new HashMap<>();
         for (Entry<SegmentId, Long> entry : map.entrySet()) {
-            result.put(encode(entry.getKey(), -1), entry.getValue());
+            result.put(encode(entry.getKey()), entry.getValue());
         }
         return result;
     }
     
-    private static Map<Segment, Long> encodeFutureSegmentMap(final Map<FutureSegment, Long> map) {
+    private static Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(final Map<FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
-        HashMap<Segment, Long> result = new HashMap<>();
+        HashMap<com.emc.pravega.stream.impl.FutureSegment, Long> result = new HashMap<>();
         for (Entry<FutureSegment, Long> entry : map.entrySet()) {
             result.put(encode(entry.getKey().getFutureSegment(), entry.getKey().getPrecedingSegment().getNumber()), entry.getValue());
         }
         return result;
     }
     
-    private static Map<FutureSegment, Long> decodeFutureSegmentMap(final Map<Segment, Long> map) {
+    private static Map<FutureSegment, Long> decodeFutureSegmentMap(final Map<com.emc.pravega.stream.impl.FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
         HashMap<FutureSegment, Long> result = new HashMap<>();
-        for (Entry<Segment, Long> entry : map.entrySet()) {
+        for (Entry<com.emc.pravega.stream.impl.FutureSegment, Long> entry : map.entrySet()) {
             String scope = entry.getKey().getScope();
             String streamName = entry.getKey().getStreamName();
             int newNumber = entry.getKey().getSegmentNumber();
-            int oldNumber = entry.getKey().getPreviousNumber();
+            int oldNumber = entry.getKey().getPrecedingNumber();
             result.put(new FutureSegment(new SegmentId(scope, streamName, newNumber), new SegmentId(scope, streamName, oldNumber)), entry.getValue());
         }
         return result;

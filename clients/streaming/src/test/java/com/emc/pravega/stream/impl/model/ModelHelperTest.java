@@ -17,6 +17,13 @@
  */
 package com.emc.pravega.stream.impl.model;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.junit.Test;
+
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -26,17 +33,15 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
-import org.junit.Test;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.junit.Assert.assertEquals;
 
 public class ModelHelperTest {
 
     private static Segment createSegmentId(String streamName, int number) {
-        return new Segment("scope", streamName, number, number - 1);
+        return new Segment("scope", streamName, number);
+    }
+    
+    private static com.emc.pravega.stream.impl.FutureSegment createFutureSegmentId(String streamName, int number, int previous) {
+        return new com.emc.pravega.stream.impl.FutureSegment("scope", streamName, number, previous);
     }
 
     private static ScalingPolicy createScalingPolicy() {
@@ -66,8 +71,8 @@ public class ModelHelperTest {
         Map<Segment, Long> ownedLogs = new HashMap<>();
         ownedLogs.put(createSegmentId("stream", 1), 1L);
 
-        Map<Segment, Long> futureOwnedLogs = new HashMap<>();
-        futureOwnedLogs.put(createSegmentId("stream", 2), 2L);
+        Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = new HashMap<>();
+        futureOwnedLogs.put(createFutureSegmentId("stream", 2, 1), 2L);
 
         return new PositionImpl(ownedLogs, futureOwnedLogs);
     }
@@ -98,7 +103,15 @@ public class ModelHelperTest {
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());
-        assertEquals(1, segment.getPreviousNumber());
+    }
+    
+    @Test // Preceding 
+    public void encodeFutureSegmentId() {
+        com.emc.pravega.stream.impl.FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
+        assertEquals("stream1", segment.getStreamName());
+        assertEquals("scope", segment.getScope());
+        assertEquals(2, segment.getSegmentNumber());
+        assertEquals(1, segment.getPrecedingNumber());
     }
 
     @Test(expected = NullPointerException.class)
@@ -186,11 +199,11 @@ public class ModelHelperTest {
     @Test
     public void encodePosition() {
         PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition())); 
-        Map<Segment, Long> ownedLogs = position.asInternalImpl().getOwnedLogs();
-        Map<Segment, Long> futureOwnedLogs = position.asInternalImpl().getFutureOwnedLogs();
+        Map<Segment, Long> ownedLogs = position.getOwnedSegmentsWithOffsets();
+        Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = position.getFutureOwnedSegmentsWithOffsets();
         assertEquals(1, ownedLogs.size());
         assertEquals(1, futureOwnedLogs.size());
         assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());
-        assertEquals(2L, futureOwnedLogs.get(createSegmentId("stream", 2)).longValue());
+        assertEquals(2L, futureOwnedLogs.get(createFutureSegmentId("stream", 2, 1)).longValue());
     }
 }

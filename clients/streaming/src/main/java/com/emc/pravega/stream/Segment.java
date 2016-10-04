@@ -18,31 +18,27 @@
 package com.emc.pravega.stream;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 
 /**
  * An identifier for a segment of a stream.
  */
 @Data
-@EqualsAndHashCode(exclude = "previousNumber")
 public class Segment {
     private final String scope;
     @NonNull
     private final String streamName;
     private final int segmentNumber;
-    private final int previousNumber;
 
-    public Segment(String scope, String streamName, int number, int previous) {
-        super();
-        this.scope = scope;
+    public Segment(String scope, String streamName, int number) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkArgument(streamName.matches("^\\w+\\z"), "Name must be [a-zA-Z0-9]*");
+        this.scope = scope;
         this.streamName = streamName;
         this.segmentNumber = number;
-        this.previousNumber = previous;
     }
 
     public String getQualifiedName() {
@@ -51,7 +47,7 @@ public class Segment {
 
     public static String getQualifiedName(String scope, String streamName, int segmentNumber) {
         StringBuffer sb = new StringBuffer();
-        if (scope != null) {
+        if (!Strings.isNullOrEmpty(scope)) {
             sb.append(scope);
             sb.append('/');
         }
@@ -61,29 +57,14 @@ public class Segment {
         return sb.toString();
     }
 
-    /**
-     * @return True if this segment is a replacement or partial replacement for the one passed.
-     */
-    public boolean succeeds(Segment other) {
-        return ((scope == null) ? other.scope == null : scope.equals(other.scope))
-                && streamName.equals(other.streamName) && previousNumber == other.segmentNumber;
-    }
-
-    public static String getScopeFromQualifiedName(String segment) {
-        String[] tokens = segment.split("/");
-        Preconditions.checkArgument(tokens.length >= 3);
-        return tokens[0];
-    }
-
-    public static String getStreamNameFromQualifiedName(String segment) {
-        String[] tokens = segment.split("/");
-        Preconditions.checkArgument(tokens.length >= 3);
-        return tokens[1];
-    }
-
-    public static int getSegmentNumberFromQualifiedName(String segment) {
-        String[] tokens = segment.split("/");
-        Preconditions.checkArgument(tokens.length >= 3);
-        return Integer.parseInt(tokens[2]);
+    public static Segment fromQualifiedName(String qualifiedName) {
+        String[] tokens = qualifiedName.split("/");
+        if (tokens.length == 2) {
+            return new Segment(null, tokens[0], Integer.parseInt(tokens[1]));
+        } else if (tokens.length == 3) {
+            return new Segment(tokens[0], tokens[1], Integer.parseInt(tokens[2]));
+        } else {
+            throw new IllegalArgumentException("Not a valid segment name");
+        }
     }
 }

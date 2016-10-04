@@ -67,7 +67,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-        Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0, -1);
+        Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
 
         createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
         try {
@@ -121,7 +121,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(1.0, new Segment(scope, stream, 0, -1));
+        segments.put(1.0, new Segment(scope, stream, 0));
         return CompletableFuture.completedFuture(new StreamSegments(System.currentTimeMillis(), segments));
     }
 
@@ -228,7 +228,7 @@ public class MockController implements Controller {
     }
     
     public PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0, -1), 0L), Collections.emptyMap());
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
     
     private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {

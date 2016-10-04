@@ -150,7 +150,7 @@ public class ControllerImpl implements Controller {
                 .thenApply(result -> ThriftHelper.thriftCall(result::getResult)).thenApply( (List<SegmentRange> ranges) -> {
                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
                    for (SegmentRange r : ranges) {
-                       rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId(), -1)); 
+                       rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId())); 
                    }
                    return rangeMap; 
                 }).thenApply(map -> new StreamSegments(System.currentTimeMillis(), map));
@@ -160,10 +160,8 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            String scope = Segment.getScopeFromQualifiedName(qualifiedSegmentName);
-            String stream = Segment.getStreamNameFromQualifiedName(qualifiedSegmentName);
-            int number = Segment.getSegmentNumberFromQualifiedName(qualifiedSegmentName);
-            client.getURI(new SegmentId(scope, stream, number), callback);
+            Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
+            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()), callback);
             return callback.getResult();
         });
         return callback
