@@ -118,25 +118,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 );
     }
 
-//    private CompletableFuture<SegmentFutures> constructSegmentFutures(String name, long timestamp) {
-//        Stream stream = getStream(name);
-//        CompletableFuture<List<Integer>> activeSegments = stream.getActiveSegments(timestamp).thenApply(ArrayList::new);
-//
-//        CompletableFuture<Map<Integer, Integer>> futureSegments =
-//                FutureCollectionHelper.foldFutures(activeSegments, new HashMap<>(), (x, y) -> getDefaultSegmentFutures(stream, x, y));
-//
-//        return activeSegments.thenCombine(futureSegments, SegmentFutures::new);
-//    }
-//
-//    private CompletableFuture<Map<Integer, Integer>> getDefaultSegmentFutures(Stream stream, CompletableFuture<Map<Integer, Integer>> futureMap, int number) {
-//        CompletableFuture<List<Integer>> futures = getDefaultFutures(stream, number);
-//        return futures.thenCombine(futureMap,
-//                (list, map) -> {
-//                    list.stream().forEach(x -> map.put(x, number));
-//                    return map;
-//                });
-//    }
-
     /**
      * Finds all successors of a given segment, that have exactly one predecessor,
      * and hence can be included in the futures of the given segment.

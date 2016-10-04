@@ -99,9 +99,11 @@ public class FutureCollectionHelper {
      * @param <U> Aggregated output's type parameter.
      * @return Aggregate that evaluates in future.
      */
-    public static <T, U> CompletableFuture<U> foldFutures(List<T> input, CompletableFuture<U> zero, BiFunction<CompletableFuture<U>, ? super T, CompletableFuture<U>> fn) {
+    public static <T, U> CompletableFuture<U> foldFutures(List<T> input, U zero, BiFunction<CompletableFuture<U>, ? super T, CompletableFuture<U>> fn) {
         Preconditions.checkNotNull(input);
-        CompletableFuture<U> current = zero;
+        CompletableFuture<U> zeroFuture = new CompletableFuture<>();
+        zeroFuture.complete(zero);
+        CompletableFuture<U> current = zeroFuture;
         for (T elem: input) {
             current = fn.apply(current, elem);
         }
@@ -110,8 +112,9 @@ public class FutureCollectionHelper {
 
     /**
      * Converts a list of futures into a future list.
-     * Note that although this function uses a blocking join method, the function is not blocking,
-     * because join is invoked on a completed future.
+     * If any of the futures in the input list completes exceptionally then the result completes exceptionally.
+     * Note that although this function uses a blocking join method, the function is not blocking, because join
+     * is invoked on a completed future.
      * @param futures List of futures.
      * @param <T> Type parameter.
      * @return A future list.
