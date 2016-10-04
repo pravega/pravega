@@ -175,15 +175,22 @@ public class ProducerImpl<Type> implements Producer<Type> {
         return producers.get(log);
     }
 
-    private class TransactionImpl implements Transaction<Type> {
+    private static class TransactionImpl<Type> implements Transaction<Type> {
 
         private final Map<Segment, SegmentTransaction<Type>> inner;
         private final UUID txId;
         private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final EventRouter router;
+        private final Controller controller;
+        private final Stream stream;
 
-        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions) {
+        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, EventRouter router,
+                Controller controller, Stream stream) {
             this.txId = txId;
             this.inner = transactions;
+            this.router = router;
+            this.controller = controller;
+            this.stream = stream;
         }
 
         @Override
@@ -216,6 +223,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public void flush() throws TxFailedException {
+            Preconditions.checkState(!closed.get());
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.flush();
             }
@@ -237,7 +245,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl(txId, transactions);
+        return new TransactionImpl<Type>(txId, transactions, router, controller, stream);
     }
 
     @Override

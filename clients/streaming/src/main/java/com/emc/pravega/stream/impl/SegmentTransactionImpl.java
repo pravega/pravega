@@ -43,7 +43,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
             ByteBuffer buffer = serializer.serialize(event);
             out.write(buffer, CompletableFuture.completedFuture(null));
         } catch (SegmentSealedException e) {
-            throw new TxFailedException();
+            throw new TxFailedException(e);
         }
     }
 

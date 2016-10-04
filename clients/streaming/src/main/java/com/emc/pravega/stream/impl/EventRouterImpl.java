@@ -21,26 +21,29 @@ import com.emc.pravega.stream.EventRouter;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamSegments;
+import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class EventRouterImpl implements EventRouter {
 
+    private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
+    
     private final Stream stream;
     private final Controller controller;
     private final AtomicReference<StreamSegments> currentSegments = new AtomicReference<>();
-    private final HashHelper hasher = HashHelper.seededWith("EventRouter");
 
     
     @Override
     public Segment getSegmentForEvent(String routingKey) {
+        Preconditions.checkNotNull(routingKey);
         StreamSegments streamSegments = currentSegments.get();
         if (streamSegments == null) {
             refreshSegmentList();
             streamSegments = currentSegments.get();
         }
-        return streamSegments.getSegmentForKey(hasher.hashToRange(routingKey));
+        return streamSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
     }
     
     @Override

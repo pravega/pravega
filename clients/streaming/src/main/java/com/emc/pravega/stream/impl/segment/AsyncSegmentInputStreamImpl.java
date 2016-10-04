@@ -116,7 +116,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         private void reset() {
             CompletableFuture<SegmentRead> old = result.getAndSet(new CompletableFuture<>());
             if (!old.isDone()) {
-                old.completeExceptionally(new RuntimeException("Retry alrady in progress"));
+                old.completeExceptionally(new RuntimeException("Retry already in progress"));
             }
         }
 
@@ -144,9 +144,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     @Override
     public ReadFuture read(long offset, int length) {
-        if (closed.get()) {
-            throw new ObjectClosedException(this);
-        }
+        Exceptions.checkNotClosed(closed.get(), this);
         ReadSegment request = new ReadSegment(segment, offset, length);
         ReadFutureImpl read = new ReadFutureImpl(request);
         outstandingRequests.put(read.request.getOffset(), read);

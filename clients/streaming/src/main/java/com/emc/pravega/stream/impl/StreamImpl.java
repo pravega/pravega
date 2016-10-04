@@ -61,6 +61,9 @@ public class StreamImpl implements Stream {
     };
 
     public StreamImpl(String scope, String streamName, StreamConfiguration config, Controller controller, ConnectionFactory connectionFactory) {
+        Preconditions.checkNotNull(streamName);
+        Preconditions.checkNotNull(controller);
+        Preconditions.checkNotNull(connectionFactory);
         this.scope = scope;
         this.streamName = streamName;
         this.config = config;
