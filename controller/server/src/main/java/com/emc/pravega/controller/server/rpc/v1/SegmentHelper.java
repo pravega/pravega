@@ -45,9 +45,7 @@ public class SegmentHelper {
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
     
-    public static boolean createSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri) {
-        ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-
+    public static boolean createSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 

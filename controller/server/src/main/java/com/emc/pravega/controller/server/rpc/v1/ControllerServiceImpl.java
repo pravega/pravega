@@ -42,6 +42,7 @@ import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
@@ -53,10 +54,12 @@ public class ControllerServiceImpl implements ControllerService.Iface {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
+    private ConnectionFactoryImpl connectionFactory;
 
     public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
+        this.connectionFactory = new ConnectionFactoryImpl(false);
     }
 
     /**
@@ -85,7 +88,7 @@ public class ControllerServiceImpl implements ControllerService.Iface {
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri)));
+        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), connectionFactory));
     }
 
     @Override

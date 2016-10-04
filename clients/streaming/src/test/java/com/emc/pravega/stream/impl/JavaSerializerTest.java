@@ -64,6 +64,7 @@ public class JavaSerializerTest {
     }
 
     @Test
+    @SuppressWarnings("rawtypes")
     public void testRefCycle() {
         JavaSerializer<HashMap<Integer, Map>> serializer = new JavaSerializer<>();
         HashMap<Integer, Map> in = new HashMap<>();

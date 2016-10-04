@@ -126,7 +126,7 @@ public class ConsumerApiImplTest {
 
         Position newPosition = new Position(
                 Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),
-                Collections.EMPTY_MAP);
+                Collections.emptyMap());
         positions.set(2, newPosition);
         positions = consumer.updatePositions(SCOPE, stream2, positions);
         assertEquals(3, positions.size());
