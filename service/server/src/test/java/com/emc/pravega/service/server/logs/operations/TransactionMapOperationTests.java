@@ -32,7 +32,7 @@ import java.util.Random;
 public class TransactionMapOperationTests extends OperationTestsBase<TransactionMapOperation> {
     @Override
     protected TransactionMapOperation createOperation(Random random) {
-        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), random.nextBoolean(), new Date()));
+        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(super.getStreamSegmentName(random.nextLong()), random.nextLong(), random.nextBoolean(), random.nextBoolean(), new Date()));
     }
 
     @Override

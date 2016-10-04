@@ -338,14 +338,12 @@ public class InMemoryStorage implements Storage {
         private final Executor executor;
         private long length;
         private boolean sealed;
-        private boolean merged;
 
         StreamSegmentData(String name, Executor executor) {
             this.name = name;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
-            this.merged = false;
             this.executor = executor;
         }
 
@@ -388,7 +386,7 @@ public class InMemoryStorage implements Storage {
                     }
 
                     this.sealed = true;
-                    return new StreamSegmentInformation(this.name, this.length, this.sealed, this.merged, false, new Date());
+                    return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
                 }
             }, this.executor);
         }
@@ -396,8 +394,6 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> concat(StreamSegmentData other, long offset) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
-                    other.sealed = true; // Make sure other is sealed.
-                    other.merged = true;
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
                     synchronized (this.lock) {
                         if (offset != this.length) {
@@ -420,7 +416,7 @@ public class InMemoryStorage implements Storage {
 
         CompletableFuture<SegmentProperties> getInfo() {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, this.merged, false, new Date())); //TODO: real modification time
+                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date())); //TODO: real modification time
             }
         }
 

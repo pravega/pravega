@@ -32,7 +32,6 @@ public class StreamSegmentInformation implements SegmentProperties {
     private final long length;
     private final boolean sealed;
     private final boolean deleted;
-    private final boolean merged;
     private final Date lastModified;
 
     /**
@@ -42,15 +41,13 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param length            The length of the StreamSegment.
      * @param isSealed          Whether the StreamSegment is sealed (for modifications).
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
-     * @param isMerged          Whether the StreamSegment has been merged into anohter.
      * @param lastModified      The last time the StreamSegment was modified.
      */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, boolean isMerged, Date lastModified) {
+    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
         this.name = streamSegmentName;
         this.length = length;
         this.sealed = isSealed;
         this.deleted = isDeleted;
-        this.merged = isMerged;
         this.lastModified = lastModified;
     }
 
