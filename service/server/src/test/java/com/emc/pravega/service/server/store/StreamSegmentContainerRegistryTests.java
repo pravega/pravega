@@ -62,6 +62,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
         HashSet<Integer> expectedContainerIds = new HashSet<>();
@@ -98,6 +99,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
@@ -127,6 +129,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
         AssertExtensions.assertThrows(
@@ -149,6 +152,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();

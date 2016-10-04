@@ -35,7 +35,6 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 public class SegmentHelper {
 

@@ -271,7 +271,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
-        segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length)-> {
+        segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
              segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
                  connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
                  return null;

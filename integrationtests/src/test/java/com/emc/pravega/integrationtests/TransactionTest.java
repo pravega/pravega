@@ -81,6 +81,7 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
         @Cleanup
@@ -134,6 +135,7 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
         @Cleanup
@@ -156,6 +158,7 @@ public class TransactionTest {
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
+        @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
         @Cleanup

@@ -194,7 +194,7 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
 
-        
+        @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
 
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();

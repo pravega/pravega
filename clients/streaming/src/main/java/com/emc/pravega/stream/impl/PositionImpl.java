@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -20,6 +20,7 @@ package com.emc.pravega.stream.impl;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
+import com.google.common.base.Preconditions;
 
 import lombok.EqualsAndHashCode;
 
@@ -36,32 +37,41 @@ public class PositionImpl implements Position, PositionInternal {
     private final Map<Segment, Long> futureOwnedLogs;
 
     public PositionImpl(Map<Segment, Long> ownedLogs, Map<Segment, Long> futureOwnedLogs) {
-        isFutureLogsWellFormed(ownedLogs, futureOwnedLogs);
         this.ownedLogs = normalizeOwnedLogs(ownedLogs);
         this.futureOwnedLogs = futureOwnedLogs;
+        Preconditions.checkArgument(isWellFormed(ownedLogs, futureOwnedLogs),
+                                    "Owned and future logs must be coherent: " + this.toString());
     }
 
     private Map<Segment, Long> normalizeOwnedLogs(Map<Segment, Long> ownedLogs) {
         // find redundant segmentIds
-        Set<Integer> predecessors = ownedLogs.keySet().stream().map(Segment::getPreviousNumber).collect(Collectors.toSet());
-        return ownedLogs
-                .entrySet()
-                .stream()
-                .filter(x -> !predecessors.contains(x.getKey().getSegmentNumber()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Set<Integer> predecessors = ownedLogs.keySet()
+            .stream()
+            .map(Segment::getPreviousNumber)
+            .collect(Collectors.toSet());
+        return ownedLogs.entrySet()
+            .stream()
+            .filter(x -> !predecessors.contains(x.getKey().getSegmentNumber()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private boolean isFutureLogsWellFormed(Map<Segment, Long> ownedLogs, Map<Segment, Long> futureOwnedLogs) {
         // every segment in futures should
         // 1. not be in ownedLogs, and
         // 2. have a predecessor in ownedLogs
-        Set<Integer> current = ownedLogs.entrySet().stream().map(x -> x.getKey().getSegmentNumber()).collect(Collectors.toSet());
-        return futureOwnedLogs.entrySet().stream()
-                        .allMatch(x -> current.contains(x.getKey().getPreviousNumber()) && !current.contains(x.getKey().getSegmentNumber()));
+        Set<Integer> current = ownedLogs.entrySet()
+            .stream()
+            .map(x -> x.getKey().getSegmentNumber())
+            .collect(Collectors.toSet());
+        return futureOwnedLogs.entrySet().stream().allMatch(x -> current.contains(x.getKey().getPreviousNumber())
+                && !current.contains(x.getKey().getSegmentNumber()));
     }
 
     private boolean isOwnedLogsWellFormed(Map<Segment, Long> ownedLogs) {
-        Set<Integer> current = ownedLogs.entrySet().stream().map(x -> x.getKey().getSegmentNumber()).collect(Collectors.toSet());
+        Set<Integer> current = ownedLogs.entrySet()
+            .stream()
+            .map(x -> x.getKey().getSegmentNumber())
+            .collect(Collectors.toSet());
 
         // for every segment in ownedLogs, its predecessor should not be in ownedLogs
         return ownedLogs.entrySet().stream().allMatch(x -> !current.contains(x.getKey().getPreviousNumber()));
@@ -83,7 +93,11 @@ public class PositionImpl implements Position, PositionInternal {
 
     @Override
     public Set<Segment> getCompletedSegments() {
-        return ownedLogs.entrySet().stream().filter(x -> x.getValue() < 0).map(Map.Entry::getKey).collect(Collectors.toSet());
+        return ownedLogs.entrySet()
+            .stream()
+            .filter(x -> x.getValue() < 0)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     @Override

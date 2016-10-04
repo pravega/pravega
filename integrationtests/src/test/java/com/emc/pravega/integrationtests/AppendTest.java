@@ -100,7 +100,6 @@ public class AppendTest {
     @Test
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
-        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         EmbeddedChannel channel = createChannel(store);

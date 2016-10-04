@@ -186,11 +186,12 @@ public class ModelHelperTest {
 
     @Test
     public void encodePosition() {
-        PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
-        assertEquals(1, position.asInternalImpl().getOwnedLogs().size());
-        assertEquals(1, position.asInternalImpl().getFutureOwnedLogs().size());
-        Map<Segment, Long> owndedLogs = position.asInternalImpl().getOwnedLogs();
-        assertEquals(1L, position.asInternalImpl().getOwnedLogs().get(createSegmentId("stream", 1)).longValue());
-        assertEquals(2L, position.asInternalImpl().getFutureOwnedLogs().get(createSegmentId("stream", 3)).longValue());
+        PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition())); 
+        Map<Segment, Long> ownedLogs = position.asInternalImpl().getOwnedLogs();
+        Map<Segment, Long> futureOwnedLogs = position.asInternalImpl().getFutureOwnedLogs();
+        assertEquals(1, ownedLogs.size());
+        assertEquals(1, futureOwnedLogs.size());
+        assertEquals(1L, ownedLogs.get(createSegmentId("stream", 1)).longValue());
+        assertEquals(2L, futureOwnedLogs.get(createSegmentId("stream", 3)).longValue());
     }
 }

@@ -18,8 +18,6 @@
 package com.emc.pravega.demo;
 
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.concurrent.ExecutionException;
 
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
@@ -27,9 +25,11 @@ import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 
+import lombok.Cleanup;
+
 public class StartProducer {
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException, URISyntaxException {
+    public static void main(String[] args) throws Exception {
         String endpoint = "localhost";
         int port = 9090;
         String scope = "Scope1";
@@ -37,6 +37,7 @@ public class StartProducer {
         String testString = "Hello world: ";
         URI controllerUri = new URI(endpoint + ":" + port);
 
+        @Cleanup
         StreamManagerImpl streamManager = new StreamManagerImpl(scope, controllerUri);
         Stream stream = streamManager.createStream(streamName, null);
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
