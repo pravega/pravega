@@ -24,7 +24,6 @@ import java.util.NavigableMap;
 import com.google.common.base.Preconditions;
 
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 /**
  * The segments that within a stream at a particular point in time.
@@ -32,16 +31,12 @@ import lombok.Getter;
 @EqualsAndHashCode
 public class StreamSegments {
     private final NavigableMap<Double, Segment> segments;
-    @Getter
-    private final long time;
     
     /**
-     * @param time The time at which these segments make up a stream.
      * @param segments Segments of a stream, keyed by the largest key in their key range.
      * IE: If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0
      */
-    public StreamSegments(long time, NavigableMap<Double, Segment> segments) {
-        this.time = time;
+    public StreamSegments(NavigableMap<Double, Segment> segments) {
         this.segments = Collections.unmodifiableNavigableMap(segments);
         verifySegments();
     }

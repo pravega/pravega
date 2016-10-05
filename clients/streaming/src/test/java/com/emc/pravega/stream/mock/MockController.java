@@ -122,7 +122,7 @@ public class MockController implements Controller {
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(1.0, new Segment(scope, stream, 0));
-        return CompletableFuture.completedFuture(new StreamSegments(System.currentTimeMillis(), segments));
+        return CompletableFuture.completedFuture(new StreamSegments(segments));
     }
 
     @Override

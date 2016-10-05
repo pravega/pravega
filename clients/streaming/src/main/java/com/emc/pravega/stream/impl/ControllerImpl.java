@@ -154,7 +154,7 @@ public class ControllerImpl implements Controller {
                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId())); 
                    }
                    return rangeMap; 
-                }).thenApply(map -> new StreamSegments(System.currentTimeMillis(), map));
+                }).thenApply(map -> new StreamSegments(map));
     }
 
     @Override
