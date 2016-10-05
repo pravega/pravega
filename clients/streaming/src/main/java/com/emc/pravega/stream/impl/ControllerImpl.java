@@ -148,13 +148,15 @@ public class ControllerImpl implements Controller {
             return callback.getResult();
         });
         return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult)).thenApply( (List<SegmentRange> ranges) -> {
-                   NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                   for (SegmentRange r : ranges) {
-                       rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId())); 
-                   }
-                   return rangeMap; 
-                }).thenApply(map -> new StreamSegments(map));
+            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+            .thenApply((List<SegmentRange> ranges) -> {
+                NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+                for (SegmentRange r : ranges) {
+                    rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+                }
+                return rangeMap;
+            })
+            .thenApply(map -> new StreamSegments(map));
     }
 
     @Override
@@ -225,22 +227,7 @@ public class ControllerImpl implements Controller {
         });
         return callback.getResult()
             .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply(status -> {
-                switch (status) {
-                case COMMITTED:
-                    return Transaction.Status.COMMITTED;
-                case DROPPED:
-                    return Transaction.Status.DROPPED;
-                case OPEN:
-                    return Transaction.Status.OPEN;
-                case SEALED:
-                    return Transaction.Status.SEALED;
-                case UNKNOWN:
-                    throw new RuntimeException("Unknown transaction: " + stream + " " + txId);
-                default:
-                    throw new IllegalStateException("Unknown status: " + status);
-                }
-            });
+            .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
 
 }

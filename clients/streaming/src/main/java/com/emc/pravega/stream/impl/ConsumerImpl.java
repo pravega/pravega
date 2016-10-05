@@ -41,6 +41,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     private final RateChangeListener rateChangeListener;
     private final ConsumerConfig config;
     private final List<SegmentConsumer<Type>> consumers = new ArrayList<>();
+    private final Map<Segment, Long> completedSegments = new HashMap<>();
     private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
 
     ConsumerImpl(Stream stream, SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer, PositionInternal position,
@@ -73,6 +74,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
      */
     private void handleEndOfSegment(SegmentConsumer<Type> oldSegment) {
         consumers.remove(oldSegment);
+        completedSegments.put(oldSegment.getSegmentId(), oldSegment.getOffset());
         Segment oldLogId = oldSegment.getSegmentId();
         Optional<FutureSegment> replacment = futureOwnedSegments.keySet().stream().filter(future -> future.getPrecedingNumber() == oldLogId.getSegmentNumber()).findAny();
         if (replacment.isPresent()) {
@@ -92,6 +94,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         synchronized (consumers) {
             Map<Segment, Long> positions = consumers.stream()
                 .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
+            positions.putAll(completedSegments);
             return new PositionImpl(positions, futureOwnedSegments);
         }
     }

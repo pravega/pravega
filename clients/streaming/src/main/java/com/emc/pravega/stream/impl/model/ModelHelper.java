@@ -31,10 +31,12 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.stream.api.v1.TxStatus;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
 
@@ -90,6 +92,23 @@ public final class ModelHelper {
 
     public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
+    }
+    
+    public static Transaction.Status encode(TxStatus status, String logString) {
+        switch (status) {
+        case COMMITTED:
+            return Transaction.Status.COMMITTED;
+        case DROPPED:
+            return Transaction.Status.DROPPED;
+        case OPEN:
+            return Transaction.Status.OPEN;
+        case SEALED:
+            return Transaction.Status.SEALED;
+        case UNKNOWN:
+            throw new RuntimeException("Unknown transaction: " + logString);
+        default:
+            throw new IllegalStateException("Unknown status: " + status);
+        }
     }
     
     public static final TxId decode(UUID txId) {
