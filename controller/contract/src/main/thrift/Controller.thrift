@@ -5,6 +5,14 @@ enum Status {
     FAILURE,
 }
 
+enum TxStatus {
+	UNKNOWN,
+    OPEN,
+    SEALED,
+    COMMITTED,
+    DROPPED
+}
+
 enum ScalingPolicyType {
     FIXED_NUM_SEGMENTS,
     BY_RATE_IN_BYTES,
@@ -51,6 +59,11 @@ struct Position {
   2: required map<FutureSegment, i64> futureOwnedSegments
 }
 
+struct TxId {
+ 1: required i64 highBits,
+ 2: required i64 lowBits
+}
+
 /*
  * Producer, Consumer and Admin APIs supported by Stream Controller Service
  */
@@ -61,5 +74,9 @@ service ControllerService {
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
     NodeUri getURI(1: SegmentId segment)
+    TxId createTransaction(1:string scope, 2:string stream)
+    Status commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
+    Status dropTransaction(1:string scope, 2:string stream, 3:TxId txid)
+    TxStatus checkTransactionStatus(1:string scope, 2:string stream, 3:TxId txid)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

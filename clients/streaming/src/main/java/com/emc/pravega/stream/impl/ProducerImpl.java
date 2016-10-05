@@ -233,13 +233,12 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
     @Override
     public Transaction<Type> startTransaction(long timeout) {
-        UUID txId = UUID.randomUUID();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         ArrayList<Segment> segmentIds;
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
-        FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, txId, timeout), RuntimeException::new);
+        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

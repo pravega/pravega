@@ -126,8 +126,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
+    public CompletableFuture<Status> commitTransaction(Stream stream, UUID txId) {
+        CompletableFuture<Status> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -142,7 +142,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.complete(null);
+                result.complete(Status.SUCCESS);
             }
 
             @Override
@@ -155,8 +155,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> dropTransaction(Stream stream, UUID txId) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
+    public CompletableFuture<Status> dropTransaction(Stream stream, UUID txId) {
+        CompletableFuture<Status> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -176,7 +176,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionDropped(TransactionDropped transactionDropped) {
-                result.complete(null);
+                result.complete(Status.SUCCESS);
             }
         };
         sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
@@ -189,8 +189,9 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> createTransaction(Stream stream, UUID txId, long timeout) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
+    public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
+        UUID txId = UUID.randomUUID();
+        CompletableFuture<UUID> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -205,7 +206,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionCreated(TransactionCreated transactionCreated) {
-                result.complete(null);
+                result.complete(txId);
             }
         };
         sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);

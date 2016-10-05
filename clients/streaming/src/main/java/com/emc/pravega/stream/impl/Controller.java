@@ -62,21 +62,21 @@ public interface Controller {
         CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
         
         /**
-         * Api to create a new transaction with the specified ID. 
+         * Api to create a new transaction. 
          * The transaction timeout is relative to the creation time.
          */
-        CompletableFuture<Void> createTransaction(Stream stream, UUID txId, long timeout);
+        CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
 
         /**
          * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
          * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
          */
-        CompletableFuture<Void> commitTransaction(Stream stream, UUID txId);
+        CompletableFuture<Status> commitTransaction(Stream stream, UUID txId);
 
         /**
          * Drops a transaction. No events published to it may be read, and no further events may be published.
          */
-        CompletableFuture<Void> dropTransaction(Stream stream, UUID txId);
+        CompletableFuture<Status> dropTransaction(Stream stream, UUID txId);
 
         /**
          * Returns the status of the specified transaction.

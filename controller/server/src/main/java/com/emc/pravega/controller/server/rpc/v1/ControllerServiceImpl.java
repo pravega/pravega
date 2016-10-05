@@ -40,6 +40,8 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
+import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.stream.api.v1.TxStatus;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -257,6 +259,30 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                 }
         );
         return resultPositions;
+    }
+
+    @Override
+    public TxId createTransaction(String scope, String stream) throws TException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public Status commitTransaction(String scope, String stream, TxId txid) throws TException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public Status dropTransaction(String scope, String stream, TxId txid) throws TException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public TxStatus checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
+        // TODO Auto-generated method stub
+        return null;
     }
     
 }

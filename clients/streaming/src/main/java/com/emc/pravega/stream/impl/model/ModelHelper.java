@@ -20,6 +20,7 @@ package com.emc.pravega.stream.impl.model;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
@@ -29,6 +30,7 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
+import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
@@ -41,6 +43,11 @@ import com.google.common.base.Preconditions;
  */
 public final class ModelHelper {
 
+    public static final UUID encode(TxId txId) {
+        Preconditions.checkNotNull(txId, "txId");
+        return new UUID(txId.getHighBits(), txId.getLowBits());
+    }
+    
     public static final Segment encode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
         return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber());
@@ -83,6 +90,11 @@ public final class ModelHelper {
 
     public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
+    }
+    
+    public static final TxId decode(UUID txId) {
+        Preconditions.checkNotNull(txId, "txId");
+        return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
     }
 
     public static final SegmentId decode(final Segment segment) {
