@@ -64,9 +64,7 @@ class InMemoryStream implements Stream {
                             currentSegments.add(x);
                         }
                 );
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        future.complete(true);
-        return future;
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
@@ -77,37 +75,27 @@ class InMemoryStream implements Stream {
     @Override
     public synchronized CompletableFuture<Boolean> updateConfiguration(StreamConfiguration configuration) {
         this.configuration = configuration;
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        future.complete(true);
-        return future;
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     public synchronized CompletableFuture<StreamConfiguration> getConfiguration() {
-        CompletableFuture<StreamConfiguration> future = new CompletableFuture<>();
-        future.complete(this.configuration);
-        return future;
+        return CompletableFuture.completedFuture(this.configuration);
     }
 
     @Override
     public synchronized CompletableFuture<Segment> getSegment(int number) {
-        CompletableFuture<Segment> future = new CompletableFuture<>();
-        future.complete(segments.get(number));
-        return future;
+        return CompletableFuture.completedFuture(segments.get(number));
     }
 
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(int number) {
-        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
-        future.complete(segments.get(number).getSuccessors());
-        return future;
+        return CompletableFuture.completedFuture(segments.get(number).getSuccessors());
     }
 
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(int number) {
-        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
-        future.complete(segments.get(number).getPredecessors());
-        return future;
+        return CompletableFuture.completedFuture(segments.get(number).getPredecessors());
     }
 
     /**
@@ -115,9 +103,7 @@ class InMemoryStream implements Stream {
      */
     @Override
     public synchronized CompletableFuture<List<Integer>> getActiveSegments() {
-        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
-        future.complete(Collections.unmodifiableList(currentSegments));
-        return future;
+        return CompletableFuture.completedFuture(Collections.unmodifiableList(currentSegments));
     }
 
     /**
@@ -138,9 +124,7 @@ class InMemoryStream implements Stream {
             }
             i++;
         }
-        CompletableFuture<List<Integer>> future = new CompletableFuture<>();
-        future.complete(currentSegments);
-        return future;
+        return CompletableFuture.completedFuture(currentSegments);
     }
 
     /**
@@ -191,9 +175,7 @@ class InMemoryStream implements Stream {
             currentSegments.add(number);
         }
 
-        CompletableFuture<List<Segment>> future = new CompletableFuture<>();
-        future.complete(newSegments);
-        return future;
+        return CompletableFuture.completedFuture(newSegments);
     }
 
     public String toString() {

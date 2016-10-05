@@ -45,9 +45,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             InMemoryStream stream = new InMemoryStream(name);
             stream.create(configuration);
             streams.put(name, stream);
-            CompletableFuture<Boolean> future = new CompletableFuture<>();
-            future.complete(true);
-            return future;
+            return CompletableFuture.completedFuture(true);
         } else {
             throw new StreamAlreadyExistsException(name);
         }
