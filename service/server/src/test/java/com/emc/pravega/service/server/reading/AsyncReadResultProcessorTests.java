@@ -18,6 +18,21 @@
 
 package com.emc.pravega.service.server.reading;
 
+import java.io.ByteArrayInputStream;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -28,19 +43,6 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 
 import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * Unit tests for AsyncReadResultProcessor.
@@ -142,12 +144,14 @@ public class AsyncReadResultProcessorTests {
     public void testReadFailures() throws Exception {
         // Pre-generate some entries.
         final int totalLength = 1000;
+        final Semaphore barrior = new Semaphore(0);
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
+                barrior.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
             };
 
@@ -160,6 +164,7 @@ public class AsyncReadResultProcessorTests {
         TestEntryHandler testEntryHandler = new TestEntryHandler(new ArrayList<>());
         try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
             rp.startAsync().awaitRunning();
+            barrior.release();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
             ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
