@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -259,7 +260,7 @@ public class ContainerReadIndexTests {
         initializeSegment(segmentId, context);
 
         long transactionId = segmentId + 1;
-        String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         context.metadata.mapStreamSegmentId(transactionName, transactionId, segmentId);
         initializeSegment(transactionId, context);
 
@@ -802,7 +803,7 @@ public class ContainerReadIndexTests {
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(parentMetadata.getName());
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
                 context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
                 initializeSegment(transactionId, context);
                 segmentTransactions.add(transactionId);

@@ -17,27 +17,45 @@
  */
 package com.emc.pravega.common.hash;
 
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
 
 public class HashHelper {
 
-    static final String MD_5 = "MD5";
-    private static MessageDigest md;
+    private static final long LEADING_BITS = 0x3ff0000000000000L;
+    private static final long MASK =         0x000fffffffffffffL;
+    private HashFunction hash;
 
-    static {
-        try {
-            md = MessageDigest.getInstance(MD_5);
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
+    private HashHelper(int seed) {
+        hash = Hashing.murmur3_128(seed);
+    }
+    
+    public static HashHelper seededWith(String seed) {
+        return new HashHelper(seed.hashCode());
     }
 
-    public static int hash(String str, int numOfPoints) {
-            byte[] data = str.getBytes();
-            md.update(data, 0, data.length);
-            BigInteger i = new BigInteger(1, md.digest());
-            return i.intValue() % numOfPoints;
+    public long hash(String str) {
+        return hash.hashUnencodedChars(str).asLong();
+    }
+    
+    public int hashToBucket(String str, int numBuckets) {
+        return Hashing.consistentHash(hash.hashUnencodedChars(str), numBuckets);
+    }
+    
+    /**
+     * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.
+     */
+    public double hashToRange(String str) {
+        return longToDoubleFraction(hash.hashUnencodedChars(str).asLong());
+    }
+    
+    /**
+     * Turns the leading 54 bits of a long into a double between 0 and 1.
+     */
+    @VisibleForTesting
+    static double longToDoubleFraction(long value) {
+        long shifted = (value >> 12) & MASK;
+        return Double.longBitsToDouble(LEADING_BITS + shifted) - 1;
     }
 }

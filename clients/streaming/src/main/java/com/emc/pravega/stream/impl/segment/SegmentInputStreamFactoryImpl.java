@@ -17,42 +17,33 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.stream.ControllerApi;
-import com.emc.pravega.stream.SegmentId;
-import com.emc.pravega.stream.SegmentUri;
-import com.emc.pravega.stream.impl.StreamController;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.google.common.annotations.VisibleForTesting;
-import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.ExecutionException;
+
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.impl.Controller;
+import com.google.common.annotations.VisibleForTesting;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @VisibleForTesting
-public class SegmentManagerConsumerImpl implements SegmentManagerConsumer, StreamController {
+@RequiredArgsConstructor
+public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory {
 
-    private final String stream;
-    private final ControllerApi.Consumer apiConsumer;
-
-    public SegmentManagerConsumerImpl(String stream, ControllerApi.Consumer apiConsumer) {
-        this.stream = stream;
-        this.apiConsumer = apiConsumer;
-    }
-
+    private final Controller controller;
+    private final ConnectionFactory cf;
+    
     @Override
-    public SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config) {
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(this, new ConnectionFactoryImpl(false), name);
+    public SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config) {
+        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment.getQualifiedName());
         try {
             Exceptions.handleInterrupted(() -> result.getConnection().get());
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return new SegmentInputStreamImpl(result, 0);
-    }
-
-    @Override
-    public SegmentUri getEndpointForSegment(String segment) {
-        return FutureHelpers.getAndHandleExceptions(apiConsumer.getURI(stream, SegmentId.getSegmentNumberFromName(segment)), RuntimeException::new);
     }
 }

@@ -17,13 +17,12 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import com.emc.pravega.stream.StreamManager;
+import com.emc.pravega.stream.Segment;
 
 /**
- * The analog of the {@link StreamManager} for segments.
- * The implementation of this class will connect to a store & manage TCP connections.
+ * Creates {@link SegmentInputStream} for reading from existing segments.
  */
-public interface SegmentManagerConsumer {
+public interface SegmentInputStreamFactory {
     /**
      * Opens an existing segment for reading. This operation will fail if the
      * segment does not exist.
@@ -31,5 +30,5 @@ public interface SegmentManagerConsumer {
      * same client (i.e., there can be concurrent Stream Readers in the same
      * process space).
      */
-    SegmentInputStream openSegmentForReading(String name, SegmentInputConfiguration config);
+    SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config);
 }

@@ -99,7 +99,7 @@ class Stream {
      * @return the list of currently active segments
      */
     synchronized SegmentFutures getActiveSegments() {
-        return new SegmentFutures(new ArrayList<>(currentSegments), Collections.EMPTY_MAP);
+        return new SegmentFutures(new ArrayList<>(currentSegments), Collections.emptyMap());
     }
 
     /**

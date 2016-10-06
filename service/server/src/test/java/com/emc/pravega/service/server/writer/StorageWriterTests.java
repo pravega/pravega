@@ -635,7 +635,7 @@ public class StorageWriterTests {
             transactions.put(parentId, segmentTransactions);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(parentMetadata.getName());
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
                 context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
                 initializeSegment(transactionId, context);
                 segmentTransactions.add(transactionId);

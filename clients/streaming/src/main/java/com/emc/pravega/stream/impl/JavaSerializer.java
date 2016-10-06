@@ -48,6 +48,7 @@ public class JavaSerializer<T extends Serializable> implements Serializer<T> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public T deserialize(ByteBuffer serializedValue) {
         ByteArrayInputStream bin = new ByteArrayInputStream(serializedValue.array(),
                 serializedValue.position(),

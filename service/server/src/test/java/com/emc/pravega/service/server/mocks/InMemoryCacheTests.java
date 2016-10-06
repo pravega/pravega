@@ -19,6 +19,9 @@
 package com.emc.pravega.service.server.mocks;
 
 import com.emc.pravega.service.server.CacheKey;
+
+import lombok.Cleanup;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -35,6 +38,7 @@ public class InMemoryCacheTests {
 
     @Test
     public void testFunctionality() {
+        @Cleanup
         InMemoryCache cache = new InMemoryCache(CACHE_ID);
 
         // Populate the cache.

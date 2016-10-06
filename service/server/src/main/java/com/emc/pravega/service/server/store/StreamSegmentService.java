@@ -109,11 +109,11 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "createTransaction", parentStreamSegmentName, timeout);
         return withCompletion(
                 () -> getContainer(parentStreamSegmentName)
-                        .thenCompose(container -> container.createTransaction(parentStreamSegmentName, timeout)),
+                        .thenCompose(container -> container.createTransaction(parentStreamSegmentName, transactionId, timeout)),
                 r -> traceLeave(log, "createTransaction", traceId, r));
     }
 

@@ -142,6 +142,7 @@ public final class FutureHelpers {
      * @param exceptionClass    The type of exception to listen to.
      * @param exceptionListener The Listener to register.
      */
+    @SuppressWarnings("unchecked")
     public static <T, E extends Throwable> void exceptionListener(CompletableFuture<T> completableFuture, Class<E> exceptionClass, Consumer<E> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null && exceptionClass.isAssignableFrom(ex.getClass())) {
@@ -194,7 +195,7 @@ public final class FutureHelpers {
      */
     public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, String tag, ScheduledExecutorService executorService) {
         CompletableFuture<T> result = new CompletableFuture<T>();
-        ScheduledFuture sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
+        ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.completeExceptionally(new TimeoutException(tag)), timeout.toMillis(), TimeUnit.MILLISECONDS);
         result.whenComplete((r, ex) -> sf.cancel(true));
         return result;
     }
@@ -213,7 +214,7 @@ public final class FutureHelpers {
             // Zero delay; no need to bother with scheduling a task in the future.
             result.complete(null);
         } else {
-            ScheduledFuture sf = executorService.schedule(() -> result.complete(null), delay.toMillis(), TimeUnit.MILLISECONDS);
+            ScheduledFuture<Boolean> sf = executorService.schedule(() -> result.complete(null), delay.toMillis(), TimeUnit.MILLISECONDS);
             result.whenComplete((r, ex) -> sf.cancel(true));
         }
 
@@ -227,7 +228,7 @@ public final class FutureHelpers {
      * @param future   The future to attach to.
      * @param callback The callback to invoke.
      */
-    public static void onTimeout(CompletableFuture future, Consumer<TimeoutException> callback) {
+    public static <T> void onTimeout(CompletableFuture<T> future, Consumer<TimeoutException> callback) {
         exceptionListener(future, TimeoutException.class, callback);
     }
 

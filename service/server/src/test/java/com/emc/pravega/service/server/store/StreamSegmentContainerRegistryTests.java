@@ -18,6 +18,18 @@
 
 package com.emc.pravega.service.server.store;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ContainerNotFoundException;
@@ -31,18 +43,8 @@ import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.AbstractService;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import lombok.Cleanup;
 
 /**
  * Unit tests for the StreamSegmentContainerRegistry class.
@@ -60,6 +62,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
         HashSet<Integer> expectedContainerIds = new HashSet<>();
@@ -96,6 +99,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
@@ -125,6 +129,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
         AssertExtensions.assertThrows(
@@ -147,6 +152,7 @@ public class StreamSegmentContainerRegistryTests {
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
 
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
@@ -266,7 +272,7 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID batchId, Duration timeout) {
             return null;
         }
 

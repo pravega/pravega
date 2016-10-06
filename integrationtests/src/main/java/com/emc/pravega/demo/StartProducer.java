@@ -17,26 +17,28 @@
  */
 package com.emc.pravega.demo;
 
+import java.net.URI;
+
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.impl.ApiController;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
+import com.emc.pravega.stream.impl.StreamManagerImpl;
 
-import java.util.concurrent.ExecutionException;
+import lombok.Cleanup;
 
 public class StartProducer {
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public static void main(String[] args) throws Exception {
         String endpoint = "localhost";
         int port = 9090;
         String scope = "Scope1";
         String streamName = "Stream1";
         String testString = "Hello world: ";
+        URI controllerUri = new URI(endpoint + ":" + port);
 
-        ApiController apiController = new ApiController(endpoint, port);
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiController, apiController, apiController, scope);
+        @Cleanup
+        StreamManagerImpl streamManager = new StreamManagerImpl(scope, controllerUri);
         Stream stream = streamManager.createStream(streamName, null);
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
         Thread.sleep(1000);

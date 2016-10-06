@@ -170,13 +170,11 @@ public abstract class Operation implements LogItem {
      * @throws IOException            If the input stream threw one.
      * @throws SerializationException If the versions mismatched.
      */
-    byte readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
+    void readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
         byte version = source.readByte();
         if (version != expectedVersion) {
             throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()), String.format("Unsupported version: %d.", version));
         }
-
-        return version;
     }
 
     /**

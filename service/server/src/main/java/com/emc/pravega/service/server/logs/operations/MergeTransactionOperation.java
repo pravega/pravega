@@ -133,7 +133,7 @@ public class MergeTransactionOperation extends StorageOperation {
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, VERSION);
+        readVersion(source, VERSION);
         setStreamSegmentId(source.readLong());
         this.transactionSegmentId = source.readLong();
         this.length = source.readLong();

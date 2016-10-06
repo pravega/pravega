@@ -131,7 +131,7 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, CURRENT_VERSION);
+        readVersion(source, CURRENT_VERSION);
         this.parentStreamSegmentId = source.readLong();
         this.streamSegmentId = source.readLong();
         this.streamSegmentName = source.readUTF();

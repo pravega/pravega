@@ -18,12 +18,10 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
-import com.emc.pravega.common.netty.WireCommands.BatchCreated;
-import com.emc.pravega.common.netty.WireCommands.BatchMerged;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.NoSuchBatch;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
+import com.emc.pravega.common.netty.WireCommands.NoSuchTransaction;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentDeleted;
@@ -31,6 +29,10 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.SegmentSealed;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 
 /**
@@ -45,7 +47,7 @@ public interface ReplyProcessor {
 
     void noSuchSegment(NoSuchSegment noSuchSegment);
 
-    void noSuchBatch(NoSuchBatch noSuchBatch);
+    void noSuchBatch(NoSuchTransaction noSuchBatch);
 
     void appendSetup(AppendSetup appendSetup);
 
@@ -54,12 +56,16 @@ public interface ReplyProcessor {
     void segmentRead(SegmentRead segmentRead);
 
     void streamSegmentInfo(StreamSegmentInfo streamInfo);
+    
+    void transactionInfo(TransactionInfo transactionInfo);
 
     void segmentCreated(SegmentCreated segmentCreated);
 
-    void batchCreated(BatchCreated batchCreated);
+    void transactionCreated(TransactionCreated transactionCreated);
 
-    void batchMerged(BatchMerged batchMerged);
+    void transactionCommitted(TransactionCommitted transactionCommitted);
+    
+    void transactionDropped(TransactionDropped transactionDropped);
 
     void segmentSealed(SegmentSealed segmentSealed);
 

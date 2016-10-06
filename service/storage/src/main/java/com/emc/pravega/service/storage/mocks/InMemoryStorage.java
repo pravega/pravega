@@ -18,17 +18,6 @@
 
 package com.emc.pravega.service.storage.mocks;
 
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.BadOffsetException;
-import com.emc.pravega.service.storage.Storage;
-import com.google.common.base.Preconditions;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +30,19 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.storage.Storage;
+import com.google.common.base.Preconditions;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -143,12 +145,12 @@ public class InMemoryStorage implements Storage {
         synchronized (this.lock) {
             exists = this.streamSegments.containsKey(streamSegmentName);
         }
-
         return CompletableFuture.completedFuture(exists);
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
+            Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
@@ -397,7 +399,6 @@ public class InMemoryStorage implements Storage {
                         if (offset != this.length) {
                             throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
                         }
-
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
                         while (bytesCopied < other.length) {
@@ -475,48 +476,4 @@ public class InMemoryStorage implements Storage {
 
     //endregion
 
-    //region StreamSegmentInformation
-
-    private static class StreamSegmentInformation implements SegmentProperties {
-        private final long length;
-        private final boolean sealed;
-        private final boolean deleted;
-        private final Date lastModified;
-        private final String streamSegmentName;
-
-        StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
-            this.length = length;
-            this.sealed = isSealed;
-            this.deleted = isDeleted;
-            this.lastModified = lastModified;
-            this.streamSegmentName = streamSegmentName;
-        }
-
-        @Override
-        public String getName() {
-            return this.streamSegmentName;
-        }
-
-        @Override
-        public boolean isSealed() {
-            return this.sealed;
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return this.deleted;
-        }
-
-        @Override
-        public Date getLastModified() {
-            return this.lastModified;
-        }
-
-        @Override
-        public long getLength() {
-            return this.length;
-        }
-    }
-
-    //endregion
 }

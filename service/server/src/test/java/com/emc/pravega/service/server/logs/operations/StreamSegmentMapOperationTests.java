@@ -18,8 +18,9 @@
 
 package com.emc.pravega.service.server.logs.operations;
 
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.StreamSegmentInformation;
+
 import org.junit.Assert;
 
 import java.util.Date;

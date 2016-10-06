@@ -21,10 +21,10 @@ package com.emc.pravega.service.server.containers;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.SegmentMetadata;
-import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
@@ -45,6 +45,7 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -87,7 +88,7 @@ public class StreamSegmentMapperTests {
             assertStreamSegmentCreated(name, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
-                String transactionName = context.mapper.createNewTransactionStreamSegment(name, TIMEOUT).join();
+                String transactionName = context.mapper.createNewTransactionStreamSegment(name, UUID.randomUUID(), TIMEOUT).join();
                 assertTransactionCreated(transactionName, name, context);
             }
         }
@@ -131,7 +132,7 @@ public class StreamSegmentMapperTests {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
         AssertExtensions.assertThrows(
                 "createNewTransactionStreamSegment did not fail when Segment already exists.",
-                context.mapper.createNewTransactionStreamSegment(segmentName, TIMEOUT)::join,
+                context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals("Transaction was registered in the metadata even if it failed to be created (StreamSegmentExistsException).", 1, context.metadata.getAllStreamSegmentIds().size());
 
@@ -139,7 +140,7 @@ public class StreamSegmentMapperTests {
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewTransactionStreamSegment did not fail when random exception was thrown.",
-                context.mapper.createNewTransactionStreamSegment(segmentName, TIMEOUT)::join,
+                context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Transaction was registered in the metadata even if it failed to be created (IntentionalException).", 1, context.metadata.getAllStreamSegmentIds().size());
 
@@ -151,7 +152,7 @@ public class StreamSegmentMapperTests {
         // 5. When Creating a Transaction.
         AssertExtensions.assertThrows(
                 "createNewTransactionStreamSegment did not fail when OperationLog threw an exception.",
-                context.mapper.createNewTransactionStreamSegment(segmentName, TIMEOUT)::join,
+                context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Transaction was registered in the metadata even if it failed to be processed by the OperationLog.", 1, context.metadata.getAllStreamSegmentIds().size());
         Assert.assertEquals("Transaction was not created in Storage even if the failure was post-storage (in OperationLog processing).", 2, storageSegments.size());
@@ -180,7 +181,7 @@ public class StreamSegmentMapperTests {
             for (int j = 0; j < transactionsPerSegment; j++) {
                 // There is a small chance of a name conflict here, but we don't care. As long as we get at least one
                 // Transaction per segment, we should be fine.
-                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 storageSegments.add(transactionName);
             }
         }
@@ -264,7 +265,7 @@ public class StreamSegmentMapperTests {
     @Test
     public void testGetOrAssignStreamSegmentIdWithFailures() {
         final String segmentName = "Segment";
-        final String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
+        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
@@ -293,14 +294,14 @@ public class StreamSegmentMapperTests {
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // 2b. Transaction does not exist.
-        final String inexistentTransactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
+        final String inexistentTransactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent Transaction.",
                 context.mapper.getOrAssignStreamSegmentId(inexistentTransactionName, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // 2c. Transaction exists, but not its parent.
-        final String noValidParentTransactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName("foo");
+        final String noValidParentTransactionName = StreamSegmentNameUtils.getTransactionNameFromId("foo", UUID.randomUUID());
         storageSegments.add(noValidParentTransactionName);
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Transaction with an inexistent parent.",
@@ -557,12 +558,12 @@ public class StreamSegmentMapperTests {
         }
 
         //region Unimplemented methods
-
+        
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             return null;
         }
-
+        
         @Override
         public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
             return null;
