@@ -108,6 +108,7 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     public void setPosition(Position state) {
         PositionInternal position = state.asImpl();
         synchronized (consumers) {
+            completedSegments.clear();
             futureOwnedSegments.clear();
             futureOwnedSegments.putAll(position.getFutureOwnedSegmentsWithOffsets());
             for (Segment s : position.getOwnedSegments()) {
