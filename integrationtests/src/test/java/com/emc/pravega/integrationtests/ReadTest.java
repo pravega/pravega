@@ -68,6 +68,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.testcommon.TestUtils;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
@@ -157,7 +158,7 @@ public class ReadTest {
         String endpoint = "localhost";
         String scope = "scope";
         String stream = "stream";
-        int port = 8765;
+        int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -190,7 +191,7 @@ public class ReadTest {
     public void readThroughStreamClient() {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = 8910;
+        int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         String scope = "Scope1";
 

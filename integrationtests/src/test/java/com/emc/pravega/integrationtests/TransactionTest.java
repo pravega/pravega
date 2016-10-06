@@ -42,6 +42,7 @@ import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.TestUtils;
 
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
@@ -73,7 +74,7 @@ public class TransactionTest {
         int readTimeout = 5000;
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = 8910;
+        int port = TestUtils.randomPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
@@ -128,7 +129,7 @@ public class TransactionTest {
     public void testDoubleCommit() throws TxFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = 8910;
+        int port = TestUtils.randomPort();
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -150,7 +151,7 @@ public class TransactionTest {
     public void testDrop() throws TxFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = 8910;
+        int port = TestUtils.randomPort();
         String txnEvent = "TXN Event\n";
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
