@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
+ * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
+ * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
+ * with the License.  You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -15,18 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.testcommon;
 
-import com.emc.pravega.stream.SegmentUri;
+import java.util.Random;
 
-public interface StreamController {
-
-    /**
-     * Given a segment return the endpoint that currently is the owner of that segment.
-     * 
-     * The result of this function can be cached until the endpoint is unreachable or indicates it
-     * is no longer the owner.
-     */
-    SegmentUri getEndpointForSegment(String segment);
+public class TestUtils {
     
+    static final Random RAND = new Random();
+
+    public static int randomPort() {
+        int maxValue = 49151 - 1024;
+        return RAND.nextInt(maxValue) + 1024;
+    }
+
 }

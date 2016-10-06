@@ -18,6 +18,20 @@
 
 package com.emc.pravega.integrationtests;
 
+import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
@@ -33,7 +47,6 @@ import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
-import com.emc.pravega.integrationtests.mockController.MockController;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.AppendProcessor;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
@@ -42,16 +55,19 @@ import com.emc.pravega.service.server.host.handler.ServerConnectionInboundHandle
 import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.stream.ControllerApi;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.Controller;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.SingleSegmentStreamManagerImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import com.emc.pravega.stream.impl.segment.SegmentManagerProducerImpl;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
+import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.testcommon.TestUtils;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -62,20 +78,6 @@ import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
-
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 public class AppendTest {
     private Level originalLevel;
@@ -99,7 +101,6 @@ public class AppendTest {
     @Test
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
-        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         EmbeddedChannel channel = createChannel(store);
@@ -168,8 +169,9 @@ public class AppendTest {
     @Test
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
-        int port = 8765;
+        int port = TestUtils.randomPort();
         String testString = "Hello world\n";
+        String scope = "scope";
         String stream = "stream";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
@@ -177,15 +179,14 @@ public class AppendTest {
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
-        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
-        apiAdmin.createStream(new StreamConfigurationImpl(stream, null));
+        Controller controller = new MockController(endpoint, port, clientCF);
+        controller.createStream(new StreamConfigurationImpl(scope, stream, null));
 
-        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
-        SegmentManagerProducerImpl segmentClient = new SegmentManagerProducerImpl(stream, apiProducer);
+        SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
-        String segmentName = FutureHelpers.getAndHandleExceptions(apiProducer.getCurrentSegments(stream), RuntimeException::new).getSegments().get(0).getQualifiedName();
+        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.openSegmentForAppending(segmentName, null);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();
@@ -196,17 +197,15 @@ public class AppendTest {
     public void appendThroughStreamingClient() throws InterruptedException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = 8910;
+        int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        ControllerApi.Admin apiAdmin = MockController.getAdmin(endpoint, port);
-        ControllerApi.Producer apiProducer = MockController.getProducer(endpoint, port);
-        ControllerApi.Consumer apiConsumer = MockController.getConsumer(endpoint, port);
-        SingleSegmentStreamManagerImpl streamManager = new SingleSegmentStreamManagerImpl(apiAdmin, apiProducer, apiConsumer, "Scope");
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         Stream stream = streamManager.createStream(streamName, null);
 
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));

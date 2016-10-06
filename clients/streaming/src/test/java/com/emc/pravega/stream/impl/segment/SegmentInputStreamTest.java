@@ -173,10 +173,9 @@ public class SegmentInputStreamTest {
         fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
         fakeNetwork.complete(2, new SegmentRead("Foo", 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(3, new SegmentRead("Foo", 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
-        fakeNetwork
-                .complete(4, new SegmentRead("Foo", 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        fakeNetwork.complete(4, new SegmentRead("Foo", 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
         try {
-            ByteBuffer read = stream.read();
+            stream.read();
             fail();
         } catch (RuntimeException e) {
             //Expected

@@ -24,6 +24,7 @@ import org.junit.Test;
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * Unit tests for SegmentToContainerMapper.
@@ -104,8 +105,8 @@ public class SegmentToContainerMapperTests {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < transactionPerParentCount; i++) {
-                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(segmentName);
-                int transactionContainerId = m.getContainerId(transactionName);
+                String transcationName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                int transactionContainerId = m.getContainerId(transcationName);
                 Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, transactionContainerId);
             }
         }

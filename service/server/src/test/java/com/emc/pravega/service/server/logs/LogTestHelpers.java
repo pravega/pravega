@@ -103,7 +103,7 @@ class LogTestHelpers {
                 long transactionId = getTransactionId(streamSegmentId, i);
                 assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
                 assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
-                String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(streamSegmentName);
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId, streamSegmentId);
                 transactionMetadata.setDurableLogLength(0);
                 transactionMetadata.setStorageLength(0);
@@ -121,7 +121,7 @@ class LogTestHelpers {
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
                 long transactionId = mapper
-                        .createNewTransactionStreamSegment(streamSegmentName, Duration.ZERO)
+                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), Duration.ZERO)
                         .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
                 result.put(transactionId, streamSegmentId);
             }

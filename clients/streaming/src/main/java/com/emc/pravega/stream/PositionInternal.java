@@ -17,10 +17,10 @@
  */
 package com.emc.pravega.stream;
 
-import com.emc.pravega.stream.impl.PositionImpl;
-
 import java.util.Map;
 import java.util.Set;
+
+import com.emc.pravega.stream.impl.FutureSegment;
 
 /**
  * A position has two components
@@ -33,31 +33,31 @@ import java.util.Set;
  * 1. for each segment s in futureOwnedSegment, s.previous belongs to ownedSegments and s.previous.offset != -1
  * 2. for each segment s in ownedSegment, s.previous does not belongs to ownedSegments
  */
-public interface PositionInternal {
+public interface PositionInternal extends Position {
     /**
      *
      * @return the set of segments currently being read, i.e., ownedSegments set
      */
-    Set<SegmentId> getOwnedSegments();
+    Set<Segment> getOwnedSegments();
 
     /**
      * Completely read segments have offset of -1.
      * @return the read offset for each segment in the ownedSegments set
      */
-    Map<SegmentId, Long> getOwnedSegmentsWithOffsets();
+    Map<Segment, Long> getOwnedSegmentsWithOffsets();
 
     /**
      *
      * @return the set of completely read segments.
      */
-    Set<SegmentId> getCompletedSegments();
+    Set<Segment> getCompletedSegments();
 
     /**
      *
      * @param segmentId input segment
      * @return offset for a specified segment
      */
-    Long getOffsetForOwnedSegment(SegmentId segmentId);
+    Long getOffsetForOwnedSegment(Segment segmentId);
 
     /**
      *
@@ -66,7 +66,11 @@ public interface PositionInternal {
      *
      * @return the futureOwnedSegments set
      */
-    Set<SegmentId> getFutureOwnedSegments();
+    Set<FutureSegment> getFutureOwnedSegments();
+    
+    /**
+     * Returns all future owned segments associated with the offset they should be read from once their preceding segment is complete.
+     */
+    Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets();
 
-    PositionImpl asInternalImpl();
 }

@@ -18,12 +18,14 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.Append;
-import com.emc.pravega.common.netty.WireCommands.CreateBatch;
+import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
+import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
 import com.emc.pravega.common.netty.WireCommands.DeleteSegment;
+import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
-import com.emc.pravega.common.netty.WireCommands.MergeBatch;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SealSegment;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
@@ -40,11 +42,15 @@ public interface RequestProcessor {
 
     void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo);
 
+    void getTransactionInfo(GetTransactionInfo getTransactionInfo);
+
     void createSegment(CreateSegment createSegment);
 
-    void createBatch(CreateBatch createBatch);
+    void createTransaction(CreateTransaction createTransaction);
 
-    void mergeBatch(MergeBatch mergeBatch);
+    void commitTransaction(CommitTransaction commitTransaction);
+    
+    void dropTransaction(DropTransaction dropTransaction);
 
     void sealSegment(SealSegment sealSegment);
 

@@ -689,7 +689,7 @@ public class StreamSegmentContainerTests {
         ArrayList<CompletableFuture<String>> futures = new ArrayList<>();
         for (String segmentName : segmentNames) {
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                futures.add(context.container.createTransaction(segmentName, TIMEOUT));
+                futures.add(context.container.createTransaction(segmentName, UUID.randomUUID(), TIMEOUT));
             }
         }
 

@@ -18,6 +18,14 @@
 
 package com.emc.pravega.service.server.containers;
 
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -29,19 +37,13 @@ import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
-import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
@@ -110,7 +112,6 @@ public class StreamSegmentMapper {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
                 .create(streamSegmentName, timer.getRemaining())
-               // .thenCompose(this.storage.acquireLockForSegment(streamSegmentName))
                 .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }
@@ -119,12 +120,13 @@ public class StreamSegmentMapper {
      * Creates a new Transaction StreamSegment for an existing Parent StreamSegment and assigns a unique internal Id to it.
      *
      * @param parentStreamSegmentName The case-sensitive StreamSegment Name of the Parent StreamSegment.
+     * @param transactionId           A unique identifier for the transaction to be created.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Transaction StreamSegment.
      * If the operation failed, this will contain the exception that caused the failure.
      * @throws IllegalArgumentException If the given parent StreamSegment cannot have a Transaction (because it is deleted, sealed, inexistent).
      */
-    public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, Duration timeout) {
+    public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, UUID transactionId, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewTransactionStreamSegment", parentStreamSegmentName);
 
         //We cannot create a Transaction StreamSegment for a what looks like a parent StreamSegment.
@@ -151,9 +153,7 @@ public class StreamSegmentMapper {
             }
         }
 
-        //TODO: verify the Transaction name doesn't already exist. It is possible that two concurrent calls to createTransaction can create the same Transaction name.
-        String transactionName = StreamSegmentNameUtils.generateTransactionStreamSegmentName(parentStreamSegmentName);
-
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentStreamSegmentName, transactionId);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         if (parentPropertiesFuture == null) {
             // We were unable to find this StreamSegment in our metadata. Check in Storage. If the parent StreamSegment

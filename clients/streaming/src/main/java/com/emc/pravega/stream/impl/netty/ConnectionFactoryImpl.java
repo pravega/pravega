@@ -17,13 +17,23 @@
  */
 package com.emc.pravega.stream.impl.netty;
 
-import com.emc.pravega.common.Exceptions;
+
+import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.CompletableFuture;
+
+import javax.net.ssl.SSLException;
+
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.CommandEncoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.common.netty.ExceptionLoggingHandler;
+import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
+import com.google.common.base.Preconditions;
+
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -41,12 +51,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.net.ssl.SSLException;
-import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.CompletableFuture;
-
-import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
@@ -67,8 +71,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public CompletableFuture<ClientConnection> establishConnection(String host, int port, ReplyProcessor rp) {
-        Exceptions.checkNotNullOrEmpty(host, "host");
+    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
+        Preconditions.checkNotNull(location);
         final SslContext sslCtx;
         if (ssl) {
             try {
@@ -82,7 +86,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         } else {
             sslCtx = null;
         }
-        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(host, rp);
+        ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp);
         Bootstrap b = new Bootstrap();
         b.group(group)
          .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
@@ -92,10 +96,10 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                     p.addLast(sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort()));
                  }
                  // p.addLast(new LoggingHandler(LogLevel.INFO));
-                 p.addLast(new ExceptionLoggingHandler(host),
+                 p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),
                          new CommandEncoder(),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
@@ -105,7 +109,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
         // Start the client.
         CompletableFuture<ClientConnection> result = new CompletableFuture<>();
-        b.connect(host, port).addListener(new ChannelFutureListener() {
+        b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) {
                 if (future.isSuccess()) {

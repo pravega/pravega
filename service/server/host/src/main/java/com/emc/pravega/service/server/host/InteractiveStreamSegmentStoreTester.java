@@ -18,20 +18,6 @@
 
 package com.emc.pravega.service.server.host;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
-
-import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.ReadResultEntry;
-import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.store.ServiceBuilder;
-import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,6 +32,22 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
+
+import org.slf4j.LoggerFactory;
+
+import com.emc.pravega.common.function.CallbackHelpers;
+import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.ReadResultEntry;
+import com.emc.pravega.service.contracts.ReadResultEntryContents;
+import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.ExceptionHelpers;
+import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 
 /**
  * Interactive (command-line) StreamSegmentStore tester.
@@ -91,7 +93,7 @@ public class InteractiveStreamSegmentStoreTester {
         if (useDistributedLog) {
             serviceBuilder = new DistributedLogServiceBuilder(config);
         } else {
-            serviceBuilder = new HDFSServicebuilder(config);
+            serviceBuilder = new InMemoryServiceBuilder(config);
         }
 
         try {
@@ -240,7 +242,7 @@ public class InteractiveStreamSegmentStoreTester {
         String parentName = parsedCommand.getNext();
         checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createTransaction(parentName, defaultTimeout), r -> log(startTime, "Created Transaction %s with parent %s.", r, parentName));
+        await(this.streamSegmentStore.createTransaction(parentName, UUID.randomUUID(), defaultTimeout), r -> log(startTime, "Created Transaction %s with parent %s.", r, parentName));
     }
 
     private void mergeTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {

@@ -24,6 +24,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.MetadataRepository;
@@ -33,7 +34,6 @@ import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.CacheUpdater;
@@ -223,9 +223,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenApply(streamSegmentId -> {
-                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                    return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(), sm.isDeleted(), new Date());
-                });
+                SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                return new StreamSegmentInformation(streamSegmentName,
+                        sm.getDurableLogLength(),
+                        sm.isSealed(),
+                        sm.isDeleted(),
+                        new Date());
+            });
     }
 
     @Override
@@ -238,12 +242,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamName, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamName, UUID transactionId, Duration timeout) {
         ensureRunning();
 
         logRequest("createTransaction", parentStreamName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.createNewTransactionStreamSegment(parentStreamName, timer.getRemaining());
+        return this.segmentMapper.createNewTransactionStreamSegment(parentStreamName, transactionId, timer.getRemaining());
     }
 
     @Override

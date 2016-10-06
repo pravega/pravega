@@ -19,6 +19,7 @@ package com.emc.pravega.stream.impl;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.TxFailedException;
@@ -40,9 +41,9 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     public void publish(Type event) throws TxFailedException {
         try {
             ByteBuffer buffer = serializer.serialize(event);
-            out.write(buffer, null);
+            out.write(buffer, CompletableFuture.completedFuture(null));
         } catch (SegmentSealedException e) {
-            throw new TxFailedException();
+            throw new TxFailedException(e);
         }
     }
 

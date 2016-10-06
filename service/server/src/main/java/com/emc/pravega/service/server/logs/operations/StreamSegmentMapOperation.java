@@ -116,7 +116,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, CURRENT_VERSION);
+        readVersion(source, CURRENT_VERSION);
         this.streamSegmentId = source.readLong();
         this.streamSegmentName = source.readUTF();
         this.length = source.readLong();

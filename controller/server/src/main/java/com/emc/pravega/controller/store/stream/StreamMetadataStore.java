@@ -26,6 +26,7 @@ import java.util.Set;
 /**
  * Stream Metadata
  */
+//TODO: Add scope to most methods.
 public interface StreamMetadataStore {
 
     /**

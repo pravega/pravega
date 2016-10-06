@@ -96,7 +96,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, CURRENT_VERSION);
+        readVersion(source, CURRENT_VERSION);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();
     }

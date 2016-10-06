@@ -52,25 +52,26 @@ import com.emc.pravega.stream.impl.Orderer;
  * the most part this is done by calling {@link RebalancerUtils#rebalance}
  */
 public interface Stream {
+    
     /**
-     * @return The name of this stream.
+     * @return The scope of this stream.
      */
-    String getName();
+    String getScope();
+    
+    /**
+     * @return The name of this stream. (Not including the scope)
+     */
+    String getStreamName();
+    
+    /**
+     * @return The scoped name of this stream.
+     */
+    String getQualifiedName();
 
     /**
      * @return The configuration associated with this stream.
      */
     StreamConfiguration getConfig();
-
-    /**
-     * Given a time returns the segments of the stream that existed at that time.
-     */
-    StreamSegments getSegments(long time);
-
-    /**
-     * @return The segments that exist now.
-     */
-    StreamSegments getLatestSegments();
 
     /**
      * Create a new producer that can publish to this stream

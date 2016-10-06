@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -17,35 +17,62 @@
  */
 package com.emc.pravega.stream.impl;
 
-import org.junit.Ignore;
+import static org.junit.Assert.assertEquals;
+
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.junit.Test;
 
-import static org.junit.Assert.fail;
+import com.emc.pravega.testcommon.AssertExtensions;
 
-@Ignore
+import lombok.Data;
+
 public class JavaSerializerTest {
+
+    @Data
+    private static class Foo implements Serializable {
+        final int x;
+    }
+
     @Test
     public void testObject() {
-        fail();
+        JavaSerializer<Foo> serializer = new JavaSerializer<>();
+        Foo one = new Foo(1);
+        Foo result = serializer.deserialize(serializer.serialize(one));
+        assertEquals(one, result);
     }
 
     @Test
     public void testMap() {
-        fail();
+        JavaSerializer<HashMap<Integer, Integer>> serializer = new JavaSerializer<>();
+        HashMap<Integer, Integer> in = new HashMap<>();
+        in.put(1, 1);
+        in.put(2, 2);
+        in.put(3, 3);
+        HashMap<Integer, Integer> out = serializer.deserialize(serializer.serialize(in));
+        assertEquals(in, out);
     }
 
     @Test
     public void testByteArray() {
-        fail();
+        JavaSerializer<byte[]> serializer = new JavaSerializer<>();
+        byte[] in = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        byte[] out = serializer.deserialize(serializer.serialize(in));
+        AssertExtensions.assertArrayEquals("testByteArray failed", in, 0, out, 0, in.length);
     }
 
     @Test
+    @SuppressWarnings("rawtypes")
     public void testRefCycle() {
-        fail();
+        JavaSerializer<HashMap<Integer, Map>> serializer = new JavaSerializer<>();
+        HashMap<Integer, Map> in = new HashMap<>();
+        in.put(1, in);
+        in.put(2, in);
+        in.put(3, in);
+        HashMap<Integer, Map> out = serializer.deserialize(serializer.serialize(in));
+        assertEquals(in.keySet(), out.keySet());
     }
 
-    @Test
-    public void testCustomSerializer() {
-        fail();
-    }
 }
