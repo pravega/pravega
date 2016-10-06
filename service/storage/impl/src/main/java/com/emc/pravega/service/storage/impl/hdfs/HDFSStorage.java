@@ -122,6 +122,7 @@ public class HDFSStorage implements Storage {
     }
 
     private Boolean acquireLockForSegmentSync(String streamSegmentName) {
+       // getFS().rename()
         return false;
     }
 
