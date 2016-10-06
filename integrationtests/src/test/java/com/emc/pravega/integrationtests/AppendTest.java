@@ -67,6 +67,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamFactoryImpl;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
+import com.emc.pravega.testcommon.TestUtils;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -168,7 +169,7 @@ public class AppendTest {
     @Test
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
-        int port = 8765;
+        int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         String scope = "scope";
         String stream = "stream";
@@ -196,7 +197,7 @@ public class AppendTest {
     public void appendThroughStreamingClient() throws InterruptedException {
         String endpoint = "localhost";
         String streamName = "abc";
-        int port = 8910;
+        int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
