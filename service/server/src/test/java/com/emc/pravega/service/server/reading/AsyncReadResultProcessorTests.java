@@ -144,14 +144,14 @@ public class AsyncReadResultProcessorTests {
     public void testReadFailures() throws Exception {
         // Pre-generate some entries.
         final int totalLength = 1000;
-        final Semaphore barrior = new Semaphore(0);
+        final Semaphore barrier = new Semaphore(0);
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
         @Cleanup
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
-                barrior.acquireUninterruptibly();
+                barrier.acquireUninterruptibly();
                 throw new IntentionalException("Intentional");
             };
 
@@ -164,7 +164,7 @@ public class AsyncReadResultProcessorTests {
         TestEntryHandler testEntryHandler = new TestEntryHandler(new ArrayList<>());
         try (AsyncReadResultProcessor rp = new AsyncReadResultProcessor(rr, testEntryHandler, executor.get())) {
             rp.startAsync().awaitRunning();
-            barrior.release();
+            barrier.release();
 
             // Wait for it to complete, and then verify that no errors have been recorded via the callbacks.
             ServiceShutdownListener.awaitShutdown(rp, TIMEOUT, true);
