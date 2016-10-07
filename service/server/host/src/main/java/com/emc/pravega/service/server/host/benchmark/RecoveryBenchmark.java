@@ -42,9 +42,9 @@ import java.util.function.Supplier;
 public class RecoveryBenchmark extends Benchmark {
     // region TestParameters
 
-    private static final int[] SEGMENT_COUNTS = new int[] { 1 };
-    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[] { 128 };
-    private static final int[] APPEND_SIZES = new int[] { ONE_MB };
+    private static final int[] SEGMENT_COUNTS = new int[]{1};
+    private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{512};
+    private static final int[] APPEND_SIZES = new int[]{100};
     // private static final int[] SEGMENT_COUNTS = new int[]{1, 1000, 100 * 1000};
     // private static final int[] TOTAL_APPEND_LENGTH_MB = new int[]{128, 512, 1024, 2048};
     // private static final int[] APPEND_SIZES = new int[]{100, 10 * 1024, 100 * 1024, ONE_MB};
@@ -152,6 +152,13 @@ public class RecoveryBenchmark extends Benchmark {
         // Stop the service and do a recovery.
         container.stopAsync().awaitTerminated();
         container.close();
+
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ex) {
+            throw new RuntimeStreamingException(ex);
+        }
+
         TestOutput result = new TestOutput(testInput);
         final long testStartTime = System.nanoTime();
         ContainerHandle handle = serviceBuilder.getSegmentContainerRegistry().startContainer(containerId, TIMEOUT).join();
@@ -167,11 +174,11 @@ public class RecoveryBenchmark extends Benchmark {
             double duration = result.totalDurationNanos / 1000.0 / 1000 / 1000;
             double mbps = (double) result.input.totalAppendLength / ONE_MB / duration;
             printResultLine(result.input.segmentCount,
-                            appendCount,
-                            result.input.appendSize,
-                            result.input.totalAppendLength / ONE_MB,
-                            mbps,
-                            duration);
+                    appendCount,
+                    result.input.appendSize,
+                    result.input.totalAppendLength / ONE_MB,
+                    mbps,
+                    duration);
         }
     }
     // endregion
@@ -189,9 +196,9 @@ public class RecoveryBenchmark extends Benchmark {
         @Override
         public String toString() {
             return String.format("%s, Tput = %.1f MB/s, Latencies = %s",
-                                 this.input,
-                                 (double) this.input.totalAppendLength / ONE_MB,
-                                 this.totalDurationNanos / 1000000000);
+                    this.input,
+                    (double) this.input.totalAppendLength / ONE_MB,
+                    this.totalDurationNanos / 1000000000);
         }
 
         @Override
@@ -220,10 +227,10 @@ public class RecoveryBenchmark extends Benchmark {
         @Override
         public String toString() {
             return String.format("Segments = %d, App/Seg = %d, App.Size = %d, TotalAppendLength = %d",
-                                 this.segmentCount,
-                                 this.appendsPerSegment,
-                                 this.appendSize,
-                                 this.totalAppendLength);
+                    this.segmentCount,
+                    this.appendsPerSegment,
+                    this.appendSize,
+                    this.totalAppendLength);
         }
 
         @Override

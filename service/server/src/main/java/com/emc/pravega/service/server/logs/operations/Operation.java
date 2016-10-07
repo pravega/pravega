@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.logs.operations;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.server.LogItem;
-import com.emc.pravega.service.server.core.MagicGenerator;
 import com.emc.pravega.service.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
 
@@ -129,9 +128,6 @@ public abstract class Operation implements LogItem {
         OperationHeader header = new OperationHeader(getOperationType(), this.sequenceNumber);
         header.serialize(target);
         serializeContent(target);
-
-        // We write the magic value again at the end; this way when we deserialize, we can detect data corruptions.
-        target.writeInt(header.magic);
     }
 
     /**
@@ -146,18 +142,10 @@ public abstract class Operation implements LogItem {
             throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected %d, Found %d.", getOperationType(), header.operationType));
         }
 
-        int endMagic;
         try {
             deserializeContent(source);
-
-            // Read the magic value at the end. This must match the beginning magic - this way we know we reached the end properly.
-            endMagic = source.readInt();
         } catch (IOException ex) {
             throw new SerializationException("Operation.deserialize", "Unable to read from the InputStream.", ex);
-        }
-
-        if (header.magic != endMagic) {
-            throw new SerializationException("Operation.deserialize", String.format("Start and End Magic values mismatch. This indicates possible data corruption. SequenceNumber = %d, EntryType = %d.", header.sequenceNumber, header.operationType));
         }
     }
 
@@ -166,7 +154,6 @@ public abstract class Operation implements LogItem {
      *
      * @param source          The input stream to read from.
      * @param expectedVersion The expected version to compare to.
-     * @return The version.
      * @throws IOException            If the input stream threw one.
      * @throws SerializationException If the versions mismatched.
      */
@@ -226,11 +213,6 @@ public abstract class Operation implements LogItem {
         final long sequenceNumber;
 
         /**
-         * Magic value.
-         */
-        final int magic;
-
-        /**
          * Creates a new instance of the OperationHeader class.
          *
          * @param operationType  The type of the operation.
@@ -239,7 +221,6 @@ public abstract class Operation implements LogItem {
         OperationHeader(byte operationType, long sequenceNumber) {
             this.operationType = operationType;
             this.sequenceNumber = sequenceNumber;
-            this.magic = MagicGenerator.newMagic();
         }
 
         /**
@@ -252,7 +233,6 @@ public abstract class Operation implements LogItem {
             try {
                 byte headerVersion = source.readByte();
                 if (headerVersion == HEADER_VERSION) {
-                    this.magic = source.readInt();
                     this.operationType = source.readByte();
                     this.sequenceNumber = source.readLong();
                 } else {
@@ -271,7 +251,6 @@ public abstract class Operation implements LogItem {
          */
         void serialize(DataOutputStream target) throws IOException {
             target.writeByte(HEADER_VERSION);
-            target.writeInt(this.magic);
             target.writeByte(this.operationType);
             target.writeLong(this.sequenceNumber);
         }
