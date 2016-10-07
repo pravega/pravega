@@ -20,15 +20,17 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.concurrent.CompletionException;
 
 /**
  * Starts the Pravega Service.
@@ -42,8 +44,16 @@ public final class ServiceStarter {
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
-        this.serviceBuilder = new DistributedLogServiceBuilder(this.serviceConfig);
-//        this.serviceBuilder = new InMemoryServiceBuilder(this.serviceConfig);
+        this.serviceBuilder = createServiceBuilder(this.serviceConfig, true);
+    }
+
+    private ServiceBuilder createServiceBuilder(ServiceBuilderConfig config, boolean inMemory) {
+        if (inMemory) {
+            return ServiceBuilder.newInMemoryBuilder(config);
+        } else {
+            // Real (Distributed Log) Data Log.
+            return attachDistributedLog(ServiceBuilder.newInMemoryBuilder(config));
+        }
     }
 
     private void start() {
@@ -96,5 +106,21 @@ public final class ServiceStarter {
         } finally {
             serviceStarter.shutdown();
         }
+    }
+
+    /**
+     * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
+     */
+    static ServiceBuilder attachDistributedLog(ServiceBuilder builder) {
+        return builder.withDataLogFactory(() -> {
+            try {
+                DistributedLogConfig dlConfig = builder.getConfig().getConfig(DistributedLogConfig::new);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
     }
 }
