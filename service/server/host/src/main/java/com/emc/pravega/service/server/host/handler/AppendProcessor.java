@@ -15,22 +15,6 @@
 
 package com.emc.pravega.service.server.host.handler;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
-
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.function.BiFunction;
-
-import javax.annotation.concurrent.GuardedBy;
-
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.ServerConnection;
@@ -48,10 +32,24 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.BiFunction;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * Process incomming Append requests and write them to the appropriate store.
@@ -137,7 +135,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             UUID writer = entry.getKey();
             List<Append> appends = entry.getValue();
             // NOTE: Not sorting the events because they should already be in order
-            ByteBuf data = wrappedBuffer(appends.stream().map(a -> a.getData()).toArray(ByteBuf[]::new));
+            ByteBuf data = wrappedBuffer(appends.stream().map(Append::getData).toArray(ByteBuf[]::new));
             Append lastAppend = appends.get(appends.size() - 1);
             append = new Append(lastAppend.getSegment(), writer, lastAppend.getEventNumber(), data);
             outstandingAppend = append;

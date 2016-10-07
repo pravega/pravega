@@ -34,6 +34,24 @@ import java.util.function.Supplier;
  * Additional Assert Methods that are useful during testing.
  */
 public class AssertExtensions {
+    
+    
+    /**
+     * Asserts that an exception of the Type provided is thrown.
+     */
+    public static void assertThrows(Class<? extends Exception> type, RunnableWithException run) {
+        try {
+            run.run();
+            Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+        } catch (Exception e) {
+            if (!type.isAssignableFrom(e.getClass())) {
+                throw new RuntimeException(
+                        "Exception of the wrong type. Was expecting " + type + " but got: " + e.getClass().getName(),
+                        e);
+            }
+        }
+    }
+    
     /**
      * Asserts that a function throws an expected exception.
      *
@@ -218,8 +236,8 @@ public class AssertExtensions {
      * Asserts that actual < expected.
      *
      * @param message  The message to include in the Assert calls.
-     * @param expected The first value (smaller).
-     * @param actual   The second value (larger).
+     * @param expected The larger value.
+     * @param actual   The smaller value.
      */
 
     public static void assertLessThan(String message, long expected, long actual) {
@@ -230,8 +248,8 @@ public class AssertExtensions {
      * Asserts that actual <= expected.
      *
      * @param message  The message to include in the Assert calls.
-     * @param expected The first value (smaller).
-     * @param actual   The second value (larger).
+     * @param expected The larger value.
+     * @param actual   The smaller value.
      */
     public static void assertLessThanOrEqual(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected, actual), expected >= actual);
@@ -241,8 +259,8 @@ public class AssertExtensions {
      * Asserts that actual > expected.
      *
      * @param message  The message to include in the Assert calls.
-     * @param expected The first value (larger).
-     * @param actual   The second value (smaller).
+     * @param expected The smaller value.
+     * @param actual   The larger value.
      */
     public static void assertGreaterThan(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, expected, actual), expected < actual);
@@ -252,8 +270,8 @@ public class AssertExtensions {
      * Asserts that actual >= expected.
      *
      * @param message  The message to include in the Assert calls.
-     * @param expected The first value (larger).
-     * @param actual   The second value (smaller).
+     * @param expected The smaller value.
+     * @param actual   The larger value.
      */
     public static void assertGreaterThanOrEqual(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected, actual), expected <= actual);

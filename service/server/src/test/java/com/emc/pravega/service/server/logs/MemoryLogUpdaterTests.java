@@ -21,14 +21,14 @@ package com.emc.pravega.service.server.logs;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
-import com.emc.pravega.service.server.StreamSegmentInformation;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.logs.operations.CachedStreamSegmentAppendOperation;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -92,12 +93,12 @@ public class MemoryLogUpdaterTests {
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
-                } else if (expected instanceof MergeBatchOperation) {
-                    MergeBatchOperation mergeOp = (MergeBatchOperation) expected;
+                } else if (expected instanceof MergeTransactionOperation) {
+                    MergeTransactionOperation mergeOp = (MergeTransactionOperation) expected;
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
                     Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTargetStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getBatchStreamSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTransactionSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
                 }
             }
         }
@@ -105,7 +106,7 @@ public class MemoryLogUpdaterTests {
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
                 "MemoryLogUpdater accepted an operation that was out of order.",
-                () -> updater.process(new MergeBatchOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
+                () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
@@ -136,8 +137,6 @@ public class MemoryLogUpdaterTests {
 
     /**
      * Tests the functionality of the flush() method, and that it can trigger future reads on the ReadIndex.
-     *
-     * @throws Exception
      */
     @Test
     public void testFlush() throws Exception {
@@ -148,12 +147,14 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
+        AtomicInteger flushCallbackCallCount = new AtomicInteger();
+        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
         updater.flush();
-        Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 1, methodInvocations.size());
+        Assert.assertEquals("Unexpected number of calls to the ReadIndex triggerFutureReads method.", 1, methodInvocations.size());
+        Assert.assertEquals("Unexpected number of calls to the flushCallback provided in the constructor.", 1, flushCallbackCallCount.get());
         TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
         Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
         Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");
@@ -170,8 +171,6 @@ public class MemoryLogUpdaterTests {
     /**
      * Tests the clear() method on the MemoryLogUpdater (clear ReadIndex+MemoryLog; immediate calls to flush() will not
      * trigger any future reads on ReadIndex).
-     *
-     * @throws Exception
      */
     @Test
     public void testClear() throws Exception {
@@ -212,7 +211,7 @@ public class MemoryLogUpdaterTests {
                 appendOp.setStreamSegmentOffset(offset);
                 offset += appendOp.getData().length;
                 operations.add(appendOp);
-                operations.add(new MergeBatchOperation(i, j));
+                operations.add(new MergeTransactionOperation(i, j));
             }
         }
 

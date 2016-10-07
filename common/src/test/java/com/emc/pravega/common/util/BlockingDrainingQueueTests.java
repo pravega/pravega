@@ -18,19 +18,24 @@
 
 package com.emc.pravega.common.util;
 
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
-
+import com.emc.pravega.testcommon.AssertExtensions;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.emc.pravega.testcommon.AssertExtensions;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.concurrent.CompletableFuture.runAsync;
 
 /**
  * Unit tests for BlockingDrainingQueue class.
  */
 public class BlockingDrainingQueueTests {
+    private static final int TIMEOUT_MILLIS = 10 * 1000;
+
     /**
      * Tests the basic ability to queue and dequeue items.
      */
@@ -57,16 +62,14 @@ public class BlockingDrainingQueueTests {
         AtomicReference<List<Integer>> result = new AtomicReference<>();
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        Thread t = new Thread(() -> {
+        val completionFuture = CompletableFuture.runAsync(() -> {
             try {
                 result.set(queue.takeAllEntries());
                 resultSet.complete(null);
-            } catch (Exception ex) {
+            } catch (InterruptedException ex) {
                 resultSet.completeExceptionally(ex);
             }
         });
-
-        t.start();
 
         // Verify the queue hasn't returned before we actually set the result.
         Assert.assertNull("Queue unblocked before result was set.", result.get());
@@ -74,7 +77,9 @@ public class BlockingDrainingQueueTests {
         // Queue the value
         queue.add(valueToQueue);
 
-        resultSet.join();
+        // Wait for the completion future to finish. This will also pop any other exceptions that we did not anticipate.
+        completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Verify result.
         Assert.assertNotNull("Queue did not unblock after adding a value.", result.get());
@@ -91,26 +96,27 @@ public class BlockingDrainingQueueTests {
         BlockingDrainingQueue<Integer> queue = new BlockingDrainingQueue<>();
         AtomicReference<List<Integer>> result = new AtomicReference<>();
         CompletableFuture<Void> resultSet = new CompletableFuture<>();
-        Thread t = new Thread(() -> {
+        val completionFuture = runAsync(() -> {
             try {
                 result.set(queue.takeAllEntries());
                 resultSet.complete(null);
-            } catch (Exception ex) {
+            } catch (InterruptedException ex) {
                 resultSet.completeExceptionally(ex);
             }
         });
-
-        t.start();
 
         // Verify the queue hasn't returned before we actually set the result.
         Assert.assertNull("Queue unblocked before result was set.", result.get());
         Thread.sleep(10);
         List<Integer> queueContents = queue.close();
 
+        // Wait for the completion future to finish. This will also pop any other exceptions that we did not anticipate.
+        completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
         // Verify result.
         AssertExtensions.assertThrows(
                 "Future was not cancelled with the correct exception.",
-                resultSet::join,
+                () -> resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
                 ex -> ex instanceof InterruptedException);
 
         Assert.assertNull("Queue returned an item even if it got closed.", result.get());

@@ -23,7 +23,7 @@
             <pattern>%msg%n</pattern>
         </encoder>
     </appender>
-    <root level="INFO">
+    <root level="OFF">
         <appender-ref ref="CONSOLE"/>
     </root>
 </configuration>

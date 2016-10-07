@@ -18,11 +18,11 @@
 
 package com.emc.pravega.service.storage.impl.distributedlog;
 
-import java.util.Properties;
-
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.MissingPropertyException;
+
+import java.util.Properties;
 
 /**
  * General configuration for DistributedLog Client.
@@ -61,8 +61,6 @@ public class DistributedLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the host name (no port) where DistributedLog is listening.
-     *
-     * @return
      */
     public String getDistributedLogHost() {
         return this.distributedLogHost;
@@ -70,8 +68,6 @@ public class DistributedLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the port where DistributedLog is listening.
-     *
-     * @return
      */
     public int getDistributedLogPort() {
         return this.distributedLogPort;
@@ -79,8 +75,6 @@ public class DistributedLogConfig extends ComponentConfig {
 
     /**
      * Gets a value indicating the DistributedLog Namespace to use.
-     *
-     * @return
      */
     public String getDistributedLogNamespace() {
         return this.distributedLogNamespace;

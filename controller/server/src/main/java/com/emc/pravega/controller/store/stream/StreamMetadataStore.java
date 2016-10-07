@@ -27,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Stream Metadata
  */
+//TODO: Add scope to most methods.
 public interface StreamMetadataStore {
 
     /**

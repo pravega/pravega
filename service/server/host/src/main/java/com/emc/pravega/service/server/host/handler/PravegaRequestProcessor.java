@@ -19,7 +19,9 @@
 package com.emc.pravega.service.server.host.handler;
 
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
-import static com.emc.pravega.service.contracts.ReadResultEntryType.*;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.Cache;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.EndOfStreamSegment;
+import static com.emc.pravega.service.contracts.ReadResultEntryType.Future;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -35,8 +37,12 @@ import java.util.concurrent.CompletionException;
 import com.emc.pravega.common.netty.FailingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.ServerConnection;
+import com.emc.pravega.common.netty.WireCommands.CommitTransaction;
 import com.emc.pravega.common.netty.WireCommands.CreateSegment;
+import com.emc.pravega.common.netty.WireCommands.CreateTransaction;
+import com.emc.pravega.common.netty.WireCommands.DropTransaction;
 import com.emc.pravega.common.netty.WireCommands.GetStreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.GetTransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
@@ -44,6 +50,10 @@ import com.emc.pravega.common.netty.WireCommands.SegmentCreated;
 import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
+import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
+import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
+import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
+import com.emc.pravega.common.netty.WireCommands.TransactionInfo;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
@@ -54,6 +64,7 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.google.common.base.Preconditions;
 
 import lombok.extern.slf4j.Slf4j;
@@ -183,6 +194,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return null;
         });
     }
+    
+    @Override
+    public void getTransactionInfo(GetTransactionInfo request) {
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
+        CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, TIMEOUT);
+        future.thenApply(properties -> {
+            if (properties != null) {
+                TransactionInfo result = new TransactionInfo(request.getSegment(),
+                        request.getTxid(),
+                        transactionName,
+                        !properties.isDeleted(),
+                        properties.isSealed(),
+                        properties.getLastModified().getTime(),
+                        properties.getLength());
+                connection.send(result);
+            } else {
+                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, 0, 0));
+            }
+            return null;
+        }).exceptionally((Throwable e) -> {
+            handleException(transactionName, "Get transaction info", e);
+            return null;
+        });
+    }
 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
@@ -221,24 +256,51 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    //
-    // @Override
-    // public void createBatch(CreateBatch createBatch) {
-    // getNextRequestProcessor().createBatch(createBatch);
-    // }
-    //
-    // @Override
-    // public void mergeBatch(MergeBatch mergeBatch) {
-    // getNextRequestProcessor().mergeBatch(mergeBatch);
-    // }
-    //
-    // @Override
-    // public void sealSegment(SealSegment sealSegment) {
-    // getNextRequestProcessor().sealSegment(sealSegment);
-    // }
-    //
-    // @Override
-    // public void deleteSegment(DeleteSegment deleteSegment) {
-    // getNextRequestProcessor().deleteSegment(deleteSegment);
-    // }
+    @Override
+    public void createTransaction(CreateTransaction createTransaction) {
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(), TIMEOUT);
+        future.thenApply((String txName) -> {
+            connection.send(new TransactionCreated(createTransaction.getSegment(), createTransaction.getTxid()));
+            return null;
+        }).exceptionally((Throwable e) -> {
+            handleException(createTransaction.getSegment(), "Create transaction", e);
+            return null;
+        });
+    }
+    
+    @Override
+    public void commitTransaction(CommitTransaction commitTx) {
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
+        segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
+             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
+                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));
+                 return null;
+             }).exceptionally((Throwable e) -> {
+                 handleException(transactionName, "Commit transaction", e);
+                 return null;
+             });
+             return null;
+        }).exceptionally((Throwable e) -> {
+          handleException(transactionName, "Commit transaction", e);
+            return null;
+        });
+    }
+
+    @Override
+    public void dropTransaction(DropTransaction dropTx) {
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(dropTx.getSegment(), dropTx.getTxid());
+        CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
+        future.thenApply((Void v) -> {
+            connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+            return null;
+        }).exceptionally((Throwable e) -> {
+            if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
+                connection.send(new TransactionDropped(dropTx.getSegment(), dropTx.getTxid()));
+            } else {
+                handleException(transactionName, "Drop transaction", e);
+            }
+            return null;
+        });
+    }
+
 }

@@ -20,10 +20,12 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ContainerMetadata;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMapper;
-import com.emc.pravega.service.server.logs.operations.MergeBatchOperation;
+import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.MetadataCheckpointOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
@@ -50,26 +52,22 @@ import java.util.concurrent.ForkJoinPool;
 /**
  * Helpers that aid in testing Log-based components, such as DurableLog or OperationQueueProcessor.
  */
-public class LogTestHelpers {
+class LogTestHelpers {
     private static final int MAX_SEGMENT_COUNT = 1000 * 1000;
 
     /**
      * Updates the given Container Metadata to have a number of StreamSegments. All created StreamSegments will have
      * Ids from 0 to the value of streamSegmentCount.
-     *
-     * @param streamSegmentCount
-     * @param containerMetadata
-     * @return
      */
-    public static HashSet<Long> createStreamSegmentsInMetadata(int streamSegmentCount, UpdateableContainerMetadata containerMetadata) {
+    static HashSet<Long> createStreamSegmentsInMetadata(int streamSegmentCount, UpdateableContainerMetadata containerMetadata) {
         assert streamSegmentCount <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " StreamSegments for this test.";
         HashSet<Long> result = new HashSet<>();
         for (long streamSegmentId = 0; streamSegmentId < streamSegmentCount; streamSegmentId++) {
             result.add(streamSegmentId);
             String name = getStreamSegmentName(streamSegmentId);
-            containerMetadata.mapStreamSegmentId(name, streamSegmentId);
-            containerMetadata.getStreamSegmentMetadata(streamSegmentId).setDurableLogLength(0);
-            containerMetadata.getStreamSegmentMetadata(streamSegmentId).setStorageLength(0);
+            UpdateableSegmentMetadata segmentMetadata = containerMetadata.mapStreamSegmentId(name, streamSegmentId);
+            segmentMetadata.setDurableLogLength(0);
+            segmentMetadata.setStorageLength(0);
         }
 
         return result;
@@ -77,14 +75,8 @@ public class LogTestHelpers {
 
     /**
      * Creates a number of StreamSegments in the given Metadata and OperationLog.
-     *
-     * @param streamSegmentCount
-     * @param containerMetadata
-     * @param durableLog
-     * @param storage
-     * @return
      */
-    public static HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+    static HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool.commonPool());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
@@ -99,44 +91,39 @@ public class LogTestHelpers {
     }
 
     /**
-     * Updates the given Container Metadata to have a number of Batches mapped to the given StreamSegment Ids.
-     *
-     * @param streamSegmentIds
-     * @param batchesPerStreamSegment
-     * @param containerMetadata
-     * @return
+     * Updates the given Container Metadata to have a number of Transactions mapped to the given StreamSegment Ids.
      */
-    public static AbstractMap<Long, Long> createBatchesInMetadata(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, UpdateableContainerMetadata containerMetadata) {
-        assert batchesPerStreamSegment <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " batches per StreamSegment for this test.";
+    static AbstractMap<Long, Long> createTransactionsInMetadata(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment, UpdateableContainerMetadata containerMetadata) {
+        assert transactionsPerStreamSegment <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " Transactions per StreamSegment for this test.";
         HashMap<Long, Long> result = new HashMap<>();
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
-            for (int i = 0; i < batchesPerStreamSegment; i++) {
-                long batchId = getBatchId(streamSegmentId, i);
-                assert result.put(batchId, streamSegmentId) == null : "duplicate BatchId generated: " + batchId;
-                assert !streamSegmentIds.contains(batchId) : "duplicate StreamSegmentId (batch) generated: " + batchId;
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(streamSegmentName);
-                containerMetadata.mapStreamSegmentId(batchName, batchId, streamSegmentId);
-                containerMetadata.getStreamSegmentMetadata(batchId).setDurableLogLength(0);
-                containerMetadata.getStreamSegmentMetadata(batchId).setStorageLength(0);
+            for (int i = 0; i < transactionsPerStreamSegment; i++) {
+                long transactionId = getTransactionId(streamSegmentId, i);
+                assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
+                assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
+                UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId, streamSegmentId);
+                transactionMetadata.setDurableLogLength(0);
+                transactionMetadata.setStorageLength(0);
             }
         }
 
         return result;
     }
 
-    public static AbstractMap<Long, Long> createBatchesWithOperations(HashSet<Long> streamSegmentIds, int batchesPerStreamSegment, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
+    static AbstractMap<Long, Long> createTransactionsWithOperations(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment, ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
         HashMap<Long, Long> result = new HashMap<>();
         StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool.commonPool());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
-            for (int i = 0; i < batchesPerStreamSegment; i++) {
-                long batchId = mapper
-                        .createNewBatchStreamSegment(streamSegmentName, Duration.ZERO)
+            for (int i = 0; i < transactionsPerStreamSegment; i++) {
+                long transactionId = mapper
+                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), Duration.ZERO)
                         .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
-                result.put(batchId, streamSegmentId);
+                result.put(transactionId, streamSegmentId);
             }
         }
 
@@ -147,19 +134,11 @@ public class LogTestHelpers {
      * Generates a List of Log Operations that contains the following operations, in the "correct" order.
      * <ol>
      * <li> A set of StreamSegmentAppend Operations (based on the streamSegmentIds arg).
-     * <li> A set of StreamSegmentSeal and MergeBatch Operations (based on the batchIds and mergeBatches arg).
+     * <li> A set of StreamSegmentSeal and MergeTransaction Operations (based on the TransactionIds and mergeTransactions arg).
      * <li> A set of StreamSegmentSeal Operations (based on the sealStreamSegments arg).
      * </ol>
-     *
-     * @param streamSegmentIds
-     * @param batchIds
-     * @param appendsPerStreamSegment
-     * @param metadataCheckpointsEvery
-     * @param mergeBatches
-     * @param sealStreamSegments
-     * @return
      */
-    public static List<Operation> generateOperations(Collection<Long> streamSegmentIds, AbstractMap<Long, Long> batchIds, int appendsPerStreamSegment, int metadataCheckpointsEvery, boolean mergeBatches, boolean sealStreamSegments) {
+    static List<Operation> generateOperations(Collection<Long> streamSegmentIds, AbstractMap<Long, Long> transactionIds, int appendsPerStreamSegment, int metadataCheckpointsEvery, boolean mergeTransactions, boolean sealStreamSegments) {
         List<Operation> result = new ArrayList<>();
 
         // Add some appends.
@@ -172,21 +151,21 @@ public class LogTestHelpers {
             }
         }
 
-        for (long batchId : batchIds.keySet()) {
+        for (long transactionId : transactionIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                result.add(new StreamSegmentAppendOperation(batchId, generateAppendData(appendId), new AppendContext(UUID.randomUUID(), i)));
+                result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId), new AppendContext(UUID.randomUUID(), i)));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
         }
 
-        // Merge batches.
-        if (mergeBatches) {
-            // Key = BatchId, Value = Parent Id.
-            batchIds.entrySet().forEach(mapping -> {
+        // Merge Transactions.
+        if (mergeTransactions) {
+            // Key = TransactionId, Value = Parent Id.
+            transactionIds.entrySet().forEach(mapping -> {
                 result.add(new StreamSegmentSealOperation(mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
-                result.add(new MergeBatchOperation(mapping.getValue(), mapping.getKey()));
+                result.add(new MergeTransactionOperation(mapping.getValue(), mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
         }
@@ -204,12 +183,9 @@ public class LogTestHelpers {
 
     /**
      * Given a list of LogOperations, calculates the final lengths of the StreamSegments that are encountered, by inspecting
-     * every StreamSegmentAppendOperation and MergeBatchOperation. All other types of Log Operations are ignored.
-     *
-     * @param operations
-     * @return
+     * every StreamSegmentAppendOperation and MergeTransactionOperation. All other types of Log Operations are ignored.
      */
-    public static AbstractMap<Long, Integer> getExpectedLengths(Collection<OperationWithCompletion> operations) {
+    static AbstractMap<Long, Integer> getExpectedLengths(Collection<OperationWithCompletion> operations) {
         HashMap<Long, Integer> result = new HashMap<>();
         for (OperationWithCompletion o : operations) {
             Assert.assertTrue("Operation is not completed.", o.completion.isDone());
@@ -223,13 +199,13 @@ public class LogTestHelpers {
                 result.put(
                         appendOperation.getStreamSegmentId(),
                         result.getOrDefault(appendOperation.getStreamSegmentId(), 0) + appendOperation.getData().length);
-            } else if (o.operation instanceof MergeBatchOperation) {
-                MergeBatchOperation mergeOperation = (MergeBatchOperation) o.operation;
+            } else if (o.operation instanceof MergeTransactionOperation) {
+                MergeTransactionOperation mergeOperation = (MergeTransactionOperation) o.operation;
 
                 result.put(
                         mergeOperation.getStreamSegmentId(),
-                        result.getOrDefault(mergeOperation.getStreamSegmentId(), 0) + result.getOrDefault(mergeOperation.getBatchStreamSegmentId(), 0));
-                result.remove(mergeOperation.getBatchStreamSegmentId());
+                        result.getOrDefault(mergeOperation.getStreamSegmentId(), 0) + result.getOrDefault(mergeOperation.getTransactionSegmentId(), 0));
+                result.remove(mergeOperation.getTransactionSegmentId());
             }
         }
 
@@ -238,12 +214,9 @@ public class LogTestHelpers {
 
     /**
      * Given a list of Log Operations, generates an InputStream for each encountered StreamSegment that contains the final
-     * contents of that StreamSegment. Only considers operations of type StreamSegmentAppendOperation and MergeBatchOperation.
-     *
-     * @param operations
-     * @return
+     * contents of that StreamSegment. Only considers operations of type StreamSegmentAppendOperation and MergeTransactionOperation.
      */
-    public static AbstractMap<Long, InputStream> getExpectedContents(Collection<OperationWithCompletion> operations) {
+    static AbstractMap<Long, InputStream> getExpectedContents(Collection<OperationWithCompletion> operations) {
         HashMap<Long, List<ByteArrayInputStream>> partialContents = new HashMap<>();
         for (OperationWithCompletion o : operations) {
             Assert.assertTrue("Operation is not completed.", o.completion.isDone());
@@ -261,17 +234,17 @@ public class LogTestHelpers {
                 }
 
                 segmentContents.add(new ByteArrayInputStream(appendOperation.getData()));
-            } else if (o.operation instanceof MergeBatchOperation) {
-                MergeBatchOperation mergeOperation = (MergeBatchOperation) o.operation;
+            } else if (o.operation instanceof MergeTransactionOperation) {
+                MergeTransactionOperation mergeOperation = (MergeTransactionOperation) o.operation;
                 List<ByteArrayInputStream> targetSegmentContents = partialContents.get(mergeOperation.getStreamSegmentId());
                 if (targetSegmentContents == null) {
                     targetSegmentContents = new ArrayList<>();
                     partialContents.put(mergeOperation.getStreamSegmentId(), targetSegmentContents);
                 }
 
-                List<ByteArrayInputStream> sourceSegmentContents = partialContents.get(mergeOperation.getBatchStreamSegmentId());
+                List<ByteArrayInputStream> sourceSegmentContents = partialContents.get(mergeOperation.getTransactionSegmentId());
                 targetSegmentContents.addAll(sourceSegmentContents);
-                partialContents.remove(mergeOperation.getBatchStreamSegmentId());
+                partialContents.remove(mergeOperation.getTransactionSegmentId());
             }
         }
 
@@ -284,19 +257,19 @@ public class LogTestHelpers {
         return result;
     }
 
-    public static String getStreamSegmentName(long streamSegmentId) {
+    private static String getStreamSegmentName(long streamSegmentId) {
         return String.format("StreamSegment_%d", streamSegmentId);
     }
 
-    public static long getBatchId(long streamSegmentId, int batchId) {
-        return (streamSegmentId + 1) * MAX_SEGMENT_COUNT + batchId;
+    private static long getTransactionId(long streamSegmentId, int transactionId) {
+        return (streamSegmentId + 1) * MAX_SEGMENT_COUNT + transactionId;
     }
 
-    public static byte[] generateAppendData(int appendId) {
+    private static byte[] generateAppendData(int appendId) {
         return String.format("Append_%d", appendId).getBytes();
     }
 
-    public static CompletableFuture<Void> allOf(Collection<OperationWithCompletion> operations) {
+    static CompletableFuture<Void> allOf(Collection<OperationWithCompletion> operations) {
         List<CompletableFuture<Long>> futures = new ArrayList<>();
         operations.forEach(oc -> futures.add(oc.completion));
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
@@ -310,11 +283,11 @@ public class LogTestHelpers {
 
     //region OperationWithCompletion
 
-    public static class OperationWithCompletion {
-        public final Operation operation;
-        public final CompletableFuture<Long> completion;
+    static class OperationWithCompletion {
+        final Operation operation;
+        final CompletableFuture<Long> completion;
 
-        public OperationWithCompletion(Operation operation, CompletableFuture<Long> completion) {
+        OperationWithCompletion(Operation operation, CompletableFuture<Long> completion) {
             this.operation = operation;
             this.completion = completion;
         }

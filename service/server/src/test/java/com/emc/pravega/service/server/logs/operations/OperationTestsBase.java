@@ -64,16 +64,11 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     /**
      * Creates a new operation of a given type.
-     *
-     * @return
      */
     protected abstract T createOperation(Random random);
 
     /**
      * Gets a value indicating whether we need to do anything special (i.e., assign offsets) before serializing.
-     *
-     * @param operation
-     * @return
      */
     protected boolean isPreSerializationConfigRequired(T operation) {
         return false;
@@ -81,15 +76,12 @@ public abstract class OperationTestsBase<T extends Operation> {
 
     /**
      * Performs any necessary pre-serialization configuration (one step at a time - as long as isPreSerializationConfigRequired returns true).
-     *
-     * @param operation
-     * @param random
      */
     protected void configurePreSerialization(T operation, Random random) {
         // Base method intentionally left blank.
     }
 
-    protected String getStreamSegmentName(long id) {
+    String getStreamSegmentName(long id) {
         return "StreamSegment_" + id;
     }
 

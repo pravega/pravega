@@ -96,7 +96,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     @Override
     protected void run() throws Exception {
-        int traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
+        long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "run");
         Throwable closingException = null;
         try {
             while (isRunning()) {
@@ -302,9 +302,6 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     /**
      * Cancels those Operations in the given list that have not yet completed with the given exception.
-     *
-     * @param operations
-     * @param failException
      */
     private void cancelIncompleteOperations(List<CompletableOperation> operations, Throwable failException) {
         assert failException != null : "no exception to set";
@@ -365,7 +362,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
-            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getDataFrameSequence());
+            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
             this.metadataUpdater.commit();
 
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.

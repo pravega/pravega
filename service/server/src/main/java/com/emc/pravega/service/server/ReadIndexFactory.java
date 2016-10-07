@@ -29,7 +29,6 @@ public interface ReadIndexFactory extends AutoCloseable {
      *
      * @param containerMetadata A Container Metadata for this ReadIndex.
      * @param cache             The cache to use for the ReadIndex.
-     * @return The result.
      * @throws NullPointerException If any of the arguments are null.
      */
     ReadIndex createReadIndex(ContainerMetadata containerMetadata, Cache cache);

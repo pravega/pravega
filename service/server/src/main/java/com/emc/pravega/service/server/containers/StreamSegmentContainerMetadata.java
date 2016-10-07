@@ -23,20 +23,21 @@ import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
+import com.emc.pravega.service.server.logs.operations.Operation;
+import com.emc.pravega.service.storage.LogAddress;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Metadata for a Stream Segment Container.
@@ -54,9 +55,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
     @GuardedBy("lock")
-    private final AbstractMap<Long, Long> truncationMarkers;
+    private final TreeMap<Long, LogAddress> truncationMarkers;
     @GuardedBy("lock")
-    private final HashSet<Long> truncationPoints;
+    private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
 
     //endregion
@@ -72,8 +73,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber = new AtomicLong();
         this.streamSegmentIds = new HashMap<>();
         this.segmentMetadata = new HashMap<>();
-        this.truncationMarkers = new ConcurrentHashMap<>();
-        this.truncationPoints = new HashSet<>();
+        this.truncationMarkers = new TreeMap<>();
+        this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
     }
 
@@ -123,33 +124,39 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region UpdateableContainerMetadata
 
     @Override
-    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
+    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
+        UpdateableSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId()));
+            this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
 
         log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
+        return segmentMetadata;
     }
 
     @Override
-    public void mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+        UpdateableSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
             Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a batch StreamSegment for another batch StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
 
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
-            this.segmentMetadata.put(streamSegmentId, new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId()));
+            this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
 
-        log.info("{}: MapBatchStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        return segmentMetadata;
     }
 
     @Override
@@ -164,7 +171,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
             if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                // We have no knowledge in our metadata about this StreamSegment. This means it has no batches associated
+                // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
                 return result;
@@ -176,7 +183,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                 segmentMetadata.markDeleted();
             }
 
-            // Find any batches that point to this StreamSegment (as a parent).
+            // Find any transactions that point to this StreamSegment (as a parent).
             CollectionHelpers.forEach(
                     this.segmentMetadata.values(),
                     m -> m.getParentId() == streamSegmentId,
@@ -252,11 +259,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     //region TruncationMarkerRepository Implementation
 
     @Override
-    public void recordTruncationMarker(long operationSequenceNumber, long dataFrameSequenceNumber) {
+    public void recordTruncationMarker(long operationSequenceNumber, LogAddress address) {
         Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
-        Exceptions.checkArgument(dataFrameSequenceNumber >= 0, "dataFrameSequenceNumber", "DataFrame Sequence Number must be a positive number.");
+        Preconditions.checkNotNull(address, "address");
         synchronized (this.truncationMarkers) {
-            this.truncationMarkers.put(operationSequenceNumber, dataFrameSequenceNumber);
+            this.truncationMarkers.put(operationSequenceNumber, address);
         }
     }
 
@@ -265,49 +272,24 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         ArrayList<Long> toRemove = new ArrayList<>();
         synchronized (this.truncationMarkers) {
             // Remove Truncation Markers.
-            this.truncationMarkers.keySet().forEach(key -> {
-                if (key <= upToOperationSequenceNumber) {
-                    toRemove.add(key);
-                }
-            });
-
+            toRemove.addAll(this.truncationMarkers.headMap(upToOperationSequenceNumber, true).keySet());
             toRemove.forEach(this.truncationMarkers::remove);
 
             // Remove Truncation points
             toRemove.clear();
-            this.truncationPoints.forEach(key -> {
-                if (key <= upToOperationSequenceNumber) {
-                    toRemove.add(key);
-                }
-            });
-
-            toRemove.forEach(this.truncationPoints::remove);
+            toRemove.addAll(this.truncationPoints.headSet(upToOperationSequenceNumber, true));
+            this.truncationPoints.removeAll(toRemove);
         }
     }
 
     @Override
-    public long getClosestTruncationMarker(long operationSequenceNumber) {
-        //TODO: make more efficient, maybe by using a different data structure, like TreeMap.
-        Map.Entry<Long, Long> result = null;
+    public LogAddress getClosestTruncationMarker(long operationSequenceNumber) {
+        Map.Entry<Long, LogAddress> result;
         synchronized (this.truncationMarkers) {
-            for (Map.Entry<Long, Long> tm : this.truncationMarkers.entrySet()) {
-                long seqNo = tm.getKey();
-                if (seqNo == operationSequenceNumber) {
-                    // Found the best result.
-                    return tm.getValue();
-                } else if (seqNo < operationSequenceNumber) {
-                    if (result == null || (result.getKey() < seqNo)) {
-                        // We found a better result.
-                        result = tm;
-                    }
-                }
-            }
+            result = this.truncationMarkers.floorEntry(operationSequenceNumber);
         }
-        if (result == null) {
-            return -1;
-        } else {
-            return result.getValue();
-        }
+
+        return result == null ? null : result.getValue();
     }
 
     @Override
@@ -320,7 +302,19 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public boolean isValidTruncationPoint(long sequenceNumber) {
-        return this.truncationPoints.contains(sequenceNumber);
+        synchronized (this.truncationMarkers) {
+            return this.truncationPoints.contains(sequenceNumber);
+        }
+    }
+
+    @Override
+    public long getClosestValidTruncationPoint(long sequenceNumber) {
+        Long result;
+        synchronized (this.truncationMarkers) {
+            result = this.truncationPoints.floor(sequenceNumber);
+        }
+
+        return result == null ? Operation.NO_SEQUENCE_NUMBER : result;
     }
 
     //endregion

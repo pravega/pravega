@@ -15,27 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.common.concurrent;
+
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.IntentionalException;
 
 /**
  * Unit tests for the FutureHelpers class.
  */
 public class FutureHelpersTests {
-
     /**
      * Tests the failedFuture() method.
      */
@@ -144,6 +143,55 @@ public class FutureHelpersTests {
         Assert.assertFalse("The result of allOf() completed when not all the futures completed (except one that failed).", allFuturesComplete.isDone());
         completeFutures(futures);
         Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
+    }
+
+    @Test
+    public void testWhileLoop() {
+        final int maxLoops = 10;
+        final int expectedResult = maxLoops * (maxLoops - 1) / 2;
+        AtomicInteger loopCounter = new AtomicInteger();
+        AtomicInteger accumulator = new AtomicInteger();
+
+        // 1. With no specific accumulator.
+        FutureHelpers.loop(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> {
+                    accumulator.addAndGet(loopCounter.get());
+                    return CompletableFuture.completedFuture(null);
+                },
+                ForkJoinPool.commonPool()).join();
+        Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult, accumulator.get());
+
+        //2. With specific accumulator.
+        loopCounter.set(0);
+        accumulator.set(0);
+        FutureHelpers.loop(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> CompletableFuture.completedFuture(loopCounter.get()),
+                accumulator::addAndGet,
+                ForkJoinPool.commonPool()).join();
+        Assert.assertEquals("Unexpected result for loop with a specific accumulator.", expectedResult, accumulator.get());
+
+        //3. With exceptions.
+        loopCounter.set(0);
+        accumulator.set(0);
+        CompletableFuture<Void> loopFuture = FutureHelpers.loop(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> {
+                    if (loopCounter.get() % 3 == 0) {
+                        throw new IntentionalException();
+                    } else {
+                        accumulator.addAndGet(loopCounter.get());
+                        return CompletableFuture.completedFuture(null);
+                    }
+                },
+                ForkJoinPool.commonPool());
+
+        AssertExtensions.assertThrows(
+                "loop() did not return a failed Future when one of the loopBody calls returned a failed Future.",
+                loopFuture::join,
+                ex -> ex instanceof IntentionalException);
+        Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {

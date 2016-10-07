@@ -91,8 +91,6 @@ public class DataFrameOutputStreamTests {
 
     /**
      * Tests the ability to drop the current frame, if the current frame is in a bad state.
-     *
-     * @throws Exception
      */
     @Test
     public void testReset() throws Exception {

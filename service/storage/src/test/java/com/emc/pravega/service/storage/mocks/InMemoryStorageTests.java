@@ -15,8 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.emc.pravega.service.storage.mocks;
+
+import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -25,20 +36,13 @@ import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-
 /**
  * Unit tests for InMemoryStorage
  */
 public class InMemoryStorageTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final int SEGMENT_COUNT = 10;
+    private static final int APPENDS_PER_SEGMENT = 10;
 
     /**
      * Tests the write() method.
@@ -50,10 +54,9 @@ public class InMemoryStorageTests {
 
         try (Storage s = createStorage()) {
             // Check pre-create write.
-            AssertExtensions.assertThrows(
-                    "write() did not throw for non-existent StreamSegment.",
-                    s.write(segmentName, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            assertThrows("write() did not throw for non-existent StreamSegment.",
+                         s.write(segmentName, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
 
             s.create(segmentName, TIMEOUT).join();
 
@@ -66,22 +69,19 @@ public class InMemoryStorageTests {
             }
 
             // Check bad offset.
-            AssertExtensions.assertThrows(
-                    "write() did not throw bad offset write (smaller).",
-                    s.write(segmentName, offset - 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
-                    ex -> ex instanceof BadOffsetException);
+            assertThrows("write() did not throw bad offset write (smaller).",
+                         s.write(segmentName, offset - 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                         ex -> ex instanceof BadOffsetException);
 
-            AssertExtensions.assertThrows(
-                    "write() did not throw bad offset write (larger).",
-                    s.write(segmentName, offset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
-                    ex -> ex instanceof BadOffsetException);
+            assertThrows("write() did not throw bad offset write (larger).",
+                         s.write(segmentName, offset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                         ex -> ex instanceof BadOffsetException);
 
             // Check post-delete write.
             s.delete(segmentName, TIMEOUT).join();
-            AssertExtensions.assertThrows(
-                    "write() did not throw for a deleted StreamSegment.",
-                    s.write(segmentName, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            assertThrows("write() did not throw for a deleted StreamSegment.",
+                         s.write(segmentName, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
 
@@ -92,12 +92,11 @@ public class InMemoryStorageTests {
     public void testRead() throws Exception {
         try (Storage s = createStorage()) {
             // Check pre-create read.
-            AssertExtensions.assertThrows(
-                    "read() did not throw for non-existent StreamSegment.",
-                    s.read("foo", 0, new byte[1], 0, 1, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            assertThrows("read() did not throw for non-existent StreamSegment.",
+                         s.read("foo", 0, new byte[1], 0, 1, TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Do some reading.
             for (String segmentName : appendData.keySet()) {
@@ -115,37 +114,31 @@ public class InMemoryStorageTests {
             // Test bad parameters.
             String testSegmentName = getSegmentName(0);
             byte[] testReadBuffer = new byte[10];
-            AssertExtensions.assertThrows(
-                    "read() allowed reading with negative read offset.",
-                    s.read(testSegmentName, -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
-                    ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
+            assertThrows("read() allowed reading with negative read offset.",
+                         s.read(testSegmentName, -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                         ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
-            AssertExtensions.assertThrows(
-                    "read() allowed reading with offset beyond Segment length.",
-                    s.read(testSegmentName, s.getStreamSegmentInfo(testSegmentName, TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
-                    ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
+            assertThrows("read() allowed reading with offset beyond Segment length.",
+                         s.read(testSegmentName, s.getStreamSegmentInfo(testSegmentName, TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                         ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
-            AssertExtensions.assertThrows(
-                    "read() allowed reading with negative read buffer offset.",
-                    s.read(testSegmentName, 0, testReadBuffer, -1, testReadBuffer.length, TIMEOUT),
-                    ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
+            assertThrows("read() allowed reading with negative read buffer offset.",
+                         s.read(testSegmentName, 0, testReadBuffer, -1, testReadBuffer.length, TIMEOUT),
+                         ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
-            AssertExtensions.assertThrows(
-                    "read() allowed reading with invalid read buffer length.",
-                    s.read(testSegmentName, 0, testReadBuffer, 1, testReadBuffer.length, TIMEOUT),
-                    ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
+            assertThrows("read() allowed reading with invalid read buffer length.",
+                         s.read(testSegmentName, 0, testReadBuffer, 1, testReadBuffer.length, TIMEOUT),
+                         ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
-            AssertExtensions.assertThrows(
-                    "read() allowed reading with invalid read length.",
-                    s.read(testSegmentName, 0, testReadBuffer, 0, testReadBuffer.length + 1, TIMEOUT),
-                    ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
+            assertThrows("read() allowed reading with invalid read length.",
+                         s.read(testSegmentName, 0, testReadBuffer, 0, testReadBuffer.length + 1, TIMEOUT),
+                         ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             // Check post-delete read.
             s.delete(testSegmentName, TIMEOUT).join();
-            AssertExtensions.assertThrows(
-                    "read() did not throw for a deleted StreamSegment.",
-                    s.read(testSegmentName, 0, new byte[1], 0, 1, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            assertThrows("read() did not throw for a deleted StreamSegment.",
+                         s.read(testSegmentName, 0, new byte[1], 0, 1, TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
 
@@ -156,30 +149,26 @@ public class InMemoryStorageTests {
     public void testSeal() throws Exception {
         try (Storage s = createStorage()) {
             // Check pre-create seal.
-            AssertExtensions.assertThrows(
-                    "seal() did not throw for non-existent StreamSegment.",
-                    s.seal("foo", TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            assertThrows("seal() did not throw for non-existent StreamSegment.",
+                         s.seal("foo", TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
             for (String segmentName : appendData.keySet()) {
                 s.seal(segmentName, TIMEOUT).join();
-                AssertExtensions.assertThrows(
-                        "seal() did not throw for an already sealed StreamSegment.",
-                        s.seal(segmentName, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentSealedException);
+                assertThrows("seal() did not throw for an already sealed StreamSegment.",
+                             s.seal(segmentName, TIMEOUT),
+                             ex -> ex instanceof StreamSegmentSealedException);
 
-                AssertExtensions.assertThrows(
-                        "write() did not throw for a sealed StreamSegment.",
-                        s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentSealedException);
+                assertThrows("write() did not throw for a sealed StreamSegment.",
+                             s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
+                             ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
                 s.delete(segmentName, TIMEOUT).join();
-                AssertExtensions.assertThrows(
-                        "seal() did not throw for a deleted StreamSegment.",
-                        s.seal(segmentName, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                assertThrows("seal() did not throw for a deleted StreamSegment.",
+                             s.seal(segmentName, TIMEOUT),
+                             ex -> ex instanceof StreamSegmentNotExistsException);
             }
         }
     }
@@ -190,60 +179,63 @@ public class InMemoryStorageTests {
     @Test
     public void testConcat() throws Exception {
         try (Storage s = createStorage()) {
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, 10, 10);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Check pre-create concat.
             String firstSegmentName = getSegmentName(0);
-            AssertExtensions.assertThrows(
-                    "concat() did not throw for non-existent target StreamSegment.",
-                    s.concat("foo1", firstSegmentName, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join().getLength());
+            assertThrows("concat() did not throw for non-existent target StreamSegment.",
+                         s.concat("foo1", 0, firstSegmentName, TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
 
-            AssertExtensions.assertThrows(
-                    "concat() did not throw for non-existent source StreamSegment.",
-                    s.concat(firstSegmentName, "foo2", TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            assertThrows("concat() did not throw for non-existent source StreamSegment.",
+                         s.concat(firstSegmentName, firstSegmentLength.get(), "foo2", TIMEOUT),
+                         ex -> ex instanceof StreamSegmentNotExistsException);
 
             ArrayList<String> concatOrder = new ArrayList<>();
             concatOrder.add(firstSegmentName);
             for (String segmentName : appendData.keySet()) {
                 if (segmentName.equals(firstSegmentName)) {
-                    // FirstSegment is where we'll be concat-ting to.
+                    // FirstSegment is where we'll be concatenating to.
                     continue;
                 }
 
+                assertThrows("Concat allowed when source segment is not sealed.",
+                             () -> s.concat(firstSegmentName, firstSegmentLength.get(), segmentName, TIMEOUT),
+                             ex -> ex instanceof IllegalStateException);
+
+                // Seal the source segment and then re-try the concat
+                s.seal(segmentName, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
                 SegmentProperties sourceProps = s.getStreamSegmentInfo(segmentName, TIMEOUT).join();
 
-                s.concat(firstSegmentName, segmentName, TIMEOUT).join();
+                s.concat(firstSegmentName, firstSegmentLength.get(), segmentName, TIMEOUT).join();
                 concatOrder.add(segmentName);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-                AssertExtensions.assertThrows(
-                        "concat() did not delete source segment",
-                        s.getStreamSegmentInfo(segmentName, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                Assert.assertFalse("concat() did not delete source segment", s.exists(segmentName, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
                 Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
+                firstSegmentLength.set(postConcatTargetProps.getLength());
             }
 
             // Check the contents of the first StreamSegment. We already validated that the length is correct.
             SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentName, TIMEOUT).join();
-            byte[] readbuffer = new byte[(int) segmentProperties.getLength()];
+            byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
 
             // Read the entire StreamSegment.
-            int bytesRead = s.read(firstSegmentName, 0, readbuffer, 0, readbuffer.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read.", readbuffer.length, bytesRead);
+            int bytesRead = s.read(firstSegmentName, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
 
             // Check, concat-by-concat, that the final data is correct.
             int offset = 0;
             for (String segmentName : concatOrder) {
                 byte[] concatData = appendData.get(segmentName).toByteArray();
-                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readbuffer, offset, concatData.length);
+                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset, concatData.length);
                 offset += concatData.length;
             }
 
-            Assert.assertEquals("Concat included more bytes than expected.", offset, readbuffer.length);
+            Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
         }
     }
 
@@ -251,10 +243,10 @@ public class InMemoryStorageTests {
         return Integer.toString(id);
     }
 
-    private HashMap<String, ByteArrayOutputStream> populate(Storage s, int segmentCount, int appendsPerSegment) throws Exception {
+    private HashMap<String, ByteArrayOutputStream> populate(Storage s) throws Exception {
         HashMap<String, ByteArrayOutputStream> appendData = new HashMap<>();
 
-        for (int segmentId = 0; segmentId < segmentCount; segmentId++) {
+        for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId);
 
             s.create(segmentName, TIMEOUT).join();
@@ -262,7 +254,7 @@ public class InMemoryStorageTests {
             appendData.put(segmentName, writeStream);
 
             long offset = 0;
-            for (int j = 0; j < appendsPerSegment; j++) {
+            for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
                 s.write(segmentName, offset, dataStream, writeData.length, TIMEOUT).join();
@@ -273,7 +265,7 @@ public class InMemoryStorageTests {
         return appendData;
     }
 
-    protected Storage createStorage() {
+    private Storage createStorage() {
         return new InMemoryStorage();
     }
 }

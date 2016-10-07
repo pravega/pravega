@@ -85,8 +85,6 @@ public class CacheKey extends Cache.Key {
 
     /**
      * Gets a value representing the Id of the StreamSegment for this Cache Key.
-     *
-     * @return
      */
     public long getStreamSegmentId() {
         return this.streamSegmentId;
@@ -94,8 +92,6 @@ public class CacheKey extends Cache.Key {
 
     /**
      * Gets a value representing the Offset within the StreamSegment for this Cache Key.
-     *
-     * @return
      */
     public long getOffset() {
         return this.offset;

@@ -17,6 +17,21 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import com.emc.pravega.common.netty.ClientConnection;
+import com.emc.pravega.common.netty.ConnectionFailedException;
+import com.emc.pravega.common.netty.PravegaNodeUri;
+import com.emc.pravega.common.netty.ReplyProcessor;
+import com.emc.pravega.common.netty.WireCommands.ReadSegment;
+import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
+import com.emc.pravega.stream.mock.MockController;
+import com.emc.pravega.stream.mock.MockConnectionFactoryImpl;
+import com.emc.pravega.testcommon.Async;
+import lombok.Cleanup;
+import org.junit.Test;
+
+import java.nio.ByteBuffer;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -24,30 +39,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import java.nio.ByteBuffer;
-
-import org.junit.Test;
-
-import com.emc.pravega.common.netty.ClientConnection;
-import com.emc.pravega.common.netty.ConnectionFailedException;
-import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.WireCommands.ReadSegment;
-import com.emc.pravega.common.netty.WireCommands.SegmentRead;
-import com.emc.pravega.stream.impl.segment.AsyncSegmentInputStream.ReadFuture;
-import com.emc.pravega.testcommon.Async;
-
-import lombok.Cleanup;
-
 public class AsyncSegmentInputStreamTest {
 
     @Test
     public void testRetry() throws ConnectionFailedException {
         String segment = "testRetry";
-        String endpoint = "localhost";
-        int port = 1234;
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -69,12 +70,12 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testRead() throws ConnectionFailedException {
         String segment = "testRetry";
-        String endpoint = "localhost";
-        int port = 1234;
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
 
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -90,11 +91,11 @@ public class AsyncSegmentInputStreamTest {
     @Test
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         String segment = "testRetry";
-        String endpoint = "localhost";
-        int port = 1234;
-        TestConnectionFactoryImpl connectionFactory = new TestConnectionFactoryImpl(endpoint, port);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 1234);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(connectionFactory, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);

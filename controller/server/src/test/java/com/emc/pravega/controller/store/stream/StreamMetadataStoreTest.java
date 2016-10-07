@@ -21,9 +21,6 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import org.junit.Test;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -33,17 +30,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 /**
  * Stream metadata test
  */
 public class StreamMetadataStoreTest {
 
+    private final String scope = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
-    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(stream1, policy1);
-    private final StreamConfiguration configuration2 = new StreamConfigurationImpl(stream2, policy2);
+    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(scope, stream1, policy1);
+    private final StreamConfiguration configuration2 = new StreamConfigurationImpl(scope, stream2, policy2);
 
     private final StreamMetadataStore store =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
@@ -111,20 +112,20 @@ public class StreamMetadataStoreTest {
 
         // region getNextPosition
 
-        SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.EMPTY_MAP);
+        SegmentFutures updatedPosition = new SegmentFutures(Arrays.asList(0, 5), Collections.emptyMap());
         List<SegmentFutures> futuresList = store.getNextSegments(stream2, new HashSet<>(Arrays.asList(1, 2)), Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
         assertTrue(futuresList.get(0).getCurrent().contains(4));
 
-        updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.EMPTY_MAP);
+        updatedPosition = new SegmentFutures(Arrays.asList(0, 1, 5), Collections.emptyMap());
         futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(2)), Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());
         assertEquals(1, futuresList.get(0).getFutures().size());
 
-        updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.EMPTY_MAP);
+        updatedPosition = new SegmentFutures(Arrays.asList(0, 4, 5), Collections.emptyMap());
         futuresList = store.getNextSegments(stream2, new HashSet<>(Collections.singletonList(1)), Collections.singletonList(updatedPosition)).get();
         assertEquals(1, futuresList.size());
         assertEquals(3, futuresList.get(0).getCurrent().size());

@@ -22,8 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
@@ -32,11 +31,7 @@ public class InMemoryStorageFactory implements StorageFactory {
     private final InMemoryStorage storage;
     private boolean closed;
 
-    public InMemoryStorageFactory() {
-        this(ForkJoinPool.commonPool());
-    }
-
-    public InMemoryStorageFactory(Executor executor) {
+    public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.storage = new InMemoryStorage(executor);
     }
 

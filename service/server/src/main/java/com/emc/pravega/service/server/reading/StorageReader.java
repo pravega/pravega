@@ -204,7 +204,7 @@ class StorageReader implements AutoCloseable {
      */
     static class Result {
         private final ByteArraySegment data;
-        private boolean derived;
+        private final boolean derived;
 
         private Result(ByteArraySegment data, boolean derived) {
             this.data = data;
@@ -213,8 +213,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a pointer to a ByteArraySegment that contains the data for this Result.
-         *
-         * @return The result.
          */
         public ByteArraySegment getData() {
             return this.data;
@@ -222,8 +220,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a value indicating whether this Result is derived from another result that has already been completed.
-         *
-         * @return The result.
          */
         public boolean isDerived() {
             return this.derived;
@@ -281,8 +277,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a value indicating the Starting Offset for this Request.
-         *
-         * @return The result.
          */
         long getOffset() {
             return this.offset;
@@ -290,8 +284,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a value indicating the length of this Request.
-         *
-         * @return The result.
          */
         int getLength() {
             return this.length;
@@ -299,8 +291,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a value indicating the last offset of this Request.
-         *
-         * @return The result.
          */
         long getEndOffset() {
             return this.offset + this.length;
@@ -308,8 +298,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a value indicating whether this request is completed (whether successfully or failed).
-         *
-         * @return The result.
          */
         boolean isDone() {
             return this.resultFuture.isDone();
@@ -317,8 +305,6 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Gets a value indicating the timeout for this operation.
-         *
-         * @return The result.
          */
         Duration getTimeout() {
             return this.timeout;
@@ -403,7 +389,11 @@ class StorageReader implements AutoCloseable {
          * @param exception The exception to fail with.
          */
         private void fail(Throwable exception) {
-            Preconditions.checkState(!isDone(), "This Request is already completed.");
+            if (isDone()) {
+                // Nothing to do.
+                return;
+            }
+
             this.resultFuture.completeExceptionally(exception);
         }
 

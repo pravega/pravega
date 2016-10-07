@@ -19,64 +19,55 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.server.logs.DurableLogConfig;
-import com.emc.pravega.service.server.reading.CachePolicy;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.writer.WriterConfig;
 
-import java.time.Duration;
+import java.util.Map;
 import java.util.Properties;
 
 /**
  * Helper class that can be used to quickly create Configurations.
  */
 public class ConfigHelpers {
-    public static final CachePolicy INFINITE_CACHE_POLICY = new CachePolicy(Long.MAX_VALUE, Duration.ofMillis(Integer.MAX_VALUE), Duration.ofMillis(Integer.MAX_VALUE));
-
     /**
      * Creates a new instance of the DurableLogConfig class with given arguments.
      *
-     * @param checkpointMinCommitCount
-     * @param checkpointCommitCount
-     * @param checkpointTotalCommitLength
-     * @return
+     * @param rawProperties The properties to include.
      */
-    public static DurableLogConfig createDurableLogConfig(int checkpointMinCommitCount, int checkpointCommitCount, int checkpointTotalCommitLength) {
-        Properties p = new Properties();
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, Integer.toString(checkpointMinCommitCount));
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_COMMIT_COUNT, Integer.toString(checkpointCommitCount));
-        ServiceBuilderConfig.set(p, DurableLogConfig.COMPONENT_CODE, DurableLogConfig.PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, Integer.toString(checkpointTotalCommitLength));
-        return new DurableLogConfig(p);
+    public static DurableLogConfig createDurableLogConfig(PropertyBag rawProperties) {
+        return new DurableLogConfig(convert(rawProperties, DurableLogConfig.COMPONENT_CODE));
     }
 
     /**
      * Creates a new instance of the ReadIndexConfig class with given arguments.
      *
-     * @param minReadSize
-     * @param maxReadSize
-     * @return
+     * @param rawProperties The properties to include.
      */
-    public static ReadIndexConfig createReadIndexConfig(int minReadSize, int maxReadSize) {
-        return createReadIndexConfig(minReadSize, maxReadSize, INFINITE_CACHE_POLICY);
+    public static ReadIndexConfig createReadIndexConfigWithInfiniteCachePolicy(PropertyBag rawProperties) {
+        rawProperties
+                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE)
+                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.MAX_VALUE)
+                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_GENERATION_TIME, Integer.MAX_VALUE);
+
+        return new ReadIndexConfig(convert(rawProperties, ReadIndexConfig.COMPONENT_CODE));
     }
 
     /**
-     * Creates a new instance of the ReadIndexConfig class with given arguments.
+     * Creates a new instance of the WriterConfig class with given arguments.
      *
-     * @param minReadSize
-     * @param maxReadSize
-     * @param cachePolicy
-     * @return
+     * @param rawProperties The properties to include.
      */
-    public static ReadIndexConfig createReadIndexConfig(int minReadSize, int maxReadSize, CachePolicy cachePolicy) {
+    public static WriterConfig createWriterConfig(PropertyBag rawProperties) {
+        return new WriterConfig(convert(rawProperties, WriterConfig.COMPONENT_CODE));
+    }
+
+    private static Properties convert(Properties rawProperties, String componentCode) {
         Properties p = new Properties();
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, Integer.toString(minReadSize));
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, Integer.toString(maxReadSize));
+        for (Map.Entry<Object, Object> e : rawProperties.entrySet()) {
+            ServiceBuilderConfig.set(p, componentCode, e.getKey().toString(), e.getValue().toString());
+        }
 
-        int generationDuration = (int) cachePolicy.getGenerationDuration().toMillis();
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.toString(cachePolicy.getMaxSize()));
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.toString(cachePolicy.getMaxGenerations() * generationDuration));
-        ServiceBuilderConfig.set(p, ReadIndexConfig.COMPONENT_CODE, ReadIndexConfig.PROPERTY_CACHE_POLICY_GENERATION_TIME, Integer.toString(generationDuration));
-
-        return new ReadIndexConfig(p);
+        return p;
     }
 }

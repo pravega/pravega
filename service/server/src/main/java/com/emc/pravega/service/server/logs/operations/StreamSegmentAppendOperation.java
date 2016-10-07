@@ -71,15 +71,6 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     //region StreamSegmentAppendOperation Properties
 
     /**
-     * Gets a value indicating the Offset in the StreamSegment to append at.
-     *
-     * @return The offset.
-     */
-    public long getStreamSegmentOffset() {
-        return this.streamSegmentOffset;
-    }
-
-    /**
      * Sets the Offset in the StreamSegment to append at.
      *
      * @param value The offset.
@@ -112,6 +103,16 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     //region Operation Implementation
 
     @Override
+    public long getStreamSegmentOffset() {
+        return this.streamSegmentOffset;
+    }
+
+    @Override
+    public long getLength() {
+        return this.data.length;
+    }
+
+    @Override
     protected byte getOperationType() {
         return OPERATION_TYPE;
     }
@@ -133,7 +134,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
-        byte version = readVersion(source, CURRENT_VERSION);
+        readVersion(source, CURRENT_VERSION);
         setStreamSegmentId(source.readLong());
         this.streamSegmentOffset = source.readLong();
         long clientIdMostSig = source.readLong();

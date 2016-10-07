@@ -24,8 +24,6 @@ package com.emc.pravega.service.storage;
 public interface DurableDataLogFactory extends AutoCloseable {
     /**
      * Creates a new instance of a DurableDataLog class.
-     *
-     * @return The result.
      */
     DurableDataLog createDurableDataLog(int containerId);
 

@@ -24,6 +24,7 @@ import org.junit.Test;
 import com.emc.pravega.testcommon.AssertExtensions;
 
 import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * Unit tests for SegmentToContainerMapper.
@@ -88,14 +89,14 @@ public class SegmentToContainerMapperTests {
     }
 
     /**
-     * Tests that batches are mapped to the same container as their parents.
+     * Tests that Transactions are mapped to the same container as their parents.
      */
     @Test
-    public void testBatchMapping() {
+    public void testTransactionMapping() {
         int containerCount = 16;
         int streamSegmentNameByteCount = 1;
         int streamSegmentCount = (int) Math.pow(MAX_BYTE, streamSegmentNameByteCount);
-        int batchPerParentCount = 10;
+        int transactionPerParentCount = 10;
 
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
 
@@ -103,10 +104,10 @@ public class SegmentToContainerMapperTests {
         for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
             int containerId = m.getContainerId(segmentName);
-            for (int i = 0; i < batchPerParentCount; i++) {
-                String batchName = StreamSegmentNameUtils.generateBatchStreamSegmentName(segmentName);
-                int batchContainerId = m.getContainerId(batchName);
-                Assert.assertEquals("Parent and batch were not assigned to the same container.", containerId, batchContainerId);
+            for (int i = 0; i < transactionPerParentCount; i++) {
+                String transcationName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                int transactionContainerId = m.getContainerId(transcationName);
+                Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, transactionContainerId);
             }
         }
     }

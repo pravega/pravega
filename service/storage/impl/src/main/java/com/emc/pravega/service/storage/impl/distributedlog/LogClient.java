@@ -63,7 +63,7 @@ class LogClient implements AutoCloseable {
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the clientId is invalid.
      */
-    public LogClient(String clientId, DistributedLogConfig config) {
+    LogClient(String clientId, DistributedLogConfig config) {
         Preconditions.checkNotNull(config, "config");
         Exceptions.checkNotNullOrEmpty(clientId, "clientId");
 
@@ -81,7 +81,7 @@ class LogClient implements AutoCloseable {
 
     @Override
     public void close() {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "close", this.closed);
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "close", this.closed);
         if (!this.closed) {
             ArrayList<LogHandle> handlesToClose;
             synchronized (this.handles) {
@@ -115,14 +115,13 @@ class LogClient implements AutoCloseable {
     /**
      * Initializes the LogClient.
      *
-     * @throws ObjectClosedException   If the LogClient is closed.
      * @throws IllegalStateException   If the LogClient is already initialized.
      * @throws DurableDataLogException If an exception is thrown during initialization. The actual exception thrown may
      *                                 be a derived exception from this one, which provides more information about
      *                                 the failure reason.
      */
     public void initialize() throws DurableDataLogException {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.namespace == null, "LogClient is already initialized.");
 
@@ -161,7 +160,7 @@ class LogClient implements AutoCloseable {
      * the Future will contain the exception that caused the failure. All Log-related exceptions will inherit from the
      * DurableDataLogException class.
      */
-    public LogHandle getLogHandle(String logName) throws DurableDataLogException {
+    LogHandle getLogHandle(String logName) throws DurableDataLogException {
         LogHandle handle;
         boolean newHandle = false;
         synchronized (this.handles) {

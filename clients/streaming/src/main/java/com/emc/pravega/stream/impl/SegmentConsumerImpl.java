@@ -19,7 +19,7 @@ package com.emc.pravega.stream.impl;
 
 import java.nio.ByteBuffer;
 
-import com.emc.pravega.stream.SegmentId;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
@@ -29,11 +29,11 @@ import com.emc.pravega.stream.impl.segment.SegmentInputStream;
  */
 public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
 
-    private final SegmentId segmentId;
+    private final Segment segmentId;
     private final SegmentInputStream in;
     private final Serializer<Type> deserializer;
 
-    SegmentConsumerImpl(SegmentId segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
+    SegmentConsumerImpl(Segment segmentId, SegmentInputStream in, Serializer<Type> deserializer) {
         this.segmentId = segmentId;
         this.in = in;
         this.deserializer = deserializer;
@@ -70,7 +70,7 @@ public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
     }
 
     @Override
-    public SegmentId getSegmentId() {
+    public Segment getSegmentId() {
         return segmentId;
     }
 }

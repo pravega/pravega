@@ -48,6 +48,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long storageLength;
     private long durableLogLength;
     private boolean sealed;
+    private boolean sealedInStorage;
     private boolean deleted;
     private boolean merged;
     private Date lastModified;
@@ -69,7 +70,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Creates a new instance of the StreamSegmentMetadata class for a child (batch) StreamSegment.
+     * Creates a new instance of the StreamSegmentMetadata class for a child (Transaction) StreamSegment.
      *
      * @param streamSegmentName     The name of the StreamSegment.
      * @param streamSegmentId       The Id of the StreamSegment.
@@ -88,6 +89,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.parentStreamSegmentId = parentStreamSegmentId;
         this.containerId = containerId;
         this.sealed = false;
+        this.sealedInStorage = false;
         this.deleted = false;
         this.merged = false;
         this.storageLength = -1;
@@ -150,6 +152,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public boolean isSealedInStorage() {
+        return this.sealedInStorage;
+    }
+
+    @Override
     public long getStorageLength() {
         return this.storageLength;
     }
@@ -171,7 +178,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public String toString() {
-        return String.format("Id = %d, StorageLength = %d, DLOffset = %d, Sealed = %s, Deleted = %s, Name = %s", getId(), getStorageLength(), getDurableLogLength(), isSealed(), isDeleted(), getName());
+        return String.format(
+                "Id = %d, StorageLength = %d, DLOffset = %d, Sealed(DL/S) = %s/%s, Deleted = %s, Name = %s",
+                getId(),
+                getStorageLength(),
+                getDurableLogLength(),
+                isSealed(),
+                isSealedInStorage(),
+                isDeleted(),
+                getName());
     }
 
     //endregion
@@ -203,6 +218,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public void markSealedInStorage() {
+        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
+        log.trace("{}: SealedInStorage = true.", this.traceObjectId);
+        this.sealedInStorage = true;
+    }
+
+    @Override
     public void markDeleted() {
         log.trace("{}: Deleted = true.", this.traceObjectId);
         this.deleted = true;
@@ -210,7 +232,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-batch StreamSegment.");
+        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;
@@ -243,6 +265,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isSealed()) {
             markSealed();
+            if (base.isSealedInStorage()) {
+                markSealedInStorage();
+            }
         }
 
         if (base.isMerged()) {

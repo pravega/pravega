@@ -19,6 +19,8 @@
 package com.emc.pravega.stream.impl.netty;
 
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -27,11 +29,14 @@ import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.Reply;
 import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.WireCommand;
+import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.google.common.base.Preconditions;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.concurrent.ScheduledFuture;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -40,9 +45,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
+
     private final String connectionName;
     private final ReplyProcessor processor;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
+    private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
+    private final AtomicBoolean recentMessage = new AtomicBoolean(false);
 
     ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor) {
         Preconditions.checkNotNull(processor);
@@ -53,12 +61,36 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         super.channelRegistered(ctx);
-        channel.set(ctx.channel());
+        Channel c = ctx.channel();
+        channel.set(c);
+        keepAliveFuture.set(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 2, 1, TimeUnit.SECONDS));
+    }
+    
+    @RequiredArgsConstructor
+    private final class KeepAliveTask implements Runnable {
+        private final ChannelHandlerContext ctx;
+
+        @Override
+        public void run() {
+            try {
+                if (!recentMessage.getAndSet(false)) {
+                    send(new KeepAlive());
+                }
+            } catch (Exception e) {
+                log.warn("Keep alive failed, killing connection "+connectionName);
+                ctx.close();
+            }
+        }
     }
 
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        ScheduledFuture<?> future = keepAliveFuture.get();
+        if (future != null) {
+            future.cancel(false);
+        }
         channel.set(null);
+        processor.connectionDropped();
         super.channelUnregistered(ctx);
     }
 
@@ -76,14 +108,16 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.exceptionCaught(ctx, cause);
         ctx.close();
     }
-    
+
     @Override
     public Future<Void> sendAsync(WireCommand cmd) {
-         return getChannel().writeAndFlush(cmd);
+        recentMessage.set(true);
+        return getChannel().writeAndFlush(cmd);
     }
-    
+
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
+        recentMessage.set(true);
         FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
 

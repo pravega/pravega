@@ -37,7 +37,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     /**
      * Sets the current DurableLog Length for this StreamSegment.
      *
-     * @param value
+     * @param value The new DurableLog length.
      * @throws IllegalArgumentException If the value is invalid.
      */
     void setDurableLogLength(long value);
@@ -46,6 +46,13 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * Marks this StreamSegment as sealed for modifications.
      */
     void markSealed();
+
+    /**
+     * Marks this StreamSegment as sealed in Storage.
+     * This is different from markSealed() in that markSealed() indicates it was sealed in DurableLog, which this indicates
+     * this fact has been persisted in Storage.
+     */
+    void markSealedInStorage();
 
     /**
      * Marks this StreamSegment as deleted.
@@ -66,7 +73,8 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
 
     /**
      * Sets the Last Modified date.
-     * @param date
+     *
+     * @param date The Date to set.
      */
     void setLastModified(Date date);
 

@@ -110,15 +110,15 @@ public class OperationComparer {
             }
         } else if (expected instanceof CachedStreamSegmentAppendOperation) {
             assertSame(message, (CachedStreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation) actual);
-        } else if (expected instanceof MergeBatchOperation) {
-            assertSame(message, (MergeBatchOperation) expected, (MergeBatchOperation) actual);
+        } else if (expected instanceof MergeTransactionOperation) {
+            assertSame(message, (MergeTransactionOperation) expected, (MergeTransactionOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
     }
 
     private void assertSame(String message, StreamSegmentSealOperation expected, StreamSegmentSealOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentLength(), actual.getStreamSegmentLength());
+        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation actual) {
@@ -142,10 +142,10 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected Length.", expected.getLength(), actual.getLength());
     }
 
-    private void assertSame(String message, MergeBatchOperation expected, MergeBatchOperation actual) {
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentId.", expected.getBatchStreamSegmentId(), actual.getBatchStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentLength.", expected.getBatchStreamSegmentLength(), actual.getBatchStreamSegmentLength());
-        Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getTargetStreamSegmentOffset(), actual.getTargetStreamSegmentOffset());
+    private void assertSame(String message, MergeTransactionOperation expected, MergeTransactionOperation actual) {
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getTransactionSegmentId(), actual.getTransactionSegmentId());
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentLength.", expected.getLength(), actual.getLength());
+        Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, MetadataOperation expected, MetadataOperation actual) {
@@ -153,8 +153,8 @@ public class OperationComparer {
             assertSame(message, (MetadataCheckpointOperation) expected, (MetadataCheckpointOperation) actual);
         } else if (expected instanceof StreamSegmentMapOperation) {
             assertSame(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
-        } else if (expected instanceof BatchMapOperation) {
-            assertSame(message, (BatchMapOperation) expected, (BatchMapOperation) actual);
+        } else if (expected instanceof TransactionMapOperation) {
+            assertSame(message, (TransactionMapOperation) expected, (TransactionMapOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
@@ -166,9 +166,9 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
     }
 
-    private void assertSame(String message, BatchMapOperation expected, BatchMapOperation actual) {
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected BatchStreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
+    private void assertSame(String message, TransactionMapOperation expected, TransactionMapOperation actual) {
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(), actual.getParentStreamSegmentId());
     }
 

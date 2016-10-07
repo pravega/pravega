@@ -213,6 +213,7 @@ project('controller:contract') {
     dependencies {
         // https://mvnrepository.com/artifact/org.apache.thrift/libthrift
         compile group: 'org.apache.thrift', name: 'libthrift', version: '0.9.3'
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
     }
 }
 
@@ -229,16 +230,14 @@ project('controller:server') {
     }
 }
 
-if (System.env.TRAVIS == 'true') {
-    allprojects {
-        tasks.withType(GroovyCompile) {
-            groovyOptions.fork = false
-        }
-        tasks.withType(Test) {
-            // containers (currently) have 2 dedicated cores and 4GB of memory
-            maxParallelForks = 2
-            minHeapSize = '128m'
-        }
+allprojects {
+    tasks.withType(GroovyCompile) {
+        groovyOptions.fork = false
+    }
+    tasks.withType(Test) {
+        // containers (currently) have 2 dedicated cores and 4GB of memory
+        maxParallelForks = 2
+        minHeapSize = '128m'
     }
 }
 

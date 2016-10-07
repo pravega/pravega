@@ -172,8 +172,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     /**
      * Gets a value indicating whether this Read Index is merged into another one.
-     *
-     * @return
      */
     public boolean isMerged() {
         return this.merged;
@@ -271,7 +269,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *                                  StreamSegment than the current index's one.
      */
     public void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
@@ -322,7 +320,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param sourceSegmentStreamId The Id of the StreamSegment that was merged into this one.
      */
     public void completeMerge(long sourceSegmentStreamId) {
-        int traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "completeMerge", sourceSegmentStreamId);
+        long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "completeMerge", sourceSegmentStreamId);
         Exceptions.checkNotClosed(this.closed, this);
 
         // Find the appropriate redirect entry.
@@ -572,7 +570,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
-     * @return The result.
      */
     private ReadResultEntryBase createDataNotAvailableRead(long streamSegmentOffset, int maxLength) {
         long storageLength = this.metadata.getStorageLength();
@@ -596,7 +593,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param entry               The CacheReadIndexEntry to use.
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
-     * @return The result.
      */
     private ReadResultEntryBase createMemoryRead(CacheReadIndexEntry entry, long streamSegmentOffset, int maxLength) {
         assert streamSegmentOffset >= entry.getStreamSegmentOffset() : String.format("streamSegmentOffset{%d} < entry.getStreamSegmentOffset{%d}", streamSegmentOffset, entry.getStreamSegmentOffset());
@@ -620,7 +616,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param readLength          The maximum length of the Read, from the Offset of this ReadResultEntry.
-     * @return The result.
      */
     private ReadResultEntryBase createStorageRead(long streamSegmentOffset, int readLength) {
         return new StorageReadResultEntry(streamSegmentOffset, readLength, this::queueStorageRead);
@@ -668,7 +663,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param streamSegmentOffset The Offset in the StreamSegment where to the ReadResultEntry starts at.
      * @param maxLength           The maximum length of the Read, from the Offset of this ReadResultEntry.
-     * @return The result.
      */
     private ReadResultEntryBase createFutureRead(long streamSegmentOffset, int maxLength) {
         FutureReadResultEntry entry = new FutureReadResultEntry(streamSegmentOffset, maxLength);
@@ -681,7 +675,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * entries have their offsets adjusted by the given amount.
      *
      * @param offsetAdjustment The amount to adjust the offset by.
-     * @return The result.
      */
     private List<CacheReadIndexEntry> getAllEntries(long offsetAdjustment) {
         Exceptions.checkArgument(offsetAdjustment >= 0, "offsetAdjustment", "offsetAdjustment must be a non-negative number.");

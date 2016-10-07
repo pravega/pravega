@@ -24,8 +24,6 @@ package com.emc.pravega.service.storage;
 public interface StorageFactory extends AutoCloseable {
     /**
      * Gets a reference to an instance of a Storage class.
-     *
-     * @return
      */
     Storage getStorageAdapter();
 

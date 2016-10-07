@@ -174,8 +174,6 @@ public class TruncateableList<T> {
 
     /**
      * Gets a value indicating the current size of the list.
-     *
-     * @return The result.
      */
     public int size() {
         return this.size;
@@ -186,7 +184,7 @@ public class TruncateableList<T> {
      *
      * @param firstItemTester A predicate that is used toe find the first item.
      * @param count           The maximum number of items to read.
-     * @return An Enumeration of the resulting items. If no results are avaialable for the given parameters, an empty enumeration is returned.
+     * @return An Iterator with the resulting items. If no results are available for the given parameters, an empty iterator is returned.
      */
     public Iterator<T> read(Predicate<T> firstItemTester, int count) {
         ListNode<T> firstNode = getFirstWithCondition(firstItemTester);
