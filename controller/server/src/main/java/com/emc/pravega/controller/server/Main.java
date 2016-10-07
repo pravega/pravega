@@ -22,7 +22,7 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STR
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 
 import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -62,6 +62,6 @@ public class Main {
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore));
     }
 }

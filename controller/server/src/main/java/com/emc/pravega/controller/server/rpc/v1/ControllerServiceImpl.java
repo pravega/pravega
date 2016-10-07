@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
@@ -34,16 +33,12 @@ import org.apache.thrift.TException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -54,7 +49,7 @@ import com.google.common.collect.Multimaps;
 /**
  * Stream controller RPC server implementation
  */
-public class ControllerServiceImpl implements ControllerService.Iface {
+public class ControllerServiceImpl {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
@@ -66,66 +61,7 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         this.connectionFactory = new ConnectionFactoryImpl(false);
     }
 
-    /**
-     * Create the stream metadata in the metadata streamStore.
-     * Start with creation of minimum number of segments.
-     * Asynchronously call createSegment on pravega hosts about segments in the stream
-     */
-    @Override
-    public Status createStream(StreamConfig streamConfig) throws TException {
-        return FutureHelpers.getAndHandleExceptions(createStreamInternal(ModelHelper.encode(streamConfig)), RuntimeException::new);
-    }
-    
-    @Override
-    public Status alterStream(StreamConfig streamConfig) throws TException {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public List<SegmentRange> getCurrentSegments(String scope, String stream) throws TException {
-        return FutureHelpers.getAndHandleExceptions(getCurrentSegmentsInternal(scope, stream), RuntimeException::new);
-    }
-
-    @Override
-    public NodeUri getURI(SegmentId segment) throws TException {
-        return SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore);
-    }
-
-    @Override
-    public List<Position> getPositions(String scope, String stream, long timestamp, int count) throws TException {
-        return FutureHelpers.getAndHandleExceptions(getPositionsInternal(scope, stream, timestamp, count), RuntimeException::new);
-    }
-
-    @Override
-    public List<Position> updatePositions(String scope, String stream, List<Position> positions) throws TException {
-        return FutureHelpers.getAndHandleExceptions(updatePositionsInternal(scope, stream, positions), RuntimeException::new);
-    }
-    
-    @Override
-    public TxId createTransaction(String scope, String stream) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public Status commitTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public Status dropTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public TxStatus checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    private CompletableFuture<Status> createStreamInternal(StreamConfiguration streamConfig) {
+    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         String stream = streamConfig.getName();
 
         return streamStore.createStream(stream, streamConfig)
@@ -146,7 +82,11 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                 });
     }
 
-    private CompletableFuture<List<SegmentRange>> getCurrentSegmentsInternal(String scope, String stream) {
+    public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
+        throw new NotImplementedException();
+    }
+
+    public CompletableFuture<List<SegmentRange>> getCurrentSegments(String scope, String stream) {
         // fetch active segments from segment store
         return streamStore.getActiveSegments(stream)
                 .thenApply(activeSegments -> activeSegments
@@ -161,14 +101,14 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                 );
     }
 
-    private CompletableFuture<List<Position>> getPositionsInternal(String scope, String stream, long timestamp, int count) {
+    public CompletableFuture<List<Position>> getPositions(String scope, String stream, long timestamp, int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
         return streamStore.getActiveSegments(stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
     }
 
-    private CompletableFuture<List<Position>> updatePositionsInternal(String scope, String stream, List<Position> positions) {
+    public CompletableFuture<List<Position>> updatePositions(String scope, String stream, List<Position> positions) {
         // TODO: handle npe with null exception return case
         List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
         // initialize completed segments set from those found in the list of input position objects
@@ -187,6 +127,12 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         return streamStore.getNextSegments(stream, completedSegments, segmentFutures)
                 .thenApply(updatedSegmentFutures ->
                         convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
+    }
+
+    public CompletableFuture<NodeUri> getURI(SegmentId segment) throws TException {
+        return CompletableFuture.completedFuture(
+                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
+        );
     }
 
     private void notifyNewSegment(String scope, String stream, int segmentNumber) {
