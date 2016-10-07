@@ -60,10 +60,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<SegmentFutures> getActiveSegments(String name) {
-        return getStream(name)
+    public CompletableFuture<List<Segment>> getActiveSegments(String name) {
+        Stream stream = getStream(name);
+        return stream
                 .getActiveSegments()
-                .thenApply(currentSegments -> new SegmentFutures(new ArrayList<>(currentSegments), Collections.emptyMap()));
+                .thenCompose(currentSegments -> sequence(currentSegments.stream().map(stream::getSegment).collect(Collectors.toList())));
     }
 
     @Override

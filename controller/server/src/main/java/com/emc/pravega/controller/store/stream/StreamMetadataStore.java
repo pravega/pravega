@@ -65,7 +65,7 @@ public interface StreamMetadataStore {
      * @param name stream name.
      * @return currently active segments
      */
-    CompletableFuture<SegmentFutures> getActiveSegments(String name);
+    CompletableFuture<List<Segment>> getActiveSegments(String name);
 
     /**
      * @param name stream name.

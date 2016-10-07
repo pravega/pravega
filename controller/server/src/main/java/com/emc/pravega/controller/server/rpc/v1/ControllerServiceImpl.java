@@ -51,8 +51,6 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
-
 /**
  * Stream controller RPC server implementation
  */
@@ -135,10 +133,10 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                     if (result) {
                         streamStore.getActiveSegments(stream)
                                 .thenApply(activeSegments -> {
-                                    activeSegments.getCurrent()
+                                    activeSegments
                                             .stream()
                                             .parallel()
-                                            .forEach(i -> notifyNewSegment(streamConfig.getScope(), stream, i));
+                                            .forEach(segment -> notifyNewSegment(streamConfig.getScope(), stream, segment.getNumber()));
                                     return null;
                                 });
                         return Status.SUCCESS;
@@ -151,22 +149,16 @@ public class ControllerServiceImpl implements ControllerService.Iface {
     private CompletableFuture<List<SegmentRange>> getCurrentSegmentsInternal(String scope, String stream) {
         // fetch active segments from segment store
         return streamStore.getActiveSegments(stream)
-                .thenCompose(activeSegments -> {
-                    List<CompletableFuture<SegmentRange>> segments =
-                            activeSegments.getCurrent()
-                                    .stream()
-                                    .map(number ->
-                                                    streamStore.getSegment(stream, number)
-                                                            .thenApply(segment ->
-                                                                            new SegmentRange(
-                                                                                    new SegmentId(scope, stream, number),
-                                                                                    segment.getKeyStart(),
-                                                                                    segment.getKeyEnd())
-                                                            )
-                                    )
-                                    .collect(Collectors.toList());
-                    return sequence(segments);
-                });
+                .thenApply(activeSegments -> activeSegments
+                                .stream()
+                                .map(segment ->
+                                                new SegmentRange(
+                                                        new SegmentId(scope, stream, segment.getNumber()),
+                                                        segment.getKeyStart(),
+                                                        segment.getKeyEnd())
+                                )
+                                .collect(Collectors.toList())
+                );
     }
 
     private CompletableFuture<List<Position>> getPositionsInternal(String scope, String stream, long timestamp, int count) {
