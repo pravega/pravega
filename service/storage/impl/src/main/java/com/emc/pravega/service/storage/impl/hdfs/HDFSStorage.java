@@ -90,11 +90,11 @@ public class HDFSStorage implements Storage {
     }
 
     private SegmentProperties createSync(String streamSegmentName, Duration timeout) throws IOException {
-        if (!getFS().exists(new Path(getFullStreamSegmentPath(streamSegmentName))) &&
-                !getFS().exists(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)))) {
+        if (!getFS().exists(getFullStreamSegmentPath(streamSegmentName)) &&
+                !getFS().exists(getOwnedFullStreamSegmentPath(streamSegmentName))) {
 
             //Create owned path
-            getFS().create(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)),
+            getFS().create(getOwnedFullStreamSegmentPath(streamSegmentName),
                     new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                     false,
                     0,
@@ -105,26 +105,44 @@ public class HDFSStorage implements Storage {
         } else throw new IOException("Segment already exists");
     }
 
-    private String getFullStreamSegmentPath(String streamSegmentName) {
-        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
+    private Path getFullStreamSegmentPath(String streamSegmentName) {
+        return new Path(serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName);
     }
 
-    private String getOwnedFullStreamSegmentPath(String streamSegmentName) {
-        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + serviceBuilderConfig.getPravegaID();
+    private Path getOwnedFullStreamSegmentPath(String streamSegmentName) {
+        return new Path(serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + serviceBuilderConfig.getPravegaID());
+    }
+
+    private Path getOwnedFullStreamSegmentWildCard(String streamSegmentName) throws IOException {
+        FileStatus[] statuses = getFS().globStatus(new Path(serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + "[0-9]*"));
+        for (FileStatus status : statuses) {
+            return status.getPath();
+        }
+        throw new IOException("Path not found");
     }
 
 
     @Override
     public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
 
-        return CompletableFuture.supplyAsync(() -> acquireLockForSegmentSync(streamSegmentName),
+        CompletableFuture<Boolean> retVal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+                    try {
+                        retVal.complete(acquireLockForSegmentSync(streamSegmentName));
+                    } catch (IOException e) {
+                        retVal.completeExceptionally(e);
+                    }
+                },
                 executor);
+        return retVal;
     }
 
-    private Boolean acquireLockForSegmentSync(String streamSegmentName) {
-       // getFS().rename()
-        return false;
+    private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException {
+        return getFS().rename(this.getOwnedFullStreamSegmentWildCard(streamSegmentName),
+                this.getOwnedFullStreamSegmentPath(streamSegmentName));
     }
+
+
 
     @Override
     public CompletableFuture<Boolean> releaseLockForSegment(String streamSegmentName) {
@@ -140,7 +158,8 @@ public class HDFSStorage implements Storage {
     }
 
     private Boolean releaseLockForSegmentSync(String streamSegmentName) throws IOException {
-        getFS().rename(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)), new Path(getFullStreamSegmentPath(streamSegmentName)));
+        getFS().rename(getOwnedFullStreamSegmentPath(streamSegmentName),
+                getFullStreamSegmentPath(streamSegmentName));
         return null;
     }
 
@@ -160,7 +179,7 @@ public class HDFSStorage implements Storage {
 
     private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout) throws IOException {
         //TODO: Write the ownership check and change logic
-        FSDataOutputStream stream = fs.append(new Path(getOwnedFullStreamSegmentPath(streamSegmentName)));
+        FSDataOutputStream stream = fs.append(getOwnedFullStreamSegmentPath(streamSegmentName));
         if (stream.getPos() != offset) {
             throw new IOException("Offset in the stream already has some data");
         }
@@ -186,7 +205,7 @@ public class HDFSStorage implements Storage {
 
     private SegmentProperties sealSync(String streamSegmentName, Duration timeout) throws IOException {
         getFS().setPermission(
-                new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)),
+                this.getOwnedFullStreamSegmentPath(streamSegmentName),
                 new FsPermission(FsAction.READ,
                         FsAction.NONE,
                         FsAction.NONE
@@ -209,10 +228,10 @@ public class HDFSStorage implements Storage {
     }
 
     private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
-        getFS().concat(new Path(getOwnedFullStreamSegmentPath(targetStreamSegmentName)),
+        getFS().concat(getOwnedFullStreamSegmentPath(targetStreamSegmentName),
                 new Path[]{
-                        new Path(getOwnedFullStreamSegmentPath(targetStreamSegmentName)),
-                        new Path(getOwnedFullStreamSegmentPath(sourceStreamSegmentName))
+                        getOwnedFullStreamSegmentPath(targetStreamSegmentName),
+                        getOwnedFullStreamSegmentPath(sourceStreamSegmentName)
                 });
         return null;
     }
@@ -231,7 +250,7 @@ public class HDFSStorage implements Storage {
     }
 
     private Void deleteSync(String streamSegmentName, Duration timeout) throws IOException {
-        getFS().delete(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)), false);
+        getFS().delete(this.getOwnedFullStreamSegmentPath(streamSegmentName), false);
         return null;
     }
 
@@ -260,7 +279,7 @@ public class HDFSStorage implements Storage {
     }
 
     private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
-        FSDataInputStream stream = getFS().open(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)));
+        FSDataInputStream stream = getFS().open(this.getOwnedFullStreamSegmentPath(streamSegmentName));
         return stream.read(offset, buffer, bufferOffset, length);
     }
 
@@ -294,15 +313,15 @@ public class HDFSStorage implements Storage {
     }
 
     private Boolean existsSync(String streamSegmentName, Duration timeout) throws IOException {
-        return getFS().exists(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)));
+        return getFS().exists(this.getOwnedFullStreamSegmentPath(streamSegmentName));
     }
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
         FileStatus status;
         try {
-            status = fs.getFileStatus(new Path(this.getFullStreamSegmentPath(streamSegmentName)));
+            status = fs.getFileStatus(this.getFullStreamSegmentPath(streamSegmentName));
         } catch (FileNotFoundException e) {
-            status = fs.getFileStatus(new Path(this.getOwnedFullStreamSegmentPath(streamSegmentName)));
+            status = fs.getFileStatus(this.getOwnedFullStreamSegmentPath(streamSegmentName));
         }
         return convertFromStatusToProperties(status, streamSegmentName);
     }
