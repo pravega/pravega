@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.store;
 
+import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
@@ -45,9 +46,11 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -70,11 +73,11 @@ public final class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<MetadataRepository> metadataRepository;
     private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
-    private Supplier<DurableDataLogFactory> dataLogFactoryCreator;
-    private Supplier<StorageFactory> storageFactoryCreator;
-    private Supplier<MetadataRepository> metadataRepositoryCreator;
-    private Supplier<SegmentContainerManager> segmentContainerManagerCreator;
-    private Supplier<CacheFactory> cacheFactoryCreator;
+    private Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator;
+    private Function<ComponentSetup, StorageFactory> storageFactoryCreator;
+    private Function<ComponentSetup, MetadataRepository> metadataRepositoryCreator;
+    private Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator;
+    private Function<ComponentSetup, CacheFactory> cacheFactoryCreator;
 
     //endregion
 
@@ -83,7 +86,7 @@ public final class ServiceBuilder implements AutoCloseable {
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
         this.serviceBuilderConfig = serviceBuilderConfig;
-        ServiceConfig serviceConfig = this.serviceBuilderConfig.getServiceConfig();
+        ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::new);
         this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
         this.executorService = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize());
         this.operationLogFactory = new AtomicReference<>();
@@ -98,11 +101,11 @@ public final class ServiceBuilder implements AutoCloseable {
         this.writerFactory = new AtomicReference<>();
 
         // Setup default creators - we cannot use the ServiceBuilder unless all of these are setup.
-        this.dataLogFactoryCreator = notImplementedCreator(DurableDataLogFactory.class);
-        this.storageFactoryCreator = notImplementedCreator(StorageFactory.class);
-        this.metadataRepositoryCreator = notImplementedCreator(MetadataRepository.class);
-        this.segmentContainerManagerCreator = notImplementedCreator(SegmentContainerManager.class);
-        this.cacheFactoryCreator = notImplementedCreator(CacheFactory.class);
+        this.dataLogFactoryCreator = notConfiguredCreator(DurableDataLogFactory.class);
+        this.storageFactoryCreator = notConfiguredCreator(StorageFactory.class);
+        this.metadataRepositoryCreator = notConfiguredCreator(MetadataRepository.class);
+        this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
+        this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
     }
 
     //endregion
@@ -126,65 +129,65 @@ public final class ServiceBuilder implements AutoCloseable {
     //region Configuration
 
     /**
-     * Attaches the given DurableDataLogFactory creator to this ServiceBuilder. The given Supplier will only not be invoked
+     * Attaches the given DurableDataLogFactory creator to this ServiceBuilder. The given Function will only not be invoked
      * right away; it will be called when needed.
      *
-     * @param dataLogFactoryCreator The Supplier to attach.
+     * @param dataLogFactoryCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withDataLogFactory(Supplier<DurableDataLogFactory> dataLogFactoryCreator) {
+    public ServiceBuilder withDataLogFactory(Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator) {
         Preconditions.checkNotNull(dataLogFactoryCreator, "dataLogFactoryCreator");
         this.dataLogFactoryCreator = dataLogFactoryCreator;
         return this;
     }
 
     /**
-     * Attaches the given StorageFactory creator to this ServiceBuilder. The given Supplier will only not be invoked
+     * Attaches the given StorageFactory creator to this ServiceBuilder. The given Function will only not be invoked
      * right away; it will be called when needed.
      *
-     * @param storageFactoryCreator The Supplier to attach.
+     * @param storageFactoryCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withStorageFactory(Supplier<StorageFactory> storageFactoryCreator) {
+    public ServiceBuilder withStorageFactory(Function<ComponentSetup, StorageFactory> storageFactoryCreator) {
         Preconditions.checkNotNull(storageFactoryCreator, "storageFactoryCreator");
         this.storageFactoryCreator = storageFactoryCreator;
         return this;
     }
 
     /**
-     * Attaches the given MetadataRepository creator to this ServiceBuilder. The given Supplier will only not be invoked
+     * Attaches the given MetadataRepository creator to this ServiceBuilder. The given Function will only not be invoked
      * right away; it will be called when needed.
      *
-     * @param metadataRepositoryCreator The Supplier to attach.
+     * @param metadataRepositoryCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withMetadataRepository(Supplier<MetadataRepository> metadataRepositoryCreator) {
+    public ServiceBuilder withMetadataRepository(Function<ComponentSetup, MetadataRepository> metadataRepositoryCreator) {
         Preconditions.checkNotNull(metadataRepositoryCreator, "metadataRepositoryCreator");
         this.metadataRepositoryCreator = metadataRepositoryCreator;
         return this;
     }
 
     /**
-     * Attaches the given SegmentContainerManager creator to this ServiceBuilder. The given Supplier will only not be invoked
+     * Attaches the given SegmentContainerManager creator to this ServiceBuilder. The given Function will only not be invoked
      * right away; it will be called when needed.
      *
-     * @param segmentContainerManagerCreator The Supplier to attach.
+     * @param segmentContainerManagerCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withContainerManager(Supplier<SegmentContainerManager> segmentContainerManagerCreator) {
+    public ServiceBuilder withContainerManager(Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator) {
         Preconditions.checkNotNull(segmentContainerManagerCreator, "segmentContainerManagerCreator");
         this.segmentContainerManagerCreator = segmentContainerManagerCreator;
         return this;
     }
 
     /**
-     * Attaches the given CacheFactory creator to this ServiceBuilder. The given Supplier will only not be invoked
+     * Attaches the given CacheFactory creator to this ServiceBuilder. The given Function will only not be invoked
      * right away; it will be called when needed.
      *
-     * @param cacheFactoryCreator The Supplier to attach.
+     * @param cacheFactoryCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withCacheFactory(Supplier<CacheFactory> cacheFactoryCreator) {
+    public ServiceBuilder withCacheFactory(Function<ComponentSetup, CacheFactory> cacheFactoryCreator) {
         Preconditions.checkNotNull(cacheFactoryCreator, "cacheFactoryCreator");
         this.cacheFactoryCreator = cacheFactoryCreator;
         return this;
@@ -215,31 +218,19 @@ public final class ServiceBuilder implements AutoCloseable {
         return getSingleton(this.containerRegistry, this::createSegmentContainerRegistry);
     }
 
-    public SegmentToContainerMapper getSegmentToContainerMapper() {
-        return this.segmentToContainerMapper;
-    }
-
-    public ScheduledExecutorService getExecutorService() {
-        return this.executorService;
-    }
-
-    public ServiceBuilderConfig getConfig() {
-        return this.serviceBuilderConfig;
-    }
-
     //endregion
 
     //region Component Builders
 
     private WriterFactory createWriterFactory() {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
-        WriterConfig writerConfig = this.serviceBuilderConfig.getWriterConfig();
+        WriterConfig writerConfig = this.serviceBuilderConfig.getConfig(WriterConfig::new);
         return new StorageWriterFactory(writerConfig, storageFactory, this.executorService);
     }
 
     private ReadIndexFactory createReadIndexFactory() {
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
-        ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getReadIndexConfig();
+        ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::new);
         return new ContainerReadIndexFactory(readIndexConfig, storageFactory, this.executorService);
     }
 
@@ -260,8 +251,16 @@ public final class ServiceBuilder implements AutoCloseable {
 
     private OperationLogFactory createOperationLogFactory() {
         DurableDataLogFactory dataLogFactory = getSingleton(this.dataLogFactory, this.dataLogFactoryCreator);
-        DurableLogConfig durableLogConfig = this.serviceBuilderConfig.getDurableLogConfig();
+        DurableLogConfig durableLogConfig = this.serviceBuilderConfig.getConfig(DurableLogConfig::new);
         return new DurableLogFactory(durableLogConfig, dataLogFactory, this.executorService);
+    }
+
+    private <T> T getSingleton(AtomicReference<T> instance, Function<ComponentSetup, T> creator) {
+        if (instance.get() == null) {
+            instance.set(creator.apply(new ComponentSetup(this)));
+        }
+
+        return instance.get();
     }
 
     private <T> T getSingleton(AtomicReference<T> instance, Supplier<T> creator) {
@@ -276,14 +275,14 @@ public final class ServiceBuilder implements AutoCloseable {
 
     //region Helpers
 
-    private static <T> Supplier<T> notImplementedCreator(Class c) {
-        return () -> {
+    private static <T> Function<ComponentSetup, T> notConfiguredCreator(Class c) {
+        return ignored -> {
             throw new IllegalStateException("ServiceBuilder not properly configured. Missing supplier for: " + c.getName());
         };
     }
 
-    private static <V extends AutoCloseable> void closeComponent(AtomicReference<V> target) {
-        V t = target.get();
+    private static <T extends AutoCloseable> void closeComponent(AtomicReference<T> target) {
+        T t = target.get();
         if (t != null) {
             try {
                 t.close();
@@ -308,12 +307,53 @@ public final class ServiceBuilder implements AutoCloseable {
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig config) {
         ServiceBuilder serviceBuilder = new ServiceBuilder(config);
         return serviceBuilder
-                .withCacheFactory(InMemoryCacheFactory::new)
-                .withContainerManager(() -> new LocalSegmentContainerManager(serviceBuilder.getSegmentContainerRegistry(), serviceBuilder.getSegmentToContainerMapper()))
-                .withMetadataRepository(InMemoryMetadataRepository::new)
-                .withStorageFactory(() -> new InMemoryStorageFactory(serviceBuilder.getExecutorService()))
-                .withDataLogFactory(InMemoryDurableDataLogFactory::new);
+                .withCacheFactory(setup -> new InMemoryCacheFactory())
+                .withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
+                .withMetadataRepository(setup -> new InMemoryMetadataRepository())
+                .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
+                .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory());
     }
 
     //endregion
+
+    /**
+     * Setup helper for a ServiceBuilder component.
+     */
+    public static class ComponentSetup {
+        private final ServiceBuilder builder;
+
+        private ComponentSetup(ServiceBuilder builder) {
+            this.builder = builder;
+        }
+
+        /**
+         * Gets the ComponentConfig with specified constructor from the ServiceBuilder's config.
+         *
+         * @param constructor The ComponentConfig constructor.
+         */
+        public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
+            return this.builder.serviceBuilderConfig.getConfig(constructor);
+        }
+
+        /**
+         * Gets a pointer to the SegmentContainerRegistry for this ServiceBuilder.
+         */
+        public SegmentContainerRegistry getContainerRegistry() {
+            return this.builder.getSegmentContainerRegistry();
+        }
+
+        /**
+         * Gets a pointer to the SegmentToContainerMapper for this ServiceBuilder.
+         */
+        public SegmentToContainerMapper getSegmentToContainerMapper() {
+            return this.builder.segmentToContainerMapper;
+        }
+
+        /**
+         * Gets a pointer to the Executor Service for this ServiceBuilder.
+         */
+        public ScheduledExecutorService getExecutor() {
+            return this.builder.executorService;
+        }
+    }
 }

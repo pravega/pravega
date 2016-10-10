@@ -25,6 +25,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
 import org.slf4j.LoggerFactory;
@@ -68,7 +69,7 @@ public final class ServiceStarter {
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
@@ -112,9 +113,9 @@ public final class ServiceStarter {
      * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
      */
     static ServiceBuilder attachDistributedLog(ServiceBuilder builder) {
-        return builder.withDataLogFactory(() -> {
+        return builder.withDataLogFactory(setup -> {
             try {
-                DistributedLogConfig dlConfig = builder.getConfig().getConfig(DistributedLogConfig::new);
+                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
                 DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
                 factory.initialize();
                 return factory;
