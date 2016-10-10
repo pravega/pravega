@@ -15,26 +15,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.controller.store.stream.tables;
 
-import java.io.Serializable;
+import lombok.Data;
 
+import java.util.AbstractMap;
+import java.util.List;
+
+@Data
 /**
- * The configuration of a Stream 
+ * Task subclass to define scaling operations
+ * This is serialized and stored in the persistent store
+ * and used to resume partially completed scale operation
  */
-public interface StreamConfiguration extends Serializable {
-    
-    /**
-     * @return The scope of the stream
-     */
-    String getScope();
-    /**
-     * @return The name of the stream
-     */
-    String getName();
+public class Scale implements Task<Scale> {
+    private final List<Integer> sealedSegments;
+    private final List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+    private final long scaleTimestamp;
 
-    /**
-     * @return The stream's scaling policy
-     */
-    ScalingPolicy getScalingingPolicy();
+    @Override
+    public Class<Scale> getType() {
+        return Scale.class;
+    }
+
+    @Override
+    public Create asCreate() {
+        return null;
+    }
+
+    @Override
+    public Scale asScale() {
+        return this;
+    }
 }

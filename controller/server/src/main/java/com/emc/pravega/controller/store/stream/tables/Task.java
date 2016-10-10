@@ -15,26 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.controller.store.stream.tables;
 
 import java.io.Serializable;
 
 /**
- * The configuration of a Stream 
+ * Base class for tasks
+ * @param <T>
  */
-public interface StreamConfiguration extends Serializable {
-    
-    /**
-     * @return The scope of the stream
-     */
-    String getScope();
-    /**
-     * @return The name of the stream
-     */
-    String getName();
+public interface Task<T extends Task> extends Serializable {
+    Class<T> getType();
 
-    /**
-     * @return The stream's scaling policy
-     */
-    ScalingPolicy getScalingingPolicy();
+    Create asCreate();
+
+    Scale asScale();
 }
+
+

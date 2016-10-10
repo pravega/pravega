@@ -18,34 +18,48 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
+
+import java.util.concurrent.TimeUnit;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
  * ZK stream metadata store
  */
-public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
-    private final StoreConfiguration storeConfiguration;
+
+    private final LoadingCache<String, ZKStream> zkStreams;
 
     public ZKStreamMetadataStore(StoreConfiguration storeConfiguration) {
-        this.storeConfiguration = storeConfiguration;
+        zkStreams = CacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .removalListener(new RemovalListener<String, ZKStream>() {
+                    public void onRemoval(RemovalNotification<String, ZKStream> removal) {
+                        removal.getValue().tearDown();
+                    }
+                })
+                .build(
+                        new CacheLoader<String, ZKStream>() {
+                            public ZKStream load(String key) {
+                                return new ZKStream(key, storeConfiguration.getConnectionString());
+                            }
+                        });
     }
 
     @Override
-    public ZKStream getStream(String name) {
-        // Return a new stream object each time.
-        // This object may not have real metadata wrapped. It may pull it on a need basis from ZK store.
-        // This object should not be cached in this store, for the following reasons.
-        // (1) controller is stateless,
-        // (2) other controller instances may modify stream metadata, thus rendering this cache stale, specifically,
-        // get currently active segments may return stale value.
-        return new ZKStream(name);
+    ZKStream getStream(String name) {
+        return zkStreams.getUnchecked(name);
     }
 
     @Override
     public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration) {
-        // We do not cache the created stream
-        return new ZKStream(name).create(configuration);
+        return CompletableFuture.supplyAsync(() -> zkStreams.getUnchecked(name)).thenCompose(x -> x.create(configuration));
     }
 }
