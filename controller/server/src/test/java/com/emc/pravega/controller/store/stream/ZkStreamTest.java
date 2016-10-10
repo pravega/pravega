@@ -65,7 +65,7 @@ public class ZkStreamTest {
 
         List<Segment> segments = store.getActiveSegments(streamName).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0, 1, 2, 3, 4).contains(x.getNumber())));
 
         assertEquals(store.getConfiguration(streamName).get(), streamConfig);
 
@@ -82,7 +82,7 @@ public class ZkStreamTest {
 
         segments = store.getActiveSegments(streamName).get();
         assertEquals(segments.size(), 5);
-        assertTrue(segments.containsAll(Lists.newArrayList(2, 4, 5, 6, 7)));
+        assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(2, 4, 5, 6, 7).contains(x.getNumber())));
 
         SegmentFutures segmentFutures = store.getActiveSegments(streamName, timestamp - 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
