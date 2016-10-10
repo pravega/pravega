@@ -27,25 +27,18 @@ import java.util.concurrent.CompletableFuture;
  * Collection of transaction related batch operations on stream.
  */
 public class StreamTransactionTasks extends TaskBase {
-    @Task(name = "createTransaction",
-            returnType = String.class,
-            parametersTypes = {String.class, String.class})
+    @Task(name = "createTransaction")
     public CompletableFuture<String> createTx(String scope, String stream) {
         throw new NotImplementedException();
     }
 
-    @Task(name = "dropTransaction",
-            returnType = Boolean.class,
-            parametersTypes = {String.class, String.class, String.class})
+    @Task(name = "dropTransaction")
     public CompletableFuture<Boolean> dropTx(String scope, String stream, String txId) {
         throw new NotImplementedException();
     }
 
-    @Task(name = "commitTransaction",
-            returnType = Boolean.class,
-            parametersTypes = {String.class, String.class, String.class})
+    @Task(name = "commitTransaction")
     public CompletableFuture<Boolean> commitTx(String scope, String stream, String txId) {
         throw new NotImplementedException();
     }
-
 }

@@ -41,7 +41,7 @@ import java.lang.annotation.Target;
  *
  * Object method (Object... params) {
  *   try {
- *     CompletableFuture<Boolean> lock = this.lock(path);
+ *     CompletableFuture<Boolean> lock = this.lock();
  *     if (lock.get()) {
  *       body
  *     } else {
@@ -58,8 +58,4 @@ import java.lang.annotation.Target;
 public @interface Task {
 
     public String name();
-
-    public Class returnType();
-
-    public Class[] parametersTypes();
 }

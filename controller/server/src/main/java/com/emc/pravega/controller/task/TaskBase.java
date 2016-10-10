@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.controller.LockFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import org.apache.curator.framework.CuratorFramework;
@@ -31,11 +32,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class TaskBase {
 
+    private interface FutureOperation {
+        CompletableFuture<Object> apply(Object... parameters);
+    }
+
+    private static final long LOCK_WAIT_TIME = 2;
     private StreamMetadataStore streamMetadataStore;
     private HostControllerStore hostControllerStore;
     private String streamName;
     private CuratorFramework client;
-    private static final long lockWaitTime = 10;
 
     public void initialize(StreamMetadataStore streamMetadataStore,
                            HostControllerStore hostControllerStore,
@@ -48,10 +53,10 @@ public class TaskBase {
     }
 
     public CompletableFuture<Boolean> lock() {
-        String path = String.format(Paths.streamLocks, streamName);
+        String path = String.format(Paths.STREAM_LOCKS, streamName);
         InterProcessMutex mutex = new InterProcessMutex(client, path);
         try {
-            boolean success = mutex.acquire(lockWaitTime, TimeUnit.SECONDS);
+            boolean success = mutex.acquire(LOCK_WAIT_TIME, TimeUnit.SECONDS);
             return CompletableFuture.completedFuture(success);
         } catch (Exception ex) {
             // log exception
@@ -60,12 +65,40 @@ public class TaskBase {
     }
 
     public void unlock() {
-        String path = String.format(Paths.streamLocks, streamName);
+        String path = String.format(Paths.STREAM_LOCKS, streamName);
         InterProcessMutex mutex = new InterProcessMutex(client, path);
         try {
             mutex.release();
         } catch (Exception e) {
             // log exception
+        }
+    }
+
+    /**
+     * Wrapper method that initially obtains lock, then executes the passed method, and finally releases the lock
+     * @param operation operation to execute
+     * @return returns the value returned by operation, if lock is obtained successfully
+     */
+    public Object wrapper(FutureOperation operation) {
+        try {
+            CompletableFuture<Boolean> lock = this.lock();
+            return lock.thenCompose(
+                    success -> {
+                        if (success) {
+                            // todo
+                            // 1. persist taks data
+                            // 2. persist host's tasks index
+                            CompletableFuture<Object> o = operation.apply();
+                            // 1. remove task data
+                            // 2, remove host's task index
+                            return o;
+                        } else {
+                            throw new LockFailedException(streamName);
+                        }
+                    }
+            );
+        } finally {
+            unlock();
         }
     }
 }

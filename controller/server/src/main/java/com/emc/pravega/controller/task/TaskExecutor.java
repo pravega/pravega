@@ -19,11 +19,9 @@ package com.emc.pravega.controller.task;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.reflections.Reflections;
-import org.reflections.scanners.MethodAnnotationsScanner;
-import org.reflections.util.ClasspathHelper;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -46,34 +44,30 @@ public class TaskExecutor {
     }
 
     public Object execute(String stream, TaskData taskData) throws MalformedURLException, IllegalAccessException,
-            InstantiationException, InvocationTargetException {
+            InstantiationException, InvocationTargetException, ClassNotFoundException {
         return this.searchAndExecuteMethod(stream, taskData);
     }
 
     private Object searchAndExecuteMethod(String stream, TaskData taskData) throws MalformedURLException,
-            IllegalAccessException,
-            InstantiationException,
-            InvocationTargetException {
+            IllegalAccessException, InstantiationException, InvocationTargetException, ClassNotFoundException {
 
-        log.debug("Searching {}", taskData.getTaskName());
-        Reflections reflections = new Reflections(ClasspathHelper.forPackage(defaultPackage), new MethodAnnotationsScanner());
-
-        for (Method method : reflections.getMethodsAnnotatedWith(Task.class)) {
-            if (method.getAnnotation(Task.class).name().equals(taskData.getTaskName())) {
-                Class aClass = method.getDeclaringClass();
-                log.debug("Declaring class name={}", aClass.getName());
-                Object o = method.getDeclaringClass().newInstance();
-                if (o instanceof TaskBase) {
-                    log.debug("Initialising TaskBase");
-                    ((TaskBase) o).initialize(streamMetadataStore, hostControllerStore, stream, client);
+        log.debug("Trying to execute {}", taskData.getClassName() + ":" + taskData.getMethodName());
+        Class claz = Class.forName(taskData.getClassName());
+        if (claz != null) {
+            for (Method method : claz.getDeclaredMethods()) {
+                if (method.getName().equals(taskData.getMethodName())) {
+                    Object o = claz.newInstance();
+                    if (o instanceof TaskBase) {
+                        StreamMetadataTasks t = new StreamMetadataTasks();
+                        log.debug("Initialising TaskBase");
+                        ((TaskBase) o).initialize(streamMetadataStore, hostControllerStore, stream, client);
+                    }
+                    log.debug("Invoking method={}", method.getName());
+                    Object returnValue = method.invoke(o, taskData.getParameters());
+                    return returnValue;
                 }
-                log.debug("Invoking method={}", method.getName());
-                Object returnValue = method.invoke(o, taskData.getParameters());
-                return returnValue;
             }
         }
-        throw new RuntimeException(String.format("Task %s not found", taskData.getTaskName()));
+        throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
     }
-
-    private final String defaultPackage = "com.emc.pravega.controller.task";
 }

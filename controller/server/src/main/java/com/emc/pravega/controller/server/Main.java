@@ -36,7 +36,6 @@ import com.emc.pravega.controller.task.TaskSweeper;
 import com.google.common.collect.Sets;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 
 /**
  * Entry point of controller server.

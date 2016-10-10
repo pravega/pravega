@@ -15,20 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.task;
+package com.emc.pravega.controller;
 
 /**
- * Static list of path prefixes
+ * Lock failed exception
  */
-public class Paths {
+public class LockFailedException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Failed locking stream %s.";
 
-    // Task data per stream. A stream can have at most one task under execution at any given point of time.
-    public static final String STREAM_TASKS = "/tasks/streams/%s/";
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     */
+    public LockFailedException(String name) {
+        super(String.format(FORMAT_STRING, name));
+    }
 
-    // Locks held by hosts on streams
-    public static final String STREAM_LOCKS = "/locks/streams/%s/";
-
-    // List of tasks being executed by a host.
-    // This list is kind of an index for quick access to tasks being executed by a failed host.
-    public static final String HOST_TASKS = "/hosts/%s";
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     * @param cause   error cause
+     */
+    public LockFailedException(String name, Throwable cause) {
+        super(String.format(FORMAT_STRING, name), cause);
+    }
 }

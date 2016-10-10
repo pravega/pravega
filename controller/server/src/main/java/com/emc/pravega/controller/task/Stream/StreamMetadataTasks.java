@@ -54,21 +54,17 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scaleTimestamp
      * @return
      */
-    @Task(name = "scaleStream",
-            returnType = List.class,
-            parametersTypes = {String.class, String.class, List.class, List.class, Long.class})
+    @Task(name = "scaleStream")
     public CompletableFuture<List<Segment>> scale(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         throw new NotImplementedException();
     }
 
-    @Task(name = "createStream",
-            returnType = Boolean.class,
-            parametersTypes = {String.class, String.class, StreamConfiguration.class})
+    @Task(name = "createStream")
     public CompletableFuture<Boolean> createStream(String scope, String stream, StreamConfiguration config) {
         throw new NotImplementedException();
     }
 
-    @Task(name = "updateConfig", returnType = Boolean.class, parametersTypes = {String.class, String.class, StreamConfiguration.class})
+    @Task(name = "updateConfig")
     public CompletableFuture<Boolean> updateStreamConfig(String scope, String stream, StreamConfiguration config) {
         throw new NotImplementedException();
     }

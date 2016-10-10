@@ -33,7 +33,8 @@ import java.util.List;
  */
 @Data
 public class TaskData {
-    private String taskName;
+    private String className;
+    private String methodName;
     private List<Object> parameters;
 
     public byte[] serialize() {
@@ -44,7 +45,7 @@ public class TaskData {
             out.writeObject(this);
             out.flush();
             return bos.toByteArray();
-        } catch (IOException ioe){
+        } catch (IOException ioe) {
             // log exception
         } finally {
             try {
@@ -62,7 +63,7 @@ public class TaskData {
         try {
             in = new ObjectInputStream(bis);
             Object o = in.readObject();
-            return (TaskData)o;
+            return (TaskData) o;
         } catch  (IOException | ClassNotFoundException ex) {
             // log exception
         } finally {

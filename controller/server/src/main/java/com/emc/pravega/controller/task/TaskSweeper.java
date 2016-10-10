@@ -45,10 +45,10 @@ public class TaskSweeper {
      */
     public void sweepOrphanedTasks(String failedHost) {
         try {
-            List<String> children = client.getChildren().forPath(String.format(Paths.hostTasks, failedHost));
+            List<String> children = client.getChildren().forPath(String.format(Paths.HOST_TASKS, failedHost));
             for (String streamName: children) {
                 // find the task details for this stream's update operation
-                byte[] data = client.getData().forPath(String.format(Paths.streamTasks, streamName));
+                byte[] data = client.getData().forPath(String.format(Paths.STREAM_TASKS, streamName));
                 if (data == null || data.length == 0) {
                     // this task is already cleaned up, nothing to do, ignore
                     continue;
