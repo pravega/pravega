@@ -52,7 +52,7 @@ import java.util.stream.IntStream;
  * ZK Stream. It understands the following.
  * 1. underlying file organization/object structure of stream metadata store.
  * 2. how to evaluate basic read and update queries defined in the Stream interface.
- *
+ * 
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
@@ -66,13 +66,6 @@ class ZKStream implements Stream {
 
     private final CuratorFramework client;
 
-    /**
-     * Ideally we should use curator's nodecache for caching all the data from the store so that we dont have
-     * to fetch it unnecessarily every time. However, during tests we noticed that it was slow to notice updates
-     * and fetch latest data. Which leads to working with either stale data or nulls. There should be some technique
-     * to fix it. Keeping them here to make sure we eventually start using them once we figure out the right way to use
-     * them.
-     */
     private final NodeCache configurationCache;
     private final PathChildrenCache segmentCache;
     private final NodeCache indexCache;
@@ -120,9 +113,9 @@ class ZKStream implements Stream {
     /***
      * Creates a new stream record in the stream store.
      * Create a new task of type Create.
-     *      If create task already exists, use that and bring it to completion
-     *      If no task exists, fall through all create steps. They are all idempotent
-     *
+     * If create task already exists, use that and bring it to completion
+     * If no task exists, fall through all create steps. They are all idempotent
+     * <p>
      * Create Steps:
      * 0. Take distributed mutex
      * 1. Create task/Fetch existing task
@@ -235,6 +228,7 @@ class ZKStream implements Stream {
 
     /**
      * Update configuration in zk at configurationPath
+     *
      * @param configuration new stream configuration.
      * @return
      */
@@ -247,6 +241,7 @@ class ZKStream implements Stream {
 
     /**
      * Fetch configuration from zk at configurationPath
+     *
      * @return
      */
     @Override
@@ -258,6 +253,7 @@ class ZKStream implements Stream {
     /**
      * Compute correct znode name for the segment chunk that contains entry for this segment.
      * Fetch the segment table chunk and retrieve the segment
+     *
      * @param number segment number.
      * @return
      */
@@ -273,6 +269,7 @@ class ZKStream implements Stream {
     /**
      * Given segment number, find its successor candidates and then compute overlaps with its keyrange
      * to find successors
+     *
      * @param number segment number.
      * @return
      */
@@ -307,6 +304,7 @@ class ZKStream implements Stream {
 
     /**
      * Find predecessor candidates and find overlaps with given segment's key range
+     *
      * @param number segment number.
      * @return
      */
@@ -346,9 +344,9 @@ class ZKStream implements Stream {
      * if timestamp is < create time of stream, we will return empty list
      * 1. perform binary searchIndex on index table to find timestamp
      * 2. fetch the record from history table for the pointer in index.
-     *      Note: index may be stale so we may need to fall through
+     * Note: index may be stale so we may need to fall through
      * 3. parse the row and return the list of integers
-
+     *
      * @param timestamp point in time.
      * @return
      */
@@ -371,16 +369,16 @@ class ZKStream implements Stream {
      * 0. Take distributed mutex
      * 1. Scale task/Fetch existing task
      * 2. Verify if new scale input is same as existing scale task.
-     *      If not, existing takes precedence. TODO: Notify caller!
+     * If not, existing takes precedence. TODO: Notify caller!
      * 3. Add new segment information in segment table.
-     *      Segments could spillover into a new chunk.
+     * Segments could spillover into a new chunk.
      * 4. Add entry into the history table.
      * 5. Add entry into the index table.
      * 6. delete task
      * 7. release mutex
      *
      * @param sealedSegments segments to be sealed
-     * @param newRanges key ranges of new segments to be created
+     * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
      * @return
      */
@@ -632,14 +630,14 @@ class ZKStream implements Stream {
         });
     }
 
-    private CompletableFuture<byte[]> getData(NodeCache cache, String path){
-        if(cache.getCurrentData() != null)
+    private CompletableFuture<byte[]> getData(NodeCache cache, String path) {
+        if (cache.getCurrentData() != null)
             return CompletableFuture.completedFuture(cache.getCurrentData().getData());
         else return getData(path);
     }
 
-    private CompletableFuture<byte[]> getData(PathChildrenCache cache, String path){
-        if(cache.getCurrentData(path) != null)
+    private CompletableFuture<byte[]> getData(PathChildrenCache cache, String path) {
+        if (cache.getCurrentData(path) != null)
             return CompletableFuture.completedFuture(cache.getCurrentData(path).getData());
         else return getData(path);
     }
