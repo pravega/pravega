@@ -60,12 +60,12 @@ public class ZkStreamTest {
         final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
         String streamName = "test";
 
-        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, policy);
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
         store.createStream(streamName, streamConfig).get();
 
-        SegmentFutures segmentFutures = store.getActiveSegments(streamName).get();
-        assertEquals(segmentFutures.getCurrent().size(), 5);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
+        List<Segment> segments = store.getActiveSegments(streamName).get();
+        assertEquals(segments.size(), 5);
+        assertTrue(segments.containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
 
         assertEquals(store.getConfiguration(streamName).get(), streamConfig);
 
@@ -80,11 +80,11 @@ public class ZkStreamTest {
         long timestamp = System.currentTimeMillis();
         store.scale(streamName, Lists.newArrayList(0, 1, 3), newRanges, timestamp).get();
 
-        segmentFutures = store.getActiveSegments(streamName).get();
-        assertEquals(segmentFutures.getCurrent().size(), 5);
-        assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(2, 4, 5, 6, 7)));
+        segments = store.getActiveSegments(streamName).get();
+        assertEquals(segments.size(), 5);
+        assertTrue(segments.containsAll(Lists.newArrayList(2, 4, 5, 6, 7)));
 
-        segmentFutures = store.getActiveSegments(streamName, timestamp - 1).get();
+        SegmentFutures segmentFutures = store.getActiveSegments(streamName, timestamp - 1).get();
         assertEquals(segmentFutures.getCurrent().size(), 5);
         assertTrue(segmentFutures.getCurrent().containsAll(Lists.newArrayList(0, 1, 2, 3, 4)));
     }
