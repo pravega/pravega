@@ -32,9 +32,11 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.task.TaskSweeper;
 import com.google.common.collect.Sets;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * Entry point of controller server.
@@ -62,5 +64,8 @@ public class Main {
         //2.1) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
         RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
+
+        //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
+        TaskSweeper sweeper = new TaskSweeper(streamStore, hostStore, null);
     }
 }
