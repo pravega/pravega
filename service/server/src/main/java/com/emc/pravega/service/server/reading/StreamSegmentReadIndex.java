@@ -341,7 +341,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         SegmentMetadata sourceMetadata = sourceIndex.metadata;
         Exceptions.checkArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId", "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
 
-        // TODO: an alternative to this is just drop the RedirectReadIndexEntry; next time we want to read, we'll just read from storage. That may be faster actually than just appending all these entries (there could be tens of thousands...)
         // Get all the entries from the source index and append them here.
         List<CacheReadIndexEntry> sourceEntries = sourceIndex.getAllEntries(redirectEntry.getStreamSegmentOffset());
 
@@ -349,8 +348,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // Remove redirect entry (again, no need to update the Cache Stats, as this is a RedirectReadIndexEntry).
             this.indexEntries.remove(endOffset);
             this.mergeOffsets.remove(sourceSegmentStreamId);
-
-            // TODO: Verify offsets are correct and that they do not exceed boundaries.
             sourceEntries.forEach(this::addToIndex);
         }
 
