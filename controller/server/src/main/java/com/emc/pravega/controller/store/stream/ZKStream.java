@@ -52,7 +52,7 @@ import java.util.stream.IntStream;
  * ZK Stream. It understands the following.
  * 1. underlying file organization/object structure of stream metadata store.
  * 2. how to evaluate basic read and update queries defined in the Stream interface.
- * 
+ *
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
@@ -98,9 +98,9 @@ class ZKStream implements Stream {
         final String lockPath = String.format(LOCK_PATH, name);
 
         segmentCache = new PathChildrenCache(client, segmentPath, true);
-        indexCache = new NodeCache(client, String.format(INDEX_PATH, name));
-        historyCache = new NodeCache(client, String.format(HISTORY_PATH, name));
-        configurationCache = new NodeCache(client, String.format(CONFIGURATION_PATH, name));
+        indexCache = new NodeCache(client, indexPath);
+        historyCache = new NodeCache(client, historyPath);
+        configurationCache = new NodeCache(client, configurationPath);
 
         mutex = new InterProcessMutex(client, lockPath);
     }
