@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
 import com.emc.pravega.common.util.MissingPropertyException;
 
@@ -83,7 +84,7 @@ public class DurableLogConfig extends ComponentConfig {
     }
 
     @Override
-    protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+    protected void refresh() throws ConfigurationException {
         this.checkpointMinCommitCount = getInt32Property(PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, DEFAULT_MIN_COMMIT_COUNT);
         this.checkpointCommitCountThreshold = getInt32Property(PROPERTY_CHECKPOINT_COMMIT_COUNT, DEFAULT_COMMIT_COUNT);
         if (this.checkpointMinCommitCount > this.checkpointCommitCountThreshold) {

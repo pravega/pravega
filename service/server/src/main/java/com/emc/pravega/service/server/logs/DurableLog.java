@@ -378,7 +378,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Update the metadata with the information from the Operation.
         try {
-            //TODO: should we also check that StreamSegments still exist in Storage, and that their lengths are what we think they are? Or we leave that to the StorageWriter?
             log.debug("{} Recovering {}.", this.traceObjectId, operation);
             metadataUpdater.preProcessOperation(operation);
             metadataUpdater.acceptOperation(operation);
