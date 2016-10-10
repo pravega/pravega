@@ -62,6 +62,8 @@ def pkgs = ['common', 'clients:streming', 'service:server', 'integrationtests']
 project('common') {
     dependencies {
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: '2.11.0'
     }
 }
 
