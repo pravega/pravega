@@ -60,7 +60,6 @@ public class InMemoryCacheFactory implements CacheFactory {
             }
 
             toClose.forEach(InMemoryCache::close);
-            assert this.caches.size() == 0 : "not all caches were closed";
         }
     }
 }
