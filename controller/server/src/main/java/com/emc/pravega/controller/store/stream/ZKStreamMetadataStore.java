@@ -48,7 +48,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                 .build(
                         new CacheLoader<String, ZKStream>() {
                             public ZKStream load(String key) {
-                                return new ZKStream(key, storeConfiguration.getConnectionString());
+                                ZKStream zkStream = new ZKStream(key, storeConfiguration.getConnectionString());
+                                zkStream.init();
+                                return zkStream;
                             }
                         });
     }

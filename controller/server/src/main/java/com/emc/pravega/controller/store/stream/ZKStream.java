@@ -31,11 +31,14 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.data.Stat;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -49,8 +52,8 @@ import java.util.stream.IntStream;
  * ZK Stream. It understands the following.
  * 1. underlying file organization/object structure of stream metadata store.
  * 2. how to evaluate basic read and update queries defined in the Stream interface.
- * <p>
- * It may segmentCache files read from the store for its lifetime.
+ *
+ * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 class ZKStream implements Stream {
@@ -64,16 +67,16 @@ class ZKStream implements Stream {
     private final CuratorFramework client;
 
     /**
-     * ideally we should use curator's nodecache for caching all the data from the store so that we dont have
+     * Ideally we should use curator's nodecache for caching all the data from the store so that we dont have
      * to fetch it unnecessarily every time. However, during tests we noticed that it was slow to notice updates
      * and fetch latest data. Which leads to working with either stale data or nulls. There should be some technique
      * to fix it. Keeping them here to make sure we eventually start using them once we figure out the right way to use
      * them.
      */
-//    private final NodeCache configurationCache;
-//    private final PathChildrenCache segmentCache;
-//    private final NodeCache indexCache;
-//    private final NodeCache historyCache;
+    private final NodeCache configurationCache;
+    private final PathChildrenCache segmentCache;
+    private final NodeCache indexCache;
+    private final NodeCache historyCache;
 
     private String name;
     private final String configurationPath;
@@ -101,10 +104,10 @@ class ZKStream implements Stream {
         taskPath = String.format(TASK_PATH, name);
         final String lockPath = String.format(LOCK_PATH, name);
 
-//        segmentCache = new PathChildrenCache(client, segmentPath, true);
-//        indexCache = new NodeCache(client, String.format(INDEX_PATH, name));
-//        historyCache = new NodeCache(client, String.format(HISTORY_PATH, name));
-//        configurationCache = new NodeCache(client, String.format(CONFIGURATION_PATH, name));
+        segmentCache = new PathChildrenCache(client, segmentPath, true);
+        indexCache = new NodeCache(client, String.format(INDEX_PATH, name));
+        historyCache = new NodeCache(client, String.format(HISTORY_PATH, name));
+        configurationCache = new NodeCache(client, String.format(CONFIGURATION_PATH, name));
 
         mutex = new InterProcessMutex(client, lockPath);
     }
@@ -248,7 +251,7 @@ class ZKStream implements Stream {
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
-        return getData(configurationPath)
+        return getData(configurationCache, configurationPath)
                 .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x));
     }
 
@@ -263,7 +266,7 @@ class ZKStream implements Stream {
         // compute the file name based on segment number
         int znodeName = number / SegmentRecord.SEGMENT_CHUNK_SIZE;
 
-        return getData(segmentPath + "/" + znodeName)
+        return getData(segmentCache, segmentPath + "/" + znodeName)
                 .thenApply(x -> TableHelper.getSegment(number, x));
     }
 
@@ -279,8 +282,8 @@ class ZKStream implements Stream {
         CompletableFuture[] futures = new CompletableFuture[3];
 
         futures[0] = getSegment(number);
-        futures[1] = getData(indexPath);
-        futures[2] = getData(historyPath);
+        futures[1] = getData(indexCache, indexPath);
+        futures[2] = getData(historyCache, historyPath);
 
         return CompletableFuture.allOf(futures).thenCompose(x -> {
 
@@ -312,8 +315,8 @@ class ZKStream implements Stream {
         CompletableFuture[] futures = new CompletableFuture[3];
 
         futures[0] = getSegment(number);
-        futures[1] = getData(indexPath);
-        futures[2] = getData(historyPath);
+        futures[1] = getData(indexCache, indexPath);
+        futures[2] = getData(historyCache, historyPath);
 
         return CompletableFuture.allOf(futures).thenCompose(x -> {
             try {
@@ -336,7 +339,7 @@ class ZKStream implements Stream {
 
     @Override
     public CompletableFuture<List<Integer>> getActiveSegments() {
-        return getData(historyPath).thenApply(TableHelper::getActiveSegments);
+        return getData(historyCache, historyPath).thenApply(TableHelper::getActiveSegments);
     }
 
     /**
@@ -351,9 +354,9 @@ class ZKStream implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {
-        CompletableFuture<byte[]> indexFuture = getData(indexPath);
+        CompletableFuture<byte[]> indexFuture = getData(indexCache, indexPath);
 
-        CompletableFuture<byte[]> historyFuture = getData(historyPath);
+        CompletableFuture<byte[]> historyFuture = getData(historyCache, historyPath);
 
         return indexFuture.thenCombine(historyFuture,
                 (byte[] indexTable, byte[] historyTable) -> TableHelper.getActiveSegments(timestamp,
@@ -441,7 +444,7 @@ class ZKStream implements Stream {
                             .thenCompose(segmentChunks -> {
                                 final int latestChunk = segmentChunks.size() - 1;
 
-                                return getData(segmentPath + "/" + latestChunk)
+                                return getData(segmentCache, segmentPath + "/" + latestChunk)
                                         .thenApply(x -> new ImmutablePair<Integer, byte[]>(latestChunk, x));
                             })
                             .thenCompose(latestSegmentData -> {
@@ -495,7 +498,7 @@ class ZKStream implements Stream {
                     final Scale scale = pair.left;
                     final int startingSegmentNumber = pair.right;
 
-                    return getData(historyPath)
+                    return getData(historyCache, historyPath)
                             .thenCompose(historyTable -> {
                                 Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable);
 
@@ -538,7 +541,7 @@ class ZKStream implements Stream {
                     final int historyOffset = triple.right;
                     final int startingSegmentNumber = triple.middle;
 
-                    return getData(indexPath)
+                    return getData(indexCache, indexPath)
                             .thenCompose(indexTable -> {
                                 Optional<IndexRecord> lastRecord = IndexRecord.readLatestRecord(indexTable);
                                 if (lastRecord.isPresent() && lastRecord.get().getEventTime() < scale.getScaleTimestamp()) {
@@ -577,19 +580,34 @@ class ZKStream implements Stream {
                 });
     }
 
+    public void init() {
+        List<CompletableFuture<Void>> futures = new ArrayList();
+
+        futures.add(CompletableFuture.supplyAsync(() -> start(configurationCache)));
+        futures.add(CompletableFuture.supplyAsync(() -> start(segmentCache)));
+        futures.add(CompletableFuture.supplyAsync(() -> start(historyCache)));
+        futures.add(CompletableFuture.supplyAsync(() -> start(indexCache)));
+
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void tearDown() {
-//        List<CompletableFuture<Void>> futures = new ArrayList();
-//
-//        futures.add(CompletableFuture.supplyAsync(() -> close(configurationCache)));
-//        futures.add(CompletableFuture.supplyAsync(() -> close(segmentCache)));
-//        futures.add(CompletableFuture.supplyAsync(() -> close(historyCache)));
-//        futures.add(CompletableFuture.supplyAsync(() -> close(indexCache)));
-//
-//        try {
-//            CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).get();
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
+        List<CompletableFuture<Void>> futures = new ArrayList();
+
+        futures.add(CompletableFuture.supplyAsync(() -> close(configurationCache)));
+        futures.add(CompletableFuture.supplyAsync(() -> close(segmentCache)));
+        futures.add(CompletableFuture.supplyAsync(() -> close(historyCache)));
+        futures.add(CompletableFuture.supplyAsync(() -> close(indexCache)));
+
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()])).get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         client.close();
     }
 
@@ -612,6 +630,18 @@ class ZKStream implements Stream {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private CompletableFuture<byte[]> getData(NodeCache cache, String path){
+        if(cache.getCurrentData() != null)
+            return CompletableFuture.completedFuture(cache.getCurrentData().getData());
+        else return getData(path);
+    }
+
+    private CompletableFuture<byte[]> getData(PathChildrenCache cache, String path){
+        if(cache.getCurrentData(path) != null)
+            return CompletableFuture.completedFuture(cache.getCurrentData(path).getData());
+        else return getData(path);
     }
 
     private CompletableFuture<byte[]> getData(String path) {
@@ -668,39 +698,39 @@ class ZKStream implements Stream {
                         });
     }
 
-//    private Void start(NodeCache cache) {
-//        try {
-//            cache.start();
-//            return null;
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
-//
-//    private Void start(PathChildrenCache cache) {
-//        try {
-//            cache.start();
-//            return null;
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
-//
-//    private Void close(NodeCache cache) {
-//        try {
-//            cache.close();
-//            return null;
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
-//
-//    private Void close(PathChildrenCache cache) {
-//        try {
-//            cache.close();
-//            return null;
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
+    private Void start(NodeCache cache) {
+        try {
+            cache.start();
+            return null;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Void start(PathChildrenCache cache) {
+        try {
+            cache.start();
+            return null;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Void close(NodeCache cache) {
+        try {
+            cache.close();
+            return null;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Void close(PathChildrenCache cache) {
+        try {
+            cache.close();
+            return null;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
