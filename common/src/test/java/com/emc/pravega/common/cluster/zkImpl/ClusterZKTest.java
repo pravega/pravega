@@ -19,8 +19,12 @@ package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.EndPoint;
 import com.emc.pravega.common.cluster.NodeType;
+import org.apache.curator.test.TestingServer;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -28,11 +32,24 @@ import static org.junit.Assert.assertEquals;
 
 public class ClusterZKTest {
 
-    private static final String ZK_URL = "localhost:2181";
+    private static final String ZK_URL = "localhost:2182";
     private final static String HOST_1 = "host1";
     private final static String HOST_2 = "host2";
     private final static int PORT = 1234;
     private final static String CLUSTER_NAME = "cluster-1";
+    private final static String CLUSTER_NAME_2 = "cluster-2";
+    private static TestingServer zkTestServer;
+
+
+    @BeforeClass
+    public static void startZookeeper() throws Exception {
+        zkTestServer = new TestingServer(2182);
+    }
+
+    @AfterClass
+    public static void stopZookeeper() throws IOException {
+        zkTestServer.close();
+    }
 
     @Test
     public void registerNode() throws Exception {
@@ -53,11 +70,11 @@ public class ClusterZKTest {
 
     @Test
     public void deregisterNode() throws Exception {
-        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME, NodeType.DATA);
+        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME_2, NodeType.DATA);
         clusterListener.start();
 
         //Create Add a node to the cluster.
-        ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(ZK_URL, CLUSTER_NAME, NodeType.DATA);
+        ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(ZK_URL, CLUSTER_NAME_2, NodeType.DATA);
         clusterZKInstance1.registerNode(new EndPoint(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
