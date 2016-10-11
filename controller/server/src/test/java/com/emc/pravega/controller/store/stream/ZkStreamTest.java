@@ -58,7 +58,7 @@ public class ZkStreamTest {
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
         final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
-        String streamName = "test";
+        final String streamName = "test";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
         store.createStream(streamName, streamConfig).get();
