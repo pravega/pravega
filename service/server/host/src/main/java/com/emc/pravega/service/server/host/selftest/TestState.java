@@ -16,20 +16,24 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.service.server.host.selftest;
 
-import java.util.Properties;
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Extension to java.util.Properties that implements the Builder pattern.
+ * Represents the current State of the SelfTest.
  */
-public class PropertyBag extends Properties {
-    public static PropertyBag create() {
-        return new PropertyBag();
-    }
+class TestState {
+    private final AtomicInteger generatedOperationCount;
+    private final AtomicInteger successfulOperationCount;
+    private final ArrayList<String> segmentNames;
+    private final ArrayList<String> transactionNames;
 
-    public PropertyBag with(String key, Object value) {
-        this.setProperty(key, value.toString());
-        return this;
+    TestState(){
+        this.generatedOperationCount = new AtomicInteger();
+        this.successfulOperationCount = new AtomicInteger();
+        this.segmentNames = new ArrayList<>();
+        this.transactionNames = new ArrayList<>();
     }
 }

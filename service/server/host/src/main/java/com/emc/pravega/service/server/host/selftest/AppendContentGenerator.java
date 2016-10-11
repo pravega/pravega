@@ -27,6 +27,8 @@ import java.util.Random;
  * Generates arbitrary append contents, that can be deserialized and verified later.
  */
 class AppendContentGenerator {
+    //region Members
+
     private static final int HEADER_LENGTH = Long.BYTES;
     private static final int KEY_LENGTH = Integer.BYTES;
     private static final int LENGTH_LENGTH = Integer.BYTES;
@@ -34,6 +36,10 @@ class AppendContentGenerator {
     private static final int PREFIX = (int) Math.pow(Math.E, 20);
     private final Random keyGenerator;
     private final int appendId;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the AppendContentGenerator class.
@@ -44,6 +50,10 @@ class AppendContentGenerator {
         this.appendId = appendId;
         this.keyGenerator = new Random(appendId);
     }
+
+    //endregion
+
+    //region New Append
 
     /**
      * Generates a byte array containing data for an append.
@@ -88,4 +98,6 @@ class AppendContentGenerator {
             }
         }
     }
+
+    //endregion
 }

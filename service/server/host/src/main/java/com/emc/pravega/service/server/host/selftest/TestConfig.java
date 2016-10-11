@@ -22,32 +22,39 @@ import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.MissingPropertyException;
 
+import java.time.Duration;
 import java.util.Properties;
 
 /**
  * Configuration for Self-Tester.
  */
-public class TestConfig extends ComponentConfig {
+class TestConfig extends ComponentConfig {
     //region Members
 
-    public final static String COMPONENT_CODE = "selftest";
-    public static final String PROPERTY_OPERATION_COUNT = "operationCount";
-    public static final String PROPERTY_SEGMENT_COUNT = "segmentCount";
-    public static final String PROPERTY_TRANSACTION_FREQUENCY = "transactionFrequency";
-    public static final String PROPERTY_MAX_TRANSACTION_SIZE = "maxTransactionSize";
-    public static final String PROPERTY_PRODUCER_COUNT = "producerCount";
+    static final String COMPONENT_CODE = "selftest";
+    static final String PROPERTY_OPERATION_COUNT = "operationCount";
+    static final String PROPERTY_SEGMENT_COUNT = "segmentCount";
+    static final String PROPERTY_TRANSACTION_FREQUENCY = "transactionFrequency";
+    static final String PROPERTY_MAX_TRANSACTION_SIZE = "maxTransactionSize";
+    static final String PROPERTY_PRODUCER_COUNT = "producerCount";
+    static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
+    static final String PROPERTY_TIMEOUT_MILLIS = "timeoutMillis";
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
     private static final int DEFAULT_TRANSACTION_FREQUENCY = 100;
     private static final int DEFAULT_MAX_TRANSACTION_APPEND_COUNT = 10;
     private static final int DEFAULT_PRODUCER_COUNT = 1;
+    private static final int DEFAULT_THREAD_POOL_SIZE = 100;
+    private static final int DEFAULT_TIMEOUT_MILLIS = 10*1000;
 
     private int operationCount;
     private int segmentCount;
     private int transactionFrequency;
     private int maxTransactionAppendCount;
     private int producerCount;
+    private int threadPoolSize;
+    private Duration timeout;
 
     //endregion
 
@@ -61,7 +68,7 @@ public class TestConfig extends ComponentConfig {
      * @throws NumberFormatException    Whenever a Property has a value that is invalid for it.
      * @throws NullPointerException     If any of the arguments are null.
      */
-    public TestConfig(Properties properties) throws ConfigurationException {
+    TestConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
     }
 
@@ -76,6 +83,9 @@ public class TestConfig extends ComponentConfig {
         this.transactionFrequency = getInt32Property(PROPERTY_TRANSACTION_FREQUENCY, DEFAULT_TRANSACTION_FREQUENCY);
         this.maxTransactionAppendCount = getInt32Property(PROPERTY_MAX_TRANSACTION_SIZE, DEFAULT_MAX_TRANSACTION_APPEND_COUNT);
         this.producerCount = getInt32Property(PROPERTY_PRODUCER_COUNT, DEFAULT_PRODUCER_COUNT);
+        this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE, DEFAULT_THREAD_POOL_SIZE);
+        int timeoutMillis = getInt32Property(PROPERTY_TIMEOUT_MILLIS, DEFAULT_TIMEOUT_MILLIS);
+        this.timeout = Duration.ofMillis(timeoutMillis);
     }
 
     //endregion
@@ -100,6 +110,14 @@ public class TestConfig extends ComponentConfig {
 
     public int getProducerCount() {
         return this.producerCount;
+    }
+
+    public int getThreadPoolSize(){
+        return this.threadPoolSize;
+    }
+
+    public Duration getTimeout(){
+        return this.timeout;
     }
 
     //endregion
