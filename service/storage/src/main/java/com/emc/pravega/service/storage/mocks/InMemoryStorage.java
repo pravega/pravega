@@ -117,12 +117,6 @@ public class InMemoryStorage implements Storage {
         return retVal;
     }
 
-    @Override
-    public CompletableFuture<Boolean> releaseLockForSegment(String streamSegmentName) {
-        CompletableFuture<Boolean> retVal = new CompletableFuture<Boolean>();
-        retVal.complete(true);
-        return retVal;
-    }
 
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
