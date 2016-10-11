@@ -28,6 +28,7 @@ import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.nodes.PersistentNode;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,15 +66,23 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     public void registerNode(EndPoint endPoint) throws Exception {
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, name, type.name());
-        if (client.checkExists().forPath(basePath) == null) {
-            client.create().creatingParentsIfNeeded().forPath(basePath);
-        }
+        createPathIfExists(basePath);
         String nodePath = ZKPaths.makePath(basePath, endPoint.getHost());
 
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, endPoint.toString().getBytes());
 
         node.start(); //start creation of ephemeral node in background.
         entryMap.put(endPoint.getHost(), node);
+    }
+
+    private void createPathIfExists(String basePath) throws Exception {
+        try {
+            if (client.checkExists().forPath(basePath) == null) {
+                client.create().creatingParentsIfNeeded().forPath(basePath);
+            }
+        } catch (KeeperException.NodeExistsException e) {
+            log.debug("Path exists {} , ignoring exception", basePath, e);
+        }
     }
 
     @Override
