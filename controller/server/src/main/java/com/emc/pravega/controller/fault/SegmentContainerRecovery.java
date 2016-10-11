@@ -21,7 +21,7 @@ import com.emc.pravega.common.cluster.zkImpl.ClusterListenerZKImpl;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SegmentContainerRecovery extends ClusterListenerZKImpl{
+public class SegmentContainerRecovery extends ClusterListenerZKImpl {
 
     public SegmentContainerRecovery(String connectionString, String clusterName) {
         super(connectionString, clusterName);
@@ -34,7 +34,7 @@ public class SegmentContainerRecovery extends ClusterListenerZKImpl{
      */
     @Override
     public void nodeAdded(String hostName) {
-        log.info("Node {} added to cluster", hostName, getClusterName() );
+        log.info("Node {} added to cluster", hostName, getClusterName());
         //Steps to be performed on Segment containers.
         //1. Rebalance the segment containers across the nodes.
     }
