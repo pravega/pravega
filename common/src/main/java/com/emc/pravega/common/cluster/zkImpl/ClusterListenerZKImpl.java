@@ -18,59 +18,92 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.ClusterListener;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 /**
- *  ZK based Cluster Listener implemenation.
+ * ZK based Cluster Listener implementation.
  */
-public class ClusterListenerZKImpl implements ClusterListener {
+@Slf4j
+public abstract class ClusterListenerZKImpl implements ClusterListener, AutoCloseable {
 
+    private final static int RETRY_SLEEP_MS = 100;
+    private final static int MAX_RETRY = 5;
+    private final static String PATH_CLUSTER = "/cluster/";
+
+    @Getter
+    @Setter
     private String clusterName;
 
-    private Consumer<String> nodeAdded;
-    private Consumer<String> nodeRemoved;
+    private final CuratorFramework client;
+    private final PathChildrenCache cache;
 
-//    private
+    private final PathChildrenCacheListener pathChildrenCacheListener = (client, event) -> {
+        String serverName = getServerName(event);
+        log.debug("Event {} generated on Cluster{}", event, clusterName);
 
-    public ClusterListenerZKImpl(final Consumer<String> nodeAdded,
-                                 final Consumer<String> nodeRemoved) {
+        switch (event.getType()) {
+            case CHILD_ADDED:
+                log.info("Node {} added to Cluster {}", serverName, clusterName);
+                nodeAdded(serverName);
+                break;
+            case CHILD_REMOVED:
+                log.info("Node {} removed from Cluster {}", serverName, clusterName);
+                nodeRemoved(serverName);
+                break;
+            case CHILD_UPDATED:
+                log.error("Invalid usage Node {} updated in Cluster {}", serverName, clusterName);
+                //TODO throw error?
+                break;
+        }
+    };
+
+    //TODO: Check if we need to be pass the ZK client instead of connection String
+    public ClusterListenerZKImpl(final String connectionString, final String clusterName) {
         this.clusterName = clusterName;
-        this.nodeAdded = nodeAdded;
-        this.nodeRemoved = nodeRemoved;
-    }
+        client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(RETRY_SLEEP_MS, MAX_RETRY));
+        client.start();
 
-    @Override
-    public void nodeAdded() {
-        nodeAdded.accept("HostName");
-    }
-
-    @Override
-    public void nodeRemoved() {
-        //TODO: Enpoint added.
-        nodeAdded.accept("HostName");
-
+        cache = new PathChildrenCache(client, new StringBuffer(PATH_CLUSTER).append(clusterName).append("/").toString(), true);
     }
 
     /**
      * Start listener for a given cluster
-     *
-     * @param clusterName
      */
     @Override
-    public void start(String clusterName) {
-
+    public void start() throws Exception {
+        cache.getListenable().addListener(pathChildrenCacheListener);
+        cache.start(PathChildrenCache.StartMode.POST_INITIALIZED_EVENT);
     }
 
     /**
      * Start listener on a custom executor.
      *
-     * @param clusterName name of the cluster on which the listener should run
-     * @param executor    custom executor on which the listener should run.
+     * @param executor custom executor on which the listener should run.
      */
     @Override
-    public void start(String clusterName, Executor executor) {
+    public void start(Executor executor) throws Exception {
+        cache.getListenable().addListener(pathChildrenCacheListener, executor);
+        cache.start(PathChildrenCache.StartMode.POST_INITIALIZED_EVENT);
+    }
 
+    @Override
+    public void close() throws Exception {
+        cache.close();
+        client.close();
+    }
+
+    private String getServerName(final PathChildrenCacheEvent event) {
+        String path = event.getData().getPath();
+        return path.substring(path.lastIndexOf("/"));
     }
 }

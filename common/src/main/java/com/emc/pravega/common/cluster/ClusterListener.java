@@ -27,22 +27,21 @@ public interface ClusterListener {
     /**
      * Method invoked when node has been added
      */
-    public void nodeAdded();
+    public void nodeAdded(String hostName);
 
     /**
      * Method invoked when node has been removed
      */
-    public void nodeRemoved();
+    public void nodeRemoved(String hostName);
 
     /**
-     * Start listener for a given cluster
+     * Start listener
      */
-    public void start(final String clusterName);
+    public void start() throws Exception;
 
     /**
      * Start listener on a custom executor.
-     * @param clusterName name of the cluster on which the listener should run
      * @param executor custom executor on which the listener should run.
      */
-    public void start(final String clusterName, final Executor executor);
+    public void start(final Executor executor) throws Exception;
 }
