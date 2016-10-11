@@ -48,7 +48,7 @@ import java.util.stream.IntStream;
  * It may cache files read from the store for its lifetime.
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
-class ZKStream extends AbstractStreamBase {
+class ZKStream extends PersistentStreamBase {
     private static final String CONFIGURATION_PATH = "/streams/%s/configurationPath";
     private static final String SEGMENT_PATH = "/streams/%s/segmentPath";
     private static final String HISTORY_PATH = "/streams/%s/historyPath";
@@ -174,14 +174,13 @@ class ZKStream extends AbstractStreamBase {
     }
 
     @Override
-    public CompletionStage<Create> createConfiguration(final StreamConfiguration configuration, final Create create) {
-        return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
-                .thenApply(y -> create);
+    public CompletionStage<Void> createConfiguration(final StreamConfiguration configuration, final Create create) {
+        return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration)).thenApply(x -> null);
     }
 
     @Override
-    public CompletableFuture<Create> createSegmentTable(final Create create) {
-        return createZNodeIfNotExist(segmentPath).thenApply(y -> create);
+    public CompletableFuture<Void> createSegmentTable(final Create create) {
+        return createZNodeIfNotExist(segmentPath).thenApply(x -> null);
     }
 
     @Override
@@ -196,13 +195,13 @@ class ZKStream extends AbstractStreamBase {
     }
 
     @Override
-    public CompletionStage<Create> createHistoryTable(final Create create) {
+    public CompletionStage<Void> createHistoryTable(final Create create) {
         final int numSegments = create.getConfiguration().getScalingingPolicy().getMinNumSegments();
         final byte[] historyTable = TableHelper.updateHistoryTable(new byte[0],
                 create.getEventTime(),
                 IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
 
-        return createZNodeIfNotExist(historyPath, historyTable).thenApply(y -> create);
+        return createZNodeIfNotExist(historyPath, historyTable).thenApply(y -> null);
     }
 
     @Override
@@ -211,7 +210,7 @@ class ZKStream extends AbstractStreamBase {
     }
 
     @Override
-    public CompletionStage<Create> createSegmentFile(final Create create) {
+    public CompletionStage<Void> createSegmentFile(final Create create) {
         final int numSegments = create.getConfiguration().getScalingingPolicy().getMinNumSegments();
         final int chunkFileName = 0;
         final double keyRangeChunk = 1.0 / numSegments;
@@ -230,7 +229,7 @@ class ZKStream extends AbstractStreamBase {
                 create.getEventTime()
         );
 
-        return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkFileName), segmentTable).thenApply(y -> create);
+        return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkFileName), segmentTable).thenApply(y -> null);
     }
 
 

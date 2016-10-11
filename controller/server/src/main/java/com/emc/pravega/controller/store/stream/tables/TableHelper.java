@@ -36,6 +36,8 @@ public class TableHelper {
     /**
      * Segment Table records are of fixed size.
      * So O(constant) operation to get segment given segmentTable Chunk.
+     *
+     * Note: this method assumes you have supplied the correct chunk
      * @param number
      * @param segmentTable
      * @return
@@ -51,6 +53,20 @@ public class TableHelper {
                     record.getRoutingKeyEnd());
         } else
             throw new RuntimeException(String.format("segment %d does not exist", number));
+    }
+
+    /**
+     * Helper method to determine segmentChunk information from segment number
+     * @param segmentNumber
+     * @return
+     */
+    public static int getSegmentChunkNumber(int segmentNumber) {
+        return segmentNumber / SegmentRecord.SEGMENT_CHUNK_SIZE;
+    }
+
+    public static int getNextSegmentNumber(int chunkNumber, byte[] chunkData) {
+        return chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE +
+                (chunkData.length / SegmentRecord.SEGMENT_RECORD_SIZE);
     }
 
     /**

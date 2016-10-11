@@ -31,7 +31,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 
 import java.util.AbstractMap;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -39,10 +38,10 @@ import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public abstract class AbstractStreamBase implements Stream {
+public abstract class PersistentStreamBase implements Stream {
     private final String name;
 
-    protected AbstractStreamBase(final String name) {
+    protected PersistentStreamBase(final String name) {
         this.name = name;
     }
 
@@ -68,7 +67,7 @@ public abstract class AbstractStreamBase implements Stream {
      * 7. release mutex
      *
      * @param configuration stream configuration.
-     * @return
+     * @return : future of whether it was done or not
      */
     @Override
     public CompletableFuture<Boolean> create(final StreamConfiguration configuration) {
@@ -76,10 +75,10 @@ public abstract class AbstractStreamBase implements Stream {
                 .thenCompose(x -> getTaskDataIfExists())
                 .thenCompose(taskData -> processCreateTask(configuration, taskData))
                         // Let create object fall through to all future callbacks as their own return values are uninteresting
-                .thenCompose(create -> createConfiguration(configuration, create))
-                .thenCompose(this::createSegmentTable)
-                .thenCompose(this::createSegmentFile)
-                .thenCompose(this::createHistoryTable)
+                .thenCompose(create -> createConfiguration(configuration, create).thenApply(x -> create))
+                .thenCompose(create -> createSegmentTable(create).thenApply(x -> create))
+                .thenCompose(create -> createSegmentFile(create).thenApply(x -> create))
+                .thenCompose(create -> createHistoryTable(create).thenApply(x -> create))
                 .thenCompose(this::createIndexTable)
                 .thenCompose(x -> deleteTask())
                 .handle((ok, ex) -> {
@@ -101,7 +100,7 @@ public abstract class AbstractStreamBase implements Stream {
      * Update configuration in zk at configurationPath
      *
      * @param configuration new stream configuration.
-     * @return
+     * @return : future of boolean
      */
     @Override
     public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
@@ -112,7 +111,7 @@ public abstract class AbstractStreamBase implements Stream {
     /**
      * Fetch configuration from zk at configurationPath
      *
-     * @return
+     * @return : future of stream configuration
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
@@ -124,12 +123,11 @@ public abstract class AbstractStreamBase implements Stream {
      * Fetch the segment table chunk and retrieve the segment
      *
      * @param number segment number.
-     * @return
+     * @return : future of segment
      */
     @Override
     public CompletableFuture<Segment> getSegment(final int number) {
         return getSegmentRow(number);
-
     }
 
     /**
@@ -137,7 +135,7 @@ public abstract class AbstractStreamBase implements Stream {
      * to find successors
      *
      * @param number segment number.
-     * @return
+     * @return : future of list of successor segment numbers
      */
     @Override
     public CompletableFuture<List<Integer>> getSuccessors(final int number) {
@@ -161,7 +159,7 @@ public abstract class AbstractStreamBase implements Stream {
                                 .stream()
                                 .map(this::getSegment)
                                 .collect(Collectors.toList()))
-                        .thenApply(y -> new ImmutablePair<Segment, List<Segment>>(segment, y));
+                        .thenApply(successorCandidates -> new ImmutablePair<>(segment, successorCandidates));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -172,7 +170,7 @@ public abstract class AbstractStreamBase implements Stream {
      * Find predecessor candidates and find overlaps with given segment's key range
      *
      * @param number segment number.
-     * @return
+     * @return : future of list of predecessor segment numbers
      */
     @Override
     public CompletableFuture<List<Integer>> getPredecessors(final int number) {
@@ -194,7 +192,7 @@ public abstract class AbstractStreamBase implements Stream {
                                 .stream()
                                 .map(this::getSegment)
                                 .collect(Collectors.toList()))
-                        .thenApply(y -> new ImmutablePair<Segment, List<Segment>>(segment, y));
+                        .thenApply(predecessorCandidates -> new ImmutablePair<>(segment, predecessorCandidates));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -214,7 +212,7 @@ public abstract class AbstractStreamBase implements Stream {
      * 3. parse the row and return the list of integers
      *
      * @param timestamp point in time.
-     * @return
+     * @return : list of active segment numbers at given time stamp
      */
     @Override
     public CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {
@@ -246,51 +244,34 @@ public abstract class AbstractStreamBase implements Stream {
      * @param sealedSegments segments to be sealed
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
-     * @return
+     * @return : list of newly created segments
      */
     @Override
     public CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                   final long scaleTimestamp) {
-        // TODO Question: How do we know if we have lost the lock because of network issue. This lock implementation
-        // is an ephemeral node in zk. So connection loss means auto lock release while we continue with our computation
-        // following blog is interesting in suggesting solutions:
-        // https://fpj.me/2016/02/10/note-on-fencing-and-distributed-locks/
         return acquireDistributedLock()
                 .thenCompose(x -> getTaskDataIfExists())
-                .thenCompose(x -> processScaleTask(sealedSegments, newRanges, scaleTimestamp, x))
-                .thenCompose(scale -> {
-                    // Note: we do not know the segment ids from the input. We need to compute the segment id while making
-                    // sure we do not create duplicate entries.
-                    // create new records in segment table if
-                    // No new segment from requested 'newRanges' matches the range for last entry in segment table.
-                    // (stronger check would be to check all new segments against last n segments where n is new segment count
-                    return getSegmentChunks()
-                            .thenCompose(this::getLatestChunk)
-                            .thenCompose(latestSegmentData -> updateSegmentChunk(scale, latestSegmentData))
-                            .thenApply(startingSegmentNumber -> new ImmutablePair<>(scale, startingSegmentNumber));
-                })
+                .thenCompose(taskData -> processScaleTask(sealedSegments, newRanges, scaleTimestamp, taskData))
+                .thenCompose(scale -> getSegmentChunks()
+                        .thenCompose(this::getLatestChunk)
+                        .thenCompose(latestSegmentData -> addNewSegments(scale, latestSegmentData))
+                        .thenApply(startingSegmentNumber -> new ImmutablePair<>(scale, startingSegmentNumber)))
                 .thenCompose(pair -> {
-                    // update history table if not already updated
-                    // fetch last record from history table.
-                    // if eventTime is different from scale.scaleTimeStamp do nothing, else create record
                     final Scale scale = pair.left;
                     final int startingSegmentNumber = pair.right;
 
-                    return updateHistoryTableRecord(sealedSegments, scale)
+                    return addHistoryRecord(sealedSegments, scale, startingSegmentNumber)
                             .thenApply(historyOffset -> new ImmutableTriple<>(scale, startingSegmentNumber, historyOffset));
                 })
                 .thenCompose(triple -> {
-                    // update index if not already updated
-                    // fetch last record from index table. if eventTime is same as scale.scaleTimeStamp do nothing,
-                    // else create record
                     final Scale scale = triple.left;
                     final int historyOffset = triple.right;
                     final int startingSegmentNumber = triple.middle;
 
-                    return updateIndexTableRecord(scale, historyOffset, startingSegmentNumber);
+                    return addIndexRecord(scale, historyOffset).thenApply(x -> startingSegmentNumber);
                 })
-                .thenCompose(startingSegmentNumber -> deleteTask().thenApply(z -> startingSegmentNumber))
+                .thenCompose(startingSegmentNumber -> deleteTask().thenApply(x -> startingSegmentNumber))
                 .thenCompose(startingSegmentNumber -> getSegments(newRanges, startingSegmentNumber))
                 .handle((ok, ex) -> {
                     try {
@@ -317,57 +298,12 @@ public abstract class AbstractStreamBase implements Stream {
         return FutureCollectionHelper.sequence(segments);
     }
 
-    private CompletionStage<Integer> updateIndexTableRecord(final Scale scale,
-                                                            final int historyOffset,
-                                                            final int startingSegmentNumber) {
-        return getIndexTable()
-                .thenCompose(indexTable -> {
-                    Optional<IndexRecord> lastRecord = IndexRecord.readLatestRecord(indexTable);
-                    if (lastRecord.isPresent() && lastRecord.get().getEventTime() < scale.getScaleTimestamp()) {
-                        final byte[] updated = TableHelper.updateIndexTable(indexTable,
-                                scale.getScaleTimestamp(),
-                                historyOffset);
-                        return updateIndexTable(updated).thenApply(y -> startingSegmentNumber);
-                    } else return new CompletableFuture<Integer>()
-                            .thenApply(y -> startingSegmentNumber);
-                });
-    }
-
-    private CompletableFuture<Integer> updateHistoryTableRecord(final List<Integer> sealedSegments, final Scale scale) {
-        return getHistoryTable()
-                .thenCompose(historyTable -> {
-                    final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable);
-
-                    // scale task is not allowed unless create is done which means at least one
-                    // record in history table
-                    assert lastRecordOpt.isPresent();
-
-                    final HistoryRecord lastRecord = lastRecordOpt.get();
-
-                    final int highestSegmentNumber = lastRecord
-                            .getSegments()
-                            .stream()
-                            .max(Comparator.naturalOrder())
-                            .get();
-                    final List<Integer> newActiveSegments = lastRecord.getSegments();
-                    newActiveSegments.removeAll(sealedSegments);
-                    newActiveSegments.addAll(
-                            IntStream.range(highestSegmentNumber + 1,
-                                    highestSegmentNumber + scale.getNewRanges().size() + 1)
-                                    .boxed()
-                                    .collect(Collectors.toList()));
-                    if (lastRecord.getEventTime() < scale.getScaleTimestamp()) {
-                        final byte[] updated = TableHelper.updateHistoryTable(historyTable,
-                                scale.getScaleTimestamp(),
-                                newActiveSegments);
-                        return updateHistoryTable(updated).thenApply(y -> historyTable.length);
-                    } else {
-                        return CompletableFuture.completedFuture(historyTable.length);
-                    }
-                });
-    }
-
-    private CompletableFuture<Integer> updateSegmentChunk(
+    /**
+     * @param scale
+     * @param currentSegmentData
+     * @return : return starting segment number
+     */
+    private CompletableFuture<Integer> addNewSegments(
             final Scale scale,
             final ImmutablePair<Integer, byte[]> currentSegmentData) {
         final int currentChunk = currentSegmentData.left;
@@ -375,6 +311,12 @@ public abstract class AbstractStreamBase implements Stream {
 
         final int startingSegmentNumber = currentChunk * SegmentRecord.SEGMENT_CHUNK_SIZE +
                 (currentChunkData.length / SegmentRecord.SEGMENT_RECORD_SIZE);
+
+        // idempotent check
+        final Segment lastSegment = TableHelper.getSegment(startingSegmentNumber - 1, currentChunkData);
+        if (lastSegment.getStart() == scale.getScaleTimestamp()) {
+            return CompletableFuture.completedFuture(lastSegment.getNumber() - scale.getNewRanges().size() + 1);
+        }
 
         final int maxSegmentNumberForChunk = (currentChunk + 1) * SegmentRecord.SEGMENT_CHUNK_SIZE;
 
@@ -390,11 +332,11 @@ public abstract class AbstractStreamBase implements Stream {
 
         return setSegmentTableChunk(currentChunk, updatedChunkData)
                 .thenCompose(y -> {
-                    final int chunkNumber = (startingSegmentNumber + scale.getNewRanges().size()) / SegmentRecord.SEGMENT_RECORD_SIZE;
+                    final int chunkNumber = TableHelper.getSegmentChunkNumber(startingSegmentNumber + scale.getNewRanges().size());
                     final int remaining = Integer.max(scale.getNewRanges().size() - toCreate, 0);
 
                     byte[] newChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
-                            new byte[0],
+                            new byte[0], // new chunk
                             remaining,
                             scale.getNewRanges(),
                             scale.getScaleTimestamp()
@@ -405,21 +347,83 @@ public abstract class AbstractStreamBase implements Stream {
                 .thenApply(x -> startingSegmentNumber);
     }
 
-    private CompletionStage<ImmutablePair<Integer, byte[]>> getLatestChunk(final List<String> segmentChunks) {
-        assert segmentChunks.size() > 0;
+    /**
+     * update history table if not already updated:
+     * fetch last record from history table.
+     * if eventTime is >= scale.scaleTimeStamp do nothing, else create record
+     *
+     * @param sealedSegments
+     * @param scale
+     * @return : future of history table offset for last entry
+     */
+    private CompletableFuture<Integer> addHistoryRecord(final List<Integer> sealedSegments,
+                                                        final Scale scale,
+                                                        final int startingSegmentNumber) {
+        return getHistoryTable()
+                .thenCompose(historyTable -> {
+                    final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable);
 
-        final int latestChunk = segmentChunks.size() - 1;
+                    // scale task is not allowed unless create is done which means at least one
+                    // record in history table
+                    assert lastRecordOpt.isPresent();
 
-        return getSegmentTableChunk(latestChunk)
-                .thenApply(segmentTableChunk ->
-                        new ImmutablePair<>(latestChunk, segmentTableChunk));
+                    final HistoryRecord lastRecord = lastRecordOpt.get();
+
+                    // idempotent check
+                    if (lastRecord.getEventTime() >= scale.getScaleTimestamp()) {
+                        assert lastRecord.getSegments().contains(startingSegmentNumber);
+
+                        return CompletableFuture.completedFuture(lastRecord.getStartOfRowPointer());
+                    }
+
+                    final List<Integer> newActiveSegments = getNewActiveSegments(sealedSegments,
+                            scale,
+                            startingSegmentNumber,
+                            lastRecord);
+
+                    final byte[] updated = TableHelper.updateHistoryTable(historyTable,
+                            scale.getScaleTimestamp(),
+                            newActiveSegments);
+
+                    return updateHistoryTable(updated).thenApply(y -> lastRecord.getEndOfRowPointer() + 1);
+                });
+    }
+
+    private List<Integer> getNewActiveSegments(List<Integer> sealedSegments,
+                                               Scale scale,
+                                               int startingSegmentNumber,
+                                               HistoryRecord lastRecord) {
+        final List<Integer> segments = lastRecord.getSegments();
+        segments.removeAll(sealedSegments);
+        segments.addAll(
+                IntStream.range(startingSegmentNumber,
+                        startingSegmentNumber + scale.getNewRanges().size())
+                        .boxed()
+                        .collect(Collectors.toList()));
+        return segments;
+    }
+
+    private CompletionStage<Void> addIndexRecord(final Scale scale,
+                                                 final int historyOffset) {
+        return getIndexTable()
+                .thenCompose(indexTable -> {
+                    final Optional<IndexRecord> lastRecord = IndexRecord.readLatestRecord(indexTable);
+                    // check idempotent
+                    if (lastRecord.isPresent() && lastRecord.get().getEventTime() >= scale.getScaleTimestamp())
+                        return CompletableFuture.completedFuture(null);
+
+                    final byte[] updated = TableHelper.updateIndexTable(indexTable,
+                            scale.getScaleTimestamp(),
+                            historyOffset);
+                    return updateIndexTable(updated);
+                });
     }
 
     private CompletableFuture<Create> processCreateTask(final StreamConfiguration configuration, final byte[] taskData) {
         final Create create;
         if (taskData != null) {
             try {
-                Task task = (Task) SerializationUtils.deserialize(taskData);
+                final Task task = (Task) SerializationUtils.deserialize(taskData);
                 // if the task is anything other than create, throw error and exit immediately
                 assert task.getType().equals(Create.class);
 
@@ -474,6 +478,15 @@ public abstract class AbstractStreamBase implements Stream {
         }
     }
 
+    private CompletionStage<ImmutablePair<Integer, byte[]>> getLatestChunk(final List<String> segmentChunks) {
+        assert segmentChunks.size() > 0;
+
+        final int latestChunkNumber = segmentChunks.size() - 1;
+
+        return getSegmentTableChunk(latestChunkNumber)
+                .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
+    }
+
     abstract CompletableFuture<Void> acquireDistributedLock();
 
     abstract CompletableFuture<Void> releaseDistributedLock();
@@ -484,13 +497,13 @@ public abstract class AbstractStreamBase implements Stream {
 
     abstract CompletableFuture<Void> deleteTask();
 
-    abstract CompletionStage<Create> createConfiguration(StreamConfiguration configuration, Create create);
+    abstract CompletionStage<Void> createConfiguration(StreamConfiguration configuration, Create create);
 
     abstract CompletableFuture<Void> setConfigurationData(StreamConfiguration configuration);
 
     abstract CompletableFuture<StreamConfiguration> getConfigurationData();
 
-    abstract CompletableFuture<Create> createSegmentTable(Create create);
+    abstract CompletableFuture<Void> createSegmentTable(Create create);
 
     abstract CompletableFuture<Void> createSegmentChunk(int chunkNumber, byte[] data);
 
@@ -508,11 +521,11 @@ public abstract class AbstractStreamBase implements Stream {
 
     abstract CompletableFuture<Void> updateIndexTable(byte[] updated);
 
-    abstract CompletionStage<Create> createHistoryTable(Create create);
+    abstract CompletionStage<Void> createHistoryTable(Create create);
 
     abstract CompletableFuture<Void> updateHistoryTable(byte[] updated);
 
     abstract CompletableFuture<byte[]> getHistoryTable();
 
-    abstract CompletionStage<Create> createSegmentFile(Create create);
+    abstract CompletionStage<Void> createSegmentFile(Create create);
 }
