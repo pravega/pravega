@@ -277,7 +277,7 @@ public abstract class AbstractStreamBase implements Stream {
                     final Scale scale = pair.left;
                     final int startingSegmentNumber = pair.right;
 
-                    return updateHistoryTable(sealedSegments, scale)
+                    return updateHistoryTableRecord(sealedSegments, scale)
                             .thenApply(historyOffset -> new ImmutableTriple<>(scale, startingSegmentNumber, historyOffset));
                 })
                 .thenCompose(triple -> {
@@ -288,7 +288,7 @@ public abstract class AbstractStreamBase implements Stream {
                     final int historyOffset = triple.right;
                     final int startingSegmentNumber = triple.middle;
 
-                    return updateIndexTable(scale, historyOffset, startingSegmentNumber);
+                    return updateIndexTableRecord(scale, historyOffset, startingSegmentNumber);
                 })
                 .thenCompose(startingSegmentNumber -> deleteTask().thenApply(z -> startingSegmentNumber))
                 .thenCompose(startingSegmentNumber -> getSegments(newRanges, startingSegmentNumber))
@@ -317,9 +317,9 @@ public abstract class AbstractStreamBase implements Stream {
         return FutureCollectionHelper.sequence(segments);
     }
 
-    private CompletionStage<Integer> updateIndexTable(final Scale scale,
-                                                      final int historyOffset,
-                                                      final int startingSegmentNumber) {
+    private CompletionStage<Integer> updateIndexTableRecord(final Scale scale,
+                                                            final int historyOffset,
+                                                            final int startingSegmentNumber) {
         return getIndexTable()
                 .thenCompose(indexTable -> {
                     Optional<IndexRecord> lastRecord = IndexRecord.readLatestRecord(indexTable);
@@ -333,7 +333,7 @@ public abstract class AbstractStreamBase implements Stream {
                 });
     }
 
-    private CompletableFuture<Integer> updateHistoryTable(final List<Integer> sealedSegments, final Scale scale) {
+    private CompletableFuture<Integer> updateHistoryTableRecord(final List<Integer> sealedSegments, final Scale scale) {
         return getHistoryTable()
                 .thenCompose(historyTable -> {
                     final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable);
