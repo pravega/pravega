@@ -17,13 +17,16 @@
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
+import com.emc.pravega.common.cluster.NodeType;
+
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class TestClusterListener extends ClusterListenerZKImpl {
     public LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
     public LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
-    public TestClusterListener(String connectionString, String clusterName) {
-        super(connectionString, clusterName);
+
+    public TestClusterListener(String connectionString, String clusterName, NodeType type) {
+        super(connectionString, clusterName, type);
     }
 
     /**

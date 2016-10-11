@@ -18,8 +18,8 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.ClusterListener;
+import com.emc.pravega.common.cluster.NodeType;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -27,6 +27,7 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.utils.ZKPaths;
 
 import java.util.concurrent.Executor;
 
@@ -41,37 +42,37 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
     private final static String PATH_CLUSTER = "/cluster/";
 
     @Getter
-    @Setter
     private String clusterName;
+    private NodeType type;
 
     private final CuratorFramework client;
     private final PathChildrenCache cache;
 
     private final PathChildrenCacheListener pathChildrenCacheListener = (client, event) -> {
-        log.debug("Event {} generated on Cluster{}", event, clusterName);
+        log.debug("Event {} generated on cluster:{}", event, clusterName);
         switch (event.getType()) {
             case CHILD_ADDED:
-                log.info("Node {} added to Cluster {}", getServerName(event), clusterName);
+                log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
                 nodeAdded(getServerName(event));
                 break;
             case CHILD_REMOVED:
-                log.info("Node {} removed from Cluster {}", getServerName(event), clusterName);
+                log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
                 nodeRemoved(getServerName(event));
                 break;
             case CHILD_UPDATED:
-                log.error("Invalid usage Node {} updated in Cluster {}", getServerName(event), clusterName);
-                //TODO throw error?
+                log.error("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
                 break;
         }
     };
 
     //TODO: Check if we need to be pass the ZK client instead of connection String
-    public ClusterListenerZKImpl(final String connectionString, final String clusterName) {
+    public ClusterListenerZKImpl(final String connectionString, final String clusterName, final NodeType nodeType) {
         this.clusterName = clusterName;
+        this.type = nodeType;
         client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(RETRY_SLEEP_MS, MAX_RETRY));
         client.start();
 
-        cache = new PathChildrenCache(client, new StringBuffer(PATH_CLUSTER).append(clusterName).toString(), true);
+        cache = new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, nodeType.name()), true);
     }
 
     /**
@@ -102,6 +103,6 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
 
     private String getServerName(final PathChildrenCacheEvent event) {
         String path = event.getData().getPath();
-        return path.substring(path.lastIndexOf("/")+1);
+        return path.substring(path.lastIndexOf("/") + 1);
     }
 }

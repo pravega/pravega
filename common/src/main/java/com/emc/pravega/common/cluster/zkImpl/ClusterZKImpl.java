@@ -61,7 +61,7 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     @Override
     public void registerNode(EndPoint endPoint) throws Exception {
 
-        String basePath = ZKPaths.makePath(PATH_CLUSTER, name);
+        String basePath = ZKPaths.makePath(PATH_CLUSTER, name, type.name());
         if (client.checkExists().forPath(basePath) == null) {
             client.create().creatingParentsIfNeeded().forPath(basePath);
         }

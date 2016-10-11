@@ -37,7 +37,7 @@ public class ClusterZKTest {
     @Test
     public void registerNode() throws Exception {
         //TestClusterListener for testing purposes
-        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME);
+        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME, NodeType.DATA);
         clusterListener.start();
 
         //Create Add a node to the cluster.
@@ -53,7 +53,7 @@ public class ClusterZKTest {
 
     @Test
     public void deregisterNode() throws Exception {
-        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME);
+        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME, NodeType.DATA);
         clusterListener.start();
 
         //Create Add a node to the cluster.
