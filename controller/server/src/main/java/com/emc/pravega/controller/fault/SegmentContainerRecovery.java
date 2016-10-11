@@ -20,12 +20,13 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.NodeType;
 import com.emc.pravega.common.cluster.zkImpl.ClusterListenerZKImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
 
 @Slf4j
 public class SegmentContainerRecovery extends ClusterListenerZKImpl {
 
-    public SegmentContainerRecovery(String connectionString, String clusterName) {
-        super(connectionString, clusterName, NodeType.DATA);
+    public SegmentContainerRecovery(CuratorFramework client, String clusterName) {
+        super(client, clusterName, NodeType.DATA);
     }
 
     /**

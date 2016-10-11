@@ -20,12 +20,12 @@ package com.emc.pravega.common.cluster.zkImpl;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.EndPoint;
 import com.emc.pravega.common.cluster.NodeType;
+import com.emc.pravega.common.util.CollectionHelpers;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.nodes.PersistentNode;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 
@@ -36,14 +36,16 @@ import java.util.Map;
 
 /**
  * Zookeeper based implementation of Cluster
+ * - It uses persistent ephemeral node which is an ephemeral node that attempts to stay present in ZooKeeper, even through
+ * connection and session interruptions.
+ * - Ephemeral Node is valid until a session timeout, default session timeout is 60 seconds.
+ * System property "curator-default-session-timeout" can be used to change it.
  */
 @Slf4j
 public class ClusterZKImpl implements Cluster, AutoCloseable {
 
-    private final static int RETRY_SLEEP_MS = 100;
-    private final static int MAX_RETRY = 5;
-    private final static int INIT_SIZE = 3;
     private final static String PATH_CLUSTER = "/cluster/";
+    private final static int INIT_SIZE = 3;
 
     private final CuratorFramework client;
     private final String name;
@@ -51,11 +53,12 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
 
     private Map<String, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
 
-    public ClusterZKImpl(String connectionString, String clusterName, NodeType nodeType) {
+    public ClusterZKImpl(CuratorFramework zkClient, String clusterName, NodeType nodeType) {
         this.name = clusterName;
         this.type = nodeType;
-        this.client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(RETRY_SLEEP_MS, MAX_RETRY));
-        client.start(); // start zk Client
+        this.client = zkClient;
+        if (client.getState().equals(CuratorFrameworkState.LATENT))
+            client.start();
     }
 
     @Override
@@ -66,6 +69,7 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
             client.create().creatingParentsIfNeeded().forPath(basePath);
         }
         String nodePath = ZKPaths.makePath(basePath, endPoint.getHost());
+
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, endPoint.toString().getBytes());
 
         node.start(); //start creation of ephemeral node in background.
@@ -92,6 +96,6 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        client.close();
+        CollectionHelpers.forEach(entryMap.values(), node -> node.close());
     }
 }

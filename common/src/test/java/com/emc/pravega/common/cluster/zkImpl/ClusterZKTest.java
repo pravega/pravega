@@ -19,6 +19,9 @@ package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.EndPoint;
 import com.emc.pravega.common.cluster.NodeType;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -38,8 +41,11 @@ public class ClusterZKTest {
     private final static int PORT = 1234;
     private final static String CLUSTER_NAME = "cluster-1";
     private final static String CLUSTER_NAME_2 = "cluster-2";
-    private static TestingServer zkTestServer;
 
+    private final static int RETRY_SLEEP_MS = 100;
+    private final static int MAX_RETRY = 5;
+
+    private static TestingServer zkTestServer;
 
     @BeforeClass
     public static void startZookeeper() throws Exception {
@@ -53,33 +59,51 @@ public class ClusterZKTest {
 
     @Test
     public void registerNode() throws Exception {
+
         //TestClusterListener for testing purposes
-        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME, NodeType.DATA);
+        CuratorFramework client2 = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+                RETRY_SLEEP_MS, MAX_RETRY));
+        TestClusterListener clusterListener = new TestClusterListener(client2, CLUSTER_NAME, NodeType.DATA);
         clusterListener.start();
 
+        CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+                RETRY_SLEEP_MS, MAX_RETRY));
+
         //Create Add a node to the cluster.
-        ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(ZK_URL, CLUSTER_NAME, NodeType.DATA);
+        ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME, NodeType.DATA);
         clusterZKInstance1.registerNode(new EndPoint(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a seperate instance of Cluster and add node to same Cluster
-        ClusterZKImpl clusterZKInstance2 = new ClusterZKImpl(ZK_URL, CLUSTER_NAME, NodeType.DATA);
+        ClusterZKImpl clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME, NodeType.DATA);
         clusterZKInstance1.registerNode(new EndPoint(HOST_2, PORT));
         assertEquals(HOST_2, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
+
+        //cleanup
+        clusterListener.close();
+        clusterZKInstance1.close();
+        clusterZKInstance2.close();
     }
 
     @Test
     public void deregisterNode() throws Exception {
-        TestClusterListener clusterListener = new TestClusterListener(ZK_URL, CLUSTER_NAME_2, NodeType.DATA);
+        CuratorFramework client2 = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+                RETRY_SLEEP_MS, MAX_RETRY));
+        TestClusterListener clusterListener = new TestClusterListener(client2, CLUSTER_NAME_2, NodeType.DATA);
         clusterListener.start();
 
+        CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+                RETRY_SLEEP_MS, MAX_RETRY));
         //Create Add a node to the cluster.
-        ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(ZK_URL, CLUSTER_NAME_2, NodeType.DATA);
+        ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2, NodeType.DATA);
         clusterZKInstance1.registerNode(new EndPoint(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         clusterZKInstance1.deregisterNode(new EndPoint(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeRemovedQueue.poll(5, TimeUnit.SECONDS));
 
+        //cleanup
+        clusterListener.close();
+        clusterZKInstance1.close();
     }
 }

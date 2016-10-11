@@ -22,11 +22,10 @@ import com.emc.pravega.common.cluster.NodeType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.concurrent.Executor;
@@ -65,12 +64,12 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
         }
     };
 
-    //TODO: Check if we need to be pass the ZK client instead of connection String
-    public ClusterListenerZKImpl(final String connectionString, final String clusterName, final NodeType nodeType) {
+    public ClusterListenerZKImpl(final CuratorFramework client, final String clusterName, final NodeType nodeType) {
         this.clusterName = clusterName;
         this.type = nodeType;
-        client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(RETRY_SLEEP_MS, MAX_RETRY));
-        client.start();
+        this.client = client;
+        if (client.getState().equals(CuratorFrameworkState.LATENT))
+            client.start();
 
         cache = new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, nodeType.name()), true);
     }
@@ -98,7 +97,6 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
     @Override
     public void close() throws Exception {
         cache.close();
-        client.close();
     }
 
     private String getServerName(final PathChildrenCacheEvent event) {

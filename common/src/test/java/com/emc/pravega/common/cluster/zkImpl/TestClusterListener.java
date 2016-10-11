@@ -18,6 +18,7 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.NodeType;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -25,8 +26,8 @@ public class TestClusterListener extends ClusterListenerZKImpl {
     public LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
     public LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
 
-    public TestClusterListener(String connectionString, String clusterName, NodeType type) {
-        super(connectionString, clusterName, type);
+    public TestClusterListener(CuratorFramework client, String clusterName, NodeType type) {
+        super(client, clusterName, type);
     }
 
     /**
