@@ -17,30 +17,32 @@
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
-import org.junit.Test;
+import java.util.concurrent.LinkedBlockingQueue;
 
-import static org.junit.Assert.*;
-
-
-public class ClusterZKImplTest {
-    @Test
-    public void registerNode() throws Exception {
-
+public class TestClusterListener extends ClusterListenerZKImpl {
+    public LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
+    public LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
+    public TestClusterListener(String connectionString, String clusterName) {
+        super(connectionString, clusterName);
     }
 
-    @Test
-    public void deregisterNode() throws Exception {
-
+    /**
+     * Method invoked when node has been added
+     *
+     * @param hostName
+     */
+    @Override
+    public void nodeAdded(String hostName) {
+        nodeAddedQueue.offer(hostName);
     }
 
-    @Test
-    public void getClusterName() throws Exception {
-
+    /**
+     * Method invoked when node has been removed
+     *
+     * @param hostName
+     */
+    @Override
+    public void nodeRemoved(String hostName) {
+        nodeRemovedQueue.offer(hostName);
     }
-
-    @Test
-    public void getClusterNodeType() throws Exception {
-
-    }
-
 }

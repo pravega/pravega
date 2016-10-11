@@ -23,13 +23,10 @@ package com.emc.pravega.common.cluster;
  */
 public interface Cluster {
 
-    public void registerNode(final String clusterName, final NodeType nodeType, final EndPoint endPoint);
+    public void registerNode(final EndPoint endPoint) throws Exception;
 
-    public void deregisterNode(final String clusterName, final NodeType nodeType, final EndPoint endPoint);
+    public void deregisterNode(final EndPoint endPoint) throws Exception;
 
-    public String getClusterName();
-
-    public NodeType getClusterNodeType();
 }
 
 

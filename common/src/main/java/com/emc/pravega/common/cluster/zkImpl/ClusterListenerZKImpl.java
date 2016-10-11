@@ -48,20 +48,18 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
     private final PathChildrenCache cache;
 
     private final PathChildrenCacheListener pathChildrenCacheListener = (client, event) -> {
-        String serverName = getServerName(event);
         log.debug("Event {} generated on Cluster{}", event, clusterName);
-
         switch (event.getType()) {
             case CHILD_ADDED:
-                log.info("Node {} added to Cluster {}", serverName, clusterName);
-                nodeAdded(serverName);
+                log.info("Node {} added to Cluster {}", getServerName(event), clusterName);
+                nodeAdded(getServerName(event));
                 break;
             case CHILD_REMOVED:
-                log.info("Node {} removed from Cluster {}", serverName, clusterName);
-                nodeRemoved(serverName);
+                log.info("Node {} removed from Cluster {}", getServerName(event), clusterName);
+                nodeRemoved(getServerName(event));
                 break;
             case CHILD_UPDATED:
-                log.error("Invalid usage Node {} updated in Cluster {}", serverName, clusterName);
+                log.error("Invalid usage Node {} updated in Cluster {}", getServerName(event), clusterName);
                 //TODO throw error?
                 break;
         }
@@ -73,7 +71,7 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
         client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(RETRY_SLEEP_MS, MAX_RETRY));
         client.start();
 
-        cache = new PathChildrenCache(client, new StringBuffer(PATH_CLUSTER).append(clusterName).append("/").toString(), true);
+        cache = new PathChildrenCache(client, new StringBuffer(PATH_CLUSTER).append(clusterName).toString(), true);
     }
 
     /**
@@ -104,6 +102,6 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
 
     private String getServerName(final PathChildrenCacheEvent event) {
         String path = event.getData().getPath();
-        return path.substring(path.lastIndexOf("/"));
+        return path.substring(path.lastIndexOf("/")+1);
     }
 }
