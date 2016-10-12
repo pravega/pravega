@@ -93,7 +93,7 @@ public class InteractiveStreamSegmentStoreTester {
         if (useDistributedLog) {
             serviceBuilder = new DistributedLogServiceBuilder(config);
         } else {
-            serviceBuilder = new InMemoryServiceBuilder(config);
+            serviceBuilder = new HDFSServicebuilder(config);
         }
 
         try {

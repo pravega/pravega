@@ -21,14 +21,11 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.storage.Storage;
-
 import lombok.extern.slf4j.Slf4j;
-
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -55,51 +52,75 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return storage.create(getFirstSegmentFullPath(streamSegmentName), timeout);
+        return storage.create(getFirstSegmentFullPath(streamSegmentName), timeout).
+                thenApply(properties -> ChangeNameToStream(properties, streamSegmentName));
     }
 
+    /**
+     * Utility function to change the name in the SegmentProperties from the last file
+     * to the segment name
+     * @param properties             Properties representing the segment name
+     * @param streamSegmentName      The name of the segment
+     */
+    private SegmentProperties ChangeNameToStream(SegmentProperties properties, String streamSegmentName) {
+        return new StreamSegmentInformation(streamSegmentName,
+                properties.getLength(),
+                properties.isSealed(),
+                properties.isDeleted(),
+                properties.getLastModified());
+    }
+
+    /**
+     * Utility function to get the full name of the first file representing the segment.
+     */
     private String getFirstSegmentFullPath(String streamSegmentName) {
         return (serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_0");
     }
 
+    /**
+     * Utility function to get the full name of a file representing part of the segment. The
+     * data in the file starts at a given offset
+     */
     private String getSegmentFullPathStartingAtOffset(String streamSegmentName, long currStart) {
         return (serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + currStart);
     }
 
+    /**
+     * Utility function to get the wildcard path string which represents all the files that represent
+     * current segment
+     */
     private FileStatus[] getStreamSegmentNameWildCard(String streamSegmentName) throws IOException {
         return storage.getFS().globStatus(new Path(serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + "[0-9]*"));
     }
 
+    /**
+     * Utility function that returns full path name of the file which actually contains
+     * data at the given offset for the segment
+     */
     private String getSegmentFullPathContainingOffset(String streamSegmentName, long offset) throws IOException {
+        String possibleValForAppend = null;
         for(FileStatus status: getStreamSegmentNameWildCard(streamSegmentName)) {
-            long fileStartOffset = this.getStartOffsetInName(streamSegmentName);
+            long fileStartOffset = this.getStartOffsetInName(status.getPath().toString());
             if(fileStartOffset <= offset && fileStartOffset + status.getLen() < offset) {
                 return status.getPath().toString();
             }
+            if(fileStartOffset <= offset && fileStartOffset + status.getLen() <= offset) {
+                possibleValForAppend = status.getPath().toString();
+            }
         }
-        return null;
+        return possibleValForAppend;
     }
 
-
+    /**
+     * Utility function that given name of a file representing a segment,
+     * returns the start offset of the data in the file
+     */
     private long getStartOffsetInName(String currFilename) {
         if(currFilename == null) return 0;
         String[] tokens = currFilename.split("_");
         String sizeStr = tokens[tokens.length -1];
         return Long.valueOf(sizeStr);
     }
-
-
-
-    private Path getOwnedFullStreamSegmentPath(String streamSegmentName) {
-        return new Path(serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + serviceBuilderConfig.getPravegaID());
-    }
-
-
-    private String getOwnedFullStreamSegmentName(String streamSegmentName) {
-        return (serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + serviceBuilderConfig.getPravegaID());
-    }
-
-
 
 
     @Override
@@ -117,11 +138,17 @@ public class HDFSStorage implements Storage {
         return retVal;
     }
 
+    /**
+     * Algorithm to take over the ownership of a segment.
+     *
+     * List the files.
+     * Mark all the files readonly
+     * Find the file with the biggest start offset
+     * Create a new file with the name equal to
+     * the current offset of the stream which is biggest start offset + its size
+     */
     private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException {
-        //List the files.
-        //Mark all the files readonly
-        //Find the biggest one
-        //Create a new file with the name equal to  the current offset
+
 
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
@@ -139,13 +166,16 @@ public class HDFSStorage implements Storage {
                         lastProp[0] = props;
                     }
                     return props;
-                });
+                }).count();
 
        currStart[0] = currStart[0] + lastProp[0].getLength();
         storage.createSync(getSegmentFullPathStartingAtOffset(streamSegmentName, currStart[0]), null);
         return true;
     }
 
+    /**
+     * Sets all the file belonging to a segment readonly.
+     */
     private SegmentProperties setAllFilesReadOnlySync(String streamSegmentName) throws IOException {
         //List the files.
         //Mark all the files readonly
@@ -170,7 +200,7 @@ public class HDFSStorage implements Storage {
                         lastProp[0] = props;
                     }
                     return props;
-                });
+                }).count();
 
         return new StreamSegmentInformation(streamSegmentName,
                 currStart[0] + lastProp[0].getLength(),
@@ -209,15 +239,32 @@ public class HDFSStorage implements Storage {
             } catch (IOException e) {
                 retVal.completeExceptionally(e);
             }
-        });
+        }, executor);
         return retVal;
     }
 
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        return storage.concat(getOwnedFullStreamSegmentName(targetStreamSegmentName),offset, getOwnedFullStreamSegmentName(sourceStreamSegmentName), timeout);
+        CompletableFuture<Void> retVal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                retVal.complete(concatSync(
+                        this.getSegmentFullPathContainingOffset(targetStreamSegmentName, offset),
+                        offset - this.getStartOffsetInName(
+                                this.getSegmentFullPathContainingOffset(targetStreamSegmentName, offset)),
+                        this.getFirstSegmentFullPath(sourceStreamSegmentName),
+                        timeout));
+            } catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
+        }, executor);
+        return retVal;
+    }
 
+
+    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
+        return storage.concatSync(targetStreamSegmentName, offset,sourceStreamSegmentName, timeout);
     }
 
 
@@ -235,6 +282,9 @@ public class HDFSStorage implements Storage {
         return retVal;
     }
 
+    /**
+     * Deletes all the files belonging to the given stream segment
+     */
     private Void deleteSync(String streamSegmentName, Duration timeout) throws IOException {
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
         Arrays.stream(statuses).map(status -> status.getPath().toString()).
@@ -245,7 +295,7 @@ public class HDFSStorage implements Storage {
                         throw new UncheckedIOException(e);
                     }
                     return null;
-                });
+                }).count();
 
         return null;
     }
@@ -268,9 +318,15 @@ public class HDFSStorage implements Storage {
         return retVal;
     }
 
+    /**
+     * Finds the file containing the given offset for the given segment.
+     * Reads from that file.
+     */
     private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
-        FSDataInputStream stream = storage.getFS().open(this.getOwnedFullStreamSegmentPath(streamSegmentName));
-        return stream.read(offset, buffer, bufferOffset, length);
+        String fileName = this.getSegmentFullPathContainingOffset(streamSegmentName,offset);
+        FSDataInputStream stream = storage.getFS().open(new Path(fileName));
+        return stream.read(offset- this.getStartOffsetInName(fileName),
+                buffer, bufferOffset, length);
     }
 
 
@@ -296,33 +352,39 @@ public class HDFSStorage implements Storage {
      }
 
 
+     /**
+      *
+      * Utility function that lists all the files and creates
+      * the segment info based on the status of the file containing the largest offset
+      */
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
-        //List the files.
-        //Mark all the files readonly
-
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
-        final long[] currStart = {0};
-        final SegmentProperties[] lastProp = {null};
-        Arrays.stream(statuses).map(status -> status.getPath().toString()).
-                map(name -> {
-                    SegmentProperties props;
-                    props = storage.getStreamSegmentInfoSync(name, null);
-                    String[] tokens = name.split("_");
-                    String sizeStr = tokens[tokens.length -1];
-                    long currVal = Long.valueOf(sizeStr);
-                    if(currVal > currStart[0]) {
-                        currStart[0] = currVal;
-                        lastProp[0] = props;
-                    }
-                    return props;
-                });
+        long currStart = 0;
+        SegmentProperties lastProp = null;
+
+        for (FileStatus status: statuses) {
+            String name =status.getPath().toString();
+            SegmentProperties props;
+            try {
+               props = storage.getStreamSegmentInfoSync(name, null);
+            } catch (IOException e) {
+            throw new UncheckedIOException(e);
+            }
+            String[] tokens = name.split("_");
+            String sizeStr = tokens[tokens.length -1];
+            long currVal = Long.valueOf(sizeStr);
+            if(currVal > currStart || lastProp == null) {
+                currStart = currVal;
+                lastProp = props;
+            }
+         }
 
         return new StreamSegmentInformation(streamSegmentName,
-                currStart[0] + lastProp[0].getLength(),
-                true,
-                false,
-                lastProp[0].getLastModified());
+                currStart + lastProp.getLength(),
+                lastProp.isSealed(),
+                lastProp.isDeleted(),
+                lastProp.getLastModified());
     }
 
 }

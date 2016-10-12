@@ -19,11 +19,10 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.storage.Storage;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
@@ -32,6 +31,7 @@ import org.apache.hadoop.io.IOUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -69,11 +69,22 @@ class HDFSLowerStorage implements Storage {
                     this.serviceBuilderConfig.getReplication(),
                     this.serviceBuilderConfig.getBlockSize(),
                     null).close();
-            return this.getStreamSegmentInfoSync(streamSegmentName, timeout);
+            return new StreamSegmentInformation(streamSegmentName,
+                    0,
+                    false,
+                    false,
+                    new Date()
+            );
     }
 
-    SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) {
-        return null;
+    SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
+        FileStatus[] status = getFS().globStatus(new Path(streamSegmentName));
+        return new StreamSegmentInformation(streamSegmentName,
+                status[0].getLen(),
+                status[0].getPermission().getUserAction() == FsAction.READ,
+                false,
+                new Date(status[0].getModificationTime()));
+
     }
 
 
@@ -152,7 +163,7 @@ class HDFSLowerStorage implements Storage {
     }
 
 
-    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
+    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
         getFS().concat(new Path(targetStreamSegmentName),
                 new Path[]{
                         new Path(targetStreamSegmentName),
