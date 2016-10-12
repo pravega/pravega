@@ -318,9 +318,9 @@ public abstract class PersistentStreamBase implements Stream {
             return CompletableFuture.completedFuture(lastSegment.getNumber() - scale.getNewRanges().size() + 1);
         }
 
-        final int maxSegmentNumberForChunk = (currentChunk + 1) * SegmentRecord.SEGMENT_CHUNK_SIZE;
+        final int maxSegmentNumberForChunk = (currentChunk + 1) * SegmentRecord.SEGMENT_CHUNK_SIZE - 1;
 
-        final int toCreate = Integer.min(maxSegmentNumberForChunk - startingSegmentNumber,
+        final int toCreate = Integer.min(maxSegmentNumberForChunk - startingSegmentNumber + 1,
                 scale.getNewRanges().size());
 
         final byte[] updatedChunkData = TableHelper.updateSegmentTable(startingSegmentNumber,
@@ -335,14 +335,18 @@ public abstract class PersistentStreamBase implements Stream {
                     final int chunkNumber = TableHelper.getSegmentChunkNumber(startingSegmentNumber + scale.getNewRanges().size());
                     final int remaining = Integer.max(scale.getNewRanges().size() - toCreate, 0);
 
-                    byte[] newChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
-                            new byte[0], // new chunk
-                            remaining,
-                            scale.getNewRanges(),
-                            scale.getScaleTimestamp()
-                    );
+                    if (remaining > 0) {
+                        byte[] newChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
+                                new byte[0], // new chunk
+                                remaining,
+                                scale.getNewRanges(),
+                                scale.getScaleTimestamp()
+                        );
 
-                    return createSegmentChunk(chunkNumber, newChunk);
+                        return createSegmentChunk(chunkNumber, newChunk);
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
                 })
                 .thenApply(x -> startingSegmentNumber);
     }
@@ -515,7 +519,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Void> setSegmentTableChunk(int chunkNumber, byte[] data);
 
-    abstract CompletionStage<String> createIndexTable(Create create);
+    abstract CompletionStage<Void> createIndexTable(Create create);
 
     abstract CompletableFuture<byte[]> getIndexTable();
 

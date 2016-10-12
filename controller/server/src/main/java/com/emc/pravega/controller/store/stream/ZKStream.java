@@ -189,9 +189,9 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletionStage<String> createIndexTable(final Create create) {
+    public CompletionStage<Void> createIndexTable(final Create create) {
         final byte[] indexTable = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
-        return createZNodeIfNotExist(indexPath, indexTable);
+        return createZNodeIfNotExist(indexPath, indexTable).thenApply(x -> null);
     }
 
     @Override
@@ -231,7 +231,6 @@ class ZKStream extends PersistentStreamBase {
 
         return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkFileName), segmentTable).thenApply(y -> null);
     }
-
 
     @Override
     public CompletableFuture<Void> setConfigurationData(final StreamConfiguration configuration) {
