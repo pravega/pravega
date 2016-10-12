@@ -43,7 +43,7 @@ struct SegmentId {
 struct FutureSegment {
   1: required SegmentId futureSegment,
   2: required SegmentId precedingSegment
-} 
+}
 
 struct SegmentRange {
   1: required SegmentId segmentId,
@@ -75,6 +75,7 @@ service ControllerService {
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
+    list<SegmentRange> scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     TxId createTransaction(1:string scope, 2:string stream)
     Status commitTransaction(1:string scope, 2:string stream, 3:TxId txid)

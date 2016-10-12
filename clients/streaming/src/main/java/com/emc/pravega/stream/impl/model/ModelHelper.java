@@ -17,7 +17,9 @@
  */
 package com.emc.pravega.stream.impl.model;
 
+import java.util.AbstractMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
@@ -93,7 +95,14 @@ public final class ModelHelper {
     public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
     }
-    
+
+    public static List<AbstractMap.SimpleEntry<Double, Double>> encode(Map<Double, Double> keyRanges) {
+        return keyRanges
+                .entrySet()
+                .stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue()))
+                .collect(Collectors.toList());
+    }
     public static Transaction.Status encode(TxStatus status, String logString) {
         switch (status) {
         case COMMITTED:

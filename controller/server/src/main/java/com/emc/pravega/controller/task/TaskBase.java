@@ -23,6 +23,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -78,7 +79,7 @@ public class TaskBase {
      * @param operation operation to execute
      * @return returns the value returned by operation, if lock is obtained successfully
      */
-    public <T> CompletableFuture<T> wrapper(String scope, String stream, List<Object> parameters, FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> wrapper(String scope, String stream, List<Serializable> parameters, FutureOperation<T> operation) {
         String streamName = scope + "_" + stream;
         String lockPath = String.format(Paths.STREAM_LOCKS, scope, stream);
         try {

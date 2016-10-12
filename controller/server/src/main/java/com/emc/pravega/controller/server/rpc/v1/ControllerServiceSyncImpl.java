@@ -35,6 +35,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.thrift.TException;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Synchronous controller service implementation
@@ -54,7 +55,7 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
      */
     @Override
     public Status createStream(StreamConfig streamConfig) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig)), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()), RuntimeException::new);
     }
 
     @Override
@@ -80,6 +81,11 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     @Override
     public List<Position> updatePositions(String scope, String stream, List<Position> positions) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.updatePositions(scope, stream, positions), RuntimeException::new);
+    }
+
+    @Override
+    public List<SegmentRange> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), RuntimeException::new);
     }
 
     @Override

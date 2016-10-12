@@ -17,10 +17,12 @@
  */
 package com.emc.pravega.stream;
 
+import java.io.Serializable;
+
 /**
  * The configuration of a Stream 
  */
-public interface StreamConfiguration {
+public interface StreamConfiguration extends Serializable {
     
     /**
      * @return The scope of the stream

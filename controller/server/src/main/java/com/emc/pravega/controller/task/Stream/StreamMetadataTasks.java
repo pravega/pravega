@@ -34,7 +34,9 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.io.Serializable;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -49,14 +51,14 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @Task(name = "createStream")
-    public CompletableFuture<Status> createStream(String scope, String stream, StreamConfiguration config) {
-        Object[] params = {scope, stream, config};
+    public CompletableFuture<Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+        Serializable[] params = {scope, stream, config};
         return this.wrapper(scope, stream, Arrays.asList(params), () -> createStreamBody(scope, stream, config));
     }
 
     @Task(name = "updateConfig")
     public CompletableFuture<Status> alterStream(String scope, String stream, StreamConfiguration config) {
-        Object[] params = {scope, stream, config};
+        Serializable[] params = {scope, stream, config};
         return this.wrapper(scope, stream, Arrays.asList(params), () -> updateStreamConfigBody(scope, stream, config));
     }
 
@@ -83,8 +85,8 @@ public class StreamMetadataTasks extends TaskBase {
      * @return returns the newly created segments
      */
     @Task(name = "scaleStream")
-    public CompletableFuture<List<Segment>> scale(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        Object[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
+    public CompletableFuture<List<Segment>> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+        Serializable[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
         return this.wrapper(scope, stream, Arrays.asList(params), () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 

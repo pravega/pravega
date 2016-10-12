@@ -18,62 +18,24 @@
 package com.emc.pravega.controller.task;
 
 import lombok.Data;
+import org.apache.commons.lang.SerializationUtils;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.List;
 
 /**
  * Task data: task name and its parameters
  */
 @Data
-public class TaskData {
+public class TaskData implements Serializable {
     private String methodName;
-    private List<Object> parameters;
+    private List<Serializable> parameters;
 
     public byte[] serialize() {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutput out = null;
-        try {
-            out = new ObjectOutputStream(bos);
-            out.writeObject(this);
-            out.flush();
-            return bos.toByteArray();
-        } catch (IOException ioe) {
-            // log exception
-        } finally {
-            try {
-                bos.close();
-            } catch (IOException ex) {
-                // log exception
-            }
-            return null;
-        }
+        return SerializationUtils.serialize(this);
     }
 
     public static TaskData deserialize(byte[] bytes) {
-        ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
-        ObjectInput in = null;
-        try {
-            in = new ObjectInputStream(bis);
-            Object o = in.readObject();
-            return (TaskData) o;
-        } catch  (IOException | ClassNotFoundException ex) {
-            // log exception
-        } finally {
-            try {
-                if (in != null) {
-                    in.close();
-                }
-            } catch (IOException ex) {
-                // log close exception
-            }
-        }
-        return null;
+        return (TaskData) SerializationUtils.deserialize(bytes);
     }
 }

@@ -31,6 +31,7 @@ import org.apache.thrift.TException;
 import org.apache.thrift.async.AsyncMethodCallback;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -48,7 +49,7 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     @Override
     public void createStream(StreamConfig streamConfig, AsyncMethodCallback resultHandler) throws TException {
         log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
-        processResult(controllerService.createStream(ModelHelper.encode(streamConfig)), resultHandler);
+        processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()), resultHandler);
     }
 
     @Override
@@ -73,6 +74,12 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     public void updatePositions(String scope, String stream, List<Position> positions, AsyncMethodCallback resultHandler) throws TException {
         log.debug("updatePositions called for stream " + scope + "/" + stream);
         processResult(controllerService.updatePositions(scope, stream, positions), resultHandler);
+    }
+
+    @Override
+    public void scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("scale called for stream " + scope + "/" + stream);
+        processResult(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), resultHandler);
     }
 
     @Override

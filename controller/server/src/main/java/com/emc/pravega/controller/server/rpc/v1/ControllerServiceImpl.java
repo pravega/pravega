@@ -63,8 +63,8 @@ public class ControllerServiceImpl {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, connectionFactory, client);
     }
 
-    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
+    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig, long createTimestamp) {
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
     }
 
     public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
@@ -76,12 +76,7 @@ public class ControllerServiceImpl {
         return streamStore.getActiveSegments(stream)
                 .thenApply(activeSegments -> activeSegments
                                 .stream()
-                                .map(segment ->
-                                                new SegmentRange(
-                                                        new SegmentId(scope, stream, segment.getNumber()),
-                                                        segment.getKeyStart(),
-                                                        segment.getKeyEnd())
-                                )
+                                .map(segment -> convert(scope, stream, segment))
                                 .collect(Collectors.toList())
                 );
     }
@@ -114,10 +109,23 @@ public class ControllerServiceImpl {
                         convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
     }
 
+    public CompletableFuture<List<SegmentRange>> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) {
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp)
+                .thenApply(segments -> segments
+                        .stream()
+                        .map(segment -> convert(scope, stream, segment))
+                        .collect(Collectors.toList()));
+    }
+
     public CompletableFuture<NodeUri> getURI(SegmentId segment) throws TException {
         return CompletableFuture.completedFuture(
                 SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
         );
+    }
+
+    private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
+        return new SegmentRange(
+                new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     /**
