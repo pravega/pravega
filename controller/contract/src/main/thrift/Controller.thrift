@@ -3,6 +3,8 @@ namespace java com.emc.pravega.controller.stream.api.v1
 enum Status {
     SUCCESS,
     FAILURE,
+    STREAM_NOT_FOUND,
+    DUPLICATE_STREAM_NAME
 }
 
 enum TxStatus {

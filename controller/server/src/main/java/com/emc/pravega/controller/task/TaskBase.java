@@ -19,6 +19,7 @@ package com.emc.pravega.controller.task;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 
@@ -37,15 +38,18 @@ public class TaskBase {
     }
 
     private static final long LOCK_WAIT_TIME = 2;
-    private final StreamMetadataStore streamMetadataStore;
-    private final HostControllerStore hostControllerStore;
+    protected final StreamMetadataStore streamMetadataStore;
+    protected final HostControllerStore hostControllerStore;
+    protected ConnectionFactoryImpl connectionFactory;
     private final CuratorFramework client;
 
     public TaskBase(StreamMetadataStore streamMetadataStore,
-                           HostControllerStore hostControllerStore,
-                           CuratorFramework client) {
+                    HostControllerStore hostControllerStore,
+                    ConnectionFactoryImpl connectionFactory,
+                    CuratorFramework client) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
+        this.connectionFactory = connectionFactory;
         this.client = client;
     }
 

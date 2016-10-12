@@ -18,6 +18,7 @@
 
 package com.emc.pravega.controller.server.v1;
 
+import static com.emc.pravega.controller.util.Config.ZK_CONNECTION_STRING;
 import static org.junit.Assert.assertEquals;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -30,6 +31,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.thrift.TException;
 import org.junit.Before;
 import org.junit.Test;
@@ -64,7 +68,9 @@ public class ControllerServiceImplTest {
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-    private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore);
+    private final CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
+
+    private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore, client);
 
     @Before
     public void prepareStreamStore() {

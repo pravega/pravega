@@ -20,6 +20,7 @@ package com.emc.pravega.controller.task;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -44,7 +45,7 @@ public class TaskSweeper {
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
         Class[] tmpTaskClasses = {StreamMetadataTasks.class};
-        Object[] tmpTaskClassObjects  = {new StreamMetadataTasks(streamMetadataStore, hostControllerStore, client)};
+        Object[] tmpTaskClassObjects  = {new StreamMetadataTasks(streamMetadataStore, hostControllerStore, new ConnectionFactoryImpl(false), client)};
         taskClasses = tmpTaskClasses;
         taskClassObjects = tmpTaskClassObjects;
     }

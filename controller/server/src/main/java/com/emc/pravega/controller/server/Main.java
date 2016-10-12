@@ -1,4 +1,3 @@
-
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -21,6 +20,7 @@ package com.emc.pravega.controller.server;
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.ZK_CONNECTION_STRING;
 
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
@@ -33,6 +33,9 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,7 +66,8 @@ public class Main {
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore));
+        CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, client));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
     }

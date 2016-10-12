@@ -31,6 +31,7 @@ import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.controller.stream.api.v1.TxStatus;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.curator.framework.CuratorFramework;
 import org.apache.thrift.TException;
 
 import java.util.List;
@@ -42,8 +43,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore);
+    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, CuratorFramework client) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, client);
     }
 
     /**

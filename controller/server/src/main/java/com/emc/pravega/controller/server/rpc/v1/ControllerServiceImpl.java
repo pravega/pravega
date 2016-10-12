@@ -25,9 +25,10 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.curator.framework.CuratorFramework;
 import org.apache.thrift.TException;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -53,37 +54,21 @@ public class ControllerServiceImpl {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
-    private ConnectionFactoryImpl connectionFactory;
+    private final StreamMetadataTasks streamMetadataTasks;
 
-    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
+    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, CuratorFramework client) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, connectionFactory, client);
     }
 
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-        String stream = streamConfig.getName();
-
-        return streamStore.createStream(stream, streamConfig)
-                .thenApply(result -> {
-                    if (result) {
-                        streamStore.getActiveSegments(stream)
-                                .thenApply(activeSegments -> {
-                                    activeSegments
-                                            .stream()
-                                            .parallel()
-                                            .forEach(segment -> notifyNewSegment(streamConfig.getScope(), stream, segment.getNumber()));
-                                    return null;
-                                });
-                        return Status.SUCCESS;
-                    } else {
-                        return Status.FAILURE;
-                    }
-                });
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
     }
 
     public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-        throw new NotImplementedException();
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(String scope, String stream) {
@@ -133,14 +118,6 @@ public class ControllerServiceImpl {
         return CompletableFuture.completedFuture(
                 SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
         );
-    }
-
-    private void notifyNewSegment(String scope, String stream, int segmentNumber) {
-        NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore);
-
-        // async call, dont wait for its completion or success. Host will contact controller if it does not know
-        // about some segment even if this call fails
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), connectionFactory));
     }
 
     /**

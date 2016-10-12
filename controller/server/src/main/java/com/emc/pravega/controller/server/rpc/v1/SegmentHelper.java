@@ -18,6 +18,7 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
+import java.net.UnknownHostException;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang.NotImplementedException;
@@ -77,4 +78,44 @@ public class SegmentHelper {
         }
         return FutureHelpers.getAndHandleExceptions(result, RuntimeException::new);
     }
+
+    public static boolean sealSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new UnknownHostException());
+            }
+
+            @Override
+            public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
+                result.complete(true);
+            }
+
+            @Override
+            public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
+                result.complete(true);
+            }
+        };
+        ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
+                RuntimeException::new);
+        try {
+
+            connection.send(new WireCommands.SealSegment(Segment.getQualifiedName(scope, stream, segmentNumber)));
+
+        } catch (ConnectionFailedException e) {
+
+            throw new RuntimeException(e);
+
+        }
+        return FutureHelpers.getAndHandleExceptions(result, RuntimeException::new);
+    }
+
 }
