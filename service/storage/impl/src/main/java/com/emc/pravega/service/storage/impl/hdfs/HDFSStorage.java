@@ -264,7 +264,7 @@ public class HDFSStorage implements Storage {
 
 
     private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
-        return storage.concatSync(targetStreamSegmentName, offset,sourceStreamSegmentName, timeout);
+        return storage.concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
     }
 
 
@@ -323,7 +323,7 @@ public class HDFSStorage implements Storage {
      * Reads from that file.
      */
     private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
-        String fileName = this.getSegmentFullPathContainingOffset(streamSegmentName,offset);
+        String fileName = this.getSegmentFullPathContainingOffset(streamSegmentName, offset);
         FSDataInputStream stream = storage.getFS().open(new Path(fileName));
         return stream.read(offset- this.getStartOffsetInName(fileName),
                 buffer, bufferOffset, length);
@@ -348,7 +348,7 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return storage.exists(this.getFirstSegmentFullPath(streamSegmentName),timeout);
+        return storage.exists(this.getFirstSegmentFullPath(streamSegmentName), timeout);
      }
 
 
@@ -364,7 +364,7 @@ public class HDFSStorage implements Storage {
         SegmentProperties lastProp = null;
 
         for (FileStatus status: statuses) {
-            String name =status.getPath().toString();
+            String name = status.getPath().toString();
             SegmentProperties props;
             try {
                props = storage.getStreamSegmentInfoSync(name, null);
