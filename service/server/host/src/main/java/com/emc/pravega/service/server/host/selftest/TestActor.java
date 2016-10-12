@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
@@ -68,7 +69,9 @@ abstract class TestActor extends AbstractService implements AutoCloseable {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
+        System.out.println(String.format("Producer[%s]: Started.", this));
         this.runTask = run();
+        this.runTask.whenComplete((r, ex) -> stopAsync());
     }
 
     @Override
@@ -82,16 +85,18 @@ abstract class TestActor extends AbstractService implements AutoCloseable {
                     // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
                     // make sure we stop any long-running tasks.
                     this.runTask.get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
+                    ex = ExceptionHelpers.getRealException(ex);
+                    System.out.println(String.format("Producer[%s]: Failed (%s).", this, ex));
                     notifyFailed(ex);
                     return;
                 }
             }
 
+            System.out.println(String.format("Producer[%s]: Stopped.", this));
             notifyStopped();
         });
     }
-
 
     protected abstract CompletableFuture<Void> run();
 }

@@ -19,34 +19,65 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.server.ExceptionHelpers;
 
 import java.time.Duration;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Represents an Operation Producer for the Self Tester.
  */
 public class Producer extends TestActor {
     private final String id;
+    private final AtomicInteger iterationCount;
+    private final AtomicBoolean canContinue;
 
     Producer(String id, TestConfig config, ProducerDataSource dataSource, ScheduledExecutorService executor) {
         super(config, dataSource, executor);
         this.id = id;
+        this.iterationCount = new AtomicInteger();
+        this.canContinue = new AtomicBoolean(true);
     }
 
     @Override
     protected CompletableFuture<Void> run() {
-        System.out.println(String.format("Producer[%s]: Started.", this.id));
+        this.canContinue.set(true);
+        return FutureHelpers.loop(
+                this::canLoop,
+                this::runOneIteration,
+                this.executorService);
+    }
+
+    private CompletableFuture<Void> runOneIteration() {
+        int iterationId = iterationCount.incrementAndGet();
         return FutureHelpers
-                .delayedFuture(Duration.ofSeconds(1), this.executorService)
-                .whenComplete((r, ex)->{
-                    System.out.println(String.format("Producer[%s]: Stopped.", this.id));
+                .delayedFuture(Duration.ofMillis(new Random().nextInt(5000)), this.executorService)
+                .whenComplete((r, ex) -> {
+                    if (ex != null) {
+                        ex = ExceptionHelpers.getRealException(ex);
+                        System.out.println(String.format("Producer[%s]: Iteration %d, Failure: %s.", this.id, iterationId, ex));
+                        this.canContinue.set(false);
+                        throw new CompletionException(ex);
+                    } else {
+                        System.out.println(String.format("Producer[%s]: Iteration %d.", this.id, iterationId));
+                        if (iterationId >= 5) {
+                            this.canContinue.set(false);
+                        }
+                    }
                 });
     }
 
+    private boolean canLoop() {
+        return isRunning() && this.canContinue.get();
+    }
+
     @Override
-    public String toString(){
-        return String.format("Producer %s", this.id);
+    public String toString() {
+        return String.format("Producer[%s]", this.id);
     }
 }

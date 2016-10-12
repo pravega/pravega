@@ -27,20 +27,27 @@ import java.util.concurrent.TimeUnit;
  * Main entry point for Self Tester.
  */
 public class TestRunner {
-    public static void main(String[] args) throws Exception{
-        TestConfig config = new TestConfig(PropertyBag
-                .create()
-                .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
-                .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
-                .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000)
-                .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 1024)
-                .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)
-                .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100));
+    public static void main(String[] args) throws Exception {
+        TestConfig config = new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
+                PropertyBag.create()
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 5)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000)
+                           .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 1024)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)));
 
+        // Create a new SelfTest.
         @Cleanup
         SelfTest test = new SelfTest(config);
+
+        // Star the test.
         test.startAsync().awaitRunning(config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        Thread.sleep(1000);
+
+        // Wait for the test to finish.
+        test.awaitFinished().join();
+
+        // Make sure the test is stopped.
         test.stopAsync().awaitTerminated();
     }
 }

@@ -21,8 +21,10 @@ package com.emc.pravega.service.server.host.selftest;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.MissingPropertyException;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -121,4 +123,13 @@ class TestConfig extends ComponentConfig {
     }
 
     //endregion
+
+    static Properties convert(String componentCode, Properties rawProperties) {
+        Properties p = new Properties();
+        for (Map.Entry<Object, Object> e : rawProperties.entrySet()) {
+            ServiceBuilderConfig.set(p, componentCode, e.getKey().toString(), e.getValue().toString());
+        }
+
+        return p;
+    }
 }
