@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller;
+package com.emc.pravega.controller.task;
 
 /**
  * Lock failed exception

@@ -33,7 +33,6 @@ import java.util.List;
  */
 @Data
 public class TaskData {
-    private String className;
     private String methodName;
     private List<Object> parameters;
 

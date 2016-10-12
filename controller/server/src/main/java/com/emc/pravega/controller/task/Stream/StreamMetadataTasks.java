@@ -17,13 +17,17 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.curator.framework.CuratorFramework;
 
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -31,6 +35,10 @@ import java.util.concurrent.CompletableFuture;
  * Collection of metadata update batch operations on stream.
  */
 public class StreamMetadataTasks extends TaskBase {
+
+    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
+        super(streamMetadataStore, hostControllerStore, client);
+    }
 
     /**
      * Scales stream segments.
@@ -56,16 +64,46 @@ public class StreamMetadataTasks extends TaskBase {
      */
     @Task(name = "scaleStream")
     public CompletableFuture<List<Segment>> scale(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        throw new NotImplementedException();
+        Object[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
+        return this.wrapper(scope, stream, Arrays.asList(params), () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
     @Task(name = "createStream")
     public CompletableFuture<Boolean> createStream(String scope, String stream, StreamConfiguration config) {
-        throw new NotImplementedException();
+        Object[] params = {scope, stream, config};
+        return this.wrapper(scope, stream, Arrays.asList(params), () -> createStreamBody(scope, stream, config));
     }
 
     @Task(name = "updateConfig")
     public CompletableFuture<Boolean> updateStreamConfig(String scope, String stream, StreamConfiguration config) {
+        Object[] params = {scope, stream, config};
+        return this.wrapper(scope, stream, Arrays.asList(params), () -> updateStreamConfigBody(scope, stream, config));
+    }
+
+    @Task(name = "createTransaction")
+    public CompletableFuture<String> createTx(String scope, String stream) {
+        throw new NotImplementedException();
+    }
+
+    @Task(name = "dropTransaction")
+    public CompletableFuture<Boolean> dropTx(String scope, String stream, String txId) {
+        throw new NotImplementedException();
+    }
+
+    @Task(name = "commitTransaction")
+    public CompletableFuture<Boolean> commitTx(String scope, String stream, String txId) {
+        throw new NotImplementedException();
+    }
+
+    private CompletableFuture<List<Segment>> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+        throw new NotImplementedException();
+    }
+
+    private CompletableFuture<Boolean> createStreamBody(String scope, String stream, StreamConfiguration config) {
+        throw new NotImplementedException();
+    }
+
+    public CompletableFuture<Boolean> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
         throw new NotImplementedException();
     }
 }

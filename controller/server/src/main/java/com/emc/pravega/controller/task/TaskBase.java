@@ -17,12 +17,12 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.LockFailedException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -32,28 +32,24 @@ import java.util.concurrent.TimeUnit;
  */
 public class TaskBase {
 
-    private interface FutureOperation {
-        CompletableFuture<Object> apply(Object... parameters);
+    public interface FutureOperation<T> {
+        CompletableFuture<T> apply();
     }
 
     private static final long LOCK_WAIT_TIME = 2;
-    private StreamMetadataStore streamMetadataStore;
-    private HostControllerStore hostControllerStore;
-    private String streamName;
-    private CuratorFramework client;
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private final CuratorFramework client;
 
-    public void initialize(StreamMetadataStore streamMetadataStore,
+    public TaskBase(StreamMetadataStore streamMetadataStore,
                            HostControllerStore hostControllerStore,
-                           String streamName,
                            CuratorFramework client) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
-        this.streamName = streamName;
         this.client = client;
     }
 
-    public CompletableFuture<Boolean> lock() {
-        String path = String.format(Paths.STREAM_LOCKS, streamName);
+    public CompletableFuture<Boolean> lock(String path) {
         InterProcessMutex mutex = new InterProcessMutex(client, path);
         try {
             boolean success = mutex.acquire(LOCK_WAIT_TIME, TimeUnit.SECONDS);
@@ -64,8 +60,7 @@ public class TaskBase {
         }
     }
 
-    public void unlock() {
-        String path = String.format(Paths.STREAM_LOCKS, streamName);
+    public void unlock(String path) {
         InterProcessMutex mutex = new InterProcessMutex(client, path);
         try {
             mutex.release();
@@ -79,18 +74,35 @@ public class TaskBase {
      * @param operation operation to execute
      * @return returns the value returned by operation, if lock is obtained successfully
      */
-    public Object wrapper(FutureOperation operation) {
+    public <T> CompletableFuture<T> wrapper(String scope, String stream, List<Object> parameters, FutureOperation<T> operation) {
+        String streamName = scope + "_" + stream;
+        String lockPath = String.format(Paths.STREAM_LOCKS, scope, stream);
         try {
-            CompletableFuture<Boolean> lock = this.lock();
+            CompletableFuture<Boolean> lock = this.lock(lockPath);
             return lock.thenCompose(
                     success -> {
                         if (success) {
-                            // todo
+                            TaskData taskData = new TaskData();
+                            StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
+                            StackTraceElement e = stacktrace[1];
+                            taskData.setMethodName(e.getMethodName());
+                            taskData.setParameters(parameters);
+
+
                             // 1. persist taks data
-                            // 2. persist host's tasks index
-                            CompletableFuture<Object> o = operation.apply();
+                            String path = String.format(Paths.STREAM_TASKS, scope, stream);
+                            try {
+                                client.setData().forPath(path, taskData.serialize());
+                            } catch (Exception ex) {
+                                throw new WriteFailedException(streamName, ex);
+                            }
+                            CompletableFuture<T> o = operation.apply();
                             // 1. remove task data
-                            // 2, remove host's task index
+                            try {
+                                client.delete().forPath(path);
+                            } catch (Exception ex) {
+                                throw new WriteFailedException(streamName, ex);
+                            }
                             return o;
                         } else {
                             throw new LockFailedException(streamName);
@@ -98,7 +110,7 @@ public class TaskBase {
                     }
             );
         } finally {
-            unlock();
+            unlock(lockPath);
         }
     }
 }

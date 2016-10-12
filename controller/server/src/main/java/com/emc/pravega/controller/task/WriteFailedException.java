@@ -18,21 +18,29 @@
 package com.emc.pravega.controller.task;
 
 /**
- * Static list of path prefixes
+ * ZK write to a path failed
  */
-public class Paths {
+public class WriteFailedException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Failed locking stream %s.";
 
-    public static final String STREAM_TASK_ROOT = "/tasks/stream/";
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     */
+    public WriteFailedException(String name) {
+        super(String.format(FORMAT_STRING, name));
+    }
 
-    // Task data per stream. A stream can have at most one task under execution at any given point of time.
-    public static final String STREAM_TASKS = STREAM_TASK_ROOT + "%s_%s/";
-
-    public static final String STREAM_LOCKS_ROOT = "/locks/streams/";
-
-    // Locks held by hosts on streams
-    public static final String STREAM_LOCKS = STREAM_LOCKS_ROOT + "%s_%s/";
-
-    // List of tasks being executed by a host.
-    // This list is kind of an index for quick access to tasks being executed by a failed host.
-    //public static final String HOST_TASKS = "/hosts/%s";
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     * @param cause   error cause
+     */
+    public WriteFailedException(String name, Throwable cause) {
+        super(String.format(FORMAT_STRING, name), cause);
+    }
 }
