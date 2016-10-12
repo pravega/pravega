@@ -22,6 +22,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Stream Metadata
@@ -35,7 +36,7 @@ public interface StreamMetadataStore {
      * @param configuration stream configuration.
      * @return boolean indicating whether the stream was created
      */
-    boolean createStream(String name, StreamConfiguration configuration);
+    CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration);
 
     /**
      * Updates the configuration of an existing stream.
@@ -43,14 +44,14 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
-    boolean updateConfiguration(String name, StreamConfiguration configuration);
+    CompletableFuture<Boolean> updateConfiguration(String name, StreamConfiguration configuration);
 
     /**
      * Fetches the current stream configuration.
      * @param name stream name.
      * @return current stream configuration.
      */
-    StreamConfiguration getConfiguration(String name);
+    CompletableFuture<StreamConfiguration> getConfiguration(String name);
 
     /**
      *
@@ -58,20 +59,20 @@ public interface StreamMetadataStore {
      * @param number segment number.
      * @return segment at given number.
      */
-    Segment getSegment(String name, int number);
+    CompletableFuture<Segment> getSegment(String name, int number);
 
     /**
      * @param name stream name.
      * @return currently active segments
      */
-    SegmentFutures getActiveSegments(String name);
+    CompletableFuture<List<Segment>> getActiveSegments(String name);
 
     /**
      * @param name stream name.
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
-    SegmentFutures getActiveSegments(String name, long timestamp);
+    CompletableFuture<SegmentFutures> getActiveSegments(String name, long timestamp);
 
     /**
      * @param name stream name.
@@ -79,7 +80,7 @@ public interface StreamMetadataStore {
      * @param currentSegments current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments);
+    CompletableFuture<List<SegmentFutures>> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -90,5 +91,5 @@ public interface StreamMetadataStore {
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
+    CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 }

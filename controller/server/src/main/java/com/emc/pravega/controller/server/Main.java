@@ -1,3 +1,4 @@
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -18,24 +19,24 @@
 package com.emc.pravega.controller.server;
 
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
 import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.task.TaskSweeper;
+import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
 
-import lombok.extern.slf4j.Slf4j;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Entry point of controller server.
@@ -54,17 +55,16 @@ public class Main {
         //1) LOAD configuration.
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE),
+                new StoreConfiguration(STREAM_STORE_CONNECTION_STRING));
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-        //2) start the Server implementations.
-        //2.1) start RPC server with v1 implementation. Enable other versions if required.
+        //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
-        TaskSweeper sweeper = new TaskSweeper(streamStore, hostStore, null);
     }
 }

@@ -21,7 +21,9 @@ import java.net.URI;
 
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamManagerImpl;
 
@@ -35,11 +37,12 @@ public class StartProducer {
         String scope = "Scope1";
         String streamName = "Stream1";
         String testString = "Hello world: ";
-        URI controllerUri = new URI(endpoint + ":" + port);
+        URI controllerUri = new URI("tcp://" + endpoint + ":" + port);
 
         @Cleanup
         StreamManagerImpl streamManager = new StreamManagerImpl(scope, controllerUri);
-        Stream stream = streamManager.createStream(streamName, null);
+        ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+        Stream stream = streamManager.createStream(streamName, new StreamConfigurationImpl(scope, streamName, policy));
         // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
         Thread.sleep(1000);
 

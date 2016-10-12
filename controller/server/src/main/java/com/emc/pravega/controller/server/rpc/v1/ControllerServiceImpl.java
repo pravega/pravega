@@ -25,23 +25,20 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.controller.stream.api.v1.StreamConfig;
-import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -52,7 +49,7 @@ import com.google.common.collect.Multimaps;
 /**
  * Stream controller RPC server implementation
  */
-public class ControllerServiceImpl implements ControllerService.Iface {
+public class ControllerServiceImpl {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
@@ -64,63 +61,86 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         this.connectionFactory = new ConnectionFactoryImpl(false);
     }
 
-    /**
-     * Create the stream metadata in the metadata streamStore.
-     * Start with creation of minimum number of segments.
-     * Asynchronously call createSegment on pravega hosts about segments in the stream
-     */
-    @Override
-    public Status createStream(StreamConfig streamConfig) throws TException {
+    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
         String stream = streamConfig.getName();
 
-        if (streamStore.createStream(stream, ModelHelper.encode(streamConfig))) {
-            streamStore.getActiveSegments(stream)
-                .getCurrent()
-                .stream()
-                .parallel()
-                .forEach(i -> notifyNewSegment(streamConfig.getScope(), stream, i));
-            return Status.SUCCESS;
-        } else {
-            return Status.FAILURE;
-        }
+        return streamStore.createStream(stream, streamConfig)
+                .thenApply(result -> {
+                    if (result) {
+                        streamStore.getActiveSegments(stream)
+                                .thenApply(activeSegments -> {
+                                    activeSegments
+                                            .stream()
+                                            .parallel()
+                                            .forEach(segment -> notifyNewSegment(streamConfig.getScope(), stream, segment.getNumber()));
+                                    return null;
+                                });
+                        return Status.SUCCESS;
+                    } else {
+                        return Status.FAILURE;
+                    }
+                });
     }
-    
-    public void notifyNewSegment(String scope, String stream, int segmentNumber) {
+
+    public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
+        throw new NotImplementedException();
+    }
+
+    public CompletableFuture<List<SegmentRange>> getCurrentSegments(String scope, String stream) {
+        // fetch active segments from segment store
+        return streamStore.getActiveSegments(stream)
+                .thenApply(activeSegments -> activeSegments
+                                .stream()
+                                .map(segment ->
+                                                new SegmentRange(
+                                                        new SegmentId(scope, stream, segment.getNumber()),
+                                                        segment.getKeyStart(),
+                                                        segment.getKeyEnd())
+                                )
+                                .collect(Collectors.toList())
+                );
+    }
+
+    public CompletableFuture<List<Position>> getPositions(String scope, String stream, long timestamp, int count) {
+        // first fetch segments active at specified timestamp from the specified stream
+        // divide current segments in segmentFutures into at most count positions
+        return streamStore.getActiveSegments(stream, timestamp)
+                .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
+    }
+
+    public CompletableFuture<List<Position>> updatePositions(String scope, String stream, List<Position> positions) {
+        // TODO: handle npe with null exception return case
+        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
+        // initialize completed segments set from those found in the list of input position objects
+        Set<Integer> completedSegments = internalPositions.stream().flatMap(position ->
+                        position.getCompletedSegments().stream().map(Segment::getSegmentNumber)
+        ).collect(Collectors.toSet());
+
+        Map<Integer, Long> segmentOffsets = new HashMap<>();
+
+        // convert positions to segmentFutures, while updating completedSegments set and
+        // storing segment offsets in segmentOffsets map
+        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(internalPositions, segmentOffsets);
+
+        // fetch updated SegmentFutures from stream metadata
+        // and finally convert SegmentFutures back to position objects
+        return streamStore.getNextSegments(stream, completedSegments, segmentFutures)
+                .thenApply(updatedSegmentFutures ->
+                        convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
+    }
+
+    public CompletableFuture<NodeUri> getURI(SegmentId segment) throws TException {
+        return CompletableFuture.completedFuture(
+                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
+        );
+    }
+
+    private void notifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore);
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails
         CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), connectionFactory));
-    }
-
-    @Override
-    public Status alterStream(StreamConfig streamConfig) throws TException {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public List<SegmentRange> getCurrentSegments(String scope, String stream) throws TException {        
-        // fetch active segments from segment store
-        SegmentFutures activeSegments = streamStore.getActiveSegments(stream);
-        List<SegmentRange> segments = activeSegments.getCurrent().stream().map(number -> {
-            Segment segment = streamStore.getSegment(stream, number);
-            return new SegmentRange(new SegmentId(scope, stream, number), segment.getKeyStart(), segment.getKeyEnd());
-        }).collect(Collectors.toList());
-        return segments;    
-    }
-
-    @Override
-    public NodeUri getURI(SegmentId segment) throws TException {
-        return SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore);
-    }
-
-    @Override
-    public List<Position> getPositions(String scope, String stream, long timestamp, int count) throws TException {
-        // first fetch segments active at specified timestamp from the specified stream
-        SegmentFutures segmentFutures = streamStore.getActiveSegments(stream, timestamp);
-
-        // divide current segments in segmentFutures into at most n positions
-        return shard(scope, stream, segmentFutures, timestamp, count);
     }
 
     /**
@@ -134,7 +154,7 @@ public class ControllerServiceImpl implements ControllerService.Iface {
      * @param n number of shards
      * @return the list of position objects
      */
-    private List<Position> shard(String scope, String stream, SegmentFutures segmentFutures, long timestamp, int n) {
+    private List<Position> shard(String scope, String stream, SegmentFutures segmentFutures, int n) {
         // divide the active segments equally into at most n partition
         int currentCount = segmentFutures.getCurrent().size();
         int quotient = currentCount / n;
@@ -187,40 +207,15 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         }
         return positions;
     }
-    
-    
-    @Override
-    public List<Position> updatePositions(String scope, String stream, List<Position> positions) throws TException {
-        // TODO: handle npe with null exception return case
-        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
-        // initialize completed segments set from those found in the list of input position objects
-        Set<Integer> completedSegments = internalPositions.stream().flatMap(position -> 
-            position.getCompletedSegments().stream().map(segment -> segment.getSegmentNumber())
-        ).collect(Collectors.toSet());
-        
-        Map<Integer, Long> segmentOffsets = new HashMap<>();
 
-        // convert positions to segmentFutures, while updating completedSegments set and
-        // storing segment offsets in segmentOffsets map
-        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(stream, internalPositions, completedSegments, segmentOffsets);
-
-        // fetch updated SegmentFutures from stream metadata
-        List<SegmentFutures> updatedSegmentFutures = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
-
-        // finally convert SegmentFutures back to position objects
-        return convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets);
-    }
-    
     /**
      * This method converts list of positions into list of segmentFutures.
      * While doing so it updates the completedSegments set and stores segment offsets in a map.
-     * @param stream input stream
      * @param positions input list of positions
-     * @param completedSegments set of completed segments that shall be updated in this method
      * @param segmentOffsets map of segment number of its offset that shall be populated in this method
      * @return the list of segmentFutures objects
      */
-    private List<SegmentFutures> convertPositionsToSegmentFutures(String stream, List<PositionInternal> positions, Set<Integer> completedSegments, Map<Integer, Long> segmentOffsets) {
+    private List<SegmentFutures> convertPositionsToSegmentFutures(List<PositionInternal> positions, Map<Integer, Long> segmentOffsets) {
         List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
 
         // construct SegmentFutures for each position object.
@@ -231,9 +226,6 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                     x -> {
                         int number = x.getKey().getSegmentNumber();
                         current.add(number);
-                        Segment segment = streamStore.getSegment(stream, number);
-                        // update completed segments set with implicitly completed segments
-                        segment.getPredecessors().stream().forEach(y -> completedSegments.add(y));
                         segmentOffsets.put(number, x.getValue());
                     }
             );
@@ -260,29 +252,4 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         );
         return resultPositions;
     }
-
-    @Override
-    public TxId createTransaction(String scope, String stream) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public Status commitTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public Status dropTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public TxStatus checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-    
 }
