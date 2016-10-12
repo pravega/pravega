@@ -74,7 +74,7 @@ public class HDFSStorage implements Storage {
      * Utility function to get the full name of the first file representing the segment.
      */
     private String getFirstSegmentFullPath(String streamSegmentName) {
-        return (serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_0");
+        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_0";
     }
 
     /**
@@ -82,7 +82,7 @@ public class HDFSStorage implements Storage {
      * data in the file starts at a given offset
      */
     private String getSegmentFullPathStartingAtOffset(String streamSegmentName, long currStart) {
-        return (serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + currStart);
+        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + currStart;
     }
 
     /**
@@ -99,12 +99,12 @@ public class HDFSStorage implements Storage {
      */
     private String getSegmentFullPathContainingOffset(String streamSegmentName, long offset) throws IOException {
         String possibleValForAppend = null;
-        for(FileStatus status: getStreamSegmentNameWildCard(streamSegmentName)) {
+        for (FileStatus status: getStreamSegmentNameWildCard(streamSegmentName)) {
             long fileStartOffset = this.getStartOffsetInName(status.getPath().toString());
-            if(fileStartOffset <= offset && fileStartOffset + status.getLen() < offset) {
+            if (fileStartOffset <= offset && fileStartOffset + status.getLen() < offset) {
                 return status.getPath().toString();
             }
-            if(fileStartOffset <= offset && fileStartOffset + status.getLen() <= offset) {
+            if (fileStartOffset <= offset && fileStartOffset + status.getLen() <= offset) {
                 possibleValForAppend = status.getPath().toString();
             }
         }
@@ -116,7 +116,7 @@ public class HDFSStorage implements Storage {
      * returns the start offset of the data in the file
      */
     private long getStartOffsetInName(String currFilename) {
-        if(currFilename == null) return 0;
+        if (currFilename == null) return 0;
         String[] tokens = currFilename.split("_");
         String sizeStr = tokens[tokens.length -1];
         return Long.valueOf(sizeStr);
@@ -161,7 +161,7 @@ public class HDFSStorage implements Storage {
                     String[] tokens = name.split("_");
                     String sizeStr = tokens[tokens.length -1];
                     long currVal = Long.valueOf(sizeStr);
-                    if(currVal > currStart[0]) {
+                    if (currVal > currStart[0]) {
                         currStart[0] = currVal;
                         lastProp[0] = props;
                     }
@@ -195,7 +195,7 @@ public class HDFSStorage implements Storage {
                     String[] tokens = name.split("_");
                     String sizeStr = tokens[tokens.length -1];
                     long currVal = Long.valueOf(sizeStr);
-                    if(currVal > currStart[0]) {
+                    if (currVal > currStart[0]) {
                         currStart[0] = currVal;
                         lastProp[0] = props;
                     }
@@ -374,7 +374,7 @@ public class HDFSStorage implements Storage {
             String[] tokens = name.split("_");
             String sizeStr = tokens[tokens.length -1];
             long currVal = Long.valueOf(sizeStr);
-            if(currVal > currStart || lastProp == null) {
+            if (currVal > currStart || lastProp == null) {
                 currStart = currVal;
                 lastProp = props;
             }
