@@ -26,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Created by andrei on 10/12/16.
  */
-public class ConsoleStoreAdapter implements StoreAdapter {
+class ConsoleStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Duration timeout) {
         TestLogger.log("CSA", "Append Segment=%s, Length=%d.", streamSegmentName, data.length);

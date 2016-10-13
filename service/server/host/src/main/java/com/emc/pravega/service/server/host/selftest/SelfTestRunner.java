@@ -32,11 +32,11 @@ public class SelfTestRunner {
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 10)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 50)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
-                           .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 1024)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)
+                           .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 10)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 20)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)));
 
         // Create a new SelfTest.

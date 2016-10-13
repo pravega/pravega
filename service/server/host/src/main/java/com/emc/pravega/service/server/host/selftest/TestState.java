@@ -18,70 +18,211 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.google.common.base.Preconditions;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Represents the current State of the SelfTest.
  */
 class TestState {
+    //region Members
+
     private final AtomicInteger generatedOperationCount;
     private final AtomicInteger successfulOperationCount;
-    private final ArrayList<String> segmentNames;
-    private final ArrayList<String> transactionNames;
+    private final ConcurrentHashMap<String, SegmentInfo> allSegments;
+    private final ArrayList<String> allSegmentNames;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the TestState class.
+     */
     TestState() {
         this.generatedOperationCount = new AtomicInteger();
         this.successfulOperationCount = new AtomicInteger();
-        this.segmentNames = new ArrayList<>();
-        this.transactionNames = new ArrayList<>();
+        this.allSegments = new ConcurrentHashMap<>();
+        this.allSegmentNames = new ArrayList<>();
     }
 
+    //endregion
+
+    //region Operations
+
+    /**
+     * Records the creation (but not the completion) of a new Operation.
+     *
+     * @return The Operation Id (or numeric index).
+     */
     int newOperation() {
         return this.generatedOperationCount.incrementAndGet();
     }
 
-    int operationCompleted() {
+    /**
+     * Records the fact that an operation completed for the given Segment.
+     *
+     * @param segmentName The name of the Segment for which the operation completed.
+     * @return The number of total successful operations so far.
+     */
+    int operationCompleted(String segmentName) {
+        SegmentInfo si = this.getSegment(segmentName);
+        if (si != null) {
+            si.operationCompleted();
+        }
+
         return this.successfulOperationCount.incrementAndGet();
     }
 
-    void operationFailed() {
+    /**
+     * Records the fact that an operation failed for the given Segment.
+     *
+     * @param segmentName The name of the Segment for which the operation failed.
+     */
+    void operationFailed(String segmentName) {
         this.generatedOperationCount.decrementAndGet();
     }
 
+    /**
+     * Records the fact that a new Segment (not a Transaction) was created.
+     *
+     * @param name The name of the Segment.
+     */
     void recordNewSegmentName(String name) {
-        synchronized (this.segmentNames) {
-            this.segmentNames.add(name);
+        synchronized (this.allSegmentNames) {
+            Preconditions.checkArgument(!this.allSegments.containsKey(name), "Given segment already exists");
+            this.allSegmentNames.add(name);
         }
+
+        this.allSegments.put(name, new SegmentInfo(name, false));
     }
 
+    /**
+     * Records the fact that a new Transaction was created.
+     *
+     * @param name The name of the Transaction.
+     */
     void recordNewTransaction(String name) {
-        recordNewSegmentName(name);
-        synchronized (this.transactionNames) {
-            this.transactionNames.add(name);
+        synchronized (this.allSegmentNames) {
+            Preconditions.checkArgument(!this.allSegments.containsKey(name), "Given segment already exists");
+            this.allSegmentNames.add(name);
         }
+
+        this.allSegments.put(name, new SegmentInfo(name, true));
     }
 
+    /**
+     * Records the fact that a Segment or a Transaction was deleted.
+     *
+     * @param name The name of the Segment/Transaction.
+     */
     void recordDeletedSegment(String name) {
-        synchronized (this.segmentNames) {
-            this.segmentNames.remove(name);
-        }
-
-        synchronized (this.transactionNames) {
-            this.transactionNames.remove(name);
+        this.allSegments.remove(name);
+        synchronized (this.allSegmentNames) {
+            this.allSegmentNames.remove(name);
         }
     }
 
-    List<String> getSegments() {
-        synchronized (this.segmentNames){
-            return new ArrayList<>(this.segmentNames);
+    /**
+     * Gets an immutable collection containing information about all Segments and Transactions.
+     */
+    Collection<SegmentInfo> getAllSegments() {
+        return this.allSegments.values();
+    }
+
+    /**
+     * Gets an immutable collection containing the names of all the Segments and Transactions.
+     * The resulting object is a copy of the internal state, and will not reflect future modifications to this object.
+     */
+    Collection<String> getAllSegmentNames() {
+        synchronized (this.allSegmentNames) {
+            return new ArrayList<>(this.allSegmentNames);
         }
     }
 
-    List<String> getTransactions() {
-        synchronized (this.transactionNames){
-            return new ArrayList<>(this.transactionNames);
+    /**
+     * Gets an immutable collection containing the names of all the Transactions.
+     * The resulting object is a copy of the internal state, and will not reflect future modifications to this object.
+     */
+    Collection<String> getTransactionNames() {
+        return this.allSegments.values().stream()
+                               .filter(s -> !s.isTransaction())
+                               .map(s -> s.name)
+                               .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets information about a particular Segment.
+     *
+     * @param name The name of the Segment to inquire about.
+     */
+    SegmentInfo getSegment(String name) {
+        return this.allSegments.get(name);
+    }
+
+    /**
+     * Gets the name of an arbitrary Segment that is registered. Note that calling this method with the same value for
+     * the argument may not necessarily produce the same result if done repeatedly.
+     *
+     * @param hint A hint to use to get the Segment name.
+     */
+    String getSegmentName(int hint) {
+        synchronized (this.allSegmentNames) {
+            return this.allSegmentNames.get(hint % this.allSegmentNames.size());
         }
     }
+
+    //endregion
+
+    //region SegmentInfo
+
+    /**
+     * Represents information about a particular Segment.
+     */
+    static class SegmentInfo {
+        @Getter
+        private final String name;
+        @Getter
+        private final boolean transaction;
+        @Getter
+        @Setter
+        private boolean mergeInProgress;
+        private final AtomicInteger operationCount;
+
+        private SegmentInfo(String name, boolean isTransaction) {
+            this.name = name;
+            this.transaction = isTransaction;
+            this.operationCount = new AtomicInteger();
+        }
+
+        /**
+         * Indicates that an operation completed successfully for this Segment.
+         *
+         * @return The number of completed operations so far.
+         */
+        int operationCompleted() {
+            return this.operationCount.incrementAndGet();
+        }
+
+        /**
+         * Gets the number of completed operations so far.
+         */
+        int getOperationCount() {
+            return this.operationCount.get();
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s, OpCount = %s, Transaction = %s", this.name, this.operationCompleted(), this.transaction);
+        }
+    }
+
+    //endregion
 }

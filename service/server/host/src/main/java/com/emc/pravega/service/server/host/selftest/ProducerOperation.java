@@ -19,14 +19,35 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Represents an Operation for a Producer
  */
 class ProducerOperation {
+    //region Members
+
+    @Getter
     private final OperationType type;
+    @Getter
     private final String target;
+    @Getter
+    @Setter
+    private Object result;
+    @Setter
+    private Consumer<ProducerOperation> completionCallback;
+    @Setter
+    private BiConsumer<ProducerOperation, Throwable> failureCallback;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the ProducerOperation class.
@@ -41,19 +62,33 @@ class ProducerOperation {
         this.target = target;
     }
 
+    //endregion
+
+    //region Completion
+
     /**
-     * Gets a value representing the type of the operation to execute.
+     * Indicates that this ProducerOperation completed successfully. Invokes any associated success callbacks that are
+     * registered with it.
      */
-    OperationType getType() {
-        return this.type;
+    void completed() {
+        Consumer<ProducerOperation> callback = this.completionCallback;
+        if (callback != null) {
+            CallbackHelpers.invokeSafely(callback, this, null);
+        }
     }
 
     /**
-     * Gets a value representing the target (Segment name) for the operation.
+     * Indicates that this ProducerOperation failed to complete. Invokes any associated failure callbacks that are registered
+     * with it.
      */
-    String getTarget() {
-        return this.target;
+    void failed(Throwable ex) {
+        BiConsumer<ProducerOperation, Throwable> callback = this.failureCallback;
+        if (callback != null) {
+            CallbackHelpers.invokeSafely(callback, this, ex, null);
+        }
     }
+
+    //endregion
 
     @Override
     public String toString() {

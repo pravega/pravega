@@ -30,20 +30,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Represents an Operation Producer for the Self Tester.
  */
-public class Producer extends Actor {
-    private final String id;
+class Producer extends Actor {
+    //region Members
+
     private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the Producer class.
+     *
+     * @param id         The Id of the producer.
+     * @param config     Test Configuration.
+     * @param dataSource DataSource for the Producer.
+     * @param store      A StoreAdapter to execute operations on.
+     * @param executor   An Executor to use for async operations.
+     */
     Producer(String id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
         super(config, dataSource, store, executor);
 
-        this.id = id;
-        this.logId = String.format("Producer[%s]", this.id);
+        this.logId = String.format("Producer[%s]", id);
         this.iterationCount = new AtomicInteger();
         this.canContinue = new AtomicBoolean(true);
     }
+
+    //endregion
 
     //region Actor Implementation
 
@@ -65,9 +80,15 @@ public class Producer extends Actor {
 
     //region Producer Implementation
 
+    /**
+     * Executes one iteration of the Producer.
+     * 1. Requests a new ProducerOperation from the DataSource.
+     * 2. Executes it.
+     * 3. Completes the ProducerOperation with either success or failure based on the outcome step #2.
+     */
     private CompletableFuture<Void> runOneIteration() {
-        int iterationId = iterationCount.incrementAndGet();
-        ProducerOperation op = getNextOperation();
+        int iterationId = this.iterationCount.incrementAndGet();
+        ProducerOperation op = this.dataSource.nextOperation();
         if (op == null) {
             // Nothing more to do.
             this.canContinue.set(false);
@@ -76,38 +97,39 @@ public class Producer extends Actor {
 
         return executeOperation(op)
                 .whenComplete((r, ex) -> {
-                    if (ex != null) {
-                        ex = ExceptionHelpers.getRealException(ex);
-                        TestLogger.log(getLogId(), "Iteration %d FAILED with %s.", iterationId, ex);
-                        this.canContinue.set(false);
-                        this.dataSource.getState().operationFailed();
-                        throw new CompletionException(ex);
+                    if (ex == null) {
+                        op.completed();
+                        //TestLogger.log(getLogId(), "Iteration %d Finished.", iterationId);
                     } else {
-                        this.dataSource.getState().operationCompleted();
-                        TestLogger.log(getLogId(), "Iteration %d Finished.", iterationId);
+                        ex = ExceptionHelpers.getRealException(ex);
+                        //TestLogger.log(getLogId(), "Iteration %d FAILED with %s.", iterationId, ex);
+                        this.canContinue.set(false);
+                        op.failed(ex);
+                        throw new CompletionException(ex);
                     }
                 });
     }
 
+    /**
+     * Determines whether the Producer can loop to another iteration.
+     */
     private boolean canLoop() {
         return isRunning() && this.canContinue.get();
     }
 
-    private ProducerOperation getNextOperation() {
-        return this.dataSource.nextOperation();
-    }
-
+    /**
+     * Executes the given operation.
+     */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
         TestLogger.log(getLogId(), "Executing %s.", operation);
         switch (operation.getType()) {
             case CreateTransaction:
                 // Create the Transaction, then record it's name in the State object.
-                return this.dataSource.createTransaction(operation.getTarget());
+                return this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
+                                 .thenAccept(operation::setResult);
             case MergeTransaction:
                 // Merge the Transaction, then record it as deleted in the State object.
-                return this.store
-                        .mergeTransaction(operation.getTarget(), this.config.getTimeout())
-                        .thenRun(() -> this.dataSource.transactionMerged(operation.getTarget()));
+                return this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
             case Append:
                 // Generate some random data, then append it.
                 byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
