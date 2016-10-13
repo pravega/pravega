@@ -20,6 +20,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -34,12 +35,22 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
+/**
+ *
+ * higher level HDFSStorage which does lock implementation based on file permissions.
+ * Each segment is represented by a file with pattern <segment-name>_<startoffset>
+ * Start offset represents the offset in the segment of the first byte of the given file.
+ *
+ * When ever ownership change happens, the new node marks all the earlier files representing the segment
+ * readonly. Creates a new file with the current offset as part of the name. This is done in the acquireLockForSegment code.
+ *
+ * */
 @Slf4j
 public class HDFSStorage implements Storage {
 
     private final Executor executor;
     private final HDFSStorageConfig serviceBuilderConfig;
-    private HDFSLowerStorage storage;
+    private final HDFSLowerStorage storage;
 
 
     public HDFSStorage(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
@@ -53,7 +64,7 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return storage.create(getFirstSegmentFullPath(streamSegmentName), timeout).
-                thenApply(properties -> ChangeNameToStream(properties, streamSegmentName));
+                thenApply(properties -> changeNameToStream(properties, streamSegmentName));
     }
 
     /**
@@ -62,7 +73,7 @@ public class HDFSStorage implements Storage {
      * @param properties             Properties representing the segment name
      * @param streamSegmentName      The name of the segment
      */
-    private SegmentProperties ChangeNameToStream(SegmentProperties properties, String streamSegmentName) {
+    private SegmentProperties changeNameToStream(SegmentProperties properties, String streamSegmentName) {
         return new StreamSegmentInformation(streamSegmentName,
                 properties.getLength(),
                 properties.isSealed(),
@@ -74,7 +85,7 @@ public class HDFSStorage implements Storage {
      * Utility function to get the full name of the first file representing the segment.
      */
     private String getFirstSegmentFullPath(String streamSegmentName) {
-        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_0";
+        return getSegmentFullPathStartingAtOffset(streamSegmentName, 0);
     }
 
     /**
@@ -82,7 +93,7 @@ public class HDFSStorage implements Storage {
      * data in the file starts at a given offset
      */
     private String getSegmentFullPathStartingAtOffset(String streamSegmentName, long currStart) {
-        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + currStart;
+        return getCommonPartOfName(streamSegmentName) + "_" + currStart;
     }
 
     /**
@@ -90,7 +101,11 @@ public class HDFSStorage implements Storage {
      * current segment
      */
     private FileStatus[] getStreamSegmentNameWildCard(String streamSegmentName) throws IOException {
-        return storage.getFS().globStatus(new Path(serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName + "_" + "[0-9]*"));
+        return storage.getFS().globStatus(new Path(getCommonPartOfName(streamSegmentName) + "_" + "[0-9]*"));
+    }
+
+    private String getCommonPartOfName(String streamSegmentName) {
+        return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
     }
 
     /**
@@ -158,9 +173,7 @@ public class HDFSStorage implements Storage {
                 map(name -> {
                     SegmentProperties props;
                     props = (SegmentProperties) storage.seal(name, null);
-                    String[] tokens = name.split("_");
-                    String sizeStr = tokens[tokens.length -1];
-                    long currVal = Long.valueOf(sizeStr);
+                    long currVal = this.getStartOffsetInName(name);
                     if (currVal > currStart[0]) {
                         currStart[0] = currVal;
                         lastProp[0] = props;
@@ -192,9 +205,7 @@ public class HDFSStorage implements Storage {
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
-                    String[] tokens = name.split("_");
-                    String sizeStr = tokens[tokens.length -1];
-                    long currVal = Long.valueOf(sizeStr);
+                    long currVal = this.getStartOffsetInName(name);
                     if (currVal > currStart[0]) {
                         currStart[0] = currVal;
                         lastProp[0] = props;
@@ -221,7 +232,7 @@ public class HDFSStorage implements Storage {
                 return null;
             }
         }, executor).
-                thenAccept(
+                thenAcceptAsync(
                 currFilename -> storage.write(currFilename,
                         offset - this.getStartOffsetInName(currFilename),
                         data, length, timeout)
@@ -255,7 +266,7 @@ public class HDFSStorage implements Storage {
                                 this.getSegmentFullPathContainingOffset(targetStreamSegmentName, offset)),
                         this.getFirstSegmentFullPath(sourceStreamSegmentName),
                         timeout));
-            } catch (IOException e) {
+            } catch (Exception e) {
                 retVal.completeExceptionally(e);
             }
         }, executor);
@@ -263,7 +274,7 @@ public class HDFSStorage implements Storage {
     }
 
 
-    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
+    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
         return storage.concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
     }
 
@@ -302,7 +313,7 @@ public class HDFSStorage implements Storage {
 
     @Override
     public void close() {
-        //HDFS resources will be closed by the lower level storage
+        storage.close();
     }
 
     @Override
@@ -371,9 +382,7 @@ public class HDFSStorage implements Storage {
             } catch (IOException e) {
             throw new UncheckedIOException(e);
             }
-            String[] tokens = name.split("_");
-            String sizeStr = tokens[tokens.length -1];
-            long currVal = Long.valueOf(sizeStr);
+            long currVal = this.getStartOffsetInName(name);
             if (currVal > currStart || lastProp == null) {
                 currStart = currVal;
                 lastProp = props;

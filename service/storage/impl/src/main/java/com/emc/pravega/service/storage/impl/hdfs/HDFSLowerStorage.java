@@ -20,15 +20,15 @@ package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
+import org.mortbay.log.Log;
 
 
 import java.io.IOException;
@@ -38,11 +38,12 @@ import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
+@Slf4j
 class HDFSLowerStorage implements Storage {
-    private Executor executor;
+    private final Executor executor;
     private FileSystem fs;
     private Configuration conf;
-    private HDFSStorageConfig serviceBuilderConfig;
+    private final HDFSStorageConfig serviceBuilderConfig;
 
     public HDFSLowerStorage(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
         this.serviceBuilderConfig = serviceBuilderConfig;
@@ -105,7 +106,7 @@ class HDFSLowerStorage implements Storage {
         CompletableFuture.runAsync(() -> {
                     try {
                         retVal.complete(writeSync(streamSegmentName, offset, length, data, timeout));
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         retVal.completeExceptionally(e);
                     }
                 },
@@ -115,14 +116,17 @@ class HDFSLowerStorage implements Storage {
 
 
 
-    private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout) throws IOException {
+    private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout) throws IOException, BadOffsetException {
         FSDataOutputStream stream = getFS().append(new Path(streamSegmentName));
         if (stream.getPos() != offset) {
-            throw new IOException("Offset in the stream already has some data");
+            throw new BadOffsetException("Offset in the stream already has some data");
         }
-        IOUtils.copyBytes(data, stream, length);
-        stream.flush();
-        stream.close();
+        try {
+            IOUtils.copyBytes(data, stream, length);
+            stream.flush();
+        } finally {
+            stream.close();
+        }
         return null;
     }
 
@@ -158,7 +162,7 @@ class HDFSLowerStorage implements Storage {
         CompletableFuture.runAsync(() -> {
             try {
                 retVal.complete(concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
-            } catch (IOException e) {
+            } catch (Exception e) {
                 retVal.completeExceptionally(e);
             }
         }, executor);
@@ -166,7 +170,9 @@ class HDFSLowerStorage implements Storage {
     }
 
 
-    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException {
+    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
+        if( getFS().globStatus(new Path(targetStreamSegmentName))[0].getLen() != offset )
+            throw new BadOffsetException(targetStreamSegmentName + " has more data than" + offset);
         getFS().concat(new Path(targetStreamSegmentName),
                 new Path[]{
                         new Path(targetStreamSegmentName),
@@ -190,12 +196,35 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public void close() {
+        try {
+            this.getFS().close();
+        } catch (IOException e) {
+            Log.debug("Could not close the fs. The error is", e);
+        }
 
     }
 
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return null;
+        CompletableFuture<Integer> retVal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
+            } catch (IOException e) {
+                retVal.completeExceptionally(e);
+            }
+        }, executor);
+        return retVal;
+    }
+
+    /**
+     * Finds the file containing the given offset for the given segment.
+     * Reads from that file.
+     */
+    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
+        FSDataInputStream stream = getFS().open(new Path(streamSegmentName));
+        return stream.read(offset,
+                buffer, bufferOffset, length);
     }
 
     @Override
