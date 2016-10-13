@@ -24,12 +24,14 @@ import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
-import org.mortbay.log.Log;
-
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -199,7 +201,7 @@ class HDFSLowerStorage implements Storage {
         try {
             this.getFS().close();
         } catch (IOException e) {
-            Log.debug("Could not close the fs. The error is", e);
+            log.debug("Could not close the fs. The error is", e);
         }
 
     }
