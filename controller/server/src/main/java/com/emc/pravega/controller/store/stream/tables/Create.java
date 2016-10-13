@@ -15,26 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream;
+package com.emc.pravega.controller.store.stream.tables;
 
-import java.io.Serializable;
+import com.emc.pravega.stream.StreamConfiguration;
+import lombok.Data;
 
-/**
- * The configuration of a Stream 
- */
-public interface StreamConfiguration extends Serializable {
-    
-    /**
-     * @return The scope of the stream
-     */
-    String getScope();
-    /**
-     * @return The name of the stream
-     */
-    String getName();
+@Data
+public class Create implements Task<Create> {
+    private final long eventTime;
+    private final StreamConfiguration configuration;
 
-    /**
-     * @return The stream's scaling policy
-     */
-    ScalingPolicy getScalingingPolicy();
+    @Override
+    public Class<Create> getType() {
+        return Create.class;
+    }
+
+    @Override
+    public Create asCreate() {
+        return this;
+    }
+
+    @Override
+    public Scale asScale() {
+        return null;
+    }
 }
