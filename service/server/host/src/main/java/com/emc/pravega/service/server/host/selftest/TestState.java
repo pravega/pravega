@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -30,10 +31,57 @@ class TestState {
     private final ArrayList<String> segmentNames;
     private final ArrayList<String> transactionNames;
 
-    TestState(){
+    TestState() {
         this.generatedOperationCount = new AtomicInteger();
         this.successfulOperationCount = new AtomicInteger();
         this.segmentNames = new ArrayList<>();
         this.transactionNames = new ArrayList<>();
+    }
+
+    int newOperation() {
+        return this.generatedOperationCount.incrementAndGet();
+    }
+
+    int operationCompleted() {
+        return this.successfulOperationCount.incrementAndGet();
+    }
+
+    void operationFailed() {
+        this.generatedOperationCount.decrementAndGet();
+    }
+
+    void recordNewSegmentName(String name) {
+        synchronized (this.segmentNames) {
+            this.segmentNames.add(name);
+        }
+    }
+
+    void recordNewTransaction(String name) {
+        recordNewSegmentName(name);
+        synchronized (this.transactionNames) {
+            this.transactionNames.add(name);
+        }
+    }
+
+    void recordDeletedSegment(String name) {
+        synchronized (this.segmentNames) {
+            this.segmentNames.remove(name);
+        }
+
+        synchronized (this.transactionNames) {
+            this.transactionNames.remove(name);
+        }
+    }
+
+    List<String> getSegments() {
+        synchronized (this.segmentNames){
+            return new ArrayList<>(this.segmentNames);
+        }
+    }
+
+    List<String> getTransactions() {
+        synchronized (this.transactionNames){
+            return new ArrayList<>(this.transactionNames);
+        }
     }
 }

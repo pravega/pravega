@@ -21,8 +21,6 @@ package com.emc.pravega.service.server.host.selftest;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.ExceptionHelpers;
 
-import java.time.Duration;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,17 +30,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Represents an Operation Producer for the Self Tester.
  */
-public class Producer extends TestActor {
+public class Producer extends Actor {
     private final String id;
+    private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
 
-    Producer(String id, TestConfig config, ProducerDataSource dataSource, ScheduledExecutorService executor) {
-        super(config, dataSource, executor);
+    Producer(String id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
+        super(config, dataSource, store, executor);
+
         this.id = id;
+        this.logId = String.format("Producer[%s]", this.id);
         this.iterationCount = new AtomicInteger();
         this.canContinue = new AtomicBoolean(true);
     }
+
+    //region Actor Implementation
 
     @Override
     protected CompletableFuture<Void> run() {
@@ -53,21 +56,35 @@ public class Producer extends TestActor {
                 this.executorService);
     }
 
+    @Override
+    protected String getLogId() {
+        return this.logId;
+    }
+
+    //endregion
+
+    //region Producer Implementation
+
     private CompletableFuture<Void> runOneIteration() {
         int iterationId = iterationCount.incrementAndGet();
-        return FutureHelpers
-                .delayedFuture(Duration.ofMillis(new Random().nextInt(5000)), this.executorService)
+        ProducerOperation op = getNextOperation();
+        if (op == null) {
+            // Nothing more to do.
+            this.canContinue.set(false);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        return executeOperation(op)
                 .whenComplete((r, ex) -> {
                     if (ex != null) {
                         ex = ExceptionHelpers.getRealException(ex);
-                        System.out.println(String.format("Producer[%s]: Iteration %d, Failure: %s.", this.id, iterationId, ex));
+                        TestLogger.log(getLogId(), "Iteration %d FAILED with %s.", iterationId, ex);
                         this.canContinue.set(false);
+                        this.dataSource.getState().operationFailed();
                         throw new CompletionException(ex);
                     } else {
-                        System.out.println(String.format("Producer[%s]: Iteration %d.", this.id, iterationId));
-                        if (iterationId >= 5) {
-                            this.canContinue.set(false);
-                        }
+                        this.dataSource.getState().operationCompleted();
+                        TestLogger.log(getLogId(), "Iteration %d Finished.", iterationId);
                     }
                 });
     }
@@ -76,8 +93,29 @@ public class Producer extends TestActor {
         return isRunning() && this.canContinue.get();
     }
 
-    @Override
-    public String toString() {
-        return String.format("Producer[%s]", this.id);
+    private ProducerOperation getNextOperation() {
+        return this.dataSource.nextOperation();
     }
+
+    private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
+        TestLogger.log(getLogId(), "Executing %s.", operation);
+        switch (operation.getType()) {
+            case CreateTransaction:
+                // Create the Transaction, then record it's name in the State object.
+                return this.dataSource.createTransaction(operation.getTarget());
+            case MergeTransaction:
+                // Merge the Transaction, then record it as deleted in the State object.
+                return this.store
+                        .mergeTransaction(operation.getTarget(), this.config.getTimeout())
+                        .thenRun(() -> this.dataSource.transactionMerged(operation.getTarget()));
+            case Append:
+                // Generate some random data, then append it.
+                byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
+                return this.store.append(operation.getTarget(), appendContent, this.config.getTimeout());
+            default:
+                throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
+        }
+    }
+
+    //endregion
 }

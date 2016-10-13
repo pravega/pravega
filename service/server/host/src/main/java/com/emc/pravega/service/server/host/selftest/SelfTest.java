@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
@@ -38,13 +39,15 @@ import java.util.concurrent.atomic.AtomicReference;
 class SelfTest extends AbstractService implements AutoCloseable {
     //region Members
 
+    private static final String LOG_ID = "SelfTest";
     private final TestState state;
     private final TestConfig config;
     private final AtomicBoolean closed;
     private final ScheduledExecutorService executor;
-    private final ArrayList<TestActor> actors;
+    private final ArrayList<Actor> actors;
     private final ProducerDataSource dataSource;
     private final AtomicReference<CompletableFuture<Void>> testCompletion;
+    private final StoreAdapter store;
     private ServiceManager actorManager;
 
     //endregion
@@ -58,7 +61,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
-        this.dataSource = new ProducerDataSource(this.config, this.state);
+        this.store = new ConsoleStoreAdapter();
+        this.dataSource = new ProducerDataSource(this.config, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
         this.executor = Executors.newScheduledThreadPool(config.getThreadPoolSize());
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
@@ -73,9 +77,10 @@ class SelfTest extends AbstractService implements AutoCloseable {
         if (!this.closed.get()) {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
+            this.dataSource.deleteAllSegments().join();
             this.executor.shutdown();
             this.closed.set(true);
-            System.out.println("[SelfTest] Closed.");
+            TestLogger.log(LOG_ID, "Closed.");
         }
     }
 
@@ -101,7 +106,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
             public void healthy() {
                 // We are considered 'started' only after all TestActors are started.
                 notifyStarted();
-                System.out.println("[SelfTest] Started.");
+                TestLogger.log(LOG_ID, "Started.");
             }
 
             @Override
@@ -112,13 +117,18 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
             @Override
             public void failure(Service service) {
-                // We are considered 'failed' if at least one TestActor failed.
+                // We are considered 'failed' if at least one Actor failed.
                 notifyFailed(service.failureCause());
             }
         }, this.executor);
 
-        System.out.println("[SelfTest] Starting Test.");
-        this.actorManager.startAsync();
+        TestLogger.log(LOG_ID, "Starting.");
+
+        // Create all segments, then start the Actor Manager.
+        CompletableFuture<Void> startFuture = this.dataSource
+                .createSegments()
+                .thenRunAsync(this.actorManager::startAsync, this.executor);
+        FutureHelpers.exceptionListener(startFuture, this::notifyFailed);
     }
 
     @Override
@@ -145,7 +155,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
     private void createTestActors() {
         for (int i = 0; i < this.config.getProducerCount(); i++) {
-            Producer p = new Producer(Integer.toString(i), this.config, this.dataSource, this.executor);
+            Producer p = new Producer(Integer.toString(i), this.config, this.dataSource, this.store, this.executor);
             this.actors.add(p);
         }
     }
@@ -157,15 +167,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
     private void shutdownCallback(Throwable failureCause) {
         // Close all TestActors.
-        this.actors.forEach(TestActor::close);
+        this.actors.forEach(Actor::close);
         this.actors.clear();
 
         // Complete Test Completion Future
         if (failureCause == null) {
-            System.out.println("[SelfTest] Finished successfully.");
+            TestLogger.log(LOG_ID, "Finished successfully.");
             this.testCompletion.get().complete(null);
         } else {
-            System.out.println(String.format("[SelfTest] Failed %s.", failureCause));
+            TestLogger.log(LOG_ID, "Failed with error %s.", failureCause);
             this.testCompletion.get().completeExceptionally(failureCause);
         }
 

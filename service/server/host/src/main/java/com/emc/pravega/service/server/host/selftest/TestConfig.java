@@ -39,6 +39,8 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_TRANSACTION_FREQUENCY = "transactionFrequency";
     static final String PROPERTY_MAX_TRANSACTION_SIZE = "maxTransactionSize";
     static final String PROPERTY_PRODUCER_COUNT = "producerCount";
+    static final String PROPERTY_MIN_APPEND_SIZE = "minAppendSize";
+    static final String PROPERTY_MAX_APPEND_SIZE = "maxAppendSize";
     static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     static final String PROPERTY_TIMEOUT_MILLIS = "timeoutMillis";
 
@@ -47,14 +49,18 @@ class TestConfig extends ComponentConfig {
     private static final int DEFAULT_TRANSACTION_FREQUENCY = 100;
     private static final int DEFAULT_MAX_TRANSACTION_APPEND_COUNT = 10;
     private static final int DEFAULT_PRODUCER_COUNT = 1;
+    private static final int DEFAULT_MIN_APPEND_SIZE = 100;
+    private static final int DEFAULT_MAX_APPEND_SIZE = 100;
     private static final int DEFAULT_THREAD_POOL_SIZE = 100;
-    private static final int DEFAULT_TIMEOUT_MILLIS = 10*1000;
+    private static final int DEFAULT_TIMEOUT_MILLIS = 10 * 1000;
 
     private int operationCount;
     private int segmentCount;
     private int transactionFrequency;
     private int maxTransactionAppendCount;
     private int producerCount;
+    private int minAppendSize;
+    private int maxAppendSize;
     private int threadPoolSize;
     private Duration timeout;
 
@@ -85,6 +91,8 @@ class TestConfig extends ComponentConfig {
         this.transactionFrequency = getInt32Property(PROPERTY_TRANSACTION_FREQUENCY, DEFAULT_TRANSACTION_FREQUENCY);
         this.maxTransactionAppendCount = getInt32Property(PROPERTY_MAX_TRANSACTION_SIZE, DEFAULT_MAX_TRANSACTION_APPEND_COUNT);
         this.producerCount = getInt32Property(PROPERTY_PRODUCER_COUNT, DEFAULT_PRODUCER_COUNT);
+        this.minAppendSize = getInt32Property(PROPERTY_MIN_APPEND_SIZE, DEFAULT_MIN_APPEND_SIZE);
+        this.maxAppendSize = getInt32Property(PROPERTY_MAX_APPEND_SIZE, DEFAULT_MAX_APPEND_SIZE);
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE, DEFAULT_THREAD_POOL_SIZE);
         int timeoutMillis = getInt32Property(PROPERTY_TIMEOUT_MILLIS, DEFAULT_TIMEOUT_MILLIS);
         this.timeout = Duration.ofMillis(timeoutMillis);
@@ -114,11 +122,19 @@ class TestConfig extends ComponentConfig {
         return this.producerCount;
     }
 
-    public int getThreadPoolSize(){
+    public int getMinAppendSize() {
+        return this.minAppendSize;
+    }
+
+    public int getMaxAppendSize() {
+        return this.maxAppendSize;
+    }
+
+    public int getThreadPoolSize() {
         return this.threadPoolSize;
     }
 
-    public Duration getTimeout(){
+    public Duration getTimeout() {
         return this.timeout;
     }
 

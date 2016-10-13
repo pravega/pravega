@@ -26,13 +26,15 @@ import java.util.concurrent.TimeUnit;
 /**
  * Main entry point for Self Tester.
  */
-public class TestRunner {
+public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
         TestConfig config = new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 5)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 10)
+                           .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
+                           .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 1024)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 100)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)));
