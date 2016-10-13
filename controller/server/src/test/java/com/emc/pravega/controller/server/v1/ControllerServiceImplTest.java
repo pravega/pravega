@@ -18,9 +18,9 @@
 
 package com.emc.pravega.controller.server.v1;
 
-import static com.emc.pravega.controller.util.Config.ZK_CONNECTION_STRING;
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,7 +34,9 @@ import java.util.concurrent.ExecutionException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -63,14 +65,24 @@ public class ControllerServiceImplTest {
     private final StreamMetadataStore streamStore =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
-    private Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+    private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-    private final CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
+    private final ControllerServiceImpl consumer;
 
-    private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore, client);
+    private final TestingServer zkServer;
+
+    private final CuratorFramework client;
+
+    public ControllerServiceImplTest() throws Exception {
+        zkServer = new TestingServer();
+        client = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new ExponentialBackoffRetry(1000, 3));
+        zkServer.start();
+        client.start();
+        consumer = new ControllerServiceImpl(streamStore, hostStore, client);
+    }
 
     @Before
     public void prepareStreamStore() {
@@ -102,6 +114,12 @@ public class ControllerServiceImplTest {
     public void prepareHostStore() {
         Host host = new Host("localhost", 9090);
         hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
+    }
+
+    @After
+    public void stopZKServer() throws IOException {
+        zkServer.close();
+        client.close();
     }
 
     @Test

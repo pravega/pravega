@@ -22,15 +22,15 @@ package com.emc.pravega.controller.task;
  */
 public class Paths {
 
-    public static final String STREAM_TASK_ROOT = "/tasks/stream/";
+    public static final String STREAM_TASK_ROOT = "/tasks/stream";
 
     // Task data per stream. A stream can have at most one task under execution at any given point of time.
-    public static final String STREAM_TASKS = STREAM_TASK_ROOT + "%s_%s/";
+    public static final String STREAM_TASKS = STREAM_TASK_ROOT + "/%s_%s";
 
-    public static final String STREAM_LOCKS_ROOT = "/locks/streams/";
+    public static final String STREAM_LOCKS_ROOT = "/locks/streams";
 
     // Locks held by hosts on streams
-    public static final String STREAM_LOCKS = STREAM_LOCKS_ROOT + "%s_%s/";
+    public static final String STREAM_LOCKS = STREAM_LOCKS_ROOT + "/%s_%s";
 
     // List of tasks being executed by a host.
     // This list is kind of an index for quick access to tasks being executed by a failed host.

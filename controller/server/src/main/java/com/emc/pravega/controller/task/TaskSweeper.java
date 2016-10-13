@@ -45,7 +45,8 @@ public class TaskSweeper {
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
         Class[] tmpTaskClasses = {StreamMetadataTasks.class};
-        Object[] tmpTaskClassObjects  = {new StreamMetadataTasks(streamMetadataStore, hostControllerStore, new ConnectionFactoryImpl(false), client)};
+        Object[] tmpTaskClassObjects  = {
+                new StreamMetadataTasks(streamMetadataStore, hostControllerStore, new ConnectionFactoryImpl(false), client)};
         taskClasses = tmpTaskClasses;
         taskClassObjects = tmpTaskClassObjects;
     }

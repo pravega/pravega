@@ -22,6 +22,7 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
+import org.apache.zookeeper.CreateMode;
 
 import java.io.Serializable;
 import java.util.List;
@@ -89,7 +90,7 @@ public class TaskBase {
                         if (success) {
                             TaskData taskData = new TaskData();
                             StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
-                            StackTraceElement e = stacktrace[1];
+                            StackTraceElement e = stacktrace[5];
                             taskData.setMethodName(e.getMethodName());
                             taskData.setParameters(parameters);
 
@@ -97,7 +98,10 @@ public class TaskBase {
                             // 1. persist taks data
                             String path = String.format(Paths.STREAM_TASKS, scope, stream);
                             try {
-                                client.setData().forPath(path, taskData.serialize());
+                                client.create()
+                                        .creatingParentsIfNeeded()
+                                        .withMode(CreateMode.PERSISTENT)
+                                        .forPath(path, taskData.serialize());
                             } catch (Exception ex) {
                                 throw new WriteFailedException(streamName, ex);
                             }
