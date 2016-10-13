@@ -74,13 +74,13 @@ class TestState {
     }
 
     List<String> getSegments() {
-        synchronized (this.segmentNames){
+        synchronized (this.segmentNames) {
             return new ArrayList<>(this.segmentNames);
         }
     }
 
     List<String> getTransactions() {
-        synchronized (this.transactionNames){
+        synchronized (this.transactionNames) {
             return new ArrayList<>(this.transactionNames);
         }
     }
