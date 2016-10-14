@@ -18,9 +18,12 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.server.ExceptionHelpers;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,6 +39,7 @@ class Producer extends Actor {
     private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
+    private final UUID clientId = UUID.randomUUID();
 
     //endregion
 
@@ -87,7 +91,6 @@ class Producer extends Actor {
      * 3. Completes the ProducerOperation with either success or failure based on the outcome step #2.
      */
     private CompletableFuture<Void> runOneIteration() {
-        int iterationId = this.iterationCount.incrementAndGet();
         ProducerOperation op = this.dataSource.nextOperation();
         if (op == null) {
             // Nothing more to do.
@@ -95,6 +98,7 @@ class Producer extends Actor {
             return CompletableFuture.completedFuture(null);
         }
 
+        this.iterationCount.incrementAndGet();
         return executeOperation(op)
                 .whenComplete((r, ex) -> {
                     if (ex == null) {
@@ -124,16 +128,19 @@ class Producer extends Actor {
         TestLogger.log(getLogId(), "Executing %s.", operation);
         switch (operation.getType()) {
             case CreateTransaction:
-                // Create the Transaction, then record it's name in the State object.
+                // Create the Transaction, then record it's name in the operation's result.
                 return this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
                                  .thenAccept(operation::setResult);
             case MergeTransaction:
-                // Merge the Transaction, then record it as deleted in the State object.
-                return this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
+                // Seal & Merge the Transaction.
+                TimeoutTimer timer = new TimeoutTimer(this.config.getTimeout());
+                return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
+                                 .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
             case Append:
                 // Generate some random data, then append it.
                 byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
-                return this.store.append(operation.getTarget(), appendContent, this.config.getTimeout());
+                AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
+                return this.store.append(operation.getTarget(), appendContent, context, this.config.getTimeout());
             default:
                 throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }

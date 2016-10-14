@@ -57,7 +57,7 @@ public class TransactionTest {
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
         this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
     }
 
     @After

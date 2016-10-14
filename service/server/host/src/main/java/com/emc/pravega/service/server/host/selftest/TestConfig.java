@@ -140,7 +140,7 @@ class TestConfig extends ComponentConfig {
 
     //endregion
 
-    static Properties convert(String componentCode, Properties rawProperties) {
+    static <T extends Properties> Properties convert(String componentCode, Properties rawProperties) {
         Properties p = new Properties();
         for (Map.Entry<Object, Object> e : rawProperties.entrySet()) {
             ServiceBuilderConfig.set(p, componentCode, e.getKey().toString(), e.getValue().toString());

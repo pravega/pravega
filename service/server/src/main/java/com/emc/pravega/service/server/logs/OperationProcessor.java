@@ -37,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -52,6 +53,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
     private final DurableDataLog durableDataLog;
     private final BlockingDrainingQueue<CompletableOperation> operationQueue;
     private final MetadataCheckpointPolicy checkpointPolicy;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -78,6 +80,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         this.durableDataLog = durableDataLog;
         this.checkpointPolicy = checkpointPolicy;
         this.operationQueue = new BlockingDrainingQueue<>();
+        this.closed = new AtomicBoolean();
     }
 
     //endregion
@@ -86,8 +89,12 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     @Override
     public void close() {
-        stopAsync();
-        ServiceShutdownListener.awaitShutdown(this, false);
+        if(!this.closed.get()) {
+            stopAsync();
+            ServiceShutdownListener.awaitShutdown(this, false);
+            log.info("{}: Closed.", this.traceObjectId);
+            this.closed.set(true);
+        }
     }
 
     //endregion

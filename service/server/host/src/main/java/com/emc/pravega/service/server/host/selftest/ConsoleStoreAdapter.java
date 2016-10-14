@@ -18,54 +18,76 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Created by andrei on 10/12/16.
+ * Dummy StoreAdapter, used for debugging the Self Tester on the console.
  */
 class ConsoleStoreAdapter implements StoreAdapter {
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Duration timeout) {
+    public CompletableFuture<Void> initialize(Duration timeout) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Append Segment=%s, Length=%d.", streamSegmentName, data.length);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public CompletableFuture<ReadResult> readFromStore(String streamSegmentName, long offset, int maxLength, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Read Segment=%s, Offset=%d, Length=%d.", streamSegmentName, offset, maxLength);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Create Segment=%s.", streamSegmentName);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Create Transaction Parent=%s.", parentStreamSegmentName);
         return CompletableFuture.completedFuture(parentStreamSegmentName + System.nanoTime());
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Merge Transaction=%s.", transactionName);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public CompletableFuture<Void> sealStreamSegment(String streamSegmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Seal Segment=%s.", streamSegmentName);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         TestLogger.log("CSA", "Delete Segment=%s.", streamSegmentName);
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public void close() {
+        this.closed.set(true);
     }
 }

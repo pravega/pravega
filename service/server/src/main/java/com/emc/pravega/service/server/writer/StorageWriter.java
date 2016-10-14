@@ -126,14 +126,14 @@ class StorageWriter extends AbstractService implements Writer {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
-        runContinuously();
         log.info("{}: Started.", this.traceObjectId);
+        runContinuously();
     }
 
     @Override
     protected void doStop() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        log.info("{}: Stopping ...", this.traceObjectId);
+        log.info("{}: Stopping.", this.traceObjectId);
 
         this.executor.execute(() -> {
             Throwable cause = this.stopException.get();
@@ -211,7 +211,7 @@ class StorageWriter extends AbstractService implements Writer {
         if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !canRun()) {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
-            logErrorHandled(ex);
+            log.info("{}: StorageWriter intercepted {} while shutting down.", this.traceObjectId, ExceptionHelpers.getRealException(ex).getClass().getSimpleName());
             return null;
         }
 

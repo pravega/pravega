@@ -82,7 +82,7 @@ class ProducerDataSource {
         synchronized (this.lock) {
             if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                 // We have exceeded the number of operations since we last created a transaction.
-                result = new ProducerOperation(OperationType.CreateTransaction, "foo");
+                result = new ProducerOperation(OperationType.CreateTransaction, this.state.getNonTransactionSegmentName(operationIndex));
                 this.lastCreatedTransaction = operationIndex;
             } else {
                 // If any transaction has already exceeded the max number of appends, then merge it.
@@ -99,7 +99,7 @@ class ProducerDataSource {
             }
             // Otherwise append to random segment.
             if (result == null) {
-                result = new ProducerOperation(OperationType.Append, this.state.getSegmentName(operationIndex));
+                result = new ProducerOperation(OperationType.Append, this.state.getSegmentOrTransactionName(operationIndex));
             }
         }
 

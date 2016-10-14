@@ -46,7 +46,9 @@ import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -205,10 +207,11 @@ public final class ServiceBuilder implements AutoCloseable {
     }
 
     /**
-     * Creates or gets the instance of SegmentContainerManager used throughout this ServiceBuilder.
+     * Initializes the ServiceBuilder.
      */
-    public SegmentContainerManager getContainerManager() {
-        return getSingleton(this.containerManager, this.segmentContainerManagerCreator);
+    public CompletableFuture<Void> initialize(Duration timeout) {
+        return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
+                .initialize(timeout);
     }
 
     /**

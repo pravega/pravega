@@ -93,7 +93,7 @@ public class InteractiveStreamSegmentStoreTester {
         }
 
         try {
-            serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+            serviceBuilder.initialize(TIMEOUT).join();
             InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
         } finally {

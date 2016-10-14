@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 
 import java.time.Duration;
@@ -26,8 +27,11 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Abstraction layer for Segment Store operations that are valid from the Self Tester.
  */
-interface StoreAdapter {
-    CompletableFuture<Void> append(String streamSegmentName, byte[] data, Duration timeout);
+interface StoreAdapter extends AutoCloseable {
+
+    CompletableFuture<Void> initialize(Duration timeout);
+
+    CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
 
     CompletableFuture<ReadResult> readFromStore(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
@@ -40,4 +44,7 @@ interface StoreAdapter {
     CompletableFuture<Void> sealStreamSegment(String streamSegmentName, Duration timeout);
 
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
+
+    @Override
+    void close();
 }

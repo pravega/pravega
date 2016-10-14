@@ -64,7 +64,7 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         System.out.println("Initializing Container Manager ...");
-        this.serviceBuilder.getContainerManager().initialize(INITIALIZE_TIMEOUT).join();
+        this.serviceBuilder.initialize(INITIALIZE_TIMEOUT).join();
 
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();

@@ -168,14 +168,37 @@ class TestState {
     }
 
     /**
-     * Gets the name of an arbitrary Segment that is registered. Note that calling this method with the same value for
-     * the argument may not necessarily produce the same result if done repeatedly.
+     * Gets the name of an arbitrary Segment/Transaction that is registered. Note that calling this method with the same
+     * value for the argument may not necessarily produce the same result if done repeatedly.
      *
      * @param hint A hint to use to get the Segment name.
      */
-    String getSegmentName(int hint) {
+    String getSegmentOrTransactionName(int hint) {
         synchronized (this.allSegmentNames) {
             return this.allSegmentNames.get(hint % this.allSegmentNames.size());
+        }
+    }
+
+    /**
+     * Gets the name of an arbitrary Segment (non-transaction) that is registered. Note that calling this method with the
+     * same value for the argument may not necessarily produce the same result if done repeatedly.
+     *
+     * @param hint A hint to use to get the Segment name.
+     */
+    String getNonTransactionSegmentName(int hint) {
+        synchronized (this.allSegmentNames) {
+            int retry = 0;
+            while (retry < this.allSegmentNames.size()) {
+                String currentName = this.allSegmentNames.get((hint + retry) % this.allSegmentNames.size());
+                SegmentInfo currentSegment = getSegment(currentName);
+                if (currentSegment != null && !currentSegment.isTransaction()) {
+                    return currentName;
+                }
+
+                retry++;
+            }
+
+            throw new IllegalStateException("Unable to find at least one Non-Transaction Segment out of " + this.allSegmentNames.size() + " total segments.");
         }
     }
 

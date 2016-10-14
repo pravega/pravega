@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.host.selftest;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
@@ -41,7 +42,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
     private static final String LOG_ID = "SelfTest";
     private final TestState state;
-    private final TestConfig config;
+    private final TestConfig testConfig;
     private final AtomicBoolean closed;
     private final ScheduledExecutorService executor;
     private final ArrayList<Actor> actors;
@@ -54,17 +55,19 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
     //region Constructor
 
-    SelfTest(TestConfig config) {
-        Preconditions.checkNotNull(config, "config");
+    SelfTest(TestConfig testConfig, ServiceBuilderConfig builderConfig) {
+        Preconditions.checkNotNull(testConfig, "testConfig");
+        Preconditions.checkNotNull(builderConfig, "builderConfig");
 
-        this.config = config;
+        this.testConfig = testConfig;
         this.state = new TestState();
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
-        this.store = new ConsoleStoreAdapter();
-        this.dataSource = new ProducerDataSource(this.config, this.state, this.store);
+        //this.store = new ConsoleStoreAdapter();
+        this.store = new StreamSegmentStoreAdapter(builderConfig);
+        this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
-        this.executor = Executors.newScheduledThreadPool(config.getThreadPoolSize());
+        this.executor = Executors.newScheduledThreadPool(testConfig.getThreadPoolSize());
         addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
     }
 
@@ -78,6 +81,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
             this.dataSource.deleteAllSegments().join();
+            this.store.close();
             this.executor.shutdown();
             this.closed.set(true);
             TestLogger.log(LOG_ID, "Closed.");
@@ -125,9 +129,10 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture<Void> startFuture = this.dataSource
-                .createSegments()
-                .thenRunAsync(this.actorManager::startAsync, this.executor);
+        CompletableFuture<Void> startFuture =
+                this.store.initialize(this.testConfig.getTimeout())
+                          .thenCompose(v -> this.dataSource.createSegments())
+                          .thenRunAsync(this.actorManager::startAsync, this.executor);
         FutureHelpers.exceptionListener(startFuture, this::notifyFailed);
     }
 
@@ -154,8 +159,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
     }
 
     private void createTestActors() {
-        for (int i = 0; i < this.config.getProducerCount(); i++) {
-            Producer p = new Producer(Integer.toString(i), this.config, this.dataSource, this.store, this.executor);
+        for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
+            Producer p = new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor);
             this.actors.add(p);
         }
     }

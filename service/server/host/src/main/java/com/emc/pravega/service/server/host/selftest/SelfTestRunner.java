@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.util.PropertyBag;
+import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import lombok.Cleanup;
 
 import java.util.concurrent.TimeUnit;
@@ -28,7 +29,31 @@ import java.util.concurrent.TimeUnit;
  */
 public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
-        TestConfig config = new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
+
+        // TODO: see if we can unify these two. For instance, ThreadPoolSize exists in both. Is it a different thread pool?
+        TestConfig testConfig = getTestConfig();
+        ServiceBuilderConfig builderConfig = getBuilderConfig();
+
+        // Create a new SelfTest.
+        @Cleanup
+        SelfTest test = new SelfTest(testConfig, builderConfig);
+
+        // Star the test.
+        test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+
+        // Wait for the test to finish.
+        test.awaitFinished().join();
+
+        // Make sure the test is stopped.
+        test.stopAsync().awaitTerminated();
+    }
+
+    private static ServiceBuilderConfig getBuilderConfig(){
+        return ServiceBuilderConfig.getDefaultConfig();
+    }
+
+    private static TestConfig getTestConfig() {
+        return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
@@ -38,18 +63,5 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 10)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 20)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)));
-
-        // Create a new SelfTest.
-        @Cleanup
-        SelfTest test = new SelfTest(config);
-
-        // Star the test.
-        test.startAsync().awaitRunning(config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-
-        // Wait for the test to finish.
-        test.awaitFinished().join();
-
-        // Make sure the test is stopped.
-        test.stopAsync().awaitTerminated();
     }
 }
