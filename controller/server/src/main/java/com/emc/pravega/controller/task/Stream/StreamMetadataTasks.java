@@ -31,7 +31,6 @@ import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.io.Serializable;
@@ -103,41 +102,6 @@ public class StreamMetadataTasks extends TaskBase {
                 String.format(Paths.STREAM_TASKS, scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
-    }
-
-    /**
-     * Create transaction.
-     * @param scope stream scope.
-     * @param stream stream name.
-     * @return transaction id.
-     */
-    @Task(name = "createTransaction", version = "1.0")
-    public CompletableFuture<String> createTx(String scope, String stream) {
-        throw new NotImplementedException();
-    }
-
-    /**
-     * Drop transaction.
-     * @param scope stream scope.
-     * @param stream stream name.
-     * @param txId transaction id.
-     * @return true/false.
-     */
-    @Task(name = "dropTransaction", version = "1.0")
-    public CompletableFuture<Boolean> dropTx(String scope, String stream, String txId) {
-        throw new NotImplementedException();
-    }
-
-    /**
-     * Commit transaction.
-     * @param scope stream scope.
-     * @param stream stream name.
-     * @param txId transaction id.
-     * @return true/false.
-     */
-    @Task(name = "commitTransaction", version = "1.0")
-    public CompletableFuture<Boolean> commitTx(String scope, String stream, String txId) {
-        throw new NotImplementedException();
     }
 
     private CompletableFuture<Status> createStreamBody(String scope, String stream, StreamConfiguration config) {

@@ -32,6 +32,7 @@ import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
@@ -70,9 +71,10 @@ public class Main {
         log.info("Starting RPC server");
         CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks));
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, client);
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
-        TaskSweeper taskSweeper = new TaskSweeper(client, streamMetadataTasks);
+        TaskSweeper taskSweeper = new TaskSweeper(client, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 }

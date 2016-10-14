@@ -30,6 +30,7 @@ import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.controller.stream.api.v1.TxStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
@@ -44,8 +45,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks);
+    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     /**

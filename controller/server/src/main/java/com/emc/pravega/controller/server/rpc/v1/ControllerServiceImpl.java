@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.thrift.TException;
@@ -53,11 +54,13 @@ public class ControllerServiceImpl {
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
+    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
-    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks) {
+    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
     }
 
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig, long createTimestamp) {

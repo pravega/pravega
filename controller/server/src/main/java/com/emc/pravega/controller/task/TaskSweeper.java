@@ -20,6 +20,7 @@ package com.emc.pravega.controller.task;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -93,7 +94,7 @@ public class TaskSweeper {
         for (int i = 0; i < taskClassObjects.length; i++) {
             Class claz = taskClassObjects[i].getClass();
             for (Method method : claz.getDeclaredMethods()) {
-                if (method.getName().equals(taskData.getMethodName())) {
+                if (matches(method, taskData)) {
                     Object o = taskClassObjects[i];
                     log.debug("Invoking method={}", method.getName());
                     return method.invoke(o, taskData.getParameters());
@@ -101,5 +102,16 @@ public class TaskSweeper {
             }
         }
         throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
+    }
+
+    private boolean matches(Method method, TaskData taskData) {
+        for (Annotation annotation : method.getAnnotations()) {
+            if ((annotation instanceof Task)
+                    && ((Task) annotation).name().equals(taskData.getMethodName())
+                    && ((Task) annotation).version().equals(taskData.getMethodVersion())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

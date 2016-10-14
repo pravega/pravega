@@ -42,7 +42,7 @@ import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
-    public abstract Stream getStream(String name);
+    abstract Stream getStream(String name);
 
     @Override
     public CompletableFuture<Boolean> updateConfiguration(String name, StreamConfiguration configuration) {

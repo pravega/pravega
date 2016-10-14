@@ -33,6 +33,7 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -150,6 +151,7 @@ public class TaskTest {
     }
 
     @Data
+    @EqualsAndHashCode(callSuper = false)
     class LockingTask extends Thread {
 
         private final TestTasks testTasks;

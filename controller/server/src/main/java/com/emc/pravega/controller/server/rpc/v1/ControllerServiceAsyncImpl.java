@@ -25,6 +25,7 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
@@ -42,8 +43,8 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceAsyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks);
+    public ControllerServiceAsyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Override

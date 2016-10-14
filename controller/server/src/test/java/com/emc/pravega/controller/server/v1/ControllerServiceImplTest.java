@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -83,7 +84,8 @@ public class ControllerServiceImplTest {
         zkServer.start();
         client.start();
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
-        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, client);
+        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Before
