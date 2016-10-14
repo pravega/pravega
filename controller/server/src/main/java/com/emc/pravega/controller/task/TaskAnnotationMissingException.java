@@ -17,25 +17,30 @@
  */
 package com.emc.pravega.controller.task;
 
-import lombok.Data;
-import org.apache.commons.lang.SerializationUtils;
-
-import java.io.Serializable;
-
 /**
- * Task data: task name and its parameters
+ * Task Annotation missing exception
  */
-@Data
-public class TaskData implements Serializable {
-    private String methodName;
-    private String methodVersion;
-    private Serializable[] parameters;
+public class TaskAnnotationMissingException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Task annotation missing for method %s.";
 
-    public byte[] serialize() {
-        return SerializationUtils.serialize(this);
+    /**
+     * Creates a new instance of TaskAnnotationMissingException class
+     * @param method method name
+     */
+    public TaskAnnotationMissingException(String method) {
+        super(String.format(FORMAT_STRING, method));
     }
 
-    public static TaskData deserialize(byte[] bytes) {
-        return (TaskData) SerializationUtils.deserialize(bytes);
+    /**
+     * Creates a new instance of TaskAnnotationMissingException class
+     * @param method method name
+     * @param cause   error cause
+     */
+    public TaskAnnotationMissingException(String method, Throwable cause) {
+        super(String.format(FORMAT_STRING, method), cause);
     }
 }

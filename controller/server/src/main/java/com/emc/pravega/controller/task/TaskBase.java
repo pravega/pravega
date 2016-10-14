@@ -25,13 +25,17 @@ import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 import org.apache.zookeeper.CreateMode;
 
 import java.io.Serializable;
-import java.util.List;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * TaskBase contains several environment variables for use by batch functions.
- * Class containing batch function may inherit from TaskBase for accessing these environment variables.
+ * TaskBase contains the following.
+ * 1. Environment variables used by tasks.
+ * 2. Wrapper method that has boilerplate code for locking, persisting task data and executing the task
+ *
+ * Actual tasks are implemented in sub-classes of TaskBase and annotated with @Task annotation.
  */
 public class TaskBase {
 
@@ -47,15 +51,48 @@ public class TaskBase {
 
     public TaskBase(StreamMetadataStore streamMetadataStore,
                     HostControllerStore hostControllerStore,
-                    ConnectionFactoryImpl connectionFactory,
                     CuratorFramework client) {
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
-        this.connectionFactory = connectionFactory;
+        this.connectionFactory = new ConnectionFactoryImpl(false);
         this.client = client;
     }
 
-    public CompletableFuture<Boolean> lock(String path) {
+    /**
+     * Wrapper method that initially obtains lock, persists the task data then executes the passed method,
+     * finally deletes task data and releases lock
+     *
+     * @param lockPath ZK path for lock
+     * @param taskDataPath ZK path for persisting task data
+     * @param parameters method parameters
+     * @param operation lambda operation that is the actual task
+     * @param <T> type parameter
+     * @return return value of task execution
+     */
+    public <T> CompletableFuture<T> execute(String lockPath, String taskDataPath, Serializable[] parameters, FutureOperation<T> operation) {
+        TaskData taskData = getTaskData(parameters);
+        try {
+            CompletableFuture<Boolean> lock = this.lock(lockPath);
+            return lock.thenCompose(success -> {
+                        if (success) {
+                            // todo: handle lock glitches possibly due to connectivity issues
+                            // todo: duplicate task data already exists
+                            // solution: perform the old task first and then execute the current one
+                            createTaskData(taskDataPath, taskData);
+                            CompletableFuture<T> o = operation.apply();
+                            deleteTaskData(taskDataPath);
+                            return o;
+                        } else {
+                            throw new LockFailedException(lockPath);
+                        }
+                    }
+            );
+        } finally {
+            unlock(lockPath);
+        }
+    }
+
+    private CompletableFuture<Boolean> lock(String path) {
         InterProcessMutex mutex = new InterProcessMutex(client, path);
         try {
             boolean success = mutex.acquire(LOCK_WAIT_TIME, TimeUnit.SECONDS);
@@ -66,7 +103,7 @@ public class TaskBase {
         }
     }
 
-    public void unlock(String path) {
+    private void unlock(String path) {
         InterProcessMutex mutex = new InterProcessMutex(client, path);
         try {
             mutex.release();
@@ -75,51 +112,47 @@ public class TaskBase {
         }
     }
 
-    /**
-     * Wrapper method that initially obtains lock, then executes the passed method, and finally releases the lock
-     * @param operation operation to execute
-     * @return returns the value returned by operation, if lock is obtained successfully
-     */
-    public <T> CompletableFuture<T> wrapper(String scope, String stream, List<Serializable> parameters, FutureOperation<T> operation) {
-        String streamName = scope + "_" + stream;
-        String lockPath = String.format(Paths.STREAM_LOCKS, scope, stream);
-        try {
-            CompletableFuture<Boolean> lock = this.lock(lockPath);
-            return lock.thenCompose(
-                    success -> {
-                        if (success) {
-                            TaskData taskData = new TaskData();
-                            StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
-                            StackTraceElement e = stacktrace[5];
-                            taskData.setMethodName(e.getMethodName());
-                            taskData.setParameters(parameters);
+    private TaskData getTaskData(Serializable[] parameters) {
+        TaskData taskData = new TaskData();
+        StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
+        StackTraceElement e = stacktrace[3];
+        Task annotation = getTaskAnnotation(e.getMethodName());
+        taskData.setMethodName(annotation.name());
+        taskData.setMethodVersion(annotation.version());
+        taskData.setParameters(parameters);
+        return taskData;
+    }
 
-
-                            // 1. persist taks data
-                            String path = String.format(Paths.STREAM_TASKS, scope, stream);
-                            try {
-                                client.create()
-                                        .creatingParentsIfNeeded()
-                                        .withMode(CreateMode.PERSISTENT)
-                                        .forPath(path, taskData.serialize());
-                            } catch (Exception ex) {
-                                throw new WriteFailedException(streamName, ex);
-                            }
-                            CompletableFuture<T> o = operation.apply();
-                            // 1. remove task data
-                            try {
-                                client.delete().forPath(path);
-                            } catch (Exception ex) {
-                                throw new WriteFailedException(streamName, ex);
-                            }
-                            return o;
-                        } else {
-                            throw new LockFailedException(streamName);
-                        }
+    private Task getTaskAnnotation(String method) {
+        for (Method m : this.getClass().getMethods()) {
+            if (m.getName().equals(method)) {
+                for (Annotation annotation : m.getDeclaredAnnotations()) {
+                    if (annotation instanceof Task) {
+                        return (Task) annotation;
                     }
-            );
-        } finally {
-            unlock(lockPath);
+                }
+                break;
+            }
+        }
+        throw new TaskAnnotationMissingException(method);
+    }
+
+    private void createTaskData(String taskDataPath, TaskData taskData) {
+        try {
+            client.create()
+                    .creatingParentsIfNeeded()
+                    .withMode(CreateMode.PERSISTENT)
+                    .forPath(taskDataPath, taskData.serialize());
+        } catch (Exception ex) {
+            throw new TaskDataWriteFailedException(taskDataPath, ex);
+        }
+    }
+
+    private void deleteTaskData(String taskDataPath) {
+        try {
+            client.delete().forPath(taskDataPath);
+        } catch (Exception ex) {
+            throw new TaskDataWriteFailedException(taskDataPath, ex);
         }
     }
 }

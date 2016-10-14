@@ -17,10 +17,6 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -36,19 +32,14 @@ import java.util.List;
 public class TaskSweeper {
 
     private final CuratorFramework client;
-    private final Class[] taskClasses;
-    private final Object[] taskClassObjects;
+    private final TaskBase[] taskClassObjects;
 
-    public TaskSweeper(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
+    public TaskSweeper(CuratorFramework client, TaskBase... classes) {
         this.client = client;
 
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
-        Class[] tmpTaskClasses = {StreamMetadataTasks.class};
-        Object[] tmpTaskClassObjects  = {
-                new StreamMetadataTasks(streamMetadataStore, hostControllerStore, new ConnectionFactoryImpl(false), client)};
-        taskClasses = tmpTaskClasses;
-        taskClassObjects = tmpTaskClassObjects;
+        taskClassObjects = classes;
     }
 
     /**
@@ -72,15 +63,16 @@ public class TaskSweeper {
                         try {
                             TaskData taskData = TaskData.deserialize(data);
                             execute(taskData);
-                        } catch (Exception ex) {
+                        } catch (Exception e) {
                             // log exception
-                            // continue with next task
+                            log.error("Error processing task", e);
                         }
                     }
                 }
             }
         } catch (Exception e) {
             // log exception
+            log.error("Error processing task", e);
         }
     }
 
@@ -98,8 +90,8 @@ public class TaskSweeper {
             InstantiationException, InvocationTargetException, ClassNotFoundException {
 
         log.debug("Trying to execute {}", taskData.getMethodName());
-        for (int i = 0; i < taskClasses.length; i++) {
-            Class claz = taskClasses[i];
+        for (int i = 0; i < taskClassObjects.length; i++) {
+            Class claz = taskClassObjects[i].getClass();
             for (Method method : claz.getDeclaredMethods()) {
                 if (method.getName().equals(taskData.getMethodName())) {
                     Object o = taskClassObjects[i];

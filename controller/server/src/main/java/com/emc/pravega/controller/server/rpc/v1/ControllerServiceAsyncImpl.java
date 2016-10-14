@@ -24,9 +24,9 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 import org.apache.thrift.TException;
 import org.apache.thrift.async.AsyncMethodCallback;
 
@@ -42,8 +42,8 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceAsyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, CuratorFramework client) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, client);
+    public ControllerServiceAsyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks);
     }
 
     @Override

@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.apache.curator.framework.CuratorFramework;
 import org.apache.thrift.TException;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -42,7 +41,6 @@ import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
@@ -56,11 +54,10 @@ public class ControllerServiceImpl {
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
 
-    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, CuratorFramework client) {
+    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, connectionFactory, client);
+        this.streamMetadataTasks = streamMetadataTasks;
     }
 
     public CompletableFuture<Status> createStream(StreamConfiguration streamConfig, long createTimestamp) {

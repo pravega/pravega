@@ -20,7 +20,7 @@ package com.emc.pravega.controller.task;
 /**
  * ZK write to a path failed
  */
-public class WriteFailedException extends RuntimeException {
+public class TaskDataWriteFailedException extends RuntimeException {
     /**
      *
      */
@@ -28,19 +28,19 @@ public class WriteFailedException extends RuntimeException {
     private static final String FORMAT_STRING = "Failed locking stream %s.";
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
+     * Creates a new instance of TaskDataWriteFailedException class.
+     * @param name path of failed write operation.
      */
-    public WriteFailedException(String name) {
+    public TaskDataWriteFailedException(String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
-     * @param cause   error cause
+     * Creates a new instance of TaskDataWriteFailedException class.
+     * @param name path of failed write operation.
+     * @param cause   error cause.
      */
-    public WriteFailedException(String name, Throwable cause) {
+    public TaskDataWriteFailedException(String name, Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

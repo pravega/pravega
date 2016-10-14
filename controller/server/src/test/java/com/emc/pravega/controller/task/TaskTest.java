@@ -28,10 +28,11 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -49,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
 
@@ -121,11 +123,7 @@ public class TaskTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        log.debug("zk con string = " + zkServer.getConnectString());
-        log.debug("zk port = " + zkServer.getPort());
-        log.debug("zk folder = " + zkServer.getTempDirectory());
-
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, new ConnectionFactoryImpl(false), client);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
@@ -135,5 +133,39 @@ public class TaskTest {
         result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis());
         assertTrue(result.isDone());
         assertEquals(result.get(), Status.SUCCESS);
+    }
+
+    @Test(expected = CompletionException.class)
+    public void testLocking() {
+        TestTasks testTasks = new TestTasks(streamStore, hostStore, client);
+
+        LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
+        LockingTask second = new LockingTask(testTasks, SCOPE, stream1);
+
+        first.run();
+        second.run();
+
+        first.result.join();
+        second.result.join();
+    }
+
+    @Data
+    class LockingTask extends Thread {
+
+        private final TestTasks testTasks;
+        private final String scope;
+        private final String stream;
+        private CompletableFuture<Void> result;
+
+        LockingTask(TestTasks testTasks, String scope, String stream) {
+            this.testTasks = testTasks;
+            this.scope = scope;
+            this.stream = stream;
+        }
+
+        @Override
+        public void run() {
+            result = testTasks.testStreamLock(scope, stream);
+        }
     }
 }

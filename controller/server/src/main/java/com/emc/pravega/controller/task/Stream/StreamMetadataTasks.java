@@ -26,81 +26,116 @@ import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.task.Paths;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Collection of metadata update batch operations on stream.
+ * Collection of metadata update tasks on stream.
+ * Task methods are annotated with @Task annotation.
+ *
+ * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
+ * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamMetadataTasks extends TaskBase {
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, ConnectionFactoryImpl connectionFactory, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, connectionFactory, client);
+    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
+        super(streamMetadataStore, hostControllerStore, client);
     }
 
-    @Task(name = "createStream")
+    /**
+     * Create stream.
+     * @param scope scope.
+     * @param stream stream name.
+     * @param config stream configuration.
+     * @param createTimestamp creation timestamp.
+     * @return creation status.
+     */
+    @Task(name = "createStream", version = "1.0")
     public CompletableFuture<Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
-        Serializable[] params = {scope, stream, config};
-        return this.wrapper(scope, stream, Arrays.asList(params), () -> createStreamBody(scope, stream, config));
+        return execute(
+                String.format(Paths.STREAM_LOCKS, scope, stream),
+                String.format(Paths.STREAM_TASKS, scope, stream),
+                new Serializable[]{scope, stream, config},
+                () -> createStreamBody(scope, stream, config));
     }
 
-    @Task(name = "updateConfig")
+    /**
+     * Update stream's configuration.
+     * @param scope scope.
+     * @param stream stream name.
+     * @param config modified stream configuration.
+     * @return update status.
+     */
+    @Task(name = "updateConfig", version = "1.0")
     public CompletableFuture<Status> alterStream(String scope, String stream, StreamConfiguration config) {
-        Serializable[] params = {scope, stream, config};
-        return this.wrapper(scope, stream, Arrays.asList(params), () -> updateStreamConfigBody(scope, stream, config));
+        return execute(
+                String.format(Paths.STREAM_LOCKS, scope, stream),
+                String.format(Paths.STREAM_TASKS, scope, stream),
+                new Serializable[]{scope, stream, config},
+                () -> updateStreamConfigBody(scope, stream, config));
     }
 
     /**
      * Scales stream segments.
-     *
-     * Annotation takes care of locking and unlocking the stream and persisting operation details, in case the operation
-     * needs to be retried on node/process failure
-     *
-     * Effectively, annotation does the following, before executing the method body
-     *
-     * 1. Lock the path /stream/{streamName}
-     * 2. Add the data for this operation at /stream/{streamName}/operation
-     *
-     * And, it does the following after executing the method body, in a finally block
-     * 1. Delete the data for this operation at /stream/{streamName}/operation
-     * 2. Unlock the path /stream/{streamName}
-     *
-     * @param scope scope
-     * @param stream stream name
-     * @param sealedSegments segments to be sealed
-     * @param newRanges key ranges for new segments
-     * @param scaleTimestamp scaling time stamp
-     * @return returns the newly created segments
+     * @param scope scope.
+     * @param stream stream name.
+     * @param sealedSegments segments to be sealed.
+     * @param newRanges key ranges for new segments.
+     * @param scaleTimestamp scaling time stamp.
+     * @return returns the newly created segments.
      */
-    @Task(name = "scaleStream")
+    @Task(name = "scaleStream", version = "1.0")
     public CompletableFuture<List<Segment>> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         Serializable[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
-        return this.wrapper(scope, stream, Arrays.asList(params), () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
+        return execute(
+                String.format(Paths.STREAM_LOCKS, scope, stream),
+                String.format(Paths.STREAM_TASKS, scope, stream),
+                new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
+                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
-    @Task(name = "createTransaction")
+    /**
+     * Create transaction.
+     * @param scope stream scope.
+     * @param stream stream name.
+     * @return transaction id.
+     */
+    @Task(name = "createTransaction", version = "1.0")
     public CompletableFuture<String> createTx(String scope, String stream) {
         throw new NotImplementedException();
     }
 
-    @Task(name = "dropTransaction")
+    /**
+     * Drop transaction.
+     * @param scope stream scope.
+     * @param stream stream name.
+     * @param txId transaction id.
+     * @return true/false.
+     */
+    @Task(name = "dropTransaction", version = "1.0")
     public CompletableFuture<Boolean> dropTx(String scope, String stream, String txId) {
         throw new NotImplementedException();
     }
 
-    @Task(name = "commitTransaction")
+    /**
+     * Commit transaction.
+     * @param scope stream scope.
+     * @param stream stream name.
+     * @param txId transaction id.
+     * @return true/false.
+     */
+    @Task(name = "commitTransaction", version = "1.0")
     public CompletableFuture<Boolean> commitTx(String scope, String stream, String txId) {
         throw new NotImplementedException();
     }
@@ -186,8 +221,8 @@ public class StreamMetadataTasks extends TaskBase {
     private Void asyncNotifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, this.hostControllerStore);
 
-        // async call, dont wait for its completion or success. Host will contact controller if it does not know
-        // about some segment even if this call fails
+        // async call, don't wait for its completion or success. Host will contact controller if it does not know
+        // about some segment even if this call fails?
         CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory));
         return null;
     }

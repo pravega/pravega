@@ -31,6 +31,8 @@ import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.TaskSweeper;
 import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
 import org.apache.curator.framework.CuratorFramework;
@@ -67,8 +69,10 @@ public class Main {
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
         CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, client));
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
+        TaskSweeper taskSweeper = new TaskSweeper(client, streamMetadataTasks);
     }
 }

@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -81,7 +82,8 @@ public class ControllerServiceImplTest {
         client = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new ExponentialBackoffRetry(1000, 3));
         zkServer.start();
         client.start();
-        consumer = new ControllerServiceImpl(streamStore, hostStore, client);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
+        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks);
     }
 
     @Before
