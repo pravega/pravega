@@ -74,10 +74,11 @@ public class ClusterZKTest {
         clusterZKInstance1.registerNode(new EndPoint(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
-        //Create a seperate instance of Cluster and add node to same Cluster
+        //Create a separate instance of Cluster and add node to same Cluster
         ClusterZKImpl clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME, NodeType.DATA);
         clusterZKInstance1.registerNode(new EndPoint(HOST_2, PORT));
         assertEquals(HOST_2, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
+        assertEquals(2, clusterListener.getClusterMembers().size());
 
         //cleanup
         clusterListener.close();

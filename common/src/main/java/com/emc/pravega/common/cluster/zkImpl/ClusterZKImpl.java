@@ -23,6 +23,7 @@ import com.emc.pravega.common.cluster.NodeType;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.nodes.PersistentNode;
@@ -49,14 +50,14 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     private final static int INIT_SIZE = 3;
 
     private final CuratorFramework client;
-    private final String name;
-    private final NodeType type;
+    private final String clusterName;
+    private final NodeType nodeType;
 
     private Map<String, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
 
     public ClusterZKImpl(CuratorFramework zkClient, String clusterName, NodeType nodeType) {
-        this.name = clusterName;
-        this.type = nodeType;
+        this.clusterName = clusterName;
+        this.nodeType = nodeType;
         this.client = zkClient;
         if (client.getState().equals(CuratorFrameworkState.LATENT))
             client.start();
@@ -65,11 +66,11 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     @Override
     public void registerNode(EndPoint endPoint) throws Exception {
 
-        String basePath = ZKPaths.makePath(PATH_CLUSTER, name, type.name());
+        String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, nodeType.name());
         createPathIfExists(basePath);
         String nodePath = ZKPaths.makePath(basePath, endPoint.getHost());
 
-        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, endPoint.toString().getBytes());
+        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, SerializationUtils.serialize(endPoint));
 
         node.start(); //start creation of ephemeral node in background.
         entryMap.put(endPoint.getHost(), node);
@@ -90,7 +91,7 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
         PersistentNode node = entryMap.get(endPoint.getHost());
         try {
             if (node == null) {
-                throw new IllegalArgumentException("No endpoint present inside cluster: " + name + " EndPoint: " + endPoint);
+                throw new IllegalArgumentException("No endpoint present inside cluster: " + clusterName + " EndPoint: " + endPoint);
             } else
                 node.close();
         } catch (IOException ex) {

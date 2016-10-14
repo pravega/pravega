@@ -18,17 +18,22 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.ClusterListener;
+import com.emc.pravega.common.cluster.EndPoint;
 import com.emc.pravega.common.cluster.NodeType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
+import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.ZKPaths;
 
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * ZK based Cluster Listener implementation.
@@ -36,13 +41,11 @@ import java.util.concurrent.Executor;
 @Slf4j
 public abstract class ClusterListenerZKImpl implements ClusterListener, AutoCloseable {
 
-    private final static int RETRY_SLEEP_MS = 100;
-    private final static int MAX_RETRY = 5;
     private final static String PATH_CLUSTER = "/cluster/";
 
     @Getter
     private String clusterName;
-    private NodeType type;
+    private NodeType nodeType;
 
     private final CuratorFramework client;
     private final PathChildrenCache cache;
@@ -66,7 +69,7 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
 
     public ClusterListenerZKImpl(final CuratorFramework client, final String clusterName, final NodeType nodeType) {
         this.clusterName = clusterName;
-        this.type = nodeType;
+        this.nodeType = nodeType;
         this.client = client;
         if (client.getState().equals(CuratorFrameworkState.LATENT))
             client.start();
@@ -99,8 +102,21 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
         cache.close();
     }
 
+    /**
+     * Get the current list of ClusterMembers.
+     *
+     * @return
+     */
+    public List<EndPoint> getClusterMembers() {
+        List<ChildData> data = cache.getCurrentData();
+        return data.stream()
+                .map(d -> (EndPoint) SerializationUtils.deserialize(d.getData()))
+                .collect(Collectors.toList());
+    }
+
     private String getServerName(final PathChildrenCacheEvent event) {
         String path = event.getData().getPath();
         return path.substring(path.lastIndexOf("/") + 1);
     }
+
 }
