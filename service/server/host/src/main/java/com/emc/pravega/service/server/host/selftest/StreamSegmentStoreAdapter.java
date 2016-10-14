@@ -21,6 +21,7 @@ package com.emc.pravega.service.server.host.selftest;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -38,6 +39,7 @@ import java.util.function.Consumer;
 class StreamSegmentStoreAdapter implements StoreAdapter {
     //region Members
 
+    private static final String LOG_ID = "SegmentStoreAdapter";
     private static final Consumer<Long> LONG_TO_VOID = ignored -> {
     };
     private final AtomicBoolean closed;
@@ -49,6 +51,11 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the StreamSegmentStoreAdapter class.
+     *
+     * @param builderConfig The ServiceBuilderConfig to use.
+     */
     StreamSegmentStoreAdapter(ServiceBuilderConfig builderConfig) {
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
@@ -64,6 +71,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         if (!this.closed.get()) {
             this.serviceBuilder.close();
             this.closed.set(true);
+            TestLogger.log(LOG_ID, "Closed.");
         }
     }
 
@@ -74,10 +82,12 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
+        TestLogger.log(LOG_ID, "Initialization started.");
         return this.serviceBuilder.initialize(timeout)
                                   .thenRun(() -> {
                                       this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
                                       this.initialized.set(true);
+                                      TestLogger.log(LOG_ID, "Initialization completed.");
                                   });
     }
 
@@ -88,7 +98,13 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<ReadResult> readFromStore(String streamSegmentName, long offset, int maxLength, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+        ensureInitializedAndNotClosed();
+        return this.streamSegmentStore.getStreamSegmentInfo(streamSegmentName, timeout);
+    }
+
+    @Override
+    public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         ensureInitializedAndNotClosed();
         return this.streamSegmentStore.read(streamSegmentName, offset, maxLength, timeout);
     }
@@ -125,8 +141,12 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
 
     //endregion
 
+    //region Helpers
+
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
     }
+
+    //endregion
 }

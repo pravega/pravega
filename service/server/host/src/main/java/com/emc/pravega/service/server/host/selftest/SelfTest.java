@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
+import lombok.val;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -55,6 +56,12 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the SelfTest class.
+     *
+     * @param testConfig    The configuration to use for the test.
+     * @param builderConfig The configuration to use for building the StreamSegmentStore Service.
+     */
     SelfTest(TestConfig testConfig, ServiceBuilderConfig builderConfig) {
         Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
@@ -63,7 +70,6 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
-        //this.store = new ConsoleStoreAdapter();
         this.store = new StreamSegmentStoreAdapter(builderConfig);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
@@ -80,7 +86,13 @@ class SelfTest extends AbstractService implements AutoCloseable {
         if (!this.closed.get()) {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
-            this.dataSource.deleteAllSegments().join();
+
+            this.dataSource.deleteAllSegments()
+                           .exceptionally(ex -> {
+                               TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
+                               return null;
+                           }).join();
+
             this.store.close();
             this.executor.shutdown();
             this.closed.set(true);
@@ -100,39 +112,42 @@ class SelfTest extends AbstractService implements AutoCloseable {
         assert this.testCompletion.get() == null : "isRunning() == false, but testCompletion is not null";
         this.testCompletion.set(new CompletableFuture<>());
 
-        // Create and initialize the Test Actors (Producers & Consumers).
-        createTestActors();
-
-        // Initialize Actor Manager and attach callbacks.
-        this.actorManager = new ServiceManager(this.actors);
-        this.actorManager.addListener(new ServiceManager.Listener() {
-            @Override
-            public void healthy() {
-                // We are considered 'started' only after all TestActors are started.
-                notifyStarted();
-                TestLogger.log(LOG_ID, "Started.");
-            }
-
-            @Override
-            public void stopped() {
-                // We are considered 'stopped' only after all TestActors are stopped.
-                notifyStopped();
-            }
-
-            @Override
-            public void failure(Service service) {
-                // We are considered 'failed' if at least one Actor failed.
-                notifyFailed(service.failureCause());
-            }
-        }, this.executor);
-
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture<Void> startFuture =
-                this.store.initialize(this.testConfig.getTimeout())
-                          .thenCompose(v -> this.dataSource.createSegments())
-                          .thenRunAsync(this.actorManager::startAsync, this.executor);
+        CompletableFuture<Void> startFuture = this.store
+                .initialize(this.testConfig.getTimeout())
+                .thenCompose(v -> this.dataSource.createSegments())
+                .thenRunAsync(() -> {
+                            // Create and initialize the Test Actors (Producers & Consumers).
+                            createTestActors();
+
+                            // Initialize Actor Manager and attach callbacks.
+                            this.actorManager = new ServiceManager(this.actors);
+                            this.actorManager.addListener(new ServiceManager.Listener() {
+                                @Override
+                                public void healthy() {
+                                    // We are considered 'started' only after all Actors are started.
+                                    notifyStarted();
+                                    TestLogger.log(LOG_ID, "Started.");
+                                }
+
+                                @Override
+                                public void stopped() {
+                                    // We are considered 'stopped' only after all Actors are stopped.
+                                    notifyStopped();
+                                }
+
+                                @Override
+                                public void failure(Service service) {
+                                    // We are considered 'failed' if at least one Actor failed.
+                                    notifyFailed(service.failureCause());
+                                }
+                            }, this.executor);
+                            this.actorManager.startAsync();
+                        },
+                        this.executor);
+
         FutureHelpers.exceptionListener(startFuture, this::notifyFailed);
     }
 
@@ -159,9 +174,16 @@ class SelfTest extends AbstractService implements AutoCloseable {
     }
 
     private void createTestActors() {
+        // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            Producer p = new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor);
-            this.actors.add(p);
+            this.actors.add(new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor));
+        }
+
+        // Create Consumers (based on the number of non-transaction Segments).
+        for (val si : this.state.getAllSegments()) {
+            if (!si.isTransaction()) {
+                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.store, this.executor));
+            }
         }
     }
 

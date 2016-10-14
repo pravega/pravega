@@ -103,10 +103,9 @@ class Producer extends Actor {
                 .whenComplete((r, ex) -> {
                     if (ex == null) {
                         op.completed();
-                        //TestLogger.log(getLogId(), "Iteration %d Finished.", iterationId);
                     } else {
                         ex = ExceptionHelpers.getRealException(ex);
-                        //TestLogger.log(getLogId(), "Iteration %d FAILED with %s.", iterationId, ex);
+                        TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
                         this.canContinue.set(false);
                         op.failed(ex);
                         throw new CompletionException(ex);
@@ -141,6 +140,9 @@ class Producer extends Actor {
                 byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
                 AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
                 return this.store.append(operation.getTarget(), appendContent, context, this.config.getTimeout());
+            case Seal:
+                // Seal the segment.
+                return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
             default:
                 throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }

@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Base class for any component that executes as part of the Self Tester.
@@ -44,6 +45,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     protected final ScheduledExecutorService executorService;
     private CompletableFuture<Void> runTask;
     private final AtomicBoolean closed;
+    private final AtomicReference<Throwable> stopException;
 
     //endregion
 
@@ -54,6 +56,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
      *
      * @param config          Test Configuration.
      * @param dataSource      Data Source.
+     * @param store           A StoreAdapter to execute operations on.
      * @param executorService The Executor Service to use for async tasks.
      */
     Actor(TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executorService) {
@@ -67,6 +70,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
         this.store = store;
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
+        this.stopException = new AtomicReference<>();
     }
 
     //endregion
@@ -104,6 +108,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
 
         this.executorService.execute(() -> {
             // Cancel the last iteration and wait for it to finish.
+            Throwable failureCause = this.stopException.get();
             if (this.runTask != null) {
                 try {
                     // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
@@ -111,14 +116,19 @@ abstract class Actor extends AbstractService implements AutoCloseable {
                     this.runTask.get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable ex) {
                     ex = ExceptionHelpers.getRealException(ex);
-                    TestLogger.log(getLogId(), "Failed (%s).", ex);
-                    notifyFailed(ex);
-                    return;
+                    if (failureCause != null) {
+                        failureCause = ex;
+                    }
                 }
             }
 
-            TestLogger.log(getLogId(), "Stopped.");
-            notifyStopped();
+            if (failureCause == null) {
+                TestLogger.log(getLogId(), "Stopped.");
+                notifyStopped();
+            } else {
+                TestLogger.log(getLogId(), "Failed (%s).", failureCause);
+                notifyFailed(failureCause);
+            }
         });
     }
 
@@ -133,6 +143,14 @@ abstract class Actor extends AbstractService implements AutoCloseable {
      * Gets a value indicating the Id to use in logging for this Actor.
      */
     protected abstract String getLogId();
+
+    /**
+     * Immediately stops the Actor and fails it with the given exception.
+     */
+    protected void fail(Throwable cause) {
+        this.stopException.set(cause);
+        stopAsync();
+    }
 
     @Override
     public String toString() {

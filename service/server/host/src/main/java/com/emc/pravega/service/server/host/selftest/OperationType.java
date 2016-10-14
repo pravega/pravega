@@ -28,6 +28,11 @@ enum OperationType {
     Append,
 
     /**
+     * The Producer is requested to seal a Segment.
+     */
+    Seal,
+
+    /**
      * The Producer is requested to create a Transaction.
      */
     CreateTransaction,

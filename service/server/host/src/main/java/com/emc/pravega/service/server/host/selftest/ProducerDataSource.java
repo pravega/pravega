@@ -19,13 +19,18 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Represents a Data Source for all Producers of the SelfTest.
@@ -37,9 +42,10 @@ class ProducerDataSource {
     private final TestConfig config;
     private final TestState state;
     private final StoreAdapter store;
-    private final HashMap<String, AppendContentGenerator> appendGenerators;
+    private final ConcurrentHashMap<String, AppendContentGenerator> appendGenerators;
     private final Random appendSizeGenerator;
     private int lastCreatedTransaction;
+    private Queue<String> segmentsToSeal;
     private final Object lock = new Object();
 
     //endregion
@@ -53,7 +59,7 @@ class ProducerDataSource {
         this.config = config;
         this.state = state;
         this.store = store;
-        this.appendGenerators = new HashMap<>();
+        this.appendGenerators = new ConcurrentHashMap<>();
         this.appendSizeGenerator = new Random();
         this.lastCreatedTransaction = 0;
     }
@@ -72,15 +78,22 @@ class ProducerDataSource {
      */
     ProducerOperation nextOperation() {
         int operationIndex = this.state.newOperation();
-        if (operationIndex > this.config.getOperationCount()) {
-            // Reached the end of the test. Nothing more to do.
-            return null;
-        }
-
-        // Determine operation Type.
         ProducerOperation result = null;
         synchronized (this.lock) {
-            if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
+            if (operationIndex > this.config.getOperationCount()) {
+                // We have reached the end of the test. We need to seal all segments before we stop.
+                if (this.segmentsToSeal == null) {
+                    this.segmentsToSeal = new LinkedList<>(this.state.getAllSegmentNames());
+                }
+
+                if (this.segmentsToSeal.size() == 0) {
+                    // Really Reached the end of the test. Nothing more to do.
+                    return null;
+                } else {
+                    // Seal the next segment that is on the list.
+                    result = new ProducerOperation(OperationType.Seal, this.segmentsToSeal.poll());
+                }
+            } else if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                 // We have exceeded the number of operations since we last created a transaction.
                 result = new ProducerOperation(OperationType.CreateTransaction, this.state.getNonTransactionSegmentName(operationIndex));
                 this.lastCreatedTransaction = operationIndex;
@@ -97,6 +110,7 @@ class ProducerDataSource {
                     }
                 }
             }
+
             // Otherwise append to random segment.
             if (result == null) {
                 result = new ProducerOperation(OperationType.Append, this.state.getSegmentOrTransactionName(operationIndex));
@@ -104,39 +118,8 @@ class ProducerDataSource {
         }
 
         // Attach operation completion callbacks (both for success and for failure).
-        result.setCompletionCallback(op -> {
-            // Record the operation as completed in the State.
-            this.state.operationCompleted(op.getTarget());
-
-            // OperationType-specific updates.
-            if (op.getType() == OperationType.MergeTransaction) {
-                this.appendGenerators.remove(op.getTarget());
-                this.state.recordDeletedSegment(op.getTarget());
-            } else if (op.getType() == OperationType.CreateTransaction) {
-                Object r = op.getResult();
-                if (r == null || !(r instanceof String)) {
-                    TestLogger.log(LOG_ID, "Operation %s completed but has result of wrong type.", op);
-                    throw new IllegalArgumentException("Completed CreateTransaction operation has result of wrong type.");
-                }
-
-                postSegmentDeletion((String) r);
-            }
-        });
-
-        result.setFailureCallback((op, ex) -> {
-            // Record the operation as failed in the State.
-            this.state.operationFailed(op.getTarget());
-
-            // OperationType-specific cleanup.
-            if (op.getType() == OperationType.MergeTransaction) {
-                // Make sure we clear the 'MergeInProgress' flag if the operation failed.
-                TestState.SegmentInfo si = this.state.getSegment(op.getTarget());
-                if (si != null) {
-                    si.setMergeInProgress(false);
-                }
-            }
-        });
-
+        result.setCompletionCallback(this::operationCompletionCallback);
+        result.setFailureCallback(this::operationFailureCallback);
         return result;
     }
 
@@ -154,6 +137,40 @@ class ProducerDataSource {
         }
 
         return generator.newAppend(size);
+    }
+
+    private void operationCompletionCallback(ProducerOperation op) {
+        // Record the operation as completed in the State.
+        this.state.operationCompleted(op.getTarget());
+
+        // OperationType-specific updates.
+        if (op.getType() == OperationType.MergeTransaction) {
+            postSegmentDeletion(op.getTarget());
+        } else if (op.getType() == OperationType.CreateTransaction) {
+            Object r = op.getResult();
+            if (r == null || !(r instanceof String)) {
+                TestLogger.log(LOG_ID, "Operation %s completed but has result of wrong type.", op);
+                throw new IllegalArgumentException("Completed CreateTransaction operation has result of wrong type.");
+            }
+
+            String transactionName = (String) r;
+            this.state.recordNewTransaction(transactionName);
+            this.appendGenerators.put(transactionName, new AppendContentGenerator((int) System.nanoTime()));
+        }
+    }
+
+    private void operationFailureCallback(ProducerOperation op, Throwable ex) {
+        // Record the operation as failed in the State.
+        this.state.operationFailed(op.getTarget());
+
+        // OperationType-specific cleanup.
+        if (op.getType() == OperationType.MergeTransaction) {
+            // Make sure we clear the 'MergeInProgress' flag if the operation failed.
+            TestState.SegmentInfo si = this.state.getSegment(op.getTarget());
+            if (si != null) {
+                si.setMergeInProgress(false);
+            }
+        }
     }
 
     //endregion
@@ -177,6 +194,7 @@ class ProducerDataSource {
                               .thenRun(() -> {
                                   this.state.recordNewSegmentName(name);
                                   this.appendGenerators.put(name, new AppendContentGenerator(segmentId));
+                                  TestLogger.log(LOG_ID, "Created Segment '%s'.", name);
                               }));
         }
 
@@ -202,7 +220,18 @@ class ProducerDataSource {
 
     private CompletableFuture<Void> deleteSegment(String name) {
         return this.store.deleteStreamSegment(name, this.config.getTimeout())
-                         .thenRun(() -> postSegmentDeletion(name));
+                         .exceptionally(ex -> {
+                             ex = ExceptionHelpers.getRealException(ex);
+                             if (!(ex instanceof StreamSegmentNotExistsException)) {
+                                 throw new CompletionException(ex);
+                             }
+
+                             return null;
+                         })
+                         .thenRun(() -> {
+                             postSegmentDeletion(name);
+                             TestLogger.log(LOG_ID, "Deleted Segment '%s'.", name);
+                         });
     }
 
     private void postSegmentDeletion(String name) {

@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.host.selftest;
 
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
+import com.emc.pravega.service.contracts.SegmentProperties;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -33,7 +34,9 @@ interface StoreAdapter extends AutoCloseable {
 
     CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
 
-    CompletableFuture<ReadResult> readFromStore(String streamSegmentName, long offset, int maxLength, Duration timeout);
+    CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
+
+    CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout);
 
     CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout);
 

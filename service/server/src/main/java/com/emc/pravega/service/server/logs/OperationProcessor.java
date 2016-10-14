@@ -89,7 +89,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
 
     @Override
     public void close() {
-        if(!this.closed.get()) {
+        if (!this.closed.get()) {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
             log.info("{}: Closed.", this.traceObjectId);

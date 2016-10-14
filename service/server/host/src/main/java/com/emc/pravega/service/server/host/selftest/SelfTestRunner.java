@@ -18,9 +18,11 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import lombok.Cleanup;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
@@ -29,8 +31,11 @@ import java.util.concurrent.TimeUnit;
  */
 public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
+        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        //context.getLoggerList().get(0).setLevel(Level.TRACE);
+        context.reset();
 
-        // TODO: see if we can unify these two. For instance, ThreadPoolSize exists in both. Is it a different thread pool?
         TestConfig testConfig = getTestConfig();
         ServiceBuilderConfig builderConfig = getBuilderConfig();
 
@@ -48,7 +53,7 @@ public class SelfTestRunner {
         test.stopAsync().awaitTerminated();
     }
 
-    private static ServiceBuilderConfig getBuilderConfig(){
+    private static ServiceBuilderConfig getBuilderConfig() {
         return ServiceBuilderConfig.getDefaultConfig();
     }
 
@@ -57,11 +62,11 @@ public class SelfTestRunner {
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 50)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 10)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 10)
                            .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 20)
-                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 100)));
+                           .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)));
     }
 }
