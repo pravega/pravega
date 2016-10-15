@@ -61,16 +61,17 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     }
 
     /**
-     * Method invoked when node has been removed
+     * Method invoked when node has been removed.
      *
      * @param endPoint
      */
     @Override
     public void nodeRemoved(EndPoint endPoint) {
         hostRemoved.add(endPoint);
+        log.info("DataNode:{} removed from cluster", endPoint);
         if (executor.getQueue().size() == 0) {
             //submit only if there are no tasks in queue. Each each fault handling takes care of all events
-            executor.submit(() -> performFaultHandling(endPoint).get());
+            executor.submit(() -> performFaultHandling().get());
         }
     }
 
@@ -83,24 +84,23 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
 
     public void nodeAdded(EndPoint endPoint) {
         hostAdded.add(endPoint);
-        if (executor.getQueue().size() == 1) {
-            //executor already triggered.
-            //nothing needs to be done
-        } else {
-            //executor.submit(ContainerBalancerTask)
+        log.info("DataNode:{} added to cluster", endPoint);
+        if (executor.getQueue().size() == 0) {
+            //submit only if there are no tasks in queue. Each each fault handling takes care of all events
+            executor.submit(() -> performFaultHandling().get());
         }
-        /*
-            Perform the operations in async.
-            1. Acquire re-entrant lock to do SegmentContainer recovery
-            2. ContainerBalancer - based on the configured strategy
-                Get the computed list of SegmentContainers and the new hosts.
-            3. Initimate the Data nodes of the assignement.
-            4. Update the table
-            5. release lockl
-         */
     }
 
-    private CompletableFuture<Void> performFaultHandling(EndPoint endPoint) {
+    /**
+     * Following operations are performed
+     * 1. Acquire re-entrant lock to do SegmentContainer recovery
+     * 2. ContainerBalancer - based on the configured strategy
+     * 3. Intimate the Data nodes of the assignment. (or the data nodes could watch the entry in zk)
+     * 4. Update the table
+     * 5. release lock
+     * @return
+     */
+    private CompletableFuture<Void> performFaultHandling() {
         return acquireDistributedLock(mutexExecutor)
                 .thenCompose(success -> {
                     if (success) {

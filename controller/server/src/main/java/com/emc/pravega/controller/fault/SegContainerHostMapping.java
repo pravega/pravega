@@ -18,7 +18,6 @@
 package com.emc.pravega.controller.fault;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Interface used to store the SegmentContainer and host mapping tables
