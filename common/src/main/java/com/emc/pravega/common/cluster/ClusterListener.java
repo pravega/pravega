@@ -27,12 +27,12 @@ public interface ClusterListener {
     /**
      * Method invoked when node has been added
      */
-    public void nodeAdded(String hostName);
+    public void nodeAdded(EndPoint hostName);
 
     /**
      * Method invoked when node has been removed
      */
-    public void nodeRemoved(String hostName);
+    public void nodeRemoved(EndPoint hostName);
 
     /**
      * Start listener

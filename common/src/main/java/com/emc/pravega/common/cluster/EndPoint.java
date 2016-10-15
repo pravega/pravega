@@ -20,13 +20,7 @@ package com.emc.pravega.common.cluster;
 import lombok.Data;
 import lombok.NonNull;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.Optional;
 
 /**
  * Endpoint

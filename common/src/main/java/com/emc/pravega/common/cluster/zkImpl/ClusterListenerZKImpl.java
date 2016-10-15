@@ -55,11 +55,11 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
         switch (event.getType()) {
             case CHILD_ADDED:
                 log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
-                nodeAdded(getServerName(event));
+                nodeAdded((EndPoint) SerializationUtils.deserialize(event.getData().getData()));
                 break;
             case CHILD_REMOVED:
                 log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
-                nodeRemoved(getServerName(event));
+                nodeRemoved((EndPoint) SerializationUtils.deserialize(event.getData().getData()));
                 break;
             case CHILD_UPDATED:
                 log.error("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
