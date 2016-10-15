@@ -25,6 +25,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 import org.apache.curator.utils.ZKPaths;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -43,27 +45,19 @@ import java.util.concurrent.TimeoutException;
 public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     private static final String LOCK_PATH = ZKPaths.makePath("cluster", "data", "faulthandler-lock");
 
-    private final ContainerBalancer<Integer, EndPoint> segBalancer = new RandomContainerBalancer();
+    private final ContainerBalancer<Integer, EndPoint> segBalancer;
     private final InterProcessMutex mutex;
-    private final LinkedBlockingQueue<String> hostAdded = new LinkedBlockingQueue<>();
-    private final LinkedBlockingQueue<String> hostRemoved = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<EndPoint> hostAdded = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<EndPoint> hostRemoved = new LinkedBlockingQueue<>();
 
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
     private final ExecutorService mutexExecutor = Executors.newSingleThreadExecutor();
-
-
-    //attributes
-    //Behaviour of Policy
-    //Executor
 
     //TODO: read ClusterName from config
     public SegmentContainerMonitor(CuratorFramework client) {
         super(client, "clusterName", NodeType.DATA);
         mutex = new InterProcessMutex(client, LOCK_PATH);
-    }
-
-    public SegmentContainerMonitor(CuratorFramework client, Executor executor) {
-        this(client);
+        segBalancer = new RandomContainerBalancer(client);
     }
 
     /**
@@ -73,10 +67,10 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
      */
     @Override
     public void nodeRemoved(EndPoint endPoint) {
-        hostRemoved.add(endPoint.getHost());
+        hostRemoved.add(endPoint);
         if (executor.getQueue().size() == 0) {
             //submit only if there are no tasks in queue. Each each fault handling takes care of all events
-            executor.submit(() -> perfromFaultHandling(endPoint).get());
+            executor.submit(() -> performFaultHandling(endPoint).get());
         }
     }
 
@@ -88,8 +82,8 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     @Override
 
     public void nodeAdded(EndPoint endPoint) {
-        hostAdded.add(endPoint.getHost());
-        if (executor.getQueue().size() > 1) {
+        hostAdded.add(endPoint);
+        if (executor.getQueue().size() == 1) {
             //executor already triggered.
             //nothing needs to be done
         } else {
@@ -106,16 +100,16 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
          */
     }
 
-    private CompletableFuture<Void> perfromFaultHandling(EndPoint endPoint) {
+    private CompletableFuture<Void> performFaultHandling(EndPoint endPoint) {
         return acquireDistributedLock(mutexExecutor)
                 .thenCompose(success -> {
                     if (success) {
-                        return segBalancer.hostAdded(endPoint, getClusterMembers());
+                        return segBalancer.rebalance(getHostsAdded(), getHostsRemoved());
                     } else {
                         throw new CompletionException(new TimeoutException("Timeout while acquiring lock"));
                     }
                 })
-                .thenCompose(segBalancer::persistSegmentContainerHostMapping)
+                .thenAccept(segBalancer::persistSegmentContainerHostMapping)
                 .whenComplete((r, t) -> {
                     releaseDistributedLock(); // finally release the lock
                     if (t != null) {
@@ -126,6 +120,18 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
                             log.error("Error during fault handling", t);
                     }
                 });
+    }
+
+    private List<EndPoint> getHostsRemoved() {
+        List<EndPoint> removedHosts = new ArrayList<>();
+        hostRemoved.drainTo(removedHosts);
+        return removedHosts;
+    }
+
+    private List<EndPoint> getHostsAdded() {
+        List<EndPoint> newHosts = new ArrayList<>();
+        hostAdded.drainTo(newHosts);
+        return newHosts;
     }
 
     private CompletableFuture<Boolean> acquireDistributedLock(final Executor executor) {
@@ -149,14 +155,4 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
             log.error("Exception while releasing distributed lock", e);
         }
     }
-//    private CompletableFuture<Void> releaseDistributedLock() {
-//        return CompletableFuture.supplyAsync(() -> {
-//            try {
-//                mutex.release();
-//                return null;
-//            } catch (Exception e) {
-//                throw new RuntimeException(e);
-//            }
-//        }, mutexExecutor);
-//    }
 }

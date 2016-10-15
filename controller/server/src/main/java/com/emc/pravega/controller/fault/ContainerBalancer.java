@@ -27,24 +27,17 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
     /**
-     * Compute the new owners of the segment containers owned by the removed host.
-     *
-     * @param hostRemoved
-     * @param availableHosts
-     * @return
-     */
-    public CompletableFuture<Map<C, H>> hostRemoved(H hostRemoved, List<H> availableHosts);
-
-    /**
      * Compute the new owners of the segment containers when a new host has been added.
      *
-     * @param host
-     * @param availableHosts
      * @return
      */
-    public CompletableFuture<Map<C, H>> hostAdded(H host, List<H> availableHosts);
-
-    //TODO: Check if this kind of function is required
-    public CompletableFuture<Map<C, H>> recompute(Map<C, H> segmentToErrorHost);
+    /**
+     * Compute the new owners of the segment containers with the list of new hosts added and removed.
+     *
+     * @param hostsAdded
+     * @param hostsRemoved
+     * @return
+     */
+    public CompletableFuture<Map<C, H>> rebalance(List<H> hostsAdded, List<H> hostsRemoved);
 
 }

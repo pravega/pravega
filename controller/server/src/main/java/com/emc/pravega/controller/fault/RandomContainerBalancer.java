@@ -18,8 +18,13 @@
 package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.cluster.EndPoint;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.SerializationUtils;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.KeeperException;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,51 +32,70 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * Choose a random host Strategy
- * TODO:abstract zk out of picture.
+ * Choose a random H
  */
+@Slf4j
 public class RandomContainerBalancer implements ContainerBalancer<Integer, EndPoint> {
 
+    private final CuratorFramework zkClient;
+    private final String path = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
+    private final NodeCache segContainerHostMapping;
 
-    @Override
-    public CompletableFuture<Map<Integer, EndPoint>> hostRemoved(EndPoint hostRemoved, List<EndPoint> availableHosts) {
-        return getOwnedSegmentContainers(hostRemoved).thenApply(
-                list -> list.stream().collect(Collectors.toMap(i -> i, i -> availableHosts.get(i))));
+    public RandomContainerBalancer(CuratorFramework client) {
+        zkClient = client;
+        segContainerHostMapping = new NodeCache(zkClient, path);
+
+        try {
+            segContainerHostMapping.start();
+        } catch (Exception e) {
+            log.error("Error while fetching Segment container to Host mapping from container", e);
+            throw new RuntimeException(e);
+        }
+
     }
 
     @Override
-    public CompletableFuture<Map<Integer, EndPoint>> hostAdded(EndPoint host, List<EndPoint> availableHosts) {
-        return null; //TODO
-    }
-
-    @Override
-    public CompletableFuture<Map<Integer, EndPoint>> recompute(Map<Integer, EndPoint> segmentToErrorHost) {
-        //TODO: is it required?
-        return null;
+    public CompletableFuture<Map<Integer, EndPoint>> rebalance(List<EndPoint> hostsAdded, List<EndPoint> hostsRemoved) {
+        return null; //TODO: To be implemented
     }
 
     /*
-        Fetch OwnedSegmentContainers from ZK
+       Fetch OwnedSegmentContainers from ZK
      */
     private CompletableFuture<List<Integer>> getOwnedSegmentContainers(EndPoint host) {
-        //TODO: Read for zk, Hardcoded as of now
-        return CompletableFuture.completedFuture(Arrays.asList(1, 2, 3));
+        //TODO: Refactor CompletableFuture
+        Map<Integer, EndPoint> map = (Map<Integer, EndPoint>) SerializationUtils.deserialize(segContainerHostMapping.getCurrentData().getData());
+        List<Integer> result = map.entrySet().stream()
+                .filter(entry -> entry.getValue().equals(host))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+        return CompletableFuture.completedFuture(result);
     }
 
-    //Read entries from ZK
+    //Fetch the segment container to host mapping from zk.
     @Override
-    public CompletableFuture<Map<Integer, EndPoint>> getSegmentContainerHostMapping() {
-        //TODO: Read from zk
-        Map<Integer, EndPoint> map = new HashMap<>();
-        map.put(1, new EndPoint("ServerA", 1234));
-        map.put(1, new EndPoint("ServerB", 1234));
-        map.put(1, new EndPoint("ServerC", 1234));
-        return CompletableFuture.completedFuture(map);
+    public Map<Integer, EndPoint> getSegmentContainerHostMapping() {
+        return (Map<Integer, EndPoint>) SerializationUtils.deserialize(segContainerHostMapping.getCurrentData().getData());
     }
 
     //Persist entries to ZK
     @Override
-    public CompletableFuture<Void> persistSegmentContainerHostMapping(Map<Integer, EndPoint> map) {
-        return CompletableFuture.completedFuture(null);
+    public void persistSegmentContainerHostMapping(Map<Integer, EndPoint> map) {
+        try {
+            createPathIfExists(path);
+            zkClient.create().forPath(path, SerializationUtils.serialize((HashMap) map));
+        } catch (Exception e) {
+            throw new RuntimeException("Error while persisting segment container to host mapping", e);
+        }
+    }
+
+    private void createPathIfExists(String basePath) throws Exception {
+        try {
+            if (zkClient.checkExists().forPath(basePath) == null) {
+                zkClient.create().creatingParentsIfNeeded().forPath(basePath);
+            }
+        } catch (KeeperException.NodeExistsException e) {
+            log.debug("Path exists {} , ignoring exception", basePath, e);
+        }
     }
 }

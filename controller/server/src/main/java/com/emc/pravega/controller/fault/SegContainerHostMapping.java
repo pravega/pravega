@@ -25,8 +25,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface SegContainerHostMapping<C, H> {
     //Read entries from ZK
-    CompletableFuture<Map<C, H>> getSegmentContainerHostMapping();
+    Map<C, H> getSegmentContainerHostMapping();
 
     //Persist entries to ZK
-    CompletableFuture<Void> persistSegmentContainerHostMapping(Map<C, H> map);
+    void persistSegmentContainerHostMapping(Map<C, H> map);
 }
