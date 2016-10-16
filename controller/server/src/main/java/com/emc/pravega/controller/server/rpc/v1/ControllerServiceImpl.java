@@ -25,6 +25,13 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.FutureSegment;
+import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.stream.api.v1.SegmentRange;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.Segment;
@@ -34,12 +41,6 @@ import org.apache.thrift.TException;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.FutureSegment;
-import com.emc.pravega.controller.stream.api.v1.NodeUri;
-import com.emc.pravega.controller.stream.api.v1.Position;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.google.common.collect.ArrayListMultimap;
@@ -63,11 +64,11 @@ public class ControllerServiceImpl {
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
     }
 
-    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig, long createTimestamp) {
+    public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig, long createTimestamp) {
         return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
     }
 
-    public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
         return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
     }
 

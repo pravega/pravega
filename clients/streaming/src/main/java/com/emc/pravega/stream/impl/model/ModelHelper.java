@@ -33,7 +33,7 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.stream.api.v1.TxState;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
@@ -103,7 +103,7 @@ public final class ModelHelper {
                 .map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue()))
                 .collect(Collectors.toList());
     }
-    public static Transaction.Status encode(TxStatus status, String logString) {
+    public static Transaction.Status encode(TxState status, String logString) {
         switch (status) {
         case COMMITTED:
             return Transaction.Status.COMMITTED;

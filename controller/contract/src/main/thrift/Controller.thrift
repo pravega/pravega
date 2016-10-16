@@ -1,13 +1,25 @@
 namespace java com.emc.pravega.controller.stream.api.v1
 
-enum Status {
+enum CreateStreamStatus {
+    SUCCESS,
+    FAILURE,
+    STREAM_EXISTS
+}
+
+enum UpdateStreamStatus {
+    SUCCESS,
+    FAILURE,
+    STREAM_NOT_FOUND
+}
+
+enum TransactionStatus {
     SUCCESS,
     FAILURE,
     STREAM_NOT_FOUND,
-    DUPLICATE_STREAM_NAME
+    TRANSACTION_NOT_FOUND
 }
 
-enum TxStatus {
+enum TxState {
 	UNKNOWN,
     OPEN,
     SEALED,
@@ -70,16 +82,16 @@ struct TxId {
  * Producer, Consumer and Admin APIs supported by Stream Controller Service
  */
 service ControllerService {
-    Status createStream (1: StreamConfig streamConfig)
-    Status alterStream (1: StreamConfig streamConfig)
+    CreateStreamStatus createStream (1: StreamConfig streamConfig)
+    UpdateStreamStatus alterStream (1: StreamConfig streamConfig)
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
     list<SegmentRange> scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     TxId createTransaction(1:string scope, 2:string stream)
-    Status commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
-    Status dropTransaction(1:string scope, 2:string stream, 3:TxId txid)
-    TxStatus checkTransactionStatus(1:string scope, 2:string stream, 3:TxId txid)
+    TransactionStatus commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
+    TransactionStatus dropTransaction(1:string scope, 2:string stream, 3:TxId txid)
+    TxState checkTransactionStatus(1:string scope, 2:string stream, 3:TxId txid)
 }
 //TODO: Placeholder for Pravega Host to Stream Controller APIs.

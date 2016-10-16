@@ -26,7 +26,7 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -128,12 +128,12 @@ public class TaskTest {
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
-        CompletableFuture<Status> result = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
+        CompletableFuture<CreateStreamStatus> result = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
         assertTrue(result.isCompletedExceptionally());
 
         result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis());
         assertTrue(result.isDone());
-        assertEquals(result.get(), Status.SUCCESS);
+        assertEquals(result.get(), CreateStreamStatus.SUCCESS);
     }
 
     @Test(expected = CompletionException.class)

@@ -24,8 +24,9 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Paths;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
@@ -61,7 +62,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @return creation status.
      */
     @Task(name = "createStream", version = "1.0")
-    public CompletableFuture<Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 String.format(Paths.STREAM_LOCKS, scope, stream),
                 String.format(Paths.STREAM_TASKS, scope, stream),
@@ -77,7 +78,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @return update status.
      */
     @Task(name = "updateConfig", version = "1.0")
-    public CompletableFuture<Status> alterStream(String scope, String stream, StreamConfiguration config) {
+    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config) {
         return execute(
                 String.format(Paths.STREAM_LOCKS, scope, stream),
                 String.format(Paths.STREAM_TASKS, scope, stream),
@@ -104,14 +105,14 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
-    private CompletableFuture<Status> createStreamBody(String scope, String stream, StreamConfiguration config) {
+    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config) {
         return this.streamMetadataStore.createStream(stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamAlreadyExistsException) {
-                            return Status.DUPLICATE_STREAM_NAME;
+                            return CreateStreamStatus.STREAM_EXISTS;
                         } else {
-                            throw new RuntimeException(ex);
+                            return CreateStreamStatus.FAILURE;
                         }
                     } else {
                         // result is non-null
@@ -121,26 +122,26 @@ public class StreamMetadataTasks extends TaskBase {
                             this.streamMetadataStore.getActiveSegments(stream)
                                     .thenApply(activeSegments ->
                                             notifyNewSegments(config.getScope(), stream, activeSegments));
-                            return Status.SUCCESS;
+                            return CreateStreamStatus.SUCCESS;
                         } else {
                             // failure indicates that the stream creation failed due to some internal error, or
-                            return Status.FAILURE;
+                            return CreateStreamStatus.FAILURE;
                         }
                     }
                 });
     }
 
-    public CompletableFuture<Status> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
+    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
         return streamMetadataStore.updateConfiguration(stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamNotFoundException) {
-                            return Status.STREAM_NOT_FOUND;
+                            return UpdateStreamStatus.STREAM_NOT_FOUND;
                         } else {
-                            throw new RuntimeException(ex);
+                            return UpdateStreamStatus.FAILURE;
                         }
                     } else {
-                        return result ? Status.SUCCESS : Status.FAILURE;
+                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
                     }
                 });
     }
@@ -159,7 +160,7 @@ public class StreamMetadataTasks extends TaskBase {
 
         return checkValidity.thenCompose(result -> {
 
-                    if (true) {
+                    if (result) {
                         return notifySealedSegments(scope, stream, sealedSegments)
                                 .thenCompose(results ->
                                         streamMetadataStore.scale(stream, sealedSegments, newRanges, scaleTimestamp))
@@ -195,28 +196,7 @@ public class StreamMetadataTasks extends TaskBase {
         sealedSegments
                 .stream()
                 .parallel()
-                .forEach(number -> sealSegment(scope, stream, number));
+                .forEach(number -> SegmentHelper.sealSegment(scope, stream, number, this.hostControllerStore, this.connectionFactory));
         return CompletableFuture.completedFuture(null);
-    }
-
-    /**
-     * This method sends segment sealed message for the specified segment.
-     * It owns up the responsibility of retrying the operation on failures until success.
-     * @param scope stream scope
-     * @param stream stream name
-     * @param segmentNumber number of segment to be sealed
-     * @return void
-     */
-    public Void sealSegment(String scope, String stream, int segmentNumber) {
-        boolean result = false;
-        while (!result) {
-            try {
-                NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, this.hostControllerStore);
-                result = SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory);
-            } catch (RuntimeException ex) {
-                //log exception and continue retrying
-            }
-        }
-        return null;
     }
 }
