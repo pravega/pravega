@@ -59,7 +59,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(createSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(e);
+                        retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -109,7 +109,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(writeSync(streamSegmentName, offset, length, data, timeout));
                     } catch (Exception e) {
-                        retVal.completeExceptionally(e);
+                        retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -118,16 +118,15 @@ class HDFSLowerStorage implements Storage {
 
 
 
-    private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout) throws IOException, BadOffsetException {
-        FSDataOutputStream stream = getFS().append(new Path(streamSegmentName));
+    private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout)
+            throws BadOffsetException, IOException {
+        try (FSDataOutputStream stream = getFS().append(new Path(streamSegmentName))) {
         if (stream.getPos() != offset) {
-            throw new BadOffsetException("Offset in the stream already has some data");
+            throw new BadOffsetException("Offset in the stream segment " + streamSegmentName + "" +
+                    " already has some data beyond offset "+ offset);
         }
-        try {
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
-        } finally {
-            stream.close();
         }
         return null;
     }
@@ -140,7 +139,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(sealSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(e);
+                        retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -165,7 +164,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
             } catch (Exception e) {
-                retVal.completeExceptionally(e);
+                retVal.completeExceptionally(ExceptionHelper.translateFromIOException(sourceStreamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -190,7 +189,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(deleteSync(streamSegmentName, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(e);
+                retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -198,12 +197,13 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public void close() {
-        try {
-            this.getFS().close();
-        } catch (IOException e) {
-            log.debug("Could not close the fs. The error is", e);
-        }
-
+            if (fs != null) {
+                try {
+                fs.close();
+                } catch (IOException e) {
+                    log.debug("Could not close the fs. The error is", e);
+                }
+            }
     }
 
     @Override
@@ -213,7 +213,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(e);
+                retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -231,7 +231,15 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return null;
+        CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
+        CompletableFuture.runAsync(() -> {
+            try {
+                retVal.complete(this.getStreamSegmentInfoSync(streamSegmentName, timeout));
+            } catch (IOException e) {
+                retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
+            }
+        });
+        return retVal;
     }
 
     @Override
@@ -241,7 +249,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(existsSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(e);
+                        retVal.completeExceptionally(ExceptionHelper.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
