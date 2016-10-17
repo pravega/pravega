@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
+        //test();
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         //context.getLoggerList().get(0).setLevel(Level.TRACE);
@@ -53,6 +54,46 @@ public class SelfTestRunner {
         test.stopAsync().awaitTerminated();
     }
 
+    private static void test() {
+        //        CircularArray ca = new CircularArray(100);
+        //        for (int i = 0; i < 82; i++) {
+        //            byte[] data = new byte[1];
+        //            data[0] = (byte) i;
+        //            ca.append(new ByteArrayInputStream(data), data.length);
+        //        }
+        //
+        //        for (int i = 0; i < 18; i++) {
+        //            ca.truncate(1);
+        //        }
+        //
+        //        for (int i = 0; i < 3; i++) {
+        //            byte[] data = "1234567890".getBytes();
+        //            ca.append(new ByteArrayInputStream(data), data.length);
+        //        }
+        //        for (int i = 0; i < ca.getLength(); i++) {
+        //            System.out.println(i + ": " + ca.get(i));
+        //        }
+//
+//        CircularArray a = new CircularArray(20 * 1024 * 1024);
+//        AppendContentGenerator acg = new AppendContentGenerator(12345);
+//        for (int i = 0; i < 1000; i++) {
+//            int length = AppendContentGenerator.HEADER_LENGTH + i;
+//            byte[] data = acg.newAppend(length);
+//            a.append(new ByteArrayInputStream(data), data.length);
+//        }
+//
+//        int offset = 0;
+//        while (offset < a.getLength()) {
+//            AppendContentGenerator.ValidationResult vr = AppendContentGenerator.validate(a, offset);
+//            System.out.println(String.format("Offset: %s, Validation = %s", offset, vr));
+//            if (vr.isFailed() || vr.isMoreDataNeeded()) {
+//                break;
+//            }
+//
+//            offset += vr.getLength();
+//        }
+    }
+
     private static ServiceBuilderConfig getBuilderConfig() {
         return ServiceBuilderConfig.getDefaultConfig();
     }
@@ -62,7 +103,7 @@ public class SelfTestRunner {
                 PropertyBag.create()
                            .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
                            .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 10)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 500)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 10)

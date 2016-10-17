@@ -124,7 +124,7 @@ class Producer extends Actor {
      * Executes the given operation.
      */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
-        TestLogger.log(getLogId(), "Executing %s.", operation);
+        //TestLogger.log(getLogId(), "Executing %s.", operation);
         switch (operation.getType()) {
             case CreateTransaction:
                 // Create the Transaction, then record it's name in the operation's result.

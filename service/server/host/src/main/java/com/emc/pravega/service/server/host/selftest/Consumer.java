@@ -47,6 +47,7 @@ public class Consumer extends Actor {
     private final String logId;
     private final String segmentName;
     private final AtomicBoolean canContinue;
+    private final DataValidator dataValidator;
 
     /**
      * Creates a new instance of the Consumer class.
@@ -62,6 +63,7 @@ public class Consumer extends Actor {
         this.logId = String.format("Consumer[%s]", segmentName);
         this.segmentName = segmentName;
         this.canContinue = new AtomicBoolean();
+        this.dataValidator = new DataValidator(config.getMaxAppendSize() * 10, this::validationFailed);
     }
 
     //region Actor Implementation
@@ -69,7 +71,7 @@ public class Consumer extends Actor {
     @Override
     protected CompletableFuture<Void> run() {
         this.canContinue.set(true);
-        val entryHandler = new ReadResultEntryHandler(this.config, this.logId, this::canRun, this::fail);
+        val entryHandler = new ReadResultEntryHandler(this.config, this.dataValidator, this::canRun, this::fail);
         return FutureHelpers.loop(
                 this::canRun,
                 () -> this.store
@@ -120,24 +122,49 @@ public class Consumer extends Actor {
         return isRunning() && this.canContinue.get();
     }
 
+    private void validationFailed(long offset, AppendContentGenerator.ValidationResult validationResult) {
+        // Log the event.
+        TestLogger.log(this.logId, "VALIDATION FAILED: Segment = %s, Offset = %s (%s)", this.segmentName, offset, validationResult);
+
+        // Then stop the consumer. No point in moving on if we detected a validation failure.
+        fail(new ValidationException(this.segmentName, offset, validationResult));
+    }
+
     //region ReadResultEntryHandler
 
+    /**
+     * Handler for the AsyncReadResultProcessor that processes the Segment read.
+     */
     private static class ReadResultEntryHandler implements AsyncReadResultEntryHandler {
+        //region Members
+
         private final TestConfig config;
+        private final DataValidator dataValidator;
         private final AtomicLong readOffset;
         private final Supplier<Boolean> canRun;
         private final java.util.function.Consumer<Throwable> failureHandler;
 
-        ReadResultEntryHandler(TestConfig config, String logId, Supplier<Boolean> canRun, java.util.function.Consumer<Throwable> failureHandler) {
+        //endregion
+
+        //region Constructor
+
+        ReadResultEntryHandler(TestConfig config, DataValidator dataValidator, Supplier<Boolean> canRun, java.util.function.Consumer<Throwable> failureHandler) {
             this.config = config;
+            this.dataValidator = dataValidator;
             this.canRun = canRun;
             this.readOffset = new AtomicLong();
             this.failureHandler = failureHandler;
         }
 
+        //endregion
+
+        //region Properties
+
         long getCurrentOffset() {
             return this.readOffset.get();
         }
+
+        //endregion
 
         //region AsyncReadResultEntryHandler Implementation
 
@@ -150,8 +177,7 @@ public class Consumer extends Actor {
         public boolean processEntry(ReadResultEntry entry) {
             val contents = entry.getContent().join();
             this.readOffset.addAndGet(contents.getLength());
-
-
+            this.dataValidator.process(contents.getData(), entry.getStreamSegmentOffset(), contents.getLength());
             return this.canRun.get();
         }
 

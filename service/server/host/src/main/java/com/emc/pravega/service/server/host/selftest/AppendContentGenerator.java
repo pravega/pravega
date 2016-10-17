@@ -18,6 +18,8 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.BitConverter;
 import com.google.common.base.Preconditions;
 
@@ -29,10 +31,10 @@ import java.util.Random;
 class AppendContentGenerator {
     //region Members
 
-    private static final int HEADER_LENGTH = Long.BYTES;
+    private static final int PREFIX_LENGTH = Long.BYTES;
     private static final int KEY_LENGTH = Integer.BYTES;
     private static final int LENGTH_LENGTH = Integer.BYTES;
-    private static final int OVERHEAD_LENGTH = HEADER_LENGTH + KEY_LENGTH + LENGTH_LENGTH;
+    static final int HEADER_LENGTH = PREFIX_LENGTH + KEY_LENGTH + LENGTH_LENGTH;
     private static final int PREFIX = (int) Math.pow(Math.E, 20);
     private final Random keyGenerator;
     private final int appendId;
@@ -66,21 +68,17 @@ class AppendContentGenerator {
      * @param length The total length of the append (including overhead).
      * @return The generated array.
      */
-    public byte[] newAppend(int length) {
-        Preconditions.checkArgument(length >= OVERHEAD_LENGTH, "length is insufficient to accommodate overhead.");
+    byte[] newAppend(int length) {
+        Preconditions.checkArgument(length >= HEADER_LENGTH, "length is insufficient to accommodate header.");
         int key = this.keyGenerator.nextInt();
         byte[] result = new byte[length];
 
-        // Header: PREFIX + appendId
+        // Header: PREFIX + appendId + Key + Length
         int offset = 0;
         offset += BitConverter.writeInt(result, offset, PREFIX);
         offset += BitConverter.writeInt(result, offset, this.appendId);
-
-        // Key
         offset += BitConverter.writeInt(result, offset, key);
-
-        // Length
-        int contentLength = length - OVERHEAD_LENGTH;
+        int contentLength = length - HEADER_LENGTH;
         offset += BitConverter.writeInt(result, offset, contentLength);
 
         // Content
@@ -93,8 +91,166 @@ class AppendContentGenerator {
         while (offset < length) {
             int value = contentGenerator.nextInt();
 
-            for (int var5 = Math.min(length - offset, 4); var5-- > 0; value >>= 8) {
+            for (int counter = Math.min(length - offset, 4); counter-- > 0; value >>= 8) {
                 result[offset++] = (byte) value;
+            }
+        }
+    }
+
+    //endregion
+
+    //region Validation
+
+    /**
+     * Validates that the given ArrayView contains a valid Append, starting at the given offset.
+     *
+     * @param view   The view to inspect.
+     * @param offset The offset to start inspecting at.
+     * @return A ValidationResult representing the validation.
+     */
+    static ValidationResult validate(ArrayView view, int offset) {
+        // Extract prefix and validate.
+        int prefix = BitConverter.readInt(view, offset);
+        offset += PREFIX_LENGTH;
+        if (prefix != PREFIX) {
+            return ValidationResult.failed("Prefix mismatch.");
+        }
+
+        // Extract appendId.
+        int appendId = BitConverter.readInt(view, offset);
+        offset += KEY_LENGTH;
+
+        // Extract length.
+        int length = BitConverter.readInt(view, offset);
+        offset += LENGTH_LENGTH;
+        if (length < 0) {
+            return ValidationResult.failed("Append length cannot be negative.");
+        }
+
+        // Extract & validate data.
+        if (offset + length > view.getLength()) {
+            return ValidationResult.moreDataNeeded();
+        }
+
+        return validateContent(view, offset, length, appendId);
+    }
+
+    private static ValidationResult validateContent(ArrayView view, int offset, int length, int key) {
+        Random contentGenerator = new Random(key);
+        while (offset < length) {
+            int value = contentGenerator.nextInt();
+
+            for (int counter = Math.min(length - offset, 4); counter-- > 0; value >>= 8) {
+                if (view.get(offset) != (byte) value) {
+                    return ValidationResult.failed("Append Content differ.");
+                }
+
+                offset++;
+            }
+        }
+
+        return ValidationResult.success(length);
+    }
+
+    //endregion
+
+    //region ValidationResult
+
+    /**
+     * Represents the result of a validation process.
+     */
+    static class ValidationResult {
+        //region Members
+
+        private boolean moreDataNeeded;
+        private int length;
+        private String failureMessage;
+
+        //endregion
+
+        //region Constructor
+
+        private ValidationResult() {
+            this.moreDataNeeded = false;
+            this.length = HEADER_LENGTH;
+            this.failureMessage = null;
+        }
+
+        /**
+         * Creates a new ValidationResult for a failed verification.
+         */
+        private static ValidationResult failed(String message) {
+            Exceptions.checkNotNullOrEmpty(message, "message");
+            ValidationResult result = new ValidationResult();
+            result.failureMessage = message;
+            return result;
+        }
+
+        /**
+         * Creates a new ValidationResult for an inconclusive verification, when more data is needed to determine correctness.
+         */
+        private static ValidationResult moreDataNeeded() {
+            ValidationResult result = new ValidationResult();
+            result.moreDataNeeded = true;
+            return result;
+        }
+
+        /**
+         * Creates a new ValidationResult for a successful test.
+         */
+        private static ValidationResult success(int length) {
+            ValidationResult result = new ValidationResult();
+            result.length = HEADER_LENGTH + length;
+            return result;
+        }
+
+        //endregion
+
+        /**
+         * Gets a value indicating whether more data is needed in order to make a proper determination.
+         * If this is true, it does not mean that the test failed.
+         */
+        boolean isMoreDataNeeded() {
+            return this.moreDataNeeded;
+        }
+
+        /**
+         * Gets a value indicating whether the verification failed.
+         */
+        boolean isFailed() {
+            return this.failureMessage != null;
+        }
+
+        /**
+         * Gets a value indicating whether the verification succeeded.
+         */
+        boolean isSuccess() {
+            return !isFailed() && !isMoreDataNeeded();
+        }
+
+        /**
+         * Gets a value indicating the failure message. This is undefined if isFailed() == false.
+         */
+        String getFailureMessage() {
+            return this.failureMessage;
+        }
+
+        /**
+         * Gets a value indicating the length of the validated append. This value is undefined if isSuccess() == false.
+         */
+        int getLength() {
+            Preconditions.checkState(isSuccess(), "Can only request length if a successful validation result.");
+            return this.length;
+        }
+
+        @Override
+        public String toString() {
+            if (isFailed()) {
+                return String.format("Failed (%s)", this.failureMessage);
+            } else if (isMoreDataNeeded()) {
+                return "More data needed";
+            } else {
+                return String.format("Success (Length = %d)", this.length);
             }
         }
     }
