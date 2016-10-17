@@ -21,10 +21,12 @@ import com.emc.pravega.common.cluster.Host;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
 
 /**
  * This implements the ContainerBalancer by randomly assigning Segment container owners in the event hosts being removed.
@@ -39,25 +41,26 @@ public class RandomContainerBalancer extends SegContainerHostMappingZK implement
         //get the current list of container to Host mapping
         Map<Integer, Host> segContainerMap = (Map<Integer, Host>) SerializationUtils
                 .deserialize(segContainerHostMapping.getCurrentData().getData());
-        /*
-            TODO:
-            1. IF (map returned is empty OR map size is less than configuration)
-                INITIALLZE The map.
-            2. Assert on invalid input : HostsPresent and hostsRemoved.
 
-         */
+        checkAndInitialize(segContainerMap);
+
         List<Integer> segContToBeUpdated = segContainerMap.entrySet().stream()
-                .filter(ep -> hostsRemoved.contains(ep.getValue()))
+                .filter(ep -> ep.getValue() == null || hostsRemoved.contains(ep.getValue()))
                 .map(ep -> ep.getKey())
                 .collect(Collectors.toList());
 
-        List<Host> validHosts = new ArrayList<>(segContainerMap.values().stream()
-                .filter(ep -> !hostsRemoved.contains(ep))
-                .collect(Collectors.toSet()));
-        validHosts.addAll(hostsPresent);
-
         //choose a random Host
-        segContToBeUpdated.stream().map(index -> segContainerMap.put(index, validHosts.get(index % validHosts.size())));
+        segContToBeUpdated.stream().map(index -> segContainerMap.put(index, hostsPresent.get(index % hostsPresent.size())));
         return segContainerMap;
+    }
+
+    private void checkAndInitialize(Map<Integer, Host> segContainerMap) {
+        if (segContainerMap.keySet().size() < HOST_STORE_CONTAINER_COUNT) {
+            IntStream.rangeClosed(0, HOST_STORE_CONTAINER_COUNT).forEach(i -> {
+                if (!segContainerMap.containsKey(i)) {
+                    segContainerMap.put(i, null);
+                }
+            });
+        }
     }
 }
