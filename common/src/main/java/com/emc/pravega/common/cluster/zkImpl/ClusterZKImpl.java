@@ -18,7 +18,7 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.Cluster;
-import com.emc.pravega.common.cluster.EndPoint;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.NodeType;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.google.common.annotations.VisibleForTesting;
@@ -64,16 +64,16 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     }
 
     @Override
-    public void registerNode(EndPoint endPoint) throws Exception {
+    public void registerNode(Host endPoint) throws Exception {
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, nodeType.name());
         createPathIfExists(basePath);
-        String nodePath = ZKPaths.makePath(basePath, endPoint.getHost());
+        String nodePath = ZKPaths.makePath(basePath, endPoint.getIpAddr());
 
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, SerializationUtils.serialize(endPoint));
 
         node.start(); //start creation of ephemeral node in background.
-        entryMap.put(endPoint.getHost(), node);
+        entryMap.put(endPoint.getIpAddr(), node);
     }
 
     private void createPathIfExists(String basePath) throws Exception {
@@ -87,11 +87,11 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     }
 
     @Override
-    public void deregisterNode(EndPoint endPoint) throws Exception {
-        PersistentNode node = entryMap.get(endPoint.getHost());
+    public void deregisterNode(Host endPoint) throws Exception {
+        PersistentNode node = entryMap.get(endPoint.getIpAddr());
         try {
             if (node == null) {
-                throw new IllegalArgumentException("No endpoint present inside cluster: " + clusterName + " EndPoint: " + endPoint);
+                throw new IllegalArgumentException("Host not present inside cluster: " + clusterName + " Host: " + endPoint);
             } else
                 node.close();
         } catch (IOException ex) {
@@ -106,6 +106,6 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        CollectionHelpers.forEach(entryMap.values(), node -> node.close());
+        CollectionHelpers.forEach(entryMap.values(), PersistentNode::close);
     }
 }

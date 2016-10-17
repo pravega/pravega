@@ -15,19 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.common.cluster;
+package com.emc.pravega.controller.store.host;
 
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import lombok.Data;
-import lombok.NonNull;
+import org.apache.curator.framework.CuratorFramework;
 
-import java.io.Serializable;
+import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
 
-/**
- * Endpoint
- */
 @Data
-public class EndPoint implements Serializable {
-    @NonNull
-    private final String host;
-    private final int port;
+public class ZKHostStoreControllerStoreConfig implements StoreConfiguration {
+    private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
+
+    private final CuratorFramework client;
+
 }

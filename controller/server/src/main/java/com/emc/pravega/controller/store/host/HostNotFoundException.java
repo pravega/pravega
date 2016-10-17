@@ -18,6 +18,8 @@
 
 package com.emc.pravega.controller.store.host;
 
+import com.emc.pravega.common.cluster.Host;
+
 public class HostNotFoundException extends HostControllerException {
     public HostNotFoundException(Host host) {
         super(String.format("Host %s not found.", host.getIpAddr()));

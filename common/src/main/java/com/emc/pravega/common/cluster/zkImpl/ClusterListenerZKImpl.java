@@ -18,7 +18,7 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.ClusterListener;
-import com.emc.pravega.common.cluster.EndPoint;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.NodeType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -55,11 +55,11 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
         switch (event.getType()) {
             case CHILD_ADDED:
                 log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
-                nodeAdded((EndPoint) SerializationUtils.deserialize(event.getData().getData()));
+                nodeAdded((Host) SerializationUtils.deserialize(event.getData().getData()));
                 break;
             case CHILD_REMOVED:
                 log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
-                nodeRemoved((EndPoint) SerializationUtils.deserialize(event.getData().getData()));
+                nodeRemoved((Host) SerializationUtils.deserialize(event.getData().getData()));
                 break;
             case CHILD_UPDATED:
                 log.error("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
@@ -107,10 +107,10 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
      *
      * @return
      */
-    public List<EndPoint> getClusterMembers() {
+    public List<Host> getClusterMembers() {
         List<ChildData> data = cache.getCurrentData();
         return data.stream()
-                .map(d -> (EndPoint) SerializationUtils.deserialize(d.getData()))
+                .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
                 .collect(Collectors.toList());
     }
 

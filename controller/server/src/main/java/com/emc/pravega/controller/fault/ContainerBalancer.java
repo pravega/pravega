@@ -28,10 +28,10 @@ public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
     /**
      * Compute the new owners of the segment containers with the list of new hosts added and removed.
      *
-     * @param hostsAdded
-     * @param hostsRemoved
+     * @param hostsPresent hosts present in the cluster.
+     * @param hostsRemoved hosts removed from cluster.
      * @return
      */
-    public Map<C, H> rebalance(List<H> hostsAdded, List<H> hostsRemoved);
+    public Map<C, H> rebalance(List<H> hostsPresent, List<H> hostsRemoved);
 
 }

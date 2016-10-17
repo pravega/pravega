@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.fault;
+package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 import lombok.extern.slf4j.Slf4j;
@@ -23,22 +23,21 @@ import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
-import org.apache.zookeeper.KeeperException;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-/**
- * ZK based implementation for SegmentContainer to HostMapping.
- */
 @Slf4j
-public class SegContainerHostMappingZK implements SegContainerHostMapping<Integer, Host> {
+public class ZKHostStore implements HostControllerStore {
+
+    private static final int SEGMENT_CONTAINER_COUNT = 128;
 
     protected final NodeCache segContainerHostMapping;
     private final CuratorFramework zkClient;
     private final String path = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
 
-    public SegContainerHostMappingZK(CuratorFramework client) {
+    public ZKHostStore(CuratorFramework client) {
         zkClient = client;
         segContainerHostMapping = new NodeCache(zkClient, path);
 
@@ -50,38 +49,39 @@ public class SegContainerHostMappingZK implements SegContainerHostMapping<Intege
         }
     }
 
-    /**
-     * Read mapping entries from ZK.
-     *
-     * @return
-     */
+    private void initStore() {
+
+    }
+
     @Override
-    public Map<Integer, Host> getSegmentContainerHostMapping() {
+    public Set<Host> getHosts() {
+        return getCurrentData().values().stream().collect(Collectors.toSet());
+    }
+
+    @Override
+    public Set<Integer> getContainersForHost(Host host) {
+        Map<Integer, Host> containerHostMap = getCurrentData();
+        if (containerHostMap.containsValue(host)) {
+            return containerHostMap.entrySet().stream()
+                    .filter(ep -> ep.getValue().equals(host))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
+        } else
+            throw new HostNotFoundException(host);
+    }
+
+    @Override
+    public Host getHostForContainer(int containerId) {
+        Map<Integer, Host> mapping = getCurrentData();
+        return mapping.get(containerId);
+    }
+
+    private Map<Integer, Host> getCurrentData() {
         return (Map<Integer, Host>) SerializationUtils.deserialize(segContainerHostMapping.getCurrentData().getData());
     }
 
-    /**
-     * Persist mapping entries to ZK.
-     *
-     * @param map - Map of SegmentContainer to Host.
-     */
     @Override
-    public void persistSegmentContainerHostMapping(Map<Integer, Host> map) {
-        try {
-            createPathIfExists(path);
-            zkClient.create().forPath(path, SerializationUtils.serialize((HashMap) map));
-        } catch (Exception e) {
-            throw new RuntimeException("Error while persisting segment container to host mapping", e);
-        }
-    }
-
-    private void createPathIfExists(String basePath) throws Exception {
-        try {
-            if (zkClient.checkExists().forPath(basePath) == null) {
-                zkClient.create().creatingParentsIfNeeded().forPath(basePath);
-            }
-        } catch (KeeperException.NodeExistsException e) {
-            log.debug("Path exists {} , ignoring exception", basePath, e);
-        }
+    public Integer getContainerCount() {
+        return SEGMENT_CONTAINER_COUNT;
     }
 }

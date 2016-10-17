@@ -34,6 +34,7 @@ public class HostStoreFactory {
             case InMemory:
                 return new InMemoryHostStore(((InMemoryHostControllerStoreConfig) config).getHostContainerMap());
             case Zookeeper:
+                return new ZKHostStore(((ZKHostStoreControllerStoreConfig) config).getClient());
             case ECS:
             case S3:
             default:

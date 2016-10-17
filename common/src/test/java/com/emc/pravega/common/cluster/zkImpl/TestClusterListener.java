@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
-import com.emc.pravega.common.cluster.EndPoint;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.NodeType;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -34,20 +34,20 @@ public class TestClusterListener extends ClusterListenerZKImpl {
     /**
      * Method invoked when node has been added
      *
-     * @param ep
+     * @param h
      */
     @Override
-    public void nodeAdded(EndPoint ep) {
-        nodeAddedQueue.offer(ep.getHost());
+    public void nodeAdded(Host h) {
+        nodeAddedQueue.offer(h.getIpAddr());
     }
 
     /**
      * Method invoked when node has been removed
      *
-     * @param ep
+     * @param h
      */
     @Override
-    public void nodeRemoved(EndPoint ep) {
-        nodeRemovedQueue.offer(ep.getHost());
+    public void nodeRemoved(Host h) {
+        nodeRemovedQueue.offer(h.getIpAddr());
     }
 }

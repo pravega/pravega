@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
-import com.emc.pravega.common.cluster.EndPoint;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.NodeType;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -71,12 +71,12 @@ public class ClusterZKTest {
 
         //Create Add a node to the cluster.
         ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME, NodeType.DATA);
-        clusterZKInstance1.registerNode(new EndPoint(HOST_1, PORT));
+        clusterZKInstance1.registerNode(new Host(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
         ClusterZKImpl clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME, NodeType.DATA);
-        clusterZKInstance1.registerNode(new EndPoint(HOST_2, PORT));
+        clusterZKInstance1.registerNode(new Host(HOST_2, PORT));
         assertEquals(HOST_2, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
 
@@ -97,10 +97,10 @@ public class ClusterZKTest {
                 RETRY_SLEEP_MS, MAX_RETRY));
         //Create Add a node to the cluster.
         ClusterZKImpl clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2, NodeType.DATA);
-        clusterZKInstance1.registerNode(new EndPoint(HOST_1, PORT));
+        clusterZKInstance1.registerNode(new Host(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
-        clusterZKInstance1.deregisterNode(new EndPoint(HOST_1, PORT));
+        clusterZKInstance1.deregisterNode(new Host(HOST_1, PORT));
         assertEquals(HOST_1, clusterListener.nodeRemovedQueue.poll(5, TimeUnit.SECONDS));
 
         //cleanup

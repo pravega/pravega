@@ -27,12 +27,12 @@ public interface ClusterListener {
     /**
      * Method invoked when node has been added
      */
-    public void nodeAdded(EndPoint hostName);
+    public void nodeAdded(Host hostName);
 
     /**
      * Method invoked when node has been removed
      */
-    public void nodeRemoved(EndPoint hostName);
+    public void nodeRemoved(Host hostName);
 
     /**
      * Start listener
@@ -41,6 +41,7 @@ public interface ClusterListener {
 
     /**
      * Start listener on a custom executor.
+     *
      * @param executor custom executor on which the listener should run.
      */
     public void start(final Executor executor) throws Exception;

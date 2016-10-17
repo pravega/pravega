@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.fault;
 
-import com.emc.pravega.common.cluster.EndPoint;
+import com.emc.pravega.common.cluster.Host;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -29,29 +29,35 @@ import java.util.stream.Collectors;
 /**
  * This implements the ContainerBalancer by randomly assigning Segment container owners in the event hosts being removed.
  */
-public class RandomContainerBalancer extends SegContainerHostMappingZK implements ContainerBalancer<Integer, EndPoint> {
+public class RandomContainerBalancer extends SegContainerHostMappingZK implements ContainerBalancer<Integer, Host> {
     public RandomContainerBalancer(CuratorFramework client) {
         super(client);
     }
 
     @Override
-    public Map<Integer, EndPoint> rebalance(List<EndPoint> hostsAdded, List<EndPoint> hostsRemoved) {
+    public Map<Integer, Host> rebalance(List<Host> hostsPresent, List<Host> hostsRemoved) {
         //get the current list of container to Host mapping
-        Map<Integer, EndPoint> segContainerMap = (Map<Integer, EndPoint>) SerializationUtils
+        Map<Integer, Host> segContainerMap = (Map<Integer, Host>) SerializationUtils
                 .deserialize(segContainerHostMapping.getCurrentData().getData());
+        /*
+            TODO:
+            1. IF (map returned is empty OR map size is less than configuration)
+                INITIALLZE The map.
+            2. Assert on invalid input : HostsPresent and hostsRemoved.
 
+         */
         List<Integer> segContToBeUpdated = segContainerMap.entrySet().stream()
                 .filter(ep -> hostsRemoved.contains(ep.getValue()))
                 .map(ep -> ep.getKey())
                 .collect(Collectors.toList());
 
-        List<EndPoint> validEndPoints = new ArrayList<>(segContainerMap.values().stream()
+        List<Host> validHosts = new ArrayList<>(segContainerMap.values().stream()
                 .filter(ep -> !hostsRemoved.contains(ep))
                 .collect(Collectors.toSet()));
-        validEndPoints.addAll(hostsAdded);
+        validHosts.addAll(hostsPresent);
 
-        //choose a random Endpoint
-        segContToBeUpdated.stream().map(index -> segContainerMap.put(index, validEndPoints.get(index % validEndPoints.size())));
+        //choose a random Host
+        segContToBeUpdated.stream().map(index -> segContainerMap.put(index, validHosts.get(index % validHosts.size())));
         return segContainerMap;
     }
 }

@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.controller.fault;
 
-import com.emc.pravega.common.cluster.EndPoint;
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.NodeType;
 import com.emc.pravega.common.cluster.zkImpl.ClusterListenerZKImpl;
 import com.emc.pravega.controller.util.Config;
@@ -46,10 +46,10 @@ import java.util.concurrent.TimeoutException;
 public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     private static final String LOCK_PATH = ZKPaths.makePath("cluster", "data", "faulthandler-lock");
 
-    private final ContainerBalancer<Integer, EndPoint> segBalancer;
+    private final ContainerBalancer<Integer, Host> segBalancer;
     private final InterProcessMutex mutex;
-    private final LinkedBlockingQueue<EndPoint> hostAdded = new LinkedBlockingQueue<>();
-    private final LinkedBlockingQueue<EndPoint> hostRemoved = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<Host> hostAdded = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<Host> hostRemoved = new LinkedBlockingQueue<>();
 
     //Executor used to trigger fault handling operations.
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
@@ -68,7 +68,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
      * @param endPoint
      */
     @Override
-    public void nodeRemoved(EndPoint endPoint) {
+    public void nodeRemoved(Host endPoint) {
         hostRemoved.add(endPoint);
         log.info("DataNode:{} removed from cluster", endPoint);
         if (executor.getQueue().size() == 0) {
@@ -84,7 +84,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
      */
     @Override
 
-    public void nodeAdded(EndPoint endPoint) {
+    public void nodeAdded(Host endPoint) {
         hostAdded.add(endPoint);
         log.info("DataNode:{} added to cluster", endPoint);
         if (executor.getQueue().size() == 0) {
@@ -107,7 +107,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
         return acquireDistributedLock(mutexExecutor)
                 .thenApply(success -> {
                     if (success) {
-                        return segBalancer.rebalance(getHostsAdded(), getHostsRemoved());
+                        return segBalancer.rebalance(getClusterMembers(), getHostsRemoved());
                     } else {
                         throw new CompletionException(new TimeoutException("Timeout while acquiring lock" + LOCK_PATH));
                     }
@@ -125,14 +125,14 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
                 });
     }
 
-    private List<EndPoint> getHostsRemoved() {
-        List<EndPoint> removedHosts = new ArrayList<>();
+    private List<Host> getHostsRemoved() {
+        List<Host> removedHosts = new ArrayList<>();
         hostRemoved.drainTo(removedHosts);
         return removedHosts;
     }
 
-    private List<EndPoint> getHostsAdded() {
-        List<EndPoint> newHosts = new ArrayList<>();
+    private List<Host> getHostsAdded() {
+        List<Host> newHosts = new ArrayList<>();
         hostAdded.drainTo(newHosts);
         return newHosts;
     }
