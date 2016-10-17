@@ -23,9 +23,18 @@ import java.util.Map;
  * Interface used to store the SegmentContainer and host mapping tables
  */
 public interface SegContainerHostMapping<C, H> {
-    //Read entries from ZK
+
+    /**
+     * Read Segment Container to Host Mapping from store
+     *
+     * @return
+     */
     Map<C, H> getSegmentContainerHostMapping();
 
-    //Persist entries to ZK
+    /**
+     * Persist Segment Container to HostMapping to store
+     *
+     * @param map
+     */
     void persistSegmentContainerHostMapping(Map<C, H> map);
 }

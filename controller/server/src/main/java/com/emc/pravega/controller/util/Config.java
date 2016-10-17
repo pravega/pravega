@@ -39,4 +39,7 @@ public final class Config {
     //HostStore configuration.
     public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");
     public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
+
+    //Cluster Monitor configuration.
+    public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.monitor.cluster");
 }

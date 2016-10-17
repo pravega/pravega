@@ -20,6 +20,7 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.EndPoint;
 import com.emc.pravega.common.cluster.NodeType;
 import com.emc.pravega.common.cluster.zkImpl.ClusterListenerZKImpl;
+import com.emc.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
@@ -50,12 +51,13 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     private final LinkedBlockingQueue<EndPoint> hostAdded = new LinkedBlockingQueue<>();
     private final LinkedBlockingQueue<EndPoint> hostRemoved = new LinkedBlockingQueue<>();
 
+    //Executor used to trigger fault handling operations.
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+    //Custom executor for acquiring a mutex, since Curator expects the same thread to acquire and release the lock.
     private final ExecutorService mutexExecutor = Executors.newSingleThreadExecutor();
 
-    //TODO: read ClusterName from config
     public SegmentContainerMonitor(CuratorFramework client) {
-        super(client, "clusterName", NodeType.DATA);
+        super(client, Config.CLUSTER_NAME, NodeType.DATA);
         mutex = new InterProcessMutex(client, LOCK_PATH);
         segBalancer = new RandomContainerBalancer(client);
     }
@@ -98,20 +100,21 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
      * 3. Intimate the Data nodes of the assignment. (or the data nodes could watch the entry in zk)
      * 4. Update the table
      * 5. release lock
+     *
      * @return
      */
     private CompletableFuture<Void> performFaultHandling() {
         return acquireDistributedLock(mutexExecutor)
-                .thenCompose(success -> {
+                .thenApply(success -> {
                     if (success) {
                         return segBalancer.rebalance(getHostsAdded(), getHostsRemoved());
                     } else {
-                        throw new CompletionException(new TimeoutException("Timeout while acquiring lock"));
+                        throw new CompletionException(new TimeoutException("Timeout while acquiring lock" + LOCK_PATH));
                     }
                 })
                 .thenAccept(segBalancer::persistSegmentContainerHostMapping)
                 .whenComplete((r, t) -> {
-                    releaseDistributedLock(); // finally release the lock
+                    releaseDistributedLock(); // finally release the lock, it is executed in the same thread as acquireLock
                     if (t != null) {
                         if (TimeoutException.class.isInstance(t.getCause())) {
                             log.info("Timeout while acquiring a lock for fault handling as a different controller has" +

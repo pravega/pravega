@@ -19,7 +19,6 @@ package com.emc.pravega.controller.fault;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Container Balancers are used to fetch the new owners of a segment containers.
@@ -27,17 +26,12 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
     /**
-     * Compute the new owners of the segment containers when a new host has been added.
-     *
-     * @return
-     */
-    /**
      * Compute the new owners of the segment containers with the list of new hosts added and removed.
      *
      * @param hostsAdded
      * @param hostsRemoved
      * @return
      */
-    public CompletableFuture<Map<C, H>> rebalance(List<H> hostsAdded, List<H> hostsRemoved);
+    public Map<C, H> rebalance(List<H> hostsAdded, List<H> hostsRemoved);
 
 }
