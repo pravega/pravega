@@ -40,14 +40,20 @@ import java.util.function.Supplier;
 
 /**
  * Represents an operation consumer. Attaches to a StoreAdapter, listens to tail-reads (on segments), and validates
- * incoming data.
+ * incoming data. Currently this does not do catch-up reads or storage reads/validations.
  */
 public class Consumer extends Actor {
+    //region Members
+
     private static final Duration READ_TIMEOUT = Duration.ofDays(100);
     private final String logId;
     private final String segmentName;
     private final AtomicBoolean canContinue;
     private final DataValidator dataValidator;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the Consumer class.
@@ -65,6 +71,8 @@ public class Consumer extends Actor {
         this.canContinue = new AtomicBoolean();
         this.dataValidator = new DataValidator(this::validationFailed);
     }
+
+    //endregion
 
     //region Actor Implementation
 
