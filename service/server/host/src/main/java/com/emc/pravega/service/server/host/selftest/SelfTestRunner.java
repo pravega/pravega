@@ -32,66 +32,66 @@ import java.util.concurrent.TimeUnit;
 public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
         //test();
-        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        //context.getLoggerList().get(0).setLevel(Level.TRACE);
-        context.reset();
+                // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+                LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+                //context.getLoggerList().get(0).setLevel(Level.TRACE);
+                context.reset();
 
-        TestConfig testConfig = getTestConfig();
-        ServiceBuilderConfig builderConfig = getBuilderConfig();
+                TestConfig testConfig = getTestConfig();
+                ServiceBuilderConfig builderConfig = getBuilderConfig();
 
-        // Create a new SelfTest.
-        @Cleanup
-        SelfTest test = new SelfTest(testConfig, builderConfig);
+                // Create a new SelfTest.
+                @Cleanup
+                SelfTest test = new SelfTest(testConfig, builderConfig);
 
-        // Star the test.
-        test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                // Star the test.
+                test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 
-        // Wait for the test to finish.
-        test.awaitFinished().join();
+                // Wait for the test to finish.
+                test.awaitFinished().join();
 
-        // Make sure the test is stopped.
-        test.stopAsync().awaitTerminated();
+                // Make sure the test is stopped.
+                test.stopAsync().awaitTerminated();
     }
 
     private static void test() {
-        //        CircularArray ca = new CircularArray(100);
-        //        for (int i = 0; i < 82; i++) {
-        //            byte[] data = new byte[1];
-        //            data[0] = (byte) i;
-        //            ca.append(new ByteArrayInputStream(data), data.length);
-        //        }
-        //
-        //        for (int i = 0; i < 18; i++) {
-        //            ca.truncate(1);
-        //        }
-        //
-        //        for (int i = 0; i < 3; i++) {
-        //            byte[] data = "1234567890".getBytes();
-        //            ca.append(new ByteArrayInputStream(data), data.length);
-        //        }
-        //        for (int i = 0; i < ca.getLength(); i++) {
-        //            System.out.println(i + ": " + ca.get(i));
-        //        }
-//
-//        CircularArray a = new CircularArray(20 * 1024 * 1024);
-//        AppendContentGenerator acg = new AppendContentGenerator(12345);
-//        for (int i = 0; i < 1000; i++) {
-//            int length = AppendContentGenerator.HEADER_LENGTH + i;
-//            byte[] data = acg.newAppend(length);
-//            a.append(new ByteArrayInputStream(data), data.length);
+//        TruncateableArray ca = new TruncateableArray();
+//        for (int i = 0; i < 100; i += 5) {
+//            byte[] data = new byte[5];
+//            data[0] = (byte) i;
+//            data[1] = (byte) (i + 1);
+//            data[2] = (byte) (i + 2);
+//            data[3] = (byte) (i + 3);
+//            data[4] = (byte) (i + 4);
+//            ca.append(new ByteArrayInputStream(data), data.length);
 //        }
 //
-//        int offset = 0;
-//        while (offset < a.getLength()) {
-//            AppendContentGenerator.ValidationResult vr = AppendContentGenerator.validate(a, offset);
-//            System.out.println(String.format("Offset: %s, Validation = %s", offset, vr));
-//            if (vr.isFailed() || vr.isMoreDataNeeded()) {
-//                break;
-//            }
-//
-//            offset += vr.getLength();
+//        for(int i=0;i<13;i++){
+//            ca.truncate(1);
 //        }
+//
+//        for (int i = 0; i < ca.getLength(); i++) {
+//            System.out.println(i + ": " + ca.get(i));
+//        }
+        //
+        //        CircularArray a = new CircularArray(20 * 1024 * 1024);
+        //        AppendContentGenerator acg = new AppendContentGenerator(12345);
+        //        for (int i = 0; i < 1000; i++) {
+        //            int length = AppendContentGenerator.HEADER_LENGTH + i;
+        //            byte[] data = acg.newAppend(length);
+        //            a.append(new ByteArrayInputStream(data), data.length);
+        //        }
+        //
+        //        int offset = 0;
+        //        while (offset < a.getLength()) {
+        //            AppendContentGenerator.ValidationResult vr = AppendContentGenerator.validate(a, offset);
+        //            System.out.println(String.format("Offset: %s, Validation = %s", offset, vr));
+        //            if (vr.isFailed() || vr.isMoreDataNeeded()) {
+        //                break;
+        //            }
+        //
+        //            offset += vr.getLength();
+        //        }
     }
 
     private static ServiceBuilderConfig getBuilderConfig() {

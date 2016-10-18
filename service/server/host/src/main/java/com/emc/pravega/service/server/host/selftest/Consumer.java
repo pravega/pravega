@@ -63,7 +63,7 @@ public class Consumer extends Actor {
         this.logId = String.format("Consumer[%s]", segmentName);
         this.segmentName = segmentName;
         this.canContinue = new AtomicBoolean();
-        this.dataValidator = new DataValidator(config.getMaxAppendSize() * 10, this::validationFailed);
+        this.dataValidator = new DataValidator(this::validationFailed);
     }
 
     //region Actor Implementation

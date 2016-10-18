@@ -30,7 +30,7 @@ import java.util.function.BiConsumer;
 class DataValidator {
     //region Members
 
-    private final CircularArray buffer;
+    private final TruncateableArray buffer;
     private long bufferSegmentOffset;
     private final BiConsumer<Long, AppendContentGenerator.ValidationResult> failedValidationCallback;
     private final Object lock = new Object();
@@ -42,12 +42,11 @@ class DataValidator {
     /**
      * Creates a new instance of the DataValidator class.
      *
-     * @param maxBufferSize            The maximum outstanding data length, in bytes.
      * @param failedValidationCallback A callback to invoke when a data validation failure was detected.
      */
-    DataValidator(int maxBufferSize, BiConsumer<Long, AppendContentGenerator.ValidationResult> failedValidationCallback) {
+    DataValidator(BiConsumer<Long, AppendContentGenerator.ValidationResult> failedValidationCallback) {
         Preconditions.checkNotNull(failedValidationCallback, "failedValidationCallback");
-        this.buffer = new CircularArray(maxBufferSize);
+        this.buffer = new TruncateableArray();
         this.bufferSegmentOffset = -1;
         this.failedValidationCallback = failedValidationCallback;
     }

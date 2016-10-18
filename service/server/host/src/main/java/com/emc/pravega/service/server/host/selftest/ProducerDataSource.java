@@ -130,6 +130,9 @@ class ProducerDataSource {
         return generator.newAppend(size);
     }
 
+    /**
+     * Determines if the Segment with given name is closed for appends or not.
+     */
     boolean isClosed(String segmentName) {
         synchronized (this.lock) {
             val si = this.state.getSegment(segmentName);
