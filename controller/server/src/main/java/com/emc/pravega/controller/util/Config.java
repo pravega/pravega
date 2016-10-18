@@ -42,4 +42,5 @@ public final class Config {
 
     //Cluster Monitor configuration.
     public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.monitor.cluster");
+    public static final int LOCK_TIMEOUT_SECS = CONFIG.getInt("config.controller.server.monitor.lockTimeoutSecs");
 }

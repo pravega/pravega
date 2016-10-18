@@ -64,16 +64,16 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     }
 
     @Override
-    public void registerNode(Host endPoint) throws Exception {
+    public void registerNode(Host host) throws Exception {
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, nodeType.name());
         createPathIfExists(basePath);
-        String nodePath = ZKPaths.makePath(basePath, endPoint.getIpAddr());
+        String nodePath = ZKPaths.makePath(basePath, host.getIpAddr());
 
-        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, SerializationUtils.serialize(endPoint));
+        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, SerializationUtils.serialize(host));
 
         node.start(); //start creation of ephemeral node in background.
-        entryMap.put(endPoint.getIpAddr(), node);
+        entryMap.put(host.getIpAddr(), node);
     }
 
     private void createPathIfExists(String basePath) throws Exception {
@@ -87,11 +87,11 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
     }
 
     @Override
-    public void deregisterNode(Host endPoint) throws Exception {
-        PersistentNode node = entryMap.get(endPoint.getIpAddr());
+    public void deregisterNode(Host host) throws Exception {
+        PersistentNode node = entryMap.get(host.getIpAddr());
         try {
             if (node == null) {
-                throw new IllegalArgumentException("Host not present inside cluster: " + clusterName + " Host: " + endPoint);
+                throw new IllegalArgumentException("Host not present inside cluster: " + clusterName + " Host: " + host);
             } else
                 node.close();
         } catch (IOException ex) {

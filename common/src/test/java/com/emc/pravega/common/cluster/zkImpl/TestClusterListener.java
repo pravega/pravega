@@ -34,20 +34,20 @@ public class TestClusterListener extends ClusterListenerZKImpl {
     /**
      * Method invoked when node has been added
      *
-     * @param h
+     * @param host
      */
     @Override
-    public void nodeAdded(Host h) {
-        nodeAddedQueue.offer(h.getIpAddr());
+    public void nodeAdded(Host host) {
+        nodeAddedQueue.offer(host.getIpAddr());
     }
 
     /**
      * Method invoked when node has been removed
      *
-     * @param h
+     * @param host
      */
     @Override
-    public void nodeRemoved(Host h) {
-        nodeRemovedQueue.offer(h.getIpAddr());
+    public void nodeRemoved(Host host) {
+        nodeRemovedQueue.offer(host.getIpAddr());
     }
 }

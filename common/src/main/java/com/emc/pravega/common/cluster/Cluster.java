@@ -23,9 +23,9 @@ package com.emc.pravega.common.cluster;
  */
 public interface Cluster {
 
-    public void registerNode(final Host endPoint) throws Exception;
+    public void registerNode(final Host host) throws Exception;
 
-    public void deregisterNode(final Host endPoint) throws Exception;
+    public void deregisterNode(final Host host) throws Exception;
 
 }
 

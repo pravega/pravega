@@ -38,6 +38,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.emc.pravega.controller.util.Config.LOCK_TIMEOUT_SECS;
 import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
 
 /**
@@ -68,12 +69,12 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     /**
      * Method invoked when node has been removed.
      *
-     * @param endPoint
+     * @param host
      */
     @Override
-    public void nodeRemoved(Host endPoint) {
-        hostRemoved.add(endPoint);
-        log.info("DataNode:{} removed from cluster", endPoint);
+    public void nodeRemoved(Host host) {
+        hostRemoved.add(host);
+        log.info("DataNode:{} removed from cluster", host);
         if (executor.getQueue().size() == 0) {
             //submit only if there are no tasks in queue. Each each fault handling takes care of all events
             executor.submit(() -> performFaultHandling().get());
@@ -83,13 +84,13 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     /**
      * Method invoked when node has been added
      *
-     * @param endPoint
+     * @param host
      */
     @Override
 
-    public void nodeAdded(Host endPoint) {
-        hostAdded.add(endPoint);
-        log.info("DataNode:{} added to cluster", endPoint);
+    public void nodeAdded(Host host) {
+        hostAdded.add(host);
+        log.info("DataNode:{} added to cluster", host);
         if (executor.getQueue().size() == 0) {
             //submit only if there are no tasks in queue. Each each fault handling takes care of all events
             executor.submit(() -> performFaultHandling().get());
@@ -115,7 +116,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
                         throw new CompletionException(new TimeoutException("Timeout while acquiring lock" + LOCK_PATH));
                     }
                 })
-                .thenAccept(segBalancer::persistSegmentContainerHostMapping)
+                .thenAccept(mapOpt -> mapOpt.ifPresent(segBalancer::persistSegmentContainerHostMapping))
                 .whenComplete((r, t) -> {
                     releaseDistributedLock(); // finally release the lock, it is executed in the same thread as acquireLock
                     if (t != null) {
@@ -144,7 +145,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
         return CompletableFuture.supplyAsync(() -> {
                     Boolean result = false;
                     try {
-                        result = mutex.acquire(15, TimeUnit.SECONDS);
+                        result = mutex.acquire(LOCK_TIMEOUT_SECS, TimeUnit.SECONDS);
                     } catch (Exception e) {
                         log.error("Exception while acquiring a lock", e);
                         throw new CompletionException(e);

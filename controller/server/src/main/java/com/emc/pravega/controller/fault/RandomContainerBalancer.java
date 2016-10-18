@@ -22,6 +22,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -36,20 +37,24 @@ public class RandomContainerBalancer extends SegContainerHostMappingZK implement
     }
 
     @Override
-    public Map<Integer, Host> rebalance(List<Host> hostsPresent, List<Host> hostsRemoved) {
+    public Optional<Map<Integer, Host>> rebalance(List<Host> hostsPresent, List<Host> hostsRemoved) {
         //get the current list of container to Host mapping
         Map<Integer, Host> segContainerMap = getSegmentContainerHostMapping();
 
         checkAndInitialize(segContainerMap);
 
+        //fetch list of Segment containers whose owner needs to be updated.
         List<Integer> segContToBeUpdated = segContainerMap.entrySet().stream()
                 .filter(ep -> ep.getValue() == null || hostsRemoved.contains(ep.getValue()))
                 .map(ep -> ep.getKey())
                 .collect(Collectors.toList());
 
+        if( segContToBeUpdated.isEmpty()) // no updates
+            return Optional.empty();
+
         //choose a random Host
         segContToBeUpdated.stream().forEach(index -> segContainerMap.put(index, hostsPresent.get(index % hostsPresent.size())));
-        return segContainerMap;
+        return Optional.of(segContainerMap);
     }
 
     private void checkAndInitialize(Map<Integer, Host> segContainerMap) {
