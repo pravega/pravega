@@ -25,10 +25,11 @@ import com.emc.pravega.service.storage.StorageFactory;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HDFSStorageFactory implements StorageFactory {
     private final HDFSStorage storage;
-    private boolean closed;
+    private AtomicBoolean closed;
 
 
     public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
@@ -42,12 +43,12 @@ public class HDFSStorageFactory implements StorageFactory {
 
     @Override
     public Storage getStorageAdapter() {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         return storage;
     }
 
     @Override
     public void close() {
-        this.closed = true;
+        this.closed.set(true);
     }
 }
