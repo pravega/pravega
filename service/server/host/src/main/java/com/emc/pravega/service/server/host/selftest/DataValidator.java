@@ -39,6 +39,12 @@ class DataValidator {
 
     // region Constructor
 
+    /**
+     * Creates a new instance of the DataValidator class.
+     *
+     * @param maxBufferSize            The maximum outstanding data length, in bytes.
+     * @param failedValidationCallback A callback to invoke when a data validation failure was detected.
+     */
     DataValidator(int maxBufferSize, BiConsumer<Long, AppendContentGenerator.ValidationResult> failedValidationCallback) {
         Preconditions.checkNotNull(failedValidationCallback, "failedValidationCallback");
         this.buffer = new CircularArray(maxBufferSize);

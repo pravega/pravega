@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -168,6 +169,22 @@ class TestState {
     }
 
     /**
+     * Gets a SegmentInfo that matches the given filter.
+     *
+     * @param filter The filter to use.
+     * @return A SegmentInfo (in no particular order) that matches the given filter, or null if none match.
+     */
+    SegmentInfo getSegment(Function<SegmentInfo, Boolean> filter) {
+        for (SegmentInfo si : this.allSegments.values()) {
+            if (filter.apply(si)) {
+                return si;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Gets the name of an arbitrary Segment/Transaction that is registered. Note that calling this method with the same
      * value for the argument may not necessarily produce the same result if done repeatedly.
      *
@@ -216,7 +233,7 @@ class TestState {
         private final boolean transaction;
         @Getter
         @Setter
-        private boolean mergeInProgress;
+        private boolean closed;
         private final AtomicInteger operationCount;
 
         private SegmentInfo(String name, boolean isTransaction) {

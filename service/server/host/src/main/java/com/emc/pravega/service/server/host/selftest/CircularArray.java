@@ -30,6 +30,7 @@ import java.io.UncheckedIOException;
  * Created by andrei on 10/17/16.
  */
 class CircularArray implements ArrayView {
+    // TODO: get rid of this byte[] array and use a list of byte[] arrays - only use as much memory as needed.
     private final byte[] buffer;
     private int start;
     private int length;

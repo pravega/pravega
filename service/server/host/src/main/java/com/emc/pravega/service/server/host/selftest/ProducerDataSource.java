@@ -22,11 +22,10 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.google.common.base.Preconditions;
+import lombok.val;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -45,7 +44,6 @@ class ProducerDataSource {
     private final ConcurrentHashMap<String, AppendContentGenerator> appendGenerators;
     private final Random appendSizeGenerator;
     private int lastCreatedTransaction;
-    private Queue<String> segmentsToSeal;
     private final Object lock = new Object();
 
     //endregion
@@ -82,16 +80,14 @@ class ProducerDataSource {
         synchronized (this.lock) {
             if (operationIndex > this.config.getOperationCount()) {
                 // We have reached the end of the test. We need to seal all segments before we stop.
-                if (this.segmentsToSeal == null) {
-                    this.segmentsToSeal = new LinkedList<>(this.state.getAllSegmentNames());
-                }
-
-                if (this.segmentsToSeal.size() == 0) {
-                    // Really Reached the end of the test. Nothing more to do.
-                    return null;
-                } else {
+                val si = this.state.getSegment(s -> !s.isClosed());
+                if (si != null) {
                     // Seal the next segment that is on the list.
-                    result = new ProducerOperation(OperationType.Seal, this.segmentsToSeal.poll());
+                    result = new ProducerOperation(OperationType.Seal, si.getName());
+                    si.setClosed(true);
+                } else {
+                    // We have reached the end of the test and no more segments are left for sealing.
+                    return null;
                 }
             } else if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                 // We have exceeded the number of operations since we last created a transaction.
@@ -99,15 +95,10 @@ class ProducerDataSource {
                 this.lastCreatedTransaction = operationIndex;
             } else {
                 // If any transaction has already exceeded the max number of appends, then merge it.
-                for (TestState.SegmentInfo si : this.state.getAllSegments()) {
-                    if (si != null
-                            && si.isTransaction()
-                            && !si.isMergeInProgress()
-                            && si.getOperationCount() >= this.config.getMaxTransactionAppendCount()) {
-                        result = new ProducerOperation(OperationType.MergeTransaction, si.getName());
-                        si.setMergeInProgress(true);
-                        break;
-                    }
+                val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
+                if (si != null) {
+                    result = new ProducerOperation(OperationType.MergeTransaction, si.getName());
+                    si.setClosed(true);
                 }
             }
 
@@ -139,6 +130,13 @@ class ProducerDataSource {
         return generator.newAppend(size);
     }
 
+    boolean isClosed(String segmentName) {
+        synchronized (this.lock) {
+            val si = this.state.getSegment(segmentName);
+            return si == null || si.isClosed();
+        }
+    }
+
     private void operationCompletionCallback(ProducerOperation op) {
         // Record the operation as completed in the State.
         this.state.operationCompleted(op.getTarget());
@@ -164,11 +162,11 @@ class ProducerDataSource {
         this.state.operationFailed(op.getTarget());
 
         // OperationType-specific cleanup.
-        if (op.getType() == OperationType.MergeTransaction) {
-            // Make sure we clear the 'MergeInProgress' flag if the operation failed.
+        if (op.getType() == OperationType.MergeTransaction || op.getType() == OperationType.Seal) {
+            // Make sure we clear the 'Closed' flag if the Seal/Merge operation failed.
             TestState.SegmentInfo si = this.state.getSegment(op.getTarget());
             if (si != null) {
-                si.setMergeInProgress(false);
+                si.setClosed(false);
             }
         }
     }
@@ -186,6 +184,7 @@ class ProducerDataSource {
         Preconditions.checkArgument(this.state.getAllSegments().size() == 0, "Cannot call createSegments more than once.");
         ArrayList<CompletableFuture<Void>> segmentFutures = new ArrayList<>();
 
+        TestLogger.log(LOG_ID, "Creating segments.");
         for (int i = 0; i < this.config.getSegmentCount(); i++) {
             final int segmentId = i;
             String name = String.format("Segment_%s", segmentId);
@@ -194,7 +193,6 @@ class ProducerDataSource {
                               .thenRun(() -> {
                                   this.state.recordNewSegmentName(name);
                                   this.appendGenerators.put(name, new AppendContentGenerator(segmentId));
-                                  TestLogger.log(LOG_ID, "Created Segment '%s'.", name);
                               }));
         }
 
@@ -205,6 +203,7 @@ class ProducerDataSource {
      * Deletes all the segments required for this test.
      */
     CompletableFuture<Void> deleteAllSegments() {
+        TestLogger.log(LOG_ID, "Deleting segments.");
         return deleteSegments(this.state.getTransactionNames())
                 .thenCompose(v -> deleteSegments(this.state.getAllSegmentNames()));
     }
@@ -228,10 +227,7 @@ class ProducerDataSource {
 
                              return null;
                          })
-                         .thenRun(() -> {
-                             postSegmentDeletion(name);
-                             TestLogger.log(LOG_ID, "Deleted Segment '%s'.", name);
-                         });
+                         .thenRun(() -> postSegmentDeletion(name));
     }
 
     private void postSegmentDeletion(String name) {

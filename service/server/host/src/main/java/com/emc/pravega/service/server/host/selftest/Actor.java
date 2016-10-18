@@ -83,7 +83,6 @@ abstract class Actor extends AbstractService implements AutoCloseable {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
             this.closed.set(true);
-            TestLogger.log(getLogId(), "Closed.");
         }
     }
 
@@ -95,7 +94,6 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
-        TestLogger.log(getLogId(), "Started.");
         this.runTask = FutureHelpers
                 .delayedFuture(INITIAL_DELAY, this.executorService)
                 .thenCompose(v -> run());
@@ -123,7 +121,6 @@ abstract class Actor extends AbstractService implements AutoCloseable {
             }
 
             if (failureCause == null) {
-                TestLogger.log(getLogId(), "Stopped.");
                 notifyStopped();
             } else {
                 TestLogger.log(getLogId(), "Failed (%s).", failureCause);

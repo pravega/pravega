@@ -82,12 +82,12 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
-        TestLogger.log(LOG_ID, "Initialization started.");
+        TestLogger.log(LOG_ID, "Initializing.");
         return this.serviceBuilder.initialize(timeout)
                                   .thenRun(() -> {
                                       this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
                                       this.initialized.set(true);
-                                      TestLogger.log(LOG_ID, "Initialization completed.");
+                                      TestLogger.log(LOG_ID, "Up and running.");
                                   });
     }
 

@@ -31,13 +31,14 @@ import java.util.Random;
 class AppendContentGenerator {
     //region Members
 
-    private static final int PREFIX_LENGTH = Long.BYTES;
+    private static final int PREFIX_LENGTH = Integer.BYTES;
+    private static final int OWNER_ID_LENGTH = Integer.BYTES;
     private static final int KEY_LENGTH = Integer.BYTES;
     private static final int LENGTH_LENGTH = Integer.BYTES;
-    static final int HEADER_LENGTH = PREFIX_LENGTH + KEY_LENGTH + LENGTH_LENGTH;
+    static final int HEADER_LENGTH = PREFIX_LENGTH + OWNER_ID_LENGTH + KEY_LENGTH + LENGTH_LENGTH;
     private static final int PREFIX = (int) Math.pow(Math.E, 20);
     private final Random keyGenerator;
-    private final int appendId;
+    private final int ownerId;
 
     //endregion
 
@@ -46,11 +47,11 @@ class AppendContentGenerator {
     /**
      * Creates a new instance of the AppendContentGenerator class.
      *
-     * @param appendId The Id to attach to all appends generated with this instance.
+     * @param ownerId The Id to attach to all appends generated with this instance.
      */
-    AppendContentGenerator(int appendId) {
-        this.appendId = appendId;
-        this.keyGenerator = new Random(appendId);
+    AppendContentGenerator(int ownerId) {
+        this.ownerId = ownerId;
+        this.keyGenerator = new Random(ownerId);
     }
 
     //endregion
@@ -73,10 +74,10 @@ class AppendContentGenerator {
         int key = this.keyGenerator.nextInt();
         byte[] result = new byte[length];
 
-        // Header: PREFIX + appendId + Key + Length
+        // Header: PREFIX + ownerId + Key + Length
         int offset = 0;
         offset += BitConverter.writeInt(result, offset, PREFIX);
-        offset += BitConverter.writeInt(result, offset, this.appendId);
+        offset += BitConverter.writeInt(result, offset, this.ownerId);
         offset += BitConverter.writeInt(result, offset, key);
         int contentLength = length - HEADER_LENGTH;
         offset += BitConverter.writeInt(result, offset, contentLength);
@@ -116,8 +117,12 @@ class AppendContentGenerator {
             return ValidationResult.failed("Prefix mismatch.");
         }
 
-        // Extract appendId.
-        int appendId = BitConverter.readInt(view, offset);
+        // Extract ownerId.
+        int ownerId = BitConverter.readInt(view, offset);
+        offset += OWNER_ID_LENGTH;
+
+        // Extract key.
+        int key = BitConverter.readInt(view, offset);
         offset += KEY_LENGTH;
 
         // Extract length.
@@ -132,7 +137,7 @@ class AppendContentGenerator {
             return ValidationResult.moreDataNeeded();
         }
 
-        return validateContent(view, offset, length, appendId);
+        return validateContent(view, offset, length, key);
     }
 
     private static ValidationResult validateContent(ArrayView view, int offset, int length, int key) {
