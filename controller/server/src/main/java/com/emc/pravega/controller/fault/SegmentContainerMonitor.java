@@ -21,6 +21,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.NodeType;
 import com.emc.pravega.common.cluster.zkImpl.ClusterListenerZKImpl;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.util.ZKUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.locks.InterProcessMutex;
@@ -37,6 +38,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
 
 /**
  * Class used to monitor the Data nodes for failures and ensure the segment containers owned by them is assigned
@@ -58,6 +61,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
 
     public SegmentContainerMonitor(CuratorFramework client) {
         super(client, Config.CLUSTER_NAME, NodeType.DATA);
+        createPathIfNotExists(client, LOCK_PATH);
         mutex = new InterProcessMutex(client, LOCK_PATH);
         segBalancer = new RandomContainerBalancer(client);
     }
@@ -141,7 +145,7 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
         return CompletableFuture.supplyAsync(() -> {
                     Boolean result = false;
                     try {
-                        result = mutex.acquire(10, TimeUnit.SECONDS);
+                        result = mutex.acquire(15, TimeUnit.SECONDS);
                     } catch (Exception e) {
                         log.error("Exception while acquiring a lock", e);
                         throw new CompletionException(e);

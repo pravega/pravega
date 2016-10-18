@@ -21,12 +21,15 @@ import com.emc.pravega.common.cluster.Host;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
-import org.apache.zookeeper.KeeperException;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
+import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
 
 /**
  * ZK based implementation for SegmentContainer to HostMapping.
@@ -40,9 +43,9 @@ public class SegContainerHostMappingZK implements SegContainerHostMapping<Intege
 
     public SegContainerHostMappingZK(CuratorFramework client) {
         zkClient = client;
-        segContainerHostMapping = new NodeCache(zkClient, path);
-
         try {
+            createPathIfNotExists(zkClient, path, SerializationUtils.serialize(new HashMap<Integer, Host>()));
+            segContainerHostMapping = new NodeCache(zkClient, path);
             segContainerHostMapping.start(true);
         } catch (Exception e) {
             log.error("Error while fetching Segment container to Host mapping from container", e);
@@ -57,7 +60,14 @@ public class SegContainerHostMappingZK implements SegContainerHostMapping<Intege
      */
     @Override
     public Map<Integer, Host> getSegmentContainerHostMapping() {
-        return (Map<Integer, Host>) SerializationUtils.deserialize(segContainerHostMapping.getCurrentData().getData());
+        Optional<ChildData> containerToHostMapSer = Optional.of(segContainerHostMapping.getCurrentData());
+        Map<Integer, Host> mapping;
+        if (containerToHostMapSer.isPresent()) {
+            mapping = (HashMap<Integer, Host>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
+        } else {
+            mapping = new HashMap<>(); //create empty map
+        }
+        return mapping;
     }
 
     /**
@@ -68,20 +78,9 @@ public class SegContainerHostMappingZK implements SegContainerHostMapping<Intege
     @Override
     public void persistSegmentContainerHostMapping(Map<Integer, Host> map) {
         try {
-            createPathIfExists(path);
-            zkClient.create().forPath(path, SerializationUtils.serialize((HashMap) map));
+            zkClient.setData().forPath(path, SerializationUtils.serialize((HashMap) map));
         } catch (Exception e) {
             throw new RuntimeException("Error while persisting segment container to host mapping", e);
-        }
-    }
-
-    private void createPathIfExists(String basePath) throws Exception {
-        try {
-            if (zkClient.checkExists().forPath(basePath) == null) {
-                zkClient.create().creatingParentsIfNeeded().forPath(basePath);
-            }
-        } catch (KeeperException.NodeExistsException e) {
-            log.debug("Path exists {} , ignoring exception", basePath, e);
         }
     }
 }

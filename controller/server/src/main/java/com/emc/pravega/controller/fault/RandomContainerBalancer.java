@@ -18,7 +18,6 @@
 package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.cluster.Host;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.List;
@@ -39,8 +38,7 @@ public class RandomContainerBalancer extends SegContainerHostMappingZK implement
     @Override
     public Map<Integer, Host> rebalance(List<Host> hostsPresent, List<Host> hostsRemoved) {
         //get the current list of container to Host mapping
-        Map<Integer, Host> segContainerMap = (Map<Integer, Host>) SerializationUtils
-                .deserialize(segContainerHostMapping.getCurrentData().getData());
+        Map<Integer, Host> segContainerMap = getSegmentContainerHostMapping();
 
         checkAndInitialize(segContainerMap);
 
@@ -50,7 +48,7 @@ public class RandomContainerBalancer extends SegContainerHostMappingZK implement
                 .collect(Collectors.toList());
 
         //choose a random Host
-        segContToBeUpdated.stream().map(index -> segContainerMap.put(index, hostsPresent.get(index % hostsPresent.size())));
+        segContToBeUpdated.stream().forEach(index -> segContainerMap.put(index, hostsPresent.get(index % hostsPresent.size())));
         return segContainerMap;
     }
 

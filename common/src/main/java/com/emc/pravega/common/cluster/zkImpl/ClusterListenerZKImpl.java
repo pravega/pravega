@@ -67,10 +67,10 @@ public abstract class ClusterListenerZKImpl implements ClusterListener, AutoClos
         }
     };
 
-    public ClusterListenerZKImpl(final CuratorFramework client, final String clusterName, final NodeType nodeType) {
+    public ClusterListenerZKImpl(final CuratorFramework zkClient, final String clusterName, final NodeType nodeType) {
         this.clusterName = clusterName;
         this.nodeType = nodeType;
-        this.client = client;
+        this.client = zkClient;
         if (client.getState().equals(CuratorFrameworkState.LATENT))
             client.start();
 
