@@ -22,7 +22,6 @@ import com.emc.pravega.controller.task.TaskData;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -31,7 +30,6 @@ import org.apache.zookeeper.data.Stat;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Zookeeper based task store
@@ -39,14 +37,11 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 class ZKTaskMetadataStore implements TaskMetadataStore {
 
-    private static final long LOCK_WAIT_TIME = 1;
     private final CuratorFramework client;
 
     private final String hostRoot = "/hostIndex";
     private final String lockRoot = "/locks";
     private final String taskRoot = "/tasks";
-    private final String mutexLockRoot = "/mutexLocks";
-
     private final String hostId;
 
     public ZKTaskMetadataStore(StoreConfiguration config, String hostId) {
@@ -56,41 +51,44 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> lock(String resource, TaskData taskData, String oldHost) {
+    public CompletableFuture<Void> lock(String resource, TaskData taskData, String oldOwner) {
         boolean lockAcquired = false;
-        InterProcessMutex mutex = new InterProcessMutex(client, getMutexLockPath(resource));
         try {
-            boolean success = mutex.acquire(LOCK_WAIT_TIME, TimeUnit.SECONDS);
-            if (success) {
-                // test and set implementation
-                Stat stat = client.checkExists().forPath(getLockPath(resource));
-                if (oldHost == null || oldHost.isEmpty()) {
-                    // fresh lock
-                    if (stat == null || stat.getDataLength() == 0) {
-                        LockData lockData = new LockData(this.hostId, taskData.serialize());
-                        client.create()
-                                .creatingParentsIfNeeded()
-                                .withMode(CreateMode.PERSISTENT)
+            // test and set implementation
+
+            if (oldOwner == null || oldOwner.isEmpty()) {
+                try {
+                    // for fresh lock, create the node and write its data.
+                    // if the node successfully got created, locking has succeeded,
+                    // else locking has failed.
+                    LockData lockData = new LockData(this.hostId, taskData.serialize());
+                    client.create()
+                            .creatingParentsIfNeeded()
+                            .withMode(CreateMode.PERSISTENT)
+                            .forPath(getLockPath(resource), lockData.serialize());
+                    lockAcquired = true;
+                } catch (KeeperException.NodeExistsException e) {
+                    throw new LockFailedException(resource, e);
+                }
+            } else {
+                try {
+                    // read the existing data along with its version
+                    // update the data if version hasn't changed from the read value
+                    // if update is successful, lock has been obtained
+                    // else lock has failed
+                    Stat stat = new Stat();
+                    byte[] data = client.getData().storingStatIn(stat).forPath(getLockPath(resource));
+                    LockData lockData = LockData.deserialize(data);
+                    if (lockData.getHostId().equals(oldOwner)) {
+                        lockData = new LockData(this.hostId, lockData.getTaskData());
+
+                        client.setData().withVersion(stat.getVersion())
                                 .forPath(getLockPath(resource), lockData.serialize());
                         lockAcquired = true;
                     }
-                } else {
-                    // replace old host
-                    if (stat != null && stat.getDataLength() > 0) {
-                        byte[] data = client.getData().forPath(getLockPath(resource));
-                        LockData lockData = LockData.deserialize(data);
-                        if (lockData.getHostId().equals(oldHost)) {
-                            lockData = new LockData(this.hostId, lockData.getTaskData());
-                            client.create()
-                                    .creatingParentsIfNeeded()
-                                    .withMode(CreateMode.PERSISTENT)
-                                    .forPath(getLockPath(resource), lockData.serialize());
-                            lockAcquired = true;
-                        }
-                    }
+                } catch (KeeperException e) {
+                    throw new LockFailedException(resource, e);
                 }
-                // finally release lock
-                mutex.release();
             }
         } catch (Exception e) {
             log.error("Error locking resource.", e);
@@ -106,23 +104,21 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> unlock(String resource) {
-        InterProcessMutex mutex = new InterProcessMutex(client, getMutexLockPath(resource));
         try {
-            boolean success = mutex.acquire(LOCK_WAIT_TIME, TimeUnit.SECONDS);
-            if (success) {
                 // test and set implementation
-                byte[] data = client.getData().forPath(getLockPath(resource));
+            Stat stat = new Stat();
+                byte[] data = client.getData().storingStatIn(stat).forPath(getLockPath(resource));
                 if (data != null) {
                     LockData lockData = LockData.deserialize(data);
                     if (lockData.getHostId().equals(this.hostId)) {
-                        client.delete().forPath(getLockPath(resource));
+                        client.delete().withVersion(stat.getVersion()).forPath(getLockPath(resource));
                     }
                 }
-                // finally release lock
-                mutex.release();
-            }
+        } catch (KeeperException.NoNodeException  e) {
+            log.error("Lock not present.", e);
+            CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            log.error("Error locking resource.", e);
+            log.error("Error unlocking resource.", e);
             throw new UnlockFailedException(resource, e);
         }
         return CompletableFuture.completedFuture(null);
@@ -194,10 +190,6 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         }
     }
 
-    private String getMutexLockPath(String resource) {
-        return mutexLockRoot + "/" + resource;
-    }
-
     private String getLockPath(String resource) {
         return lockRoot + "/" + resource;
     }
@@ -213,27 +205,4 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     private String getHostPath(String hostId) {
         return hostRoot + "/" + hostId;
     }
-//    @Override
-//    public CompletableFuture<List<TaskData>> getOrphanedTasks() {
-//        List<TaskData> tasks = new ArrayList<>();
-//        try {
-//            List<String> children = client.getChildren().forPath(Paths.STREAM_TASK_ROOT);
-//            for (String streamName : children) {
-//                // find the task details for this stream's update operation
-//                byte[] data = client.getData().forPath(Paths.STREAM_TASK_ROOT + streamName);
-//                if (data != null && data.length > 0) {
-//                    // if no one is holding a lock, try to lock the task and execute it
-//                    List<String> locks = client.getChildren().forPath(Paths.STREAM_LOCKS_ROOT + streamName);
-//                    if (locks != null && locks.size() == 0) {
-//                        tasks.add(TaskData.deserialize(data));
-//                    }
-//                }
-//            }
-//            return CompletableFuture.completedFuture(tasks);
-//        } catch (Exception ex) {
-//            CompletableFuture<List<TaskData>> future = new CompletableFuture<>();
-//            future.completeExceptionally(ex);
-//            return future;
-//        }
-//    }
 }
