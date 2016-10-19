@@ -23,8 +23,18 @@ package com.emc.pravega.common.cluster;
  */
 public interface Cluster {
 
+    /**
+     * Register a Node to a cluster
+     * @param host
+     * @throws Exception
+     */
     public void registerNode(final Host host) throws Exception;
 
+    /**
+     * De-register a Node from a cluster
+     * @param host
+     * @throws Exception
+     */
     public void deregisterNode(final Host host) throws Exception;
 
 }
