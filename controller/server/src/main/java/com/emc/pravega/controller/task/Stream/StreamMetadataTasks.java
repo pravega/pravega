@@ -32,6 +32,7 @@ import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
@@ -46,10 +47,22 @@ import java.util.concurrent.CompletableFuture;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamMetadataTasks extends TaskBase {
+public class StreamMetadataTasks extends TaskBase implements Cloneable {
+
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private ConnectionFactoryImpl connectionFactory;
 
     public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
-        super(streamMetadataStore, hostControllerStore, taskMetadataStore);
+        super(taskMetadataStore);
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
+        connectionFactory = new ConnectionFactoryImpl(false);
+    }
+
+    @Override
+    public StreamMetadataTasks clone() throws CloneNotSupportedException {
+        return (StreamMetadataTasks) super.clone();
     }
 
     /**
@@ -65,8 +78,7 @@ public class StreamMetadataTasks extends TaskBase {
         return execute(
                 getResource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> createStreamBody(scope, stream, config),
-                null);
+                () -> createStreamBody(scope, stream, config));
     }
 
     /**
@@ -81,8 +93,7 @@ public class StreamMetadataTasks extends TaskBase {
         return execute(
                 getResource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> updateStreamConfigBody(scope, stream, config),
-                null);
+                () -> updateStreamConfigBody(scope, stream, config));
     }
 
     /**
@@ -96,12 +107,10 @@ public class StreamMetadataTasks extends TaskBase {
      */
     @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<List<Segment>> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        Serializable[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
         return execute(
                 getResource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
-                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp),
-                null);
+                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config) {

@@ -34,11 +34,22 @@ import java.util.concurrent.CompletableFuture;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamTransactionMetadataTasks extends TaskBase {
+public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
+
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
 
     public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
-        super(streamMetadataStore, hostControllerStore, taskMetadataStore);
+        super(taskMetadataStore);
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
     }
+
+    @Override
+    public StreamTransactionMetadataTasks clone() throws CloneNotSupportedException {
+        return (StreamTransactionMetadataTasks) super.clone();
+    }
+
 
     /**
      * Create transaction.

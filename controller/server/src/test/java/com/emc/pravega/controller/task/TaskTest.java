@@ -80,7 +80,7 @@ public class TaskTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
+        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config, "host");
     }
 
     @Before
@@ -137,7 +137,7 @@ public class TaskTest {
 
     @Test(expected = CompletionException.class)
     public void testLocking() {
-        TestTasks testTasks = new TestTasks(streamStore, hostStore, taskMetadataStore);
+        TestTasks testTasks = new TestTasks(taskMetadataStore);
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
         LockingTask second = new LockingTask(testTasks, SCOPE, stream1);

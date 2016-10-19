@@ -17,31 +17,26 @@
  */
 package com.emc.pravega.controller.store.task;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import org.apache.commons.lang.NotImplementedException;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.apache.commons.lang3.SerializationUtils;
+
+import java.io.Serializable;
 
 /**
- * Task store factory
+ * Lock row
  */
-public class TaskStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
+@Data
+@EqualsAndHashCode
+public class LockData implements Serializable {
+    private final String hostId;
+    private final byte[] taskData;
+
+    public byte[] serialize() {
+        return SerializationUtils.serialize(this);
     }
 
-    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config, String hostId) {
-        switch (type) {
-            case Zookeeper:
-                return new ZKTaskMetadataStore(config, hostId);
-            case InMemory:
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    public static LockData deserialize(byte[] bytes) {
+        return (LockData) SerializationUtils.deserialize(bytes);
     }
 }

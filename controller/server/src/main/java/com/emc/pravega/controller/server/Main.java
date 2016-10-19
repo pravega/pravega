@@ -44,9 +44,12 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Entry point of controller server.
@@ -62,6 +65,14 @@ public class Main {
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
         hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
+        String hostId;
+        try {
+            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
+        } catch (UnknownHostException e) {
+            log.debug("Failed to get host address.", e);
+            hostId = UUID.randomUUID().toString();
+        }
+
         //1) LOAD configuration.
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
@@ -73,7 +84,8 @@ public class Main {
         log.info("Creating zk based task store");
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(
                 TaskStoreFactory.StoreType.valueOf(TASK_STORE_TYPE),
-                new StoreConfiguration(TASK_STORE_CONNECTION_STRING));
+                new StoreConfiguration(TASK_STORE_CONNECTION_STRING),
+                hostId);
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");

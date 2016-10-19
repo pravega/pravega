@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.task;
 
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.controller.task.TaskData;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -27,11 +28,8 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -43,31 +41,22 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     private static final long LOCK_WAIT_TIME = 1;
     private final CuratorFramework client;
-    private final String hostId;
 
     private final String hostRoot = "/hostIndex";
     private final String lockRoot = "/locks";
     private final String taskRoot = "/tasks";
     private final String mutexLockRoot = "/mutexLocks";
 
-    private final String hostName;
+    private final String hostId;
 
-    public ZKTaskMetadataStore(StoreConfiguration config) {
+    public ZKTaskMetadataStore(StoreConfiguration config, String hostId) {
         this.client = CuratorFrameworkFactory.newClient(config.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
         this.client.start();
-        this.hostId = Long.toString(System.currentTimeMillis());
-        String host;
-        try {
-            host = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
-        } catch (UnknownHostException e) {
-            log.debug("Failed to get host address.", e);
-            host = UUID.randomUUID().toString();
-        }
-        hostName = host;
+        this.hostId = hostId;
     }
 
     @Override
-    public CompletableFuture<Void> lock(String resource, String oldHost) {
+    public CompletableFuture<Void> lock(String resource, TaskData taskData, String oldHost) {
         boolean lockAcquired = false;
         InterProcessMutex mutex = new InterProcessMutex(client, getMutexLockPath(resource));
         try {
@@ -78,21 +67,24 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                 if (oldHost == null || oldHost.isEmpty()) {
                     // fresh lock
                     if (stat == null || stat.getDataLength() == 0) {
+                        LockData lockData = new LockData(this.hostId, taskData.serialize());
                         client.create()
                                 .creatingParentsIfNeeded()
                                 .withMode(CreateMode.PERSISTENT)
-                                .forPath(getLockPath(resource), this.hostName.getBytes());
+                                .forPath(getLockPath(resource), lockData.serialize());
                         lockAcquired = true;
                     }
                 } else {
                     // replace old host
                     if (stat != null && stat.getDataLength() > 0) {
                         byte[] data = client.getData().forPath(getLockPath(resource));
-                        if (Arrays.equals(oldHost.getBytes(), data)) {
+                        LockData lockData = LockData.deserialize(data);
+                        if (lockData.getHostId().equals(oldHost)) {
+                            lockData = new LockData(this.hostId, lockData.getTaskData());
                             client.create()
                                     .creatingParentsIfNeeded()
                                     .withMode(CreateMode.PERSISTENT)
-                                    .forPath(getLockPath(resource), this.hostName.getBytes());
+                                    .forPath(getLockPath(resource), lockData.serialize());
                             lockAcquired = true;
                         }
                     }
@@ -120,8 +112,11 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             if (success) {
                 // test and set implementation
                 byte[] data = client.getData().forPath(getLockPath(resource));
-                if (data != null && Arrays.equals(data, hostName.getBytes())) {
-                    client.delete().forPath(getLockPath(resource));
+                if (data != null) {
+                    LockData lockData = LockData.deserialize(data);
+                    if (lockData.getHostId().equals(this.hostId)) {
+                        client.delete().forPath(getLockPath(resource));
+                    }
                 }
                 // finally release lock
                 mutex.release();
@@ -131,29 +126,6 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             throw new UnlockFailedException(resource, e);
         }
         return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
-    public CompletableFuture<Void> put(String resource, byte[] taskData) {
-        try {
-            client.create()
-                    .creatingParentsIfNeeded()
-                    .withMode(CreateMode.PERSISTENT)
-                    .forPath(getResourcePath(resource), taskData);
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
-    @Override
-    public CompletableFuture<Void> remove(String resource) {
-        try {
-            client.delete().forPath(getResourcePath(resource));
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
@@ -183,13 +155,26 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> removeChild(String resource) {
-        return removeChild(this.hostId, resource);
+        try {
+            client.delete().forPath(getHostPath(this.hostId, resource));
+            return CompletableFuture.completedFuture(null);
+        } catch (KeeperException.NoNodeException e) {
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public CompletableFuture<Void> removeChild(String failedHostId, String resource) {
         try {
             client.delete().forPath(getHostPath(failedHostId, resource));
+
+            // if there are no children for the failed host, remove failed host znode
+            List<String> children = client.getChildren().forPath(getHostPath(failedHostId));
+            if (children == null || children.isEmpty()) {
+                client.delete().forPath(getHostPath(failedHostId));
+            }
             return CompletableFuture.completedFuture(null);
         } catch (KeeperException.NoNodeException e) {
             return CompletableFuture.completedFuture(null);
@@ -202,6 +187,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     public CompletableFuture<List<String>> getChildren(String hostId) {
         try {
             return CompletableFuture.completedFuture(client.getChildren().forPath(getHostPath(hostId)));
+        } catch (KeeperException.NoNodeException e) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

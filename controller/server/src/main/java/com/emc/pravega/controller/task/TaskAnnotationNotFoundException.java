@@ -20,7 +20,7 @@ package com.emc.pravega.controller.task;
 /**
  * Task Annotation missing exception
  */
-public class TaskAnnotationMissingException extends RuntimeException {
+public class TaskAnnotationNotFoundException extends RuntimeException {
     /**
      *
      */
@@ -28,19 +28,19 @@ public class TaskAnnotationMissingException extends RuntimeException {
     private static final String FORMAT_STRING = "Task annotation missing for method %s.";
 
     /**
-     * Creates a new instance of TaskAnnotationMissingException class
+     * Creates a new instance of TaskAnnotationNotFoundException class
      * @param method method name
      */
-    public TaskAnnotationMissingException(String method) {
+    public TaskAnnotationNotFoundException(String method) {
         super(String.format(FORMAT_STRING, method));
     }
 
     /**
-     * Creates a new instance of TaskAnnotationMissingException class
+     * Creates a new instance of TaskAnnotationNotFoundException class
      * @param method method name
      * @param cause   error cause
      */
-    public TaskAnnotationMissingException(String method, Throwable cause) {
+    public TaskAnnotationNotFoundException(String method, Throwable cause) {
         super(String.format(FORMAT_STRING, method), cause);
     }
 }

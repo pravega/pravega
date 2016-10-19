@@ -17,8 +17,6 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
@@ -29,10 +27,15 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Set of tasks for test purposes.
  */
-public class TestTasks extends TaskBase {
+public class TestTasks extends TaskBase implements Cloneable {
 
-    public TestTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
-        super(streamMetadataStore, hostControllerStore, taskMetadataStore);
+    public TestTasks(TaskMetadataStore taskMetadataStore) {
+        super(taskMetadataStore);
+    }
+
+    @Override
+    public TestTasks clone() throws CloneNotSupportedException {
+        return (TestTasks) super.clone();
     }
 
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
@@ -48,8 +51,7 @@ public class TestTasks extends TaskBase {
                         throw new RuntimeException(e);
                     }
                     return  CompletableFuture.completedFuture(null);
-                },
-                null);
+                });
     }
 
     private String getResource(String scope, String stream) {

@@ -17,6 +17,8 @@
  */
 package com.emc.pravega.controller.store.task;
 
+import com.emc.pravega.controller.task.TaskData;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -31,7 +33,7 @@ public interface TaskMetadataStore {
      * @param oldHost host that had previously locked the resource.
      * @return void if the operation succeeds, otherwise throws LockFailedException.
      */
-    CompletableFuture<Void> lock(String resource, String oldHost);
+    CompletableFuture<Void> lock(String resource, TaskData taskData, String oldHost);
 
     /**
      * Unlocks a resource after performing update.
@@ -39,21 +41,6 @@ public interface TaskMetadataStore {
      * @return void in future.
      */
     CompletableFuture<Void> unlock(String resource);
-
-    /**
-     * Updates the task store metadata by adding details of the update operation to be performed on the resource.
-     * @param resource resource identifier.
-     * @param taskData task data.
-     * @return void in future.
-     */
-    CompletableFuture<Void> put(String resource, byte[] taskData);
-
-    /**
-     * Updates the task store metadata by removing the details of the update operation to be performed on the resource.
-     * @param resource resource identifier.
-     * @return void in future.
-     */
-    CompletableFuture<Void> remove(String resource);
 
     /**
      * Fetch data associated with the resource.
@@ -83,6 +70,7 @@ public interface TaskMetadataStore {
      * @return void in future.
      */
     CompletableFuture<Void> removeChild(String failedHostId, String resource);
+
     /**
      * Returns all children of a given hostId node.
      * @param hostId host id.
