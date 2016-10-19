@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
 import lombok.val;
 
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 /**
  * Wrapper Storage that accepts Segment Length change listeners.
@@ -80,13 +82,15 @@ class VerificationStorage implements Storage {
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         CompletableFuture<Void> result = this.baseStorage.write(streamSegmentName, offset, data, length, timeout);
-        result.thenRun(() -> triggerListeners(streamSegmentName, offset + length));
+        result.thenRun(() -> triggerListeners(streamSegmentName, offset + length, false));
         return result;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        return null;
+        CompletableFuture<SegmentProperties> result = this.baseStorage.seal(streamSegmentName, timeout);
+        result.thenAccept(sp -> triggerListeners(streamSegmentName, sp.getLength(), sp.isSealed()));
+        return result;
     }
 
     @Override
@@ -94,7 +98,7 @@ class VerificationStorage implements Storage {
         unregisterAllListeners(sourceStreamSegmentName);
         CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
         result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout))
-              .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength()));
+              .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
         return result;
     }
 
@@ -121,7 +125,15 @@ class VerificationStorage implements Storage {
 
     //endregion
 
+    //region Listener Registration
+
+    /**
+     * Registers the given SegmentUpdateListener.
+     *
+     * @param listener The listener to register.
+     */
     void registerListener(SegmentUpdateListener listener) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         synchronized (this.listenerLock) {
             HashMap<Integer, SegmentUpdateListener> segmentListeners = this.updateListeners.getOrDefault(listener.segmentName, null);
             if (segmentListeners == null) {
@@ -135,7 +147,13 @@ class VerificationStorage implements Storage {
         }
     }
 
-    private void triggerListeners(String segmentName, long length) {
+    /**
+     * Triggers all registered SegmentUpdateListeners for the given segment.
+     *
+     * @param segmentName The name of the Segment to trigger for.
+     * @param length      The current length of the Segment.
+     */
+    private void triggerListeners(String segmentName, long length, boolean sealed) {
         ArrayList<SegmentUpdateListener> listeners = null;
         synchronized (this.listenerLock) {
             val segmentListeners = this.updateListeners.getOrDefault(segmentName, null);
@@ -145,10 +163,15 @@ class VerificationStorage implements Storage {
         }
 
         if (listeners != null) {
-            listeners.forEach(l -> CallbackHelpers.invokeSafely(l.callback, length, null));
+            listeners.forEach(l -> CallbackHelpers.invokeSafely(l.callback, length, sealed, null));
         }
     }
 
+    /**
+     * Unregisters the given SegmentUpdateListener.
+     *
+     * @param listener The listener to unregister.
+     */
     private void unregisterListener(SegmentUpdateListener listener) {
         synchronized (this.listenerLock) {
             val segmentListeners = this.updateListeners.getOrDefault(listener.segmentName, null);
@@ -161,6 +184,11 @@ class VerificationStorage implements Storage {
         }
     }
 
+    /**
+     * Unregisters all listeners for the given Segment.
+     *
+     * @param segmentName The name of the Segment to unregister listeners for.
+     */
     private void unregisterAllListeners(String segmentName) {
         synchronized (this.listenerLock) {
             val segmentListeners = this.updateListeners.remove(segmentName);
@@ -171,6 +199,9 @@ class VerificationStorage implements Storage {
         }
     }
 
+    /**
+     * Unregisters all listeners for all segments.
+     */
     private void unregisterAllListeners() {
         synchronized (this.listenerLock) {
             ArrayList<String> segmentNames = new ArrayList<>(this.updateListeners.keySet());
@@ -178,15 +209,17 @@ class VerificationStorage implements Storage {
         }
     }
 
+    //endregion
+
     //region SegmentUpdateListener
 
     static class SegmentUpdateListener implements AutoCloseable {
         private final String segmentName;
-        private final java.util.function.Consumer<Long> callback;
+        private final BiConsumer<Long, Boolean> callback;
         private int registrationId;
         private java.util.function.Consumer<SegmentUpdateListener> unregisterCallback;
 
-        SegmentUpdateListener(String segmentName, java.util.function.Consumer<Long> callback) {
+        SegmentUpdateListener(String segmentName, BiConsumer<Long, Boolean> callback) {
             Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
             Preconditions.checkNotNull(callback, "callback");
 
@@ -208,6 +241,34 @@ class VerificationStorage implements Storage {
             Preconditions.checkState(this.unregisterCallback == null, "This SegmentUpdateListener is already registered.");
             this.registrationId = id;
             this.unregisterCallback = unregisterCallback;
+        }
+    }
+
+    //endregion
+
+    //region Factory
+
+    static class Factory implements StorageFactory {
+        private final AtomicBoolean closed;
+        private final VerificationStorage storage;
+
+        Factory(Storage baseStorage) {
+            this.storage = new VerificationStorage(baseStorage);
+            this.closed = new AtomicBoolean();
+        }
+
+        @Override
+        public Storage getStorageAdapter() {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            return this.storage;
+        }
+
+        @Override
+        public void close() {
+            if (!this.closed.get()) {
+                this.storage.close();
+                this.closed.set(true);
+            }
         }
     }
 

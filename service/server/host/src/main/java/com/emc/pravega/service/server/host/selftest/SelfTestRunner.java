@@ -121,7 +121,7 @@ public class SelfTestRunner {
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
-                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 30)
+                           .with(TestConfig.PROPERTY_TRANSACTION_FREQUENCY, 300)
                            .with(TestConfig.PROPERTY_THREAD_POOL_SIZE, 50)
                            .with(TestConfig.PROPERTY_TIMEOUT_MILLIS, 3000)));
     }

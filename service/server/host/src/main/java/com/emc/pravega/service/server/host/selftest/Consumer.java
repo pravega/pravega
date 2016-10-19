@@ -110,6 +110,67 @@ public class Consumer extends Actor {
     @Override
     protected CompletableFuture<Void> run() {
         this.canContinue.set(true);
+        CompletableFuture<Void> storeReadProcessor = processStoreReads();
+        CompletableFuture<Void> storageReadProcessor = processStorageReads();
+        return CompletableFuture.allOf(storeReadProcessor, storageReadProcessor);
+    }
+
+    @Override
+    protected String getLogId() {
+        return this.logId;
+    }
+
+    //endregion
+
+    private boolean canRun() {
+        return isRunning() && this.canContinue.get();
+    }
+
+    private void validationFailed(ValidationResult validationResult) {
+        // Log the event.
+        TestLogger.log(this.logId, "VALIDATION FAILED: Segment = %s, %s", this.segmentName, validationResult);
+
+        // Then stop the consumer. No point in moving on if we detected a validation failure.
+        fail(new ValidationException(this.segmentName, validationResult));
+    }
+
+    //region Storage Reads
+
+    private CompletableFuture<Void> processStorageReads() {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        // Register an update listener with the storage.
+        val listener = new VerificationStorage.SegmentUpdateListener(
+                this.segmentName,
+                (length, sealed) -> storageSegmentChangedHandler(length, sealed, result));
+        this.store.getStorageAdapter().registerListener(listener);
+
+        // Make sure the listener is closed (and thus unregistered) when we are done, whether successfully or not.
+        result.whenComplete((r, ex) -> listener.close());
+        return result;
+    }
+
+    private void storageSegmentChangedHandler(long length, boolean sealed, CompletableFuture<Void> processingFuture) {
+        TestLogger.log("VERIFY_STORAGE_READ", "Segment=%s, Length=%s, Sealed=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, CR_VO=%s",
+                this.segmentName,
+                length,
+                sealed,
+                this.readBufferSegmentOffset,
+                this.readBuffer.getLength(),
+                this.tailReadValidatedOffset,
+                this.catchupReadValidatedOffset);
+
+        // TODO: finish up here. Read from storage, then verify against buffer, then truncate buffer and truncate storage (update catchup reads too).
+        if (sealed) {
+            processingFuture.complete(null);
+        }
+    }
+
+    //endregion
+
+    //region Store Reads
+
+    private CompletableFuture<Void> processStoreReads() {
         val entryHandler = new ReadResultEntryHandler(this.config, this::processTailRead, this::canRun, this::fail);
         return FutureHelpers.loop(
                 this::canRun,
@@ -150,25 +211,6 @@ public class Consumer extends Actor {
                 this.executorService);
     }
 
-    @Override
-    protected String getLogId() {
-        return this.logId;
-    }
-
-    //endregion
-
-    private boolean canRun() {
-        return isRunning() && this.canContinue.get();
-    }
-
-    private void validationFailed(ValidationResult validationResult) {
-        // Log the event.
-        TestLogger.log(this.logId, "VALIDATION FAILED: Segment = %s, %s", this.segmentName, validationResult);
-
-        // Then stop the consumer. No point in moving on if we detected a validation failure.
-        fail(new ValidationException(this.segmentName, validationResult));
-    }
-
     private void processTailRead(InputStream data, long segmentOffset, int length) {
         synchronized (this.lock) {
             // Verify that append data blocks are contiguous.
@@ -180,18 +222,14 @@ public class Consumer extends Actor {
 
             // Append data to buffer.
             this.readBuffer.append(data, length);
-//            TestLogger.log("PROCESS_READ", "Segment=%s, Offset=%s, Length=%s, RB_L=%s.",
-//                    this.segmentName,
-//                    segmentOffset,
-//                    length,
-//                    this.readBuffer.getLength());
+            //            TestLogger.log("PROCESS_READ", "Segment=%s, Offset=%s, Length=%s, RB_L=%s.",
+            //                    this.segmentName,
+            //                    segmentOffset,
+            //                    length,
+            //                    this.readBuffer.getLength());
         }
 
         // Trigger validation (this doesn't necessarily mean validation will happen, though).
-        triggerValidation();
-    }
-
-    private void triggerValidation() {
         triggerTailReadValidation();
         triggerCatchupReadValidation();
     }
@@ -210,11 +248,11 @@ public class Consumer extends Actor {
                     // Successful validation; advance the tail-read validated offset.
                     this.tailReadValidatedOffset += validationResult.getLength();
 
-//                    TestLogger.log("VERIFY_TAIL_READ", "Segment=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, R=%s", this.segmentName,
-//                            this.readBufferSegmentOffset,
-//                            this.readBuffer.getLength(),
-//                            this.tailReadValidatedOffset,
-//                            validationResult);
+                    //                    TestLogger.log("VERIFY_TAIL_READ", "Segment=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, R=%s", this.segmentName,
+                    //                            this.readBufferSegmentOffset,
+                    //                            this.readBuffer.getLength(),
+                    //                            this.tailReadValidatedOffset,
+                    //                            validationResult);
                 } else if (validationResult.isFailed()) {
                     // Validation failed. Invoke callback.
                     validationFailed(validationResult);
@@ -265,14 +303,14 @@ public class Consumer extends Actor {
                           this.readBufferSegmentOffset = this.catchupReadValidatedOffset;
                       }
 
-//                      TestLogger.log("VERIFY_CATCHUP_READ", "Segment=%s, Offset=%s, Length=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, CR_VO=%s",
-//                              this.segmentName,
-//                              segmentStartOffset,
-//                              length,
-//                              this.readBufferSegmentOffset,
-//                              this.readBuffer.getLength(),
-//                              this.tailReadValidatedOffset,
-//                              this.catchupReadValidatedOffset);
+                      //                      TestLogger.log("VERIFY_CATCHUP_READ", "Segment=%s, Offset=%s, Length=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, CR_VO=%s",
+                      //                              this.segmentName,
+                      //                              segmentStartOffset,
+                      //                              length,
+                      //                              this.readBufferSegmentOffset,
+                      //                              this.readBuffer.getLength(),
+                      //                              this.tailReadValidatedOffset,
+                      //                              this.catchupReadValidatedOffset);
                   }, this.executorService);
     }
 
@@ -332,6 +370,8 @@ public class Consumer extends Actor {
         result.setSource(SOURCE_CATCHUP_READ);
         return result;
     }
+
+    //endregion
 
     //region ReadResultEntryHandler
 

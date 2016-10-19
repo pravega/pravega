@@ -25,12 +25,14 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -45,6 +47,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
+    private final AtomicReference<VerificationStorage> storage;
     private StreamSegmentStore streamSegmentStore;
 
     //endregion
@@ -59,7 +62,14 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     StreamSegmentStoreAdapter(ServiceBuilderConfig builderConfig) {
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
-        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(builderConfig);
+        this.storage = new AtomicReference<>();
+        this.serviceBuilder = ServiceBuilder
+                .newInMemoryBuilder(builderConfig)
+                .withStorageFactory(setup -> {
+                    VerificationStorage.Factory factory = new VerificationStorage.Factory(new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
+                    this.storage.set((VerificationStorage) factory.getStorageAdapter());
+                    return factory;
+                });
     }
 
     //endregion
@@ -137,6 +147,11 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         ensureInitializedAndNotClosed();
         return this.streamSegmentStore.deleteStreamSegment(streamSegmentName, timeout);
+    }
+
+    @Override
+    public VerificationStorage getStorageAdapter() {
+        return this.storage.get();
     }
 
     //endregion

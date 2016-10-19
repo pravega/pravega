@@ -48,6 +48,8 @@ interface StoreAdapter extends AutoCloseable {
 
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
 
+    VerificationStorage getStorageAdapter();
+
     @Override
     void close();
 }
