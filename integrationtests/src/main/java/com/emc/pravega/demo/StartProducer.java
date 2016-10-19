@@ -1,11 +1,11 @@
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
+ * or more contributor license agreements. See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
@@ -17,37 +17,42 @@
  */
 package com.emc.pravega.demo;
 
-import java.net.URI;
-
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
-import com.emc.pravega.stream.impl.StreamManagerImpl;
+import com.emc.pravega.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 
 public class StartProducer {
 
     public static void main(String[] args) throws Exception {
-        String endpoint = "localhost";
-        int port = 9090;
-        String scope = "Scope1";
-        String streamName = "Stream1";
-        String testString = "Hello world: ";
-        URI controllerUri = new URI(endpoint + ":" + port);
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
+                "localhost",
+                StartLocalService.PORT);
+        Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 
         @Cleanup
-        StreamManagerImpl streamManager = new StreamManagerImpl(scope, controllerUri);
-        Stream stream = streamManager.createStream(streamName, null);
-        // TODO: remove sleep. It ensures pravega host handles createsegment call from controller before we publish.
-        Thread.sleep(1000);
-
-//        @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        for (int i = 0; i < 10000; i++) {
-            producer.publish(null, testString + i + "\n");
+        Transaction<String> transaction = producer.startTransaction(60000);
+        for (int i = 0; i < 10; i++) {
+            String event = "\n Transactional Publish \n";
+            System.err.println("Producing event: " + event);
+            transaction.publish("", event);
+            transaction.flush();
+            Thread.sleep(500);
         }
-        producer.flush();
+        for (int i = 0; i < 10; i++) {
+            String event = "\n Non-transactional Publish \n";
+            System.err.println("Producing event: " + event);
+            producer.publish("", event);
+            producer.flush();
+            Thread.sleep(500);
+        }
+        transaction.commit();
+        System.exit(0);
     }
 }
