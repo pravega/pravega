@@ -117,6 +117,17 @@ public class ByteArraySegment implements ArrayView {
         return this.length;
     }
 
+    @Override
+    public InputStream getReader() {
+        return new ByteArrayInputStream(this.array, this.startOffset, this.length);
+    }
+
+    @Override
+    public InputStream getReader(int offset, int length) {
+        Exceptions.checkArrayRange(offset, length, this.length, "offset", "length");
+        return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
+    }
+
     //endregion
 
     //region Operations
@@ -186,29 +197,6 @@ public class ByteArraySegment implements ArrayView {
      */
     public int readFrom(InputStream stream) throws IOException {
         return StreamHelpers.readAll(stream, this.array, this.startOffset, this.length);
-    }
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ByteArraySegment. The InputStream returned
-     * is a ByteArrayInputStream that spans the entire ByteArraySegment.
-     *
-     * @return The InputStream.
-     */
-    public InputStream getReader() {
-        return new ByteArrayInputStream(this.array, this.startOffset, this.length);
-    }
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ByteArraySegment. The InputStream returned
-     * is a ByteArrayInputStream that spans the given section of the ByteArraySegment.
-     *
-     * @param offset The starting offset of the section to read.
-     * @param length The length of the section to read.
-     * @return The InputStream.
-     */
-    public InputStream getReader(int offset, int length) {
-        Exceptions.checkArrayRange(offset, length, this.length, "offset", "length");
-        return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
     }
 
     /**

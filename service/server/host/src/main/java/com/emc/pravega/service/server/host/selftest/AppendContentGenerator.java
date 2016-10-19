@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
-import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.util.ArrayView;
 import com.emc.pravega.common.util.BitConverter;
 import com.google.common.base.Preconditions;
@@ -159,106 +158,4 @@ class AppendContentGenerator {
 
     //endregion
 
-    //region ValidationResult
-
-    /**
-     * Represents the result of a validation process.
-     */
-    static class ValidationResult {
-        //region Members
-
-        private boolean moreDataNeeded;
-        private int length;
-        private String failureMessage;
-
-        //endregion
-
-        //region Constructor
-
-        private ValidationResult() {
-            this.moreDataNeeded = false;
-            this.length = HEADER_LENGTH;
-            this.failureMessage = null;
-        }
-
-        /**
-         * Creates a new ValidationResult for a failed verification.
-         */
-        private static ValidationResult failed(String message) {
-            Exceptions.checkNotNullOrEmpty(message, "message");
-            ValidationResult result = new ValidationResult();
-            result.failureMessage = message;
-            return result;
-        }
-
-        /**
-         * Creates a new ValidationResult for an inconclusive verification, when more data is needed to determine correctness.
-         */
-        private static ValidationResult moreDataNeeded() {
-            ValidationResult result = new ValidationResult();
-            result.moreDataNeeded = true;
-            return result;
-        }
-
-        /**
-         * Creates a new ValidationResult for a successful test.
-         */
-        private static ValidationResult success(int length) {
-            ValidationResult result = new ValidationResult();
-            result.length = HEADER_LENGTH + length;
-            return result;
-        }
-
-        //endregion
-
-        /**
-         * Gets a value indicating whether more data is needed in order to make a proper determination.
-         * If this is true, it does not mean that the test failed.
-         */
-        boolean isMoreDataNeeded() {
-            return this.moreDataNeeded;
-        }
-
-        /**
-         * Gets a value indicating whether the verification failed.
-         */
-        boolean isFailed() {
-            return this.failureMessage != null;
-        }
-
-        /**
-         * Gets a value indicating whether the verification succeeded.
-         */
-        boolean isSuccess() {
-            return !isFailed() && !isMoreDataNeeded();
-        }
-
-        /**
-         * Gets a value indicating the failure message. This is undefined if isFailed() == false.
-         */
-        String getFailureMessage() {
-            return this.failureMessage;
-        }
-
-        /**
-         * Gets a value indicating the length of the validated append. This value is undefined if isSuccess() == false.
-         */
-        int getLength() {
-            Preconditions.checkState(isSuccess(), "Can only request length if a successful validation result.");
-            return this.length;
-        }
-
-        @Override
-        public String toString() {
-            if (isFailed()) {
-                return String.format("Failed (%s)", this.failureMessage);
-            } else if (isMoreDataNeeded()) {
-                return "More data needed";
-            } else {
-                return String.format("Success (Length = %d)", this.length);
-            }
-        }
-    }
-
-    //endregion
 }

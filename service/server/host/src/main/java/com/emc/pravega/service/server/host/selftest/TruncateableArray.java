@@ -21,10 +21,14 @@ package com.emc.pravega.service.server.host.selftest;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.ArrayView;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 /**
@@ -66,6 +70,7 @@ class TruncateableArray implements ArrayView {
                 // This is the array we are looking for; use 'index' to look up into it.
                 return array[index];
             }
+
             index -= array.length;
         }
 
@@ -85,6 +90,42 @@ class TruncateableArray implements ArrayView {
     @Override
     public int getLength() {
         return this.length;
+    }
+
+    @Override
+    public InputStream getReader() {
+        return getReader(0, this.length);
+    }
+
+    @Override
+    public InputStream getReader(int offset, int length) {
+        ArrayList<ByteArrayInputStream> streams = new ArrayList<>();
+
+        // Adjust the index based on the first entry offset.
+        offset += this.offset;
+
+        // Find the array which contains the starting offset.
+        for (byte[] array : this.arrays) {
+            if (offset >= array.length) {
+                // Not interested in this array
+                offset -= array.length;
+                continue;
+            }
+
+            // Figure out how much of this array we need to extract.
+            int arrayLength = Math.min(length, array.length - offset);
+            streams.add(new ByteArrayInputStream(array, offset, arrayLength));
+            offset = 0;
+
+            // Reduce the requested length by the amount of data we copied.
+            length -= arrayLength;
+            if (length <= 0) {
+                // We've reached the end.
+                break;
+            }
+        }
+
+        return new SequenceInputStream(Iterators.asEnumeration(streams.iterator()));
     }
 
     //endregion

@@ -26,19 +26,15 @@ import lombok.Getter;
 class ValidationException extends Exception {
     @Getter
     private final String segmentName;
-    @Getter
-    private final long offset;
 
     /**
      * Creates a new instance of the ValidationException class.
      *
      * @param segmentName      The name of the Segment that failed validation.
-     * @param offset           The offset within a Segemnt that failed validation.
      * @param validationResult The ValidationResult that triggered this.
      */
-    ValidationException(String segmentName, long offset, AppendContentGenerator.ValidationResult validationResult) {
-        super(String.format("Segment = %s, Offset = %s, Reason = %s", segmentName, offset, validationResult.getFailureMessage()));
+    ValidationException(String segmentName, ValidationResult validationResult) {
+        super(String.format("Segment = %s, Offset = %s, Reason = %s", segmentName, validationResult.getSegmentOffset(), validationResult.getFailureMessage()));
         this.segmentName = segmentName;
-        this.offset = offset;
     }
 }

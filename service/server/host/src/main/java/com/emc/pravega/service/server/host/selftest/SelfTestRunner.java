@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.host.selftest;
 
 import ch.qos.logback.classic.LoggerContext;
+import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import lombok.Cleanup;
@@ -31,48 +32,61 @@ import java.util.concurrent.TimeUnit;
  */
 public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
-        //test();
-                // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
-                LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-                //context.getLoggerList().get(0).setLevel(Level.TRACE);
-                context.reset();
+       // test();
+        // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        //context.getLoggerList().get(0).setLevel(Level.TRACE);
+        context.reset();
 
-                TestConfig testConfig = getTestConfig();
-                ServiceBuilderConfig builderConfig = getBuilderConfig();
+        TestConfig testConfig = getTestConfig();
+        ServiceBuilderConfig builderConfig = getBuilderConfig();
 
-                // Create a new SelfTest.
-                @Cleanup
-                SelfTest test = new SelfTest(testConfig, builderConfig);
+        // Create a new SelfTest.
+        @Cleanup
+        SelfTest test = new SelfTest(testConfig, builderConfig);
 
-                // Star the test.
-                test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        // Star the test.
+        test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
 
-                // Wait for the test to finish.
-                test.awaitFinished().join();
+        // Wait for the test to finish.
+        test.awaitFinished().join();
 
-                // Make sure the test is stopped.
-                test.stopAsync().awaitTerminated();
+        // Make sure the test is stopped.
+        test.stopAsync().awaitTerminated();
     }
 
-    private static void test() {
-//        TruncateableArray ca = new TruncateableArray();
-//        for (int i = 0; i < 100; i += 5) {
-//            byte[] data = new byte[5];
-//            data[0] = (byte) i;
-//            data[1] = (byte) (i + 1);
-//            data[2] = (byte) (i + 2);
-//            data[3] = (byte) (i + 3);
-//            data[4] = (byte) (i + 4);
-//            ca.append(new ByteArrayInputStream(data), data.length);
-//        }
-//
-//        for(int i=0;i<13;i++){
-//            ca.truncate(1);
-//        }
-//
-//        for (int i = 0; i < ca.getLength(); i++) {
-//            System.out.println(i + ": " + ca.get(i));
-//        }
+    private static void test() throws Exception {
+        TruncateableArray ca = new TruncateableArray();
+        for (int i = 0; i < 10; i++) {
+            byte[] data = ("data_" + i).getBytes();
+            ca.append(data);
+        }
+        for (int i = 0; i < ca.getLength() / 2; i++) {
+            ca.truncate(1);
+            int length = ca.getLength() - 2 * i;
+            byte[] data = new byte[length];
+            StreamHelpers.readAll(ca.getReader(i, length), data, 0, length);
+            System.out.println(String.format("%d: %s", i, new String(data)));
+        }
+
+        //        TruncateableArray ca = new TruncateableArray();
+        //        for (int i = 0; i < 100; i += 5) {
+        //            byte[] data = new byte[5];
+        //            data[0] = (byte) i;
+        //            data[1] = (byte) (i + 1);
+        //            data[2] = (byte) (i + 2);
+        //            data[3] = (byte) (i + 3);
+        //            data[4] = (byte) (i + 4);
+        //            ca.append(new ByteArrayInputStream(data), data.length);
+        //        }
+        //
+        //        for(int i=0;i<13;i++){
+        //            ca.truncate(1);
+        //        }
+        //
+        //        for (int i = 0; i < ca.getLength(); i++) {
+        //            System.out.println(i + ": " + ca.get(i));
+        //        }
         //
         //        CircularArray a = new CircularArray(20 * 1024 * 1024);
         //        AppendContentGenerator acg = new AppendContentGenerator(12345);
@@ -101,9 +115,9 @@ public class SelfTestRunner {
     private static TestConfig getTestConfig() {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 100)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 20)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 100000)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)
