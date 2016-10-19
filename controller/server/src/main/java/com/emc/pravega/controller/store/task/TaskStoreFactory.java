@@ -15,32 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.task;
+package com.emc.pravega.controller.store.task;
+
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.commons.lang.NotImplementedException;
 
 /**
- * Lock failed exception
+ * Task store factory
  */
-public class LockFailedException extends RuntimeException {
-    /**
-     *
-     */
-    private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Failed locking stream %s.";
-
-    /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
-     */
-    public LockFailedException(String name) {
-        super(String.format(FORMAT_STRING, name));
+public class TaskStoreFactory {
+    public enum StoreType {
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3,
+        HDFS
     }
 
-    /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
-     * @param cause   error cause
-     */
-    public LockFailedException(String name, Throwable cause) {
-        super(String.format(FORMAT_STRING, name), cause);
+    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config) {
+        switch (type) {
+            case Zookeeper:
+                return new ZKTaskMetadataStore(config);
+            case InMemory:
+            case ECS:
+            case S3:
+            case HDFS:
+            default:
+                throw new NotImplementedException();
+        }
     }
 }

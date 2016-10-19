@@ -15,32 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.task;
+package com.emc.pravega.controller.store.task;
 
 /**
- * ZK write to a path failed
+ * Unlock failed exception.
  */
-public class TaskDataWriteFailedException extends RuntimeException {
+public class UnlockFailedException extends RuntimeException {
     /**
      *
      */
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Failed locking stream %s.";
+    private static final String FORMAT_STRING = "Failed unlocking resource %s.";
 
     /**
-     * Creates a new instance of TaskDataWriteFailedException class.
-     * @param name path of failed write operation.
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
      */
-    public TaskDataWriteFailedException(String name) {
+    public UnlockFailedException(String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
     /**
-     * Creates a new instance of TaskDataWriteFailedException class.
-     * @param name path of failed write operation.
-     * @param cause   error cause.
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     * @param cause   error cause
      */
-    public TaskDataWriteFailedException(String name, Throwable cause) {
+    public UnlockFailedException(String name, Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

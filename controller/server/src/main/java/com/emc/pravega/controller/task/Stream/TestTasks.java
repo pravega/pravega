@@ -19,10 +19,9 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.task.Paths;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
@@ -32,15 +31,14 @@ import java.util.concurrent.CompletableFuture;
  */
 public class TestTasks extends TaskBase {
 
-    public TestTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, client);
+    public TestTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
+        super(streamMetadataStore, hostControllerStore, taskMetadataStore);
     }
 
-    @Task(name = "test", version = "1.0")
+    @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<Void> testStreamLock(String scope, String stream) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream},
                 () -> {
                     try {
@@ -50,7 +48,11 @@ public class TestTasks extends TaskBase {
                         throw new RuntimeException(e);
                     }
                     return  CompletableFuture.completedFuture(null);
-                });
+                },
+                null);
     }
 
+    private String getResource(String scope, String stream) {
+        return scope + "/" + stream;
+    }
 }

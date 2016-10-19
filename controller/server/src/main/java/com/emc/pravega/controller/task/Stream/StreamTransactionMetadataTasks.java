@@ -22,8 +22,8 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import org.apache.commons.lang.NotImplementedException;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -36,8 +36,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public class StreamTransactionMetadataTasks extends TaskBase {
 
-    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, client);
+    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
+        super(streamMetadataStore, hostControllerStore, taskMetadataStore);
     }
 
     /**
@@ -46,7 +46,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param stream stream name.
      * @return transaction id.
      */
-    @Task(name = "createTransaction", version = "1.0")
+    @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<String> createTx(String scope, String stream) {
         throw new NotImplementedException();
     }
@@ -58,7 +58,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param txId transaction id.
      * @return true/false.
      */
-    @Task(name = "dropTransaction", version = "1.0")
+    @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<Boolean> dropTx(String scope, String stream, String txId) {
         throw new NotImplementedException();
     }
@@ -70,7 +70,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
      * @param txId transaction id.
      * @return true/false.
      */
-    @Task(name = "commitTransaction", version = "1.0")
+    @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<Boolean> commitTx(String scope, String stream, String txId) {
         throw new NotImplementedException();
     }

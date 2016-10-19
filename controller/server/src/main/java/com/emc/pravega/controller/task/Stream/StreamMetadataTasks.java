@@ -27,12 +27,11 @@ import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
-import com.emc.pravega.controller.task.Paths;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
@@ -49,8 +48,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public class StreamMetadataTasks extends TaskBase {
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, client);
+    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
+        super(streamMetadataStore, hostControllerStore, taskMetadataStore);
     }
 
     /**
@@ -61,13 +60,13 @@ public class StreamMetadataTasks extends TaskBase {
      * @param createTimestamp creation timestamp.
      * @return creation status.
      */
-    @Task(name = "createStream", version = "1.0")
+    @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> createStreamBody(scope, stream, config));
+                () -> createStreamBody(scope, stream, config),
+                null);
     }
 
     /**
@@ -77,13 +76,13 @@ public class StreamMetadataTasks extends TaskBase {
      * @param config modified stream configuration.
      * @return update status.
      */
-    @Task(name = "updateConfig", version = "1.0")
+    @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> updateStreamConfigBody(scope, stream, config));
+                () -> updateStreamConfigBody(scope, stream, config),
+                null);
     }
 
     /**
@@ -95,14 +94,14 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scaleTimestamp scaling time stamp.
      * @return returns the newly created segments.
      */
-    @Task(name = "scaleStream", version = "1.0")
+    @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<List<Segment>> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         Serializable[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
-                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
+                () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp),
+                null);
     }
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config) {
@@ -173,6 +172,10 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 }
         );
+    }
+
+    private String getResource(String scope, String stream) {
+        return scope + "/" + stream;
     }
 
     private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {

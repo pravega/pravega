@@ -95,11 +95,11 @@ public class SegmentHelper {
                 .throwingOn(RuntimeException.class)
                 .run(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-                    return FutureHelpers.getAndHandleExceptions(
+                    return FutureHelpers.<Boolean, SealingFailedException>getAndHandleExceptions(
                             SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), clientCF),
                             SealingFailedException::new);
                 });
-        return null;
+        return true;
     }
 
     public static CompletableFuture<Boolean> sealSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
