@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.host;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 
 import java.util.Collections;

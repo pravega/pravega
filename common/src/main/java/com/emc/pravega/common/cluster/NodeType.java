@@ -15,13 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.cluster;
 
-package com.emc.pravega.controller.store.host;
-
-import com.emc.pravega.common.cluster.Host;
-
-public class HostNotFoundException extends HostControllerException {
-    public HostNotFoundException(Host host) {
-        super(String.format("Host %s not found.", host.getIpAddr()));
-    }
+/**
+ * List the various types of Nodes in our system.
+ */
+public enum NodeType {
+    DATA,
+    CONTROLLER,
+    OTHER
 }

@@ -15,13 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.cluster;
 
-package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.common.cluster.Host;
+/**
+ * Cluster interface enables you to register / de-register a node to a cluster
+ */
+public interface Cluster {
 
-public class HostNotFoundException extends HostControllerException {
-    public HostNotFoundException(Host host) {
-        super(String.format("Host %s not found.", host.getIpAddr()));
-    }
+    public void registerNode(final Host host) throws Exception;
+
+    public void deregisterNode(final Host host) throws Exception;
+
 }
+
+
+
