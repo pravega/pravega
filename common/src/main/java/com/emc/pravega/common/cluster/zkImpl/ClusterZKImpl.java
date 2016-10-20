@@ -18,23 +18,29 @@
 package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.NodeType;
+import com.emc.pravega.common.cluster.HostType;
 import com.emc.pravega.common.util.CollectionHelpers;
-import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
+import org.apache.curator.framework.recipes.cache.ChildData;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.framework.recipes.nodes.PersistentNode;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Zookeeper based implementation of Cluster
@@ -44,50 +50,41 @@ import java.util.Map;
  * System property "curator-default-session-timeout" can be used to change it.
  */
 @Slf4j
-public class ClusterZKImpl implements Cluster, AutoCloseable {
+public class ClusterZKImpl implements Cluster {
 
     private final static String PATH_CLUSTER = "/cluster/";
     private final static int INIT_SIZE = 3;
 
     private final CuratorFramework client;
     private final String clusterName;
-    private final NodeType nodeType;
+    private final HostType hostType;
 
     private Map<String, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
+    private Optional<PathChildrenCache> cache = Optional.empty();
 
-    public ClusterZKImpl(CuratorFramework zkClient, String clusterName, NodeType nodeType) {
+    public ClusterZKImpl(CuratorFramework zkClient, String clusterName, HostType hostType) {
         this.clusterName = clusterName;
-        this.nodeType = nodeType;
+        this.hostType = hostType;
         this.client = zkClient;
         if (client.getState().equals(CuratorFrameworkState.LATENT))
             client.start();
     }
 
     @Override
-    public void registerNode(Host host) throws Exception {
+    public void registerHost(Host host) throws Exception {
 
-        String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, nodeType.name());
+        String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, hostType.name());
         createPathIfExists(basePath);
-        String nodePath = ZKPaths.makePath(basePath, host.getIpAddr());
+        String hostPath = ZKPaths.makePath(basePath, host.getIpAddr());
 
-        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, nodePath, SerializationUtils.serialize(host));
+        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath, SerializationUtils.serialize(host));
 
         node.start(); //start creation of ephemeral node in background.
         entryMap.put(host.getIpAddr(), node);
     }
 
-    private void createPathIfExists(String basePath) throws Exception {
-        try {
-            if (client.checkExists().forPath(basePath) == null) {
-                client.create().creatingParentsIfNeeded().forPath(basePath);
-            }
-        } catch (KeeperException.NodeExistsException e) {
-            log.debug("Path exists {} , ignoring exception", basePath, e);
-        }
-    }
-
     @Override
-    public void deregisterNode(Host host) throws Exception {
+    public void deregisterHost(Host host) throws Exception {
         PersistentNode node = entryMap.get(host.getIpAddr());
         try {
             if (node == null) {
@@ -99,13 +96,78 @@ public class ClusterZKImpl implements Cluster, AutoCloseable {
         }
     }
 
-    @VisibleForTesting
-    public Map<String, PersistentNode> getEntries() {
-        return Collections.unmodifiableMap(entryMap);
+    /**
+     * Add Listeners
+     *
+     * @param hostAdded
+     * @param hostRemoved
+     */
+    @Override
+    public void addListener(ClusterListener hostAdded, ClusterListener hostRemoved) throws Exception {
+        if (cache.isPresent()) {
+            throw new UnsupportedOperationException("Listeners are already registered");
+        } else {
+            cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, hostType.name()), true));
+            cache.get().getListenable().addListener(pathChildrenCacheListener(hostAdded, hostRemoved));
+            cache.get().start(PathChildrenCache.StartMode.POST_INITIALIZED_EVENT);
+        }
+    }
+
+    private final PathChildrenCacheListener pathChildrenCacheListener(ClusterListener hostAdded, ClusterListener hostRemoved) {
+        return (client, event) -> {
+            log.debug("Event {} generated on cluster:{}", event, clusterName);
+            switch (event.getType()) {
+                case CHILD_ADDED:
+                    log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
+                    hostAdded.onEvent((Host) SerializationUtils.deserialize(event.getData().getData()));
+                    break;
+                case CHILD_REMOVED:
+                    log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
+                    hostRemoved.onEvent((Host) SerializationUtils.deserialize(event.getData().getData()));
+                    break;
+                case CHILD_UPDATED:
+                    log.error("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
+                    break;
+            }
+        };
+    }
+
+    /**
+     * Get the current cluster members.
+     *
+     * @return List<Host>
+     */
+    @Override
+    public List<Host> getClusterMembers() {
+        if (cache.isPresent()) {
+            List<ChildData> data = cache.get().getCurrentData();
+            return data.stream()
+                    .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
+                    .collect(Collectors.toList());
+        } else {
+            throw new UnsupportedOperationException("Cache is not present, addListeners to get the current member list ");
+        }
     }
 
     @Override
     public void close() throws Exception {
         CollectionHelpers.forEach(entryMap.values(), PersistentNode::close);
+        if (cache.isPresent())
+            cache.get().close();
+    }
+
+    private String getServerName(final PathChildrenCacheEvent event) {
+        String path = event.getData().getPath();
+        return path.substring(path.lastIndexOf("/") + 1);
+    }
+
+    private void createPathIfExists(String basePath) throws Exception {
+        try {
+            if (client.checkExists().forPath(basePath) == null) {
+                client.create().creatingParentsIfNeeded().forPath(basePath);
+            }
+        } catch (KeeperException.NodeExistsException e) {
+            log.debug("Path exists {} , ignoring exception", basePath, e);
+        }
     }
 }

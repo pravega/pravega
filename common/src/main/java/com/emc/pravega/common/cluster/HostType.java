@@ -18,9 +18,9 @@
 package com.emc.pravega.common.cluster;
 
 /**
- * List the various types of Nodes in our system.
+ * List the various types of Hosts in our system.
  */
-public enum NodeType {
+public enum HostType {
     DATA,
     CONTROLLER,
     OTHER
