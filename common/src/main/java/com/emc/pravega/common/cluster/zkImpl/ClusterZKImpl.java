@@ -113,7 +113,7 @@ public class ClusterZKImpl implements Cluster {
         }
     }
 
-    private final PathChildrenCacheListener pathChildrenCacheListener(ClusterListener hostAdded, ClusterListener hostRemoved) {
+    private PathChildrenCacheListener pathChildrenCacheListener(ClusterListener hostAdded, ClusterListener hostRemoved) {
         return (client, event) -> {
             log.debug("Event {} generated on cluster:{}", event, clusterName);
             switch (event.getType()) {
