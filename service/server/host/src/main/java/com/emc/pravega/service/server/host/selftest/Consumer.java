@@ -384,18 +384,22 @@ public class Consumer extends Actor {
 
         this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
                   .thenAcceptAsync(readResult -> {
-                      ValidationResult validationResult = validateCatchupRead(readResult, expectedData, segmentStartOffset, length);
-                      if (!validationResult.isSuccess()) {
-                          validationFailed(validationResult);
-                          return;
-                      }
+                      try {
+                          ValidationResult validationResult = validateCatchupRead(readResult, expectedData, segmentStartOffset, length);
+                          if (!validationResult.isSuccess()) {
+                              validationFailed(validationResult);
+                              return;
+                          }
 
-                      // Validation is successful, update current state.
-                      synchronized (this.lock) {
-                          this.catchupReadValidatedOffset = segmentStartOffset + length;
-                      }
+                          // Validation is successful, update current state.
+                          synchronized (this.lock) {
+                              this.catchupReadValidatedOffset = segmentStartOffset + length;
+                          }
 
-                      logState(SOURCE_CATCHUP_READ, null);
+                          logState(SOURCE_CATCHUP_READ, null);
+                      } finally {
+                          readResult.close();
+                      }
                   }, this.executorService);
     }
 
