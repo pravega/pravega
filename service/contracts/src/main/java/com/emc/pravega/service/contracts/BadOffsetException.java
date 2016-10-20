@@ -16,14 +16,14 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.storage;
+package com.emc.pravega.service.contracts;
 
 /**
  * Exception that is thrown whenever a Write failed due to a bad offset.
  */
-public class BadOffsetException extends WriteFailureException {
+public class BadOffsetException extends StreamingException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 

@@ -43,6 +43,25 @@ public interface StreamSegmentStore {
     CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
 
     /**
+     * Appends a range of bytes at the end of a StreamSegment, but only if the current length of the StreamSegment equals
+     * a certain value. The byte range will be appended as a contiguous block. This method guarantees ordering (among
+     * subsequent calls).
+     *
+     * @param streamSegmentName The name of the StreamSegment to add to.
+     * @param offset            The offset at which to append. If the current length of the StreamSegment does not equal
+     *                          this value, the operation will fail with a BadOffsetException.
+     * @param data              The data to add.
+     * @param appendContext     Append context for this append.
+     * @param timeout           Timeout for the operation
+     * @return A CompletableFuture that, when completed normally, will contain the offset within the StreamSegment where
+     * the add was added. If the operation failed, it will contain the exception that caused the failure.
+     * @throws NullPointerException     If any of the arguments are null.
+     * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
+     *                                  does not exist - that exception will be set in the returned CompletableFuture).
+     */
+    CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout);
+
+    /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
      * read data.
      *

@@ -25,7 +25,7 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 

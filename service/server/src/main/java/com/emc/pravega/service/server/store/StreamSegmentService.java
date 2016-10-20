@@ -82,6 +82,14 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+        long traceId = LoggerHelpers.traceEnter(log, "appendWithOffset", streamSegmentName, offset, data.length, appendContext, timeout);
+        return withCompletion(
+                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, offset, data, appendContext, timeout)),
+                r -> traceLeave(log, "appendWithOffset", traceId, r));
+    }
+
+    @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "read", streamSegmentName, offset, maxLength, timeout);
         return withCompletion(
