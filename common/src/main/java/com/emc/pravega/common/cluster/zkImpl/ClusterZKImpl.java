@@ -120,35 +120,12 @@ public class ClusterZKImpl implements Cluster {
      * @throws Exception
      */
     @Override
+    @Synchronized
     public void addListener(ClusterListener listener) throws Exception {
         if (!cache.isPresent()) {
             initializeCache();
         }
         cache.get().getListenable().addListener(pathChildrenCacheListener(listener));
-    }
-
-    private void initializeCache() throws Exception {
-        cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS), true));
-        cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
-    }
-
-    private PathChildrenCacheListener pathChildrenCacheListener(final ClusterListener listener) {
-        return (client, event) -> {
-            log.debug("Event {} generated on cluster:{}", event, clusterName);
-            switch (event.getType()) {
-                case CHILD_ADDED:
-                    log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
-                    listener.onEvent(HOST_ADDED, (Host) SerializationUtils.deserialize(event.getData().getData()));
-                    break;
-                case CHILD_REMOVED:
-                    log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
-                    listener.onEvent(HOST_REMOVED, (Host) SerializationUtils.deserialize(event.getData().getData()));
-                    break;
-                case CHILD_UPDATED:
-                    log.warn("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
-                    break;
-            }
-        };
     }
 
     /**
@@ -157,6 +134,7 @@ public class ClusterZKImpl implements Cluster {
      * @return List<Host> list of cluster members
      */
     @Override
+    @Synchronized
     public List<Host> getClusterMembers() throws Exception {
         if (!cache.isPresent()) {
             initializeCache();
@@ -181,6 +159,30 @@ public class ClusterZKImpl implements Cluster {
         } catch (IOException e) {
             log.error("Error while closing resource", e);
         }
+    }
+
+    private void initializeCache() throws Exception {
+        cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS), true));
+        cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+    }
+
+    private PathChildrenCacheListener pathChildrenCacheListener(final ClusterListener listener) {
+        return (client, event) -> {
+            log.debug("Event {} generated on cluster:{}", event, clusterName);
+            switch (event.getType()) {
+                case CHILD_ADDED:
+                    log.info("Node {} added to cluster:{}", getServerName(event), clusterName);
+                    listener.onEvent(HOST_ADDED, (Host) SerializationUtils.deserialize(event.getData().getData()));
+                    break;
+                case CHILD_REMOVED:
+                    log.info("Node {} removed from cluster:{}", getServerName(event), clusterName);
+                    listener.onEvent(HOST_REMOVED, (Host) SerializationUtils.deserialize(event.getData().getData()));
+                    break;
+                case CHILD_UPDATED:
+                    log.warn("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
+                    break;
+            }
+        };
     }
 
     private String getServerName(final PathChildrenCacheEvent event) {
