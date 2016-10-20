@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.host.selftest;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.io.StreamHelpers;
 import com.emc.pravega.common.util.PropertyBag;
@@ -35,7 +36,7 @@ public class SelfTestRunner {
        // test();
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        //context.getLoggerList().get(0).setLevel(Level.TRACE);
+        context.getLoggerList().get(0).setLevel(Level.TRACE);
         context.reset();
 
         TestConfig testConfig = getTestConfig();
@@ -115,9 +116,9 @@ public class SelfTestRunner {
     private static TestConfig getTestConfig() {
         return new TestConfig(TestConfig.convert(TestConfig.COMPONENT_CODE,
                 PropertyBag.create()
-                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 1)
-                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 1)
-                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 1000)
+                           .with(TestConfig.PROPERTY_SEGMENT_COUNT, 10)
+                           .with(TestConfig.PROPERTY_PRODUCER_COUNT, 10)
+                           .with(TestConfig.PROPERTY_OPERATION_COUNT, 100000)
                            .with(TestConfig.PROPERTY_MIN_APPEND_SIZE, 100)
                            .with(TestConfig.PROPERTY_MAX_APPEND_SIZE, 1024)
                            .with(TestConfig.PROPERTY_MAX_TRANSACTION_SIZE, 20)

@@ -22,6 +22,7 @@ import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.MissingPropertyException;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import lombok.Getter;
 
 import java.time.Duration;
 import java.util.Map;
@@ -43,6 +44,7 @@ class TestConfig extends ComponentConfig {
     static final String PROPERTY_MAX_APPEND_SIZE = "maxAppendSize";
     static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     static final String PROPERTY_TIMEOUT_MILLIS = "timeoutMillis";
+    static final String PROPERTY_VERBOSE_LOGGING = "verboseLogging";
 
     private static final int DEFAULT_OPERATION_COUNT = 1000 * 1000;
     private static final int DEFAULT_SEGMENT_COUNT = 100;
@@ -53,16 +55,28 @@ class TestConfig extends ComponentConfig {
     private static final int DEFAULT_MAX_APPEND_SIZE = 100;
     private static final int DEFAULT_THREAD_POOL_SIZE = 100;
     private static final int DEFAULT_TIMEOUT_MILLIS = 10 * 1000;
+    private static final boolean DEFAULT_VERBOSE_LOGGING = false;
 
+    @Getter
     private int operationCount;
+    @Getter
     private int segmentCount;
+    @Getter
     private int transactionFrequency;
+    @Getter
     private int maxTransactionAppendCount;
+    @Getter
     private int producerCount;
+    @Getter
     private int minAppendSize;
+    @Getter
     private int maxAppendSize;
+    @Getter
     private int threadPoolSize;
+    @Getter
     private Duration timeout;
+    @Getter
+    private boolean verboseLoggingEnabled;
 
     //endregion
 
@@ -96,46 +110,7 @@ class TestConfig extends ComponentConfig {
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE, DEFAULT_THREAD_POOL_SIZE);
         int timeoutMillis = getInt32Property(PROPERTY_TIMEOUT_MILLIS, DEFAULT_TIMEOUT_MILLIS);
         this.timeout = Duration.ofMillis(timeoutMillis);
-    }
-
-    //endregion
-
-    //region Properties
-
-    public int getOperationCount() {
-        return this.operationCount;
-    }
-
-    public int getSegmentCount() {
-        return this.segmentCount;
-    }
-
-    public int getTransactionFrequency() {
-        return this.transactionFrequency;
-    }
-
-    public int getMaxTransactionAppendCount() {
-        return this.maxTransactionAppendCount;
-    }
-
-    public int getProducerCount() {
-        return this.producerCount;
-    }
-
-    public int getMinAppendSize() {
-        return this.minAppendSize;
-    }
-
-    public int getMaxAppendSize() {
-        return this.maxAppendSize;
-    }
-
-    public int getThreadPoolSize() {
-        return this.threadPoolSize;
-    }
-
-    public Duration getTimeout() {
-        return this.timeout;
+        this.verboseLoggingEnabled = getBooleanProperty(PROPERTY_VERBOSE_LOGGING, DEFAULT_VERBOSE_LOGGING);
     }
 
     //endregion

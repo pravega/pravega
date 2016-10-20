@@ -77,6 +77,12 @@ public class Consumer extends Actor {
      * This value will always be at an append boundary.
      */
     private long catchupReadValidatedOffset;
+
+    /**
+     * The offset in the Segment up to which we performed Storage read validation.
+     * This value will always be at an append boundary.
+     */
+    private long storageReadValidatedOffset;
     private final Object lock = new Object();
 
     //endregion
@@ -134,6 +140,36 @@ public class Consumer extends Actor {
         fail(new ValidationException(this.segmentName, validationResult));
     }
 
+    private void truncateBuffer() {
+        synchronized (this.lock) {
+            // Make sure we don't truncate anything we haven't verified. Usually Storage Reads fall behind Catchup Reads,
+            // but that's not necessarily the case all the time.
+            long validatedOffset = Math.min(this.storageReadValidatedOffset, this.catchupReadValidatedOffset);
+            int truncationLength = (int) (validatedOffset - this.readBufferSegmentOffset);
+            if (truncationLength > 0) {
+                this.readBuffer.truncate(truncationLength);
+                this.readBufferSegmentOffset = validatedOffset;
+            }
+        }
+    }
+
+    private void logState(String stepName, String additionalMessage, Object... additionalMessageFormatArgs) {
+        if (this.config.isVerboseLoggingEnabled()) {
+            if (additionalMessage != null && additionalMessageFormatArgs != null && additionalMessageFormatArgs.length > 0) {
+                additionalMessage = String.format(additionalMessage, additionalMessageFormatArgs);
+            }
+
+            TestLogger.log(stepName, "Segment=%s, ReadBuffer=%s (+%s), TailRead=%s, CatchupRead=%s, StorageRead=%s, %s.",
+                    this.segmentName,
+                    this.readBufferSegmentOffset,
+                    this.readBuffer.getLength(),
+                    this.tailReadValidatedOffset,
+                    this.catchupReadValidatedOffset,
+                    this.storageReadValidatedOffset,
+                    additionalMessage);
+        }
+    }
+
     //region Storage Reads
 
     private CompletableFuture<Void> processStorageReads() {
@@ -142,28 +178,98 @@ public class Consumer extends Actor {
         // Register an update listener with the storage.
         val listener = new VerificationStorage.SegmentUpdateListener(
                 this.segmentName,
-                (length, sealed) -> storageSegmentChangedHandler(length, sealed, result));
+                (length, sealed) -> {
+                    try {
+                        storageSegmentChangedHandler(length, sealed, result);
+                    } catch (Throwable ex) {
+                        result.completeExceptionally(ex); // Make sure we catch exceptions; otherwise this will be stuck in a loop forever.
+                    }
+                });
         this.store.getStorageAdapter().registerListener(listener);
 
         // Make sure the listener is closed (and thus unregistered) when we are done, whether successfully or not.
-        result.whenComplete((r, ex) -> listener.close());
+        result.whenComplete((r, ex) -> {
+            listener.close();
+            if (ex != null) {
+                fail(ExceptionHelpers.getRealException(ex));
+            }
+        });
+
         return result;
     }
 
-    private void storageSegmentChangedHandler(long length, boolean sealed, CompletableFuture<Void> processingFuture) {
-        TestLogger.log("VERIFY_STORAGE_READ", "Segment=%s, Length=%s, Sealed=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, CR_VO=%s",
-                this.segmentName,
-                length,
-                sealed,
-                this.readBufferSegmentOffset,
-                this.readBuffer.getLength(),
-                this.tailReadValidatedOffset,
-                this.catchupReadValidatedOffset);
-
-        // TODO: finish up here. Read from storage, then verify against buffer, then truncate buffer and truncate storage (update catchup reads too).
+    private void storageSegmentChangedHandler(long segmentLength, boolean sealed, CompletableFuture<Void> processingFuture) {
         if (sealed) {
+            // We reached the end of the Segment (this callback is the result of a Seal operation), so no point in listening further.
+            logState(SOURCE_STORAGE_READ, "StorageLength=%s, Sealed=True", segmentLength);
             processingFuture.complete(null);
+            return;
         }
+
+        long segmentStartOffset;
+        int length;
+        InputStream expectedData;
+        synchronized (this.lock) {
+            // Start from where we left off (no point in re-checking old data).
+            segmentStartOffset = Math.max(this.storageReadValidatedOffset, this.readBufferSegmentOffset);
+
+            // bufferOffset is where in the buffer we start validating at.
+            int bufferOffset = (int) (segmentStartOffset - this.readBufferSegmentOffset);
+
+            // Calculate the amount of data we want to read. Stop either at the segment length or where the tail read validator stopped.
+            length = (int) (Math.min(segmentLength, this.tailReadValidatedOffset) - segmentStartOffset);
+
+            if (length <= 0) {
+                // Nothing to do (yet).
+                return;
+            }
+
+            expectedData = this.readBuffer.getReader(bufferOffset, length);
+        }
+
+        // Execute a Storage Read, then validate that the read data matches what was in there.
+        byte[] storageReadBuffer = new byte[length];
+        this.store.getStorageAdapter()
+                  .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
+                  .thenAccept(l -> {
+                      ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
+                      validationResult.setSource(SOURCE_STORAGE_READ);
+                      if (!validationResult.isSuccess()) {
+                          validationFailed(validationResult);
+                          return;
+                      }
+
+                      // After a successful validation, update the state and truncate the buffer.
+                      synchronized (this.lock) {
+                          this.storageReadValidatedOffset = segmentLength;
+                          truncateBuffer();
+                      }
+
+                      logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
+                  })
+                  .whenComplete((r, ex) -> {
+                      if (ex != null) {
+                          processingFuture.completeExceptionally(ex);
+                      }
+                  });
+    }
+
+    private ValidationResult validateStorageRead(InputStream expectedData, byte[] storageReadBuffer, long segmentOffset) {
+        try {
+            for (int i = 0; i < storageReadBuffer.length; i++) {
+                byte expected = (byte) expectedData.read();
+                if (expected != storageReadBuffer[i]) {
+                    // This also includes the case when one stream ends prematurely.
+                    val result = ValidationResult.failed(String.format("Corrupted data at Segment offset %s. Expected '%s', found '%s'.", segmentOffset + i, expected, storageReadBuffer[i]));
+                    result.setSegmentOffset(segmentOffset + i);
+                    return result;
+                }
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+
+        return ValidationResult.success(storageReadBuffer.length);
     }
 
     //endregion
@@ -222,11 +328,7 @@ public class Consumer extends Actor {
 
             // Append data to buffer.
             this.readBuffer.append(data, length);
-            //            TestLogger.log("PROCESS_READ", "Segment=%s, Offset=%s, Length=%s, RB_L=%s.",
-            //                    this.segmentName,
-            //                    segmentOffset,
-            //                    length,
-            //                    this.readBuffer.getLength());
+            logState("PROCESS_READ", "Offset=%s, Length=%s", segmentOffset, length);
         }
 
         // Trigger validation (this doesn't necessarily mean validation will happen, though).
@@ -247,12 +349,7 @@ public class Consumer extends Actor {
                 if (validationResult.isSuccess()) {
                     // Successful validation; advance the tail-read validated offset.
                     this.tailReadValidatedOffset += validationResult.getLength();
-
-                    //                    TestLogger.log("VERIFY_TAIL_READ", "Segment=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, R=%s", this.segmentName,
-                    //                            this.readBufferSegmentOffset,
-                    //                            this.readBuffer.getLength(),
-                    //                            this.tailReadValidatedOffset,
-                    //                            validationResult);
+                    logState(SOURCE_TAIL_READ, null);
                 } else if (validationResult.isFailed()) {
                     // Validation failed. Invoke callback.
                     validationFailed(validationResult);
@@ -279,7 +376,6 @@ public class Consumer extends Actor {
             length = (int) (this.tailReadValidatedOffset - segmentStartOffset);
             if (length <= 0) {
                 // Nothing to validate.
-                System.out.println(length);
                 return;
             }
 
@@ -297,20 +393,9 @@ public class Consumer extends Actor {
                       // Validation is successful, update current state.
                       synchronized (this.lock) {
                           this.catchupReadValidatedOffset = segmentStartOffset + length;
-
-                          int truncationLength = (int) (this.catchupReadValidatedOffset - this.readBufferSegmentOffset);
-                          this.readBuffer.truncate(truncationLength);
-                          this.readBufferSegmentOffset = this.catchupReadValidatedOffset;
                       }
 
-                      //                      TestLogger.log("VERIFY_CATCHUP_READ", "Segment=%s, Offset=%s, Length=%s, RB_SO=%s, RB_L=%s, TR_VO=%s, CR_VO=%s",
-                      //                              this.segmentName,
-                      //                              segmentStartOffset,
-                      //                              length,
-                      //                              this.readBufferSegmentOffset,
-                      //                              this.readBuffer.getLength(),
-                      //                              this.tailReadValidatedOffset,
-                      //                              this.catchupReadValidatedOffset);
+                      logState(SOURCE_CATCHUP_READ, null);
                   }, this.executorService);
     }
 
