@@ -43,16 +43,19 @@ public class TaskBase implements Cloneable {
 
     @Data
     public static class Context {
-        private final String oldHost;
+        private final String hostId;
+        private final String oldHostId;
         private final List<String> oldResourceTag;
 
-        public Context() {
-            this.oldHost = null;
+        public Context(String hostId) {
+            this.hostId = hostId;
+            this.oldHostId = null;
             this.oldResourceTag = null;
         }
 
-        public Context(String oldHost, List<String> oldResourceTag) {
-            this.oldHost = oldHost;
+        public Context(String hostId, String oldHost, List<String> oldResourceTag) {
+            this.hostId = hostId;
+            this.oldHostId = oldHost;
             this.oldResourceTag = oldResourceTag;
         }
     }
@@ -73,9 +76,9 @@ public class TaskBase implements Cloneable {
 
     private final TaskMetadataStore taskMetadataStore;
 
-    public TaskBase(TaskMetadataStore taskMetadataStore) {
+    public TaskBase(TaskMetadataStore taskMetadataStore, String hostId) {
         this.taskMetadataStore = taskMetadataStore;
-        context = new Context();
+        context = new Context(hostId);
     }
 
     @Override
@@ -85,6 +88,10 @@ public class TaskBase implements Cloneable {
 
     public void setContext(Context context) {
         this.context = context;
+    }
+
+    public Context getContext() {
+        return this.context;
     }
 
     /**
@@ -101,31 +108,52 @@ public class TaskBase implements Cloneable {
         TaskData taskData = getTaskData(parameters);
         final String resourceTag = TaggedResource.getTaggedResource(resource);
 
-        return taskMetadataStore.putChild(resourceTag)
-                .whenComplete((result, e) -> {
-                    if (e == null || !(e instanceof  LockFailedException)) {
-                        // safe to delete resourceTags from oldHost, if available
-                        if (this.context.oldHost != null && !this.context.oldHost.isEmpty()) {
-                            this.context.getOldResourceTag()
-                                    .stream()
-                                    .forEach(tag -> taskMetadataStore.removeChild(this.context.getOldHost(), tag));
-                        }
-                    }
-                })
-                .thenCompose(x -> executeTask(resource, taskData, operation))
-                .whenComplete((result, e) -> taskMetadataStore.removeChild(resourceTag));
+        return
+                // PutChild (HostId, resource)
+                // Initially store the fact that I am about the update the resource.
+                // Since multiple threads within this process could concurrently attempt to modify same resource,
+                // we tag the resource name with a random GUID so as not to interfere with other thread's
+                // creation or deletion of resource children under HostId node.
+                taskMetadataStore.putChild(context.hostId, resourceTag)
+                        // After storing that fact, lock the resource, execute task and unlock the resource
+                        .thenCompose(x -> executeTask(resource, taskData, operation))
+                        // finally delete the resource child created under the controller's HostId
+                        .whenComplete((result, e) -> taskMetadataStore.removeChild(context.hostId, resourceTag, false));
     }
 
     private <T> CompletableFuture<T> executeTask(String resource, TaskData taskData, FutureOperation<T> operation) {
         final CompletableFuture<T> returnFuture = new CompletableFuture<>();
 
-        taskMetadataStore.lock(resource, taskData, context.getOldHost())
+        taskMetadataStore
+                .lock(resource, taskData, context.hostId, context.oldHostId)
+
+                // On acquiring lock, the following invariants hold
+                // Invariant 1. No other thread within any controller process is running an update task on the resource
+                // Invariant 2. We have denoted the fact that current controller's HostId is updating the resource. This
+                // fact can be used in case current controller instance crashes.
+                // Invariant 3. Any other controller that had created resource child under its HostId, can now be safely
+                // deleted, since that information redundant and is not useful during that HostId's fail over.
+                .whenComplete((result, e) -> {
+                    // Once I acquire the lock, the old HostId that held lock on this resource.
+                    if (e == null || !(e instanceof LockFailedException)) {
+                        // safe to delete resourceTags from oldHost, if available
+                        if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
+                            context.getOldResourceTag()
+                                    .stream()
+                                    .forEach(tag -> taskMetadataStore.removeChild(context.oldHostId, tag, true));
+                        }
+                    }
+                })
+
+                // Exclusively execute the update task on the resource
                 .thenCompose(y -> operation.apply())
+
+                // If lock had been obtained, unlock it before completing the task.
                 .whenComplete((T value, Throwable e) -> {
                     if (e != null && e instanceof LockFailedException) {
                         returnFuture.completeExceptionally(e);
                     } else {
-                        taskMetadataStore.unlock(resource)
+                        taskMetadataStore.unlock(resource, context.hostId)
                                 .thenApply(x -> {
                                     if (e != null) {
                                         returnFuture.completeExceptionally(e);

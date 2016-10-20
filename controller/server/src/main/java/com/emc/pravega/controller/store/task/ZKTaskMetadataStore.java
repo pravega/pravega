@@ -40,18 +40,15 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     private final CuratorFramework client;
 
     private final String hostRoot = "/hostIndex";
-    private final String lockRoot = "/locks";
-    private final String taskRoot = "/tasks";
-    private final String hostId;
+    private final String taskRoot = "/taskIndex";
 
-    public ZKTaskMetadataStore(StoreConfiguration config, String hostId) {
+    public ZKTaskMetadataStore(StoreConfiguration config) {
         this.client = CuratorFrameworkFactory.newClient(config.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
         this.client.start();
-        this.hostId = hostId;
     }
 
     @Override
-    public CompletableFuture<Void> lock(String resource, TaskData taskData, String oldOwner) {
+    public CompletableFuture<Void> lock(String resource, TaskData taskData, String owner, String oldOwner) {
         boolean lockAcquired = false;
         try {
             // test and set implementation
@@ -61,11 +58,11 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     // for fresh lock, create the node and write its data.
                     // if the node successfully got created, locking has succeeded,
                     // else locking has failed.
-                    LockData lockData = new LockData(this.hostId, taskData.serialize());
+                    LockData lockData = new LockData(owner, taskData.serialize());
                     client.create()
                             .creatingParentsIfNeeded()
                             .withMode(CreateMode.PERSISTENT)
-                            .forPath(getLockPath(resource), lockData.serialize());
+                            .forPath(getTaskPath(resource), lockData.serialize());
                     lockAcquired = true;
                 } catch (KeeperException.NodeExistsException e) {
                     throw new LockFailedException(resource, e);
@@ -77,13 +74,13 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     // if update is successful, lock has been obtained
                     // else lock has failed
                     Stat stat = new Stat();
-                    byte[] data = client.getData().storingStatIn(stat).forPath(getLockPath(resource));
+                    byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
                     LockData lockData = LockData.deserialize(data);
                     if (lockData.getHostId().equals(oldOwner)) {
-                        lockData = new LockData(this.hostId, lockData.getTaskData());
+                        lockData = new LockData(owner, lockData.getTaskData());
 
                         client.setData().withVersion(stat.getVersion())
-                                .forPath(getLockPath(resource), lockData.serialize());
+                                .forPath(getTaskPath(resource), lockData.serialize());
                         lockAcquired = true;
                     }
                 } catch (KeeperException e) {
@@ -103,22 +100,23 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> unlock(String resource) {
+    public CompletableFuture<Void> unlock(String resource, String owner) {
         try {
                 // test and set implementation
             Stat stat = new Stat();
-                byte[] data = client.getData().storingStatIn(stat).forPath(getLockPath(resource));
-                if (data != null) {
+                byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
+                if (data != null && data.length > 0) {
                     LockData lockData = LockData.deserialize(data);
-                    if (lockData.getHostId().equals(this.hostId)) {
-                        client.delete().withVersion(stat.getVersion()).forPath(getLockPath(resource));
+                    if (lockData.getHostId().equals(owner)) {
+                        client.delete().withVersion(stat.getVersion()).forPath(getTaskPath(resource));
                     }
+                } else {
+                    client.delete().withVersion(stat.getVersion()).forPath(getTaskPath(resource));
                 }
         } catch (KeeperException.NoNodeException  e) {
-            log.error("Lock not present.", e);
+            log.debug("Lock not present.", e);
             CompletableFuture.completedFuture(null);
         } catch (Exception e) {
-            log.error("Error unlocking resource.", e);
             throw new UnlockFailedException(resource, e);
         }
         return CompletableFuture.completedFuture(null);
@@ -127,7 +125,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     @Override
     public CompletableFuture<byte[]> get(String resource) {
         try {
-            byte[] data = client.getData().forPath(getResourcePath(resource));
+            byte[] data = client.getData().forPath(getTaskPath(resource));
             return CompletableFuture.completedFuture(data);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -135,14 +133,15 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> putChild(String resource) {
+    public CompletableFuture<Void> putChild(String parent, String child) {
         try {
             client.create()
                     .creatingParentsIfNeeded()
                     .withMode(CreateMode.PERSISTENT)
-                    .forPath(getHostPath(this.hostId, resource));
+                    .forPath(getHostPath(parent, child));
             return CompletableFuture.completedFuture(null);
         } catch (KeeperException.NodeExistsException e) {
+            log.debug("Node exists.", e);
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -150,29 +149,21 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> removeChild(String resource) {
+    public CompletableFuture<Void> removeChild(String parent, String child, boolean deleteEmptyParent) {
         try {
-            client.delete().forPath(getHostPath(this.hostId, resource));
-            return CompletableFuture.completedFuture(null);
-        } catch (KeeperException.NoNodeException e) {
-            return CompletableFuture.completedFuture(null);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+            client.delete().forPath(getHostPath(parent, child));
 
-    @Override
-    public CompletableFuture<Void> removeChild(String failedHostId, String resource) {
-        try {
-            client.delete().forPath(getHostPath(failedHostId, resource));
-
-            // if there are no children for the failed host, remove failed host znode
-            List<String> children = client.getChildren().forPath(getHostPath(failedHostId));
-            if (children == null || children.isEmpty()) {
-                client.delete().forPath(getHostPath(failedHostId));
+            if (deleteEmptyParent) {
+                // if there are no children for the failed host, remove failed host znode
+                Stat stat = new Stat();
+                client.getData().storingStatIn(stat).forPath(getHostPath(parent));
+                if (stat.getNumChildren() == 0) {
+                    client.delete().withVersion(stat.getVersion()).forPath(getHostPath(parent));
+                }
             }
             return CompletableFuture.completedFuture(null);
         } catch (KeeperException.NoNodeException e) {
+            log.debug("Node does not exist.", e);
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -180,21 +171,34 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<List<String>> getChildren(String hostId) {
+    public CompletableFuture<Void> removeNode(String parent) {
         try {
-            return CompletableFuture.completedFuture(client.getChildren().forPath(getHostPath(hostId)));
+            client.delete().forPath(getHostPath(parent));
+            return CompletableFuture.completedFuture(null);
         } catch (KeeperException.NoNodeException e) {
+            log.debug("Node does not exist.", e);
+            return CompletableFuture.completedFuture(null);
+        } catch (KeeperException.NotEmptyException e) {
+            log.debug("Node not empty.", e);
+            return CompletableFuture.completedFuture(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<List<String>> getChildren(String parent) {
+        try {
+            return CompletableFuture.completedFuture(client.getChildren().forPath(getHostPath(parent)));
+        } catch (KeeperException.NoNodeException e) {
+            log.debug("Node does not exist.", e);
             return CompletableFuture.completedFuture(Collections.emptyList());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private String getLockPath(String resource) {
-        return lockRoot + "/" + resource;
-    }
-
-    private String getResourcePath(String resource) {
+    private String getTaskPath(String resource) {
         return taskRoot + "/" + resource;
     }
 

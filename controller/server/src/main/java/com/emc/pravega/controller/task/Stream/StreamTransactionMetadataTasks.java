@@ -39,8 +39,11 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
 
-    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
-        super(taskMetadataStore);
+    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore,
+                                          HostControllerStore hostControllerStore,
+                                          TaskMetadataStore taskMetadataStore,
+                                          String hostId) {
+        super(taskMetadataStore, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
     }

@@ -32,10 +32,10 @@ public class TaskStoreFactory {
         HDFS
     }
 
-    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config, String hostId) {
+    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config) {
         switch (type) {
             case Zookeeper:
-                return new ZKTaskMetadataStore(config, hostId);
+                return new ZKTaskMetadataStore(config);
             case InMemory:
             case ECS:
             case S3:

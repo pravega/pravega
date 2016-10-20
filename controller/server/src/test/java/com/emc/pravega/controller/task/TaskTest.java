@@ -80,7 +80,7 @@ public class TaskTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config, "host");
+        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
     }
 
     @Before
@@ -123,7 +123,7 @@ public class TaskTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
@@ -137,7 +137,7 @@ public class TaskTest {
 
     @Test(expected = CompletionException.class)
     public void testLocking() {
-        TestTasks testTasks = new TestTasks(taskMetadataStore);
+        TestTasks testTasks = new TestTasks(taskMetadataStore, "host");
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
         LockingTask second = new LockingTask(testTasks, SCOPE, stream1);

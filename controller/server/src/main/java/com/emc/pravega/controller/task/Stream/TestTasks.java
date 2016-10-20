@@ -29,8 +29,8 @@ import java.util.concurrent.CompletableFuture;
  */
 public class TestTasks extends TaskBase implements Cloneable {
 
-    public TestTasks(TaskMetadataStore taskMetadataStore) {
-        super(taskMetadataStore);
+    public TestTasks(TaskMetadataStore taskMetadataStore, String hostId) {
+        super(taskMetadataStore, hostId);
     }
 
     @Override

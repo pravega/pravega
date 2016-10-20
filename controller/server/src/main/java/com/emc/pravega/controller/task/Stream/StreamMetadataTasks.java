@@ -53,8 +53,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     private final HostControllerStore hostControllerStore;
     private ConnectionFactoryImpl connectionFactory;
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore) {
-        super(taskMetadataStore);
+    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore, String hostId) {
+        super(taskMetadataStore, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);

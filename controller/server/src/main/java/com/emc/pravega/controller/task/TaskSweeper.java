@@ -21,12 +21,14 @@ import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.LockData;
 import com.emc.pravega.controller.task.TaskBase.Context;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.zookeeper.KeeperException;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,13 +45,18 @@ public class TaskSweeper {
     private final TaskBase[] taskClassObjects;
     private final Map<String, Method> methodMap = new HashMap<>();
     private final Map<String, TaskBase> objectMap = new HashMap<>();
+    private final String hostId;
 
-    public TaskSweeper(TaskMetadataStore taskMetadataStore, TaskBase... classes) {
+    public TaskSweeper(TaskMetadataStore taskMetadataStore, String hostId, TaskBase... classes) {
         this.taskMetadataStore = taskMetadataStore;
+        this.hostId = hostId;
+        for (TaskBase object : classes) {
+            Preconditions.checkArgument(object.getContext().getHostId().equals(hostId));
+        }
 
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
-        taskClassObjects = classes;
+        this.taskClassObjects = classes;
         initializeMappingTable();
     }
 
@@ -57,38 +64,48 @@ public class TaskSweeper {
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method.
      *
-     * It sweeps through all stream tasks under path /tasks/stream/, identifies orphaned tasks and attempts to execute
-     * them to completion.
+     * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      */
-    public CompletableFuture<List<Object>> sweepOrphanedTasks(String hostId) {
-        return taskMetadataStore.getChildren(hostId)
+    public CompletableFuture<List<Object>> sweepOrphanedTasks(String oldHostId) {
+        return taskMetadataStore.getChildren(oldHostId)
                 .thenCompose(resourceTags -> {
 
-                    Map<String, List<String>> resourceGroups =
-                            resourceTags
-                                    .stream()
-                                    .collect(Collectors.groupingBy(TaskBase.TaggedResource::getResource));
+                    // Initially read the list of resources that the failed host could have been executing tasks on.
+                    // Invariant: If no resources were found, it is safe to delete the old HostId node.
+                    if (resourceTags == null || resourceTags.isEmpty()) {
+                        return taskMetadataStore.removeNode(oldHostId)
+                                .thenApply(x -> Collections.emptyList());
+                    } else {
+                        Map<String, List<String>> resourceGroups =
+                                resourceTags
+                                        .stream()
+                                        .collect(Collectors.groupingBy(TaskBase.TaggedResource::getResource));
 
-                    List<CompletableFuture<Object>> list =
-                            resourceGroups
-                                    .entrySet()
-                                    .stream()
-                                    .map(pair -> executeResourceTask(hostId, pair.getKey(), pair.getValue()))
-                                    .collect(Collectors.toList());
+                        // compete to execute tasks left unfinished by old HostId.
+                        List<CompletableFuture<Object>> list =
+                                resourceGroups
+                                        .entrySet()
+                                        .stream()
+                                        .map(pair -> executeResourceTask(oldHostId, pair.getKey(), pair.getValue()))
+                                        .collect(Collectors.toList());
 
-                    return FutureCollectionHelper.sequence(list);
+                        return FutureCollectionHelper.sequence(list);
+                    }
                 });
     }
 
-    public CompletableFuture<Object> executeResourceTask(String hostId, String resource, List<String> resourceTags) {
+    public CompletableFuture<Object> executeResourceTask(String oldHostId, String resource, List<String> resourceTags) {
         final CompletableFuture<Object> result = new CompletableFuture<>();
         taskMetadataStore.get(resource)
                 .whenComplete((bytes, ex) -> {
                     if (ex != null && ex instanceof KeeperException.NoNodeException) {
-                        // safe to delete all resourceTags under hostId
+                        // If no task was found for the given resource, then either
+                        // 1. Task has been completely executed by some other controller instance, or
+                        // 2. Old host died immediately after creating the resource child under its HostId.
+                        // Invariant: In either case it is safe to delete resource child (all tagged variants) under old HostId
                         resourceTags
                                 .stream()
-                                .forEach(resourceTag -> taskMetadataStore.removeChild(hostId, resourceTag));
+                                .forEach(resourceTag -> taskMetadataStore.removeChild(oldHostId, resourceTag, true));
                         result.complete(null);
                     } else {
                         LockData lockData = LockData.deserialize(bytes);
@@ -106,13 +123,13 @@ public class TaskSweeper {
     }
 
     /**
-     * This method identifies correct method to execute form among the task classes and executes it
-     * @param taskData taks data
-     * @return the object returned from task method
-     * @throws IllegalAccessException
-     * @throws InvocationTargetException
+     * This method identifies correct method to execute form among the task classes and executes it.
+     * @param oldHostId identifier of old failed host.
+     * @param taskData taks data.
+     * @param resourceTags resource on which old host had unfinished task.
+     * @return the object returned from task method.
      */
-    public CompletableFuture<Object> execute(String failedHostId, TaskData taskData, List<String> resourceTags) {
+    public CompletableFuture<Object> execute(String oldHostId, TaskData taskData, List<String> resourceTags) {
 
         log.debug("Trying to execute {}", taskData.getMethodName());
         String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
@@ -122,7 +139,7 @@ public class TaskSweeper {
                 // find the method and object
                 Method method = methodMap.get(key);
                 TaskBase o = objectMap.get(key).clone();
-                o.setContext(new Context(failedHostId, resourceTags));
+                o.setContext(new Context(hostId, oldHostId, resourceTags));
 
                 // finally execute the method and return its result
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());

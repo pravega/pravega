@@ -30,53 +30,60 @@ public interface TaskMetadataStore {
     /**
      * Locks a resource for update. If old owner is specified, it revokes old owner's lock and itself acquires it.
      * This is non-reentrant lock, i.e., a process cannot lock the same resource twice.
+     * If oldOwner is null atomically create the key value pair resource -> (owner, taskData) if it does not exist.
+     * if oldOwner is non-null atomically replace the key value pair resource -> (oldOwner, taskData) with the pair
+     * resource -> (owner, taskData).
      * @param resource resource identifier.
+     * @param taskData details of update task on the resource.
+     * @param owner    owner of the task.
      * @param oldOwner host that had previously locked the resource.
      * @return void if the operation succeeds, otherwise throws LockFailedException.
      */
-    CompletableFuture<Void> lock(String resource, TaskData taskData, String oldOwner);
+    CompletableFuture<Void> lock(String resource, TaskData taskData, String owner, String oldOwner);
 
     /**
-     * Unlocks a resource if it is owned by the current process.
+     * Unlocks a resource if it is owned by the specified owner.
+     * Delete the key value pair resource -> (x, taskData) iff x == owner.
      * @param resource resource identifier.
+     * @param owner    owner of the lock.
      * @return void if successful, otherwise throws UnlockFailedException.
      */
-    CompletableFuture<Void> unlock(String resource);
+    CompletableFuture<Void> unlock(String resource, String owner);
 
     /**
-     * Fetch data associated with the specified resource.
-     * @param resource resource.
+     * Fetch details of task, including its current owner, associated with the specified resource.
+     * @param resource node.
      * @return byte array in future.
      */
     CompletableFuture<byte[]> get(String resource);
 
     /**
      * Adds specified resource as a child of current host's hostId node.
-     * @param resource resource.
+     * @param parent parent node.
+     * @param child child noe.
      * @return void in future.
      */
-    CompletableFuture<Void> putChild(String resource);
+    CompletableFuture<Void> putChild(String parent, String child);
 
     /**
-     * Removes the specified child of current host's hostId node.
-     * @param resource child node to remove.
+     * Removes the specified child node from the specified parent node.
+     * @param parent node whose child is to be removed.
+     * @param child child node to remove.
      * @return void in future.
      */
-    CompletableFuture<Void> removeChild(String resource);
+    CompletableFuture<Void> removeChild(String parent, String child, boolean deleteEmptyParent);
 
     /**
-     * Removes specified child of the specified failed host.
-     * It also removes the host's node if it is left with no children as a result.
-     * @param failedHostId failed host id.
-     * @param resource child node to remove.
+     * Remove a parent node if it is empty.
+     * @param parent parent node.
      * @return void in future.
      */
-    CompletableFuture<Void> removeChild(String failedHostId, String resource);
+    CompletableFuture<Void> removeNode(String parent);
 
     /**
-     * Returns all children of a given hostId node.
-     * @param hostId host id.
+     * Returns all children of a given parent node.
+     * @param parent host id.
      * @return children list.
      */
-    CompletableFuture<List<String>> getChildren(String hostId);
+    CompletableFuture<List<String>> getChildren(String parent);
 }

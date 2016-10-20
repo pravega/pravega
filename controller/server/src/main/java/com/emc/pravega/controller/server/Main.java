@@ -67,6 +67,8 @@ public class Main {
 
         String hostId;
         try {
+            // On each controller process restart, it gets a fresh hostId,
+            // which is a combination of hostname and random GUID.
             hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
         } catch (UnknownHostException e) {
             log.debug("Failed to get host address.", e);
@@ -84,17 +86,23 @@ public class Main {
         log.info("Creating zk based task store");
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(
                 TaskStoreFactory.StoreType.valueOf(TASK_STORE_TYPE),
-                new StoreConfiguration(TASK_STORE_CONNECTION_STRING),
-                hostId);
+                new StoreConfiguration(TASK_STORE_CONNECTION_STRING));
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
         CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
+        // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
+        // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
+        // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
+        // are processed and deleted, that failed HostId is removed from FH folder.
+        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of controllers
+        // and starts sweeping tasks orphaned by those hostIds.
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 }
