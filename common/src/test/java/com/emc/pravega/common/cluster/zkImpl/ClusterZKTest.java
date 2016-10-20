@@ -19,7 +19,6 @@ package com.emc.pravega.common.cluster.zkImpl;
 
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.HostType;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -68,20 +67,28 @@ public class ClusterZKTest {
         //ClusterListener for testing purposes
         CuratorFramework client2 = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
-        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME, HostType.DATA);
-        clusterListener.addListener(host -> nodeAddedQueue.offer(host.getIpAddr()),
-                host -> nodeRemovedQueue.offer(host.getIpAddr()));
+        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME);
+        clusterListener.addListener((eventType, host) -> {
+            switch (eventType) {
+                case HOST_ADDED:
+                    nodeAddedQueue.offer(host.getIpAddr());
+                    break;
+                case HOST_REMOVED:
+                    nodeRemovedQueue.offer(host.getIpAddr());
+                    break;
+            }
+        });
 
         CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
 
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME, HostType.DATA);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 
         //Create a separate instance of Cluster and add node to same Cluster
-        Cluster clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME, HostType.DATA);
+        Cluster clusterZKInstance2 = new ClusterZKImpl(client, CLUSTER_NAME);
         clusterZKInstance1.registerHost(new Host(HOST_2, PORT));
         assertEquals(HOST_2, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
         assertEquals(2, clusterListener.getClusterMembers().size());
@@ -99,14 +106,22 @@ public class ClusterZKTest {
 
         CuratorFramework client2 = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
-        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME_2, HostType.DATA);
-        clusterListener.addListener(host -> nodeAddedQueue.offer(host.getIpAddr()),
-                host -> nodeRemovedQueue.offer(host.getIpAddr()));
+        Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME_2);
+        clusterListener.addListener((eventType, host) -> {
+            switch (eventType) {
+                case HOST_ADDED:
+                    nodeAddedQueue.offer(host.getIpAddr());
+                    break;
+                case HOST_REMOVED:
+                    nodeRemovedQueue.offer(host.getIpAddr());
+                    break;
+            }
+        });
 
         CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
         //Create Add a node to the cluster.
-        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2, HostType.DATA);
+        Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2);
         clusterZKInstance1.registerHost(new Host(HOST_1, PORT));
         assertEquals(HOST_1, nodeAddedQueue.poll(5, TimeUnit.SECONDS));
 

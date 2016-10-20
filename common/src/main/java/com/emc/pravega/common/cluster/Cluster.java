@@ -44,10 +44,9 @@ public interface Cluster extends AutoCloseable {
     /**
      * Add Listeners
      *
-     * @param hostAdded   - Host added Cluster Listener
-     * @param hostRemoved - Host removed Cluster Listener
+     * @param listener   - Cluster event Listener
      */
-    public void addListener(final ClusterListener hostAdded, final ClusterListener hostRemoved) throws Exception;
+    public void addListener(final ClusterListener listener) throws Exception;
 
     /**
      * Get the current cluster members.

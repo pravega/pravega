@@ -21,8 +21,19 @@ package com.emc.pravega.common.cluster;
  * Cluster listener.
  */
 public interface ClusterListener {
+
+    enum EventType {
+        HOST_ADDED,
+        HOST_REMOVED
+    }
     /**
      * Method invoked on a cluster Event
      */
-    public void onEvent(Host host);
+    /**
+     * Method invoked on cluster Event
+     * @param type - EventType
+     * @param host - host added/removed.
+     */
+    public void onEvent(final EventType type, final Host host);
+
 }
