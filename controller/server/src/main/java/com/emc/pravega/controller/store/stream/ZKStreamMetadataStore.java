@@ -24,9 +24,8 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
-import java.util.concurrent.TimeUnit;
-
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ZK stream metadata store
@@ -61,7 +60,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration) {
-        return CompletableFuture.supplyAsync(() -> zkStreams.getUnchecked(name)).thenCompose(x -> x.create(configuration));
+    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long createTimestamp) {
+        return CompletableFuture.supplyAsync(() -> zkStreams.getUnchecked(name)).thenCompose(x -> x.create(configuration, createTimestamp));
     }
 }

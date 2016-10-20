@@ -17,27 +17,27 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
-import org.apache.curator.framework.recipes.locks.InterProcessMutex;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.data.Stat;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -50,19 +50,27 @@ import java.util.stream.IntStream;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 class ZKStream extends PersistentStreamBase {
-    private static final String STREAM_PATH = "/streams/%s/streamPath";
-    private static final String CONFIGURATION_PATH = "/streams/%s/configurationPath";
-    private static final String SEGMENT_PATH = "/streams/%s/segmentPath";
-    private static final String HISTORY_PATH = "/streams/%s/historyPath";
-    private static final String INDEX_PATH = "/streams/%s/indexPath";
+    private static final String ROOT_PATH = "/streams";
+    private static final String TRANSACTION_PATH = ROOT_PATH + "/transactions";
+
+    private static final String STREAM_PATH = ROOT_PATH + "/%s";
+    private static final String CREATIONTIME_PATH = STREAM_PATH + "/creationTime";
+    private static final String CONFIGURATION_PATH = STREAM_PATH + "/configurationPath";
+    private static final String SEGMENT_PATH = STREAM_PATH + "/segmentPath";
+    private static final String HISTORY_PATH = STREAM_PATH + "/historyPath";
+    private static final String INDEX_PATH = STREAM_PATH + "/indexPath";
+    private static final String ACTIVE_TX_PATH = TRANSACTION_PATH + "/activeTxPath";
+    private static final String COMPLETED_TX_PATH = TRANSACTION_PATH + "/completedTxPath";
 
     private final CuratorFramework client;
     private final NodeCache configurationCache;
     private final PathChildrenCache segmentCache;
     private final NodeCache indexCache;
     private final NodeCache historyCache;
+    private final PathChildrenCache activeTxCache;
+    private final PathChildrenCache completedTxCache;
 
-    private final String streamPath;
+    private final String creationPath;
     private final String configurationPath;
     private final String segmentPath;
     private final String segmentChunkPathTemplate;
@@ -70,11 +78,11 @@ class ZKStream extends PersistentStreamBase {
     private final String indexPath;
 
     public ZKStream(final String name, final String connectionString) {
-        super(name, connectionString);
+        super(name);
 
         client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(1000, 3));
         client.start();
-        streamPath = String.format(STREAM_PATH, name);
+        creationPath = String.format(CREATIONTIME_PATH, name);
         configurationPath = String.format(CONFIGURATION_PATH, name);
         segmentPath = String.format(SEGMENT_PATH, name);
         segmentChunkPathTemplate = segmentPath + "/%s";
@@ -85,6 +93,8 @@ class ZKStream extends PersistentStreamBase {
         indexCache = new NodeCache(client, indexPath);
         historyCache = new NodeCache(client, historyPath);
         configurationCache = new NodeCache(client, configurationPath);
+        activeTxCache = new PathChildrenCache(client, ACTIVE_TX_PATH, true);
+        completedTxCache = new PathChildrenCache(client, COMPLETED_TX_PATH, true);
     }
 
     public void init() {
@@ -120,35 +130,42 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Boolean> createStream(Create create) throws StreamAlreadyExistsException {
-        return createZNodeIfNotExist(streamPath, Utilities.toByteArray(create.getEventTime()))
-                .thenCompose(x -> getData(streamPath))
-                .thenApply(y -> {
-                    if(create.getEventTime() == Utilities.toLong(y))
-                        return true;
-                    else
+        String path = String.format(CREATIONTIME_PATH, getName());
+
+        return checkExists(path)
+                .thenCompose(x -> {
+                    if (x) {
+                        return getData(path).thenApply(y -> Utilities.toLong(y) == create.getEventTime());
+                    } else
+                        return createZnode(path, Utilities.toByteArray(create.getEventTime())).thenApply(z -> true);
+                })
+                .thenApply(x -> {
+                    if (!x)
                         throw new StreamAlreadyExistsException(getName());
+
+                    return true;
                 });
     }
 
     @Override
     public CompletableFuture<Void> createConfiguration(final Create create) {
-        return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(create.getConfiguration())).thenApply(x -> null);
+        return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(create.getConfiguration()));
     }
 
     @Override
     public CompletableFuture<Void> createSegmentTable(final Create create) {
-        return createZNodeIfNotExist(segmentPath).thenApply(x -> null);
+        return createZNodeIfNotExist(segmentPath);
     }
 
     @Override
     CompletableFuture<Void> createSegmentChunk(final int chunkNumber, final byte[] data) {
-        return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkNumber), data).thenApply(x -> null);
+        return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkNumber), data);
     }
 
     @Override
     public CompletableFuture<Void> createIndexTable(final Create create) {
         final byte[] indexTable = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
-        return createZNodeIfNotExist(indexPath, indexTable).thenApply(x -> null);
+        return createZNodeIfNotExist(indexPath, indexTable);
     }
 
     @Override
@@ -158,7 +175,7 @@ class ZKStream extends PersistentStreamBase {
                 create.getEventTime(),
                 IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
 
-        return createZNodeIfNotExist(historyPath, historyTable).thenApply(y -> null);
+        return createZNodeIfNotExist(historyPath, historyTable);
     }
 
     @Override
@@ -186,7 +203,44 @@ class ZKStream extends PersistentStreamBase {
                 create.getEventTime()
         );
 
-        return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkFileName), segmentTable).thenApply(y -> null);
+        return createZNodeIfNotExist(String.format(segmentChunkPathTemplate, chunkFileName), segmentTable);
+    }
+
+    @Override
+    CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp) {
+        return createZNodeIfNotExist(createActiveTxPath(txId.toString()),
+                new ActiveTxRecord(timestamp, TxStatus.OPEN).toByteArray());
+    }
+
+    @Override
+    CompletableFuture<ActiveTxRecord> getActiveTx(UUID txId) {
+        return getData(activeTxCache, createActiveTxPath(txId.toString()))
+                .thenApply(ActiveTxRecord::parse);
+    }
+
+    @Override
+    CompletableFuture<Void> sealActiveTx(UUID txId) {
+        return getActiveTx(txId)
+                .thenCompose(x -> setData(createActiveTxPath(txId.toString()),
+                        new ActiveTxRecord(x.getTxCreationTimestamp(), TxStatus.SEALED).toByteArray()))
+                .thenApply(x -> null);
+    }
+
+    @Override
+    CompletableFuture<CompletedTxRecord> getCompletedTx(UUID txId) {
+        return getData(completedTxCache, createCompletedTxPath(txId.toString()))
+                .thenApply(CompletedTxRecord::parse);
+    }
+
+    @Override
+    CompletableFuture<Void> removeActiveTxEntry(UUID txId) {
+        return deletePath(createActiveTxPath(txId.toString()));
+    }
+
+    @Override
+    CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxStatus complete, long timestamp) {
+        return createZNodeIfNotExist(createCompletedTxPath(txId.toString()),
+                new CompletedTxRecord(timestamp, complete).toByteArray());
     }
 
     @Override
@@ -283,7 +337,7 @@ class ZKStream extends PersistentStreamBase {
         }
     }
 
-    private CompletableFuture<Stat> checkExists(final String path) {
+    private CompletableFuture<Boolean> checkExists(final String path) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
@@ -291,7 +345,8 @@ class ZKStream extends PersistentStreamBase {
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
-                });
+                })
+                .thenApply(x -> x != null);
     }
 
     private CompletableFuture<Void> deletePath(final String path) {
@@ -319,20 +374,20 @@ class ZKStream extends PersistentStreamBase {
     private CompletableFuture<byte[]> getData(final String path) {
         return checkExists(path)
                 .thenApply(x -> {
-                    if (x != null) {
+                    if (x) {
                         try {
                             return client.getData().forPath(path);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
-                    } else throw new RuntimeException(String.format("path %s not Found", path));
+                    } else throw new DataNotFoundException(path);
                 });
     }
 
     private CompletableFuture<Stat> setData(final String path, final byte[] data) {
         return checkExists(path)
                 .thenApply(x -> {
-                    if (x != null) {
+                    if (x) {
                         try {
                             return client.setData().forPath(path, data);
                         } catch (Exception e) {
@@ -342,32 +397,60 @@ class ZKStream extends PersistentStreamBase {
                 });
     }
 
-    private CompletableFuture<String> createZNodeIfNotExist(final String path) {
+    private CompletableFuture<Void> createZNodeIfNotExist(final String path) {
         return checkExists(path)
-                .thenApply(x -> {
-                    if (x == null) {
+                .thenCompose(x -> {
+                    if (!x) {
                         try {
-                            return client.create().forPath(path);
+                            return createZnode(path);
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
-                    } else return path;
+                    } else return CompletableFuture.completedFuture(null);
                 });
     }
 
-    private CompletableFuture<String> createZNodeIfNotExist(final String path, final byte[] data) {
+    private CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
 
         return checkExists(path)
-                .thenApply(
+                .thenCompose(
                         x -> {
-                            if (x == null) {
+                            if (!x) {
                                 try {
-                                    return client.create().forPath(path, data);
+                                    return createZnode(path, data);
                                 } catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }
-                            } else return path;
+                            } else return CompletableFuture.completedFuture(null);
                         });
+    }
+
+    private CompletableFuture<Void> createZnode(final String path, final byte[] data) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return client.create().creatingParentsIfNeeded().forPath(path, data);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }).thenApply(x -> null);
+    }
+
+    private CompletableFuture<Void> createZnode(final String path) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return client.create().creatingParentsIfNeeded().forPath(path);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }).thenApply(x -> null);
+    }
+
+    private String createActiveTxPath(String txId) {
+        return ACTIVE_TX_PATH + "/" + getName() + "_" + txId;
+    }
+
+    private String createCompletedTxPath(String txId) {
+        return ACTIVE_TX_PATH + "/" + getName() + "_" + txId;
     }
 
 }

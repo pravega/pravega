@@ -17,12 +17,13 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -37,7 +38,7 @@ public interface StreamMetadataStore {
      * @param configuration stream configuration.
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration);
+    CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long createTimestamp);
 
     /**
      * Updates the configuration of an existing stream.
@@ -94,5 +95,38 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 
-    CompletableFuture<TxId> createTransaction();
+    /**
+     *
+     * @param scope
+     * @param stream
+     * @return
+     */
+    CompletableFuture<UUID> createTransaction(String scope, String stream);
+
+    /**
+     *
+     * @param scope
+     * @param stream
+     * @param txId
+     * @return
+     */
+    CompletableFuture<TxStatus> transactionStatus(String scope, String stream, UUID txId);
+
+    /**
+     *
+     * @param scope
+     * @param stream
+     * @param txId
+     * @return
+     */
+    CompletableFuture<TxStatus> commitTransaction(String scope, String stream, UUID txId);
+
+    /**
+     *
+     * @param scope
+     * @param stream
+     * @param txId
+     * @return
+     */
+    CompletableFuture<TxStatus> dropTransaction(String scope, String stream, UUID txId);
 }

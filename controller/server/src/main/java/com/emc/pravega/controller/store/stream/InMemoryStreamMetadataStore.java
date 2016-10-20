@@ -40,10 +40,10 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long timeStamp) {
         if (!streams.containsKey(name)) {
             InMemoryStream stream = new InMemoryStream(name);
-            stream.create(configuration);
+            stream.create(configuration, timeStamp);
             streams.put(name, stream);
             return CompletableFuture.completedFuture(true);
         } else {

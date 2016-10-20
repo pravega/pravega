@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -105,6 +107,26 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp);
     }
 
+    @Override
+    public CompletableFuture<UUID> createTransaction(String scope, String stream) {
+        return getStream(stream).createTransaction();
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> transactionStatus(String scope, String stream, UUID txId) {
+        return getStream(stream).checkTransactionStatus(txId);
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> commitTransaction(String scope, String stream, UUID txId) {
+        return getStream(stream).commitTransaction(txId);
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> dropTransaction(String scope, String stream, UUID txId) {
+        return getStream(stream).dropTransaction(txId);
+    }
+
     private CompletableFuture<SegmentFutures> constructSegmentFutures(Stream stream, List<Integer> activeSegments) {
         Map<Integer, Integer> futureSegments = new HashMap<>();
         List<CompletableFuture<List<Integer>>> list =
@@ -126,13 +148,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     /**
      * Finds all successors of a given segment, that have exactly one predecessor,
      * and hence can be included in the futures of the given segment.
+     *
      * @param stream input stream
      * @param number segment number for which default futures are sought.
      * @return the list of successors of specified segment who have only one predecessor.
-     *
-     *         return stream.getSuccessors(number).stream()
-     *               .filter(x -> stream.getPredecessors(x).size() == 1)
-    .*                collect(Collectors.toList());
+     * <p>
+     * return stream.getSuccessors(number).stream()
+     * .filter(x -> stream.getPredecessors(x).size() == 1)
+     * .*                collect(Collectors.toList());
      */
     private CompletableFuture<List<Integer>> getDefaultFutures(Stream stream, int number) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
@@ -194,8 +217,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<Integer> newCurrents = successors.stream().filter(x ->
                         // 2. it is not completed yet, and
                         !completedSegments.contains(x)
-                        // 3. it is not current in any of the positions
-                        && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
+                                // 3. it is not current in any of the positions
+                                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
         ).collect(Collectors.toList());
 
         // 3. all its predecessors completed, and
@@ -209,7 +232,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         List<Integer> subset = successors.stream().filter(x -> !completedSegments.contains(x)).collect(Collectors.toList());
 
         List<CompletableFuture<List<Integer>>> predecessors = new ArrayList<>();
-        for (Integer number: subset) {
+        for (Integer number : subset) {
             predecessors.add(stream.getPredecessors(number)
                             .thenApply(preds -> preds.stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList()))
             );
@@ -236,10 +259,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     /**
      * Divides the set of new current segments among existing positions and returns the updated positions
-     * @param stream stream
+     *
+     * @param stream      stream
      * @param newCurrents new set of current segments
-     * @param newFutures new set of future segments
-     * @param positions positions to be updated
+     * @param newFutures  new set of future segments
+     * @param positions   positions to be updated
      * @return the updated sequence of positions
      */
     private CompletableFuture<List<SegmentFutures>> divideSegments(Stream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {

@@ -28,15 +28,16 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 import java.util.ArrayList;
@@ -54,37 +55,22 @@ public class ControllerServiceImpl {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
-    private ConnectionFactoryImpl connectionFactory;
+    private final StreamMetadataTasks streamMetadataTasks;
+    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
-    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
+    public ControllerServiceImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
     }
 
-    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
-        String stream = streamConfig.getName();
-
-        return streamStore.createStream(stream, streamConfig)
-                .thenApply(result -> {
-                    if (result) {
-                        streamStore.getActiveSegments(stream)
-                                .thenApply(activeSegments -> {
-                                    activeSegments
-                                            .stream()
-                                            .parallel()
-                                            .forEach(segment -> notifyNewSegment(streamConfig.getScope(), stream, segment.getNumber()));
-                                    return null;
-                                });
-                        return Status.SUCCESS;
-                    } else {
-                        return Status.FAILURE;
-                    }
-                });
+    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig, long createTimestamp) {
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
     }
 
     public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
-        throw new NotImplementedException();
+        return streamMetadataTasks.alterStream(streamConfig.getScope(), streamConfig.getName(), streamConfig);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(String scope, String stream) {
@@ -92,12 +78,7 @@ public class ControllerServiceImpl {
         return streamStore.getActiveSegments(stream)
                 .thenApply(activeSegments -> activeSegments
                                 .stream()
-                                .map(segment ->
-                                                new SegmentRange(
-                                                        new SegmentId(scope, stream, segment.getNumber()),
-                                                        segment.getKeyStart(),
-                                                        segment.getKeyEnd())
-                                )
+                                .map(segment -> convert(scope, stream, segment))
                                 .collect(Collectors.toList())
                 );
     }
@@ -130,6 +111,14 @@ public class ControllerServiceImpl {
                         convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
     }
 
+    public CompletableFuture<List<SegmentRange>> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) {
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp)
+                .thenApply(segments -> segments
+                        .stream()
+                        .map(segment -> convert(scope, stream, segment))
+                        .collect(Collectors.toList()));
+    }
+
     public CompletableFuture<NodeUri> getURI(SegmentId segment) throws TException {
         return CompletableFuture.completedFuture(
                 SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
@@ -139,7 +128,7 @@ public class ControllerServiceImpl {
     public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber, String caller) throws TException {
         return streamStore.getSegment(stream, segmentNumber).handle((ok, ex) -> {
             if (ex != null) {
-                if(ex instanceof SegmentNotFoundException)
+                if (ex instanceof SegmentNotFoundException)
                     return false;
                 else throw new RuntimeException(ex);
             } else
@@ -147,12 +136,9 @@ public class ControllerServiceImpl {
         });
     }
 
-    private void notifyNewSegment(String scope, String stream, int segmentNumber) {
-        NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore);
-
-        // async call, dont wait for its completion or success. Host will contact controller if it does not know
-        // about some segment even if this call fails
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), connectionFactory));
+    private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
+        return new SegmentRange(
+                new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     /**
@@ -268,18 +254,32 @@ public class ControllerServiceImpl {
     }
 
     public CompletableFuture<TxId> createTransaction(String scope, String stream) {
-        return null;
+        return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
     }
 
     public CompletableFuture<Status> commitTransaction(String scope, String stream, TxId txid) {
-        return null;
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txid))
+                .handle((ok, ex) -> {
+                    if (ex != null)
+                        // TODO: return appropriate failures to user
+                        return Status.FAILURE;
+                    else return Status.SUCCESS;
+                });
     }
 
     public CompletableFuture<Status> dropTransaction(String scope, String stream, TxId txid) {
-        return null;
+        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txid))
+                .handle((ok, ex) -> {
+                    if (ex != null)
+                        // TODO: return appropriate failures to user
+                        return Status.FAILURE;
+                    else return Status.SUCCESS;
+                });
     }
 
-    public CompletableFuture<Status> checkTransactionStatus(String scope, String stream, TxId txid) {
-        return null;
+
+    public CompletableFuture<TxStatus> checkTransactionStatus(String scope, String stream, TxId txid) {
+        return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txid))
+                .thenApply(ModelHelper::decode);
     }
 }

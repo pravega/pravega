@@ -15,12 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.stream.impl;
+package com.emc.pravega.controller.task;
 
-import lombok.Data;
+/**
+ * Lock failed exception
+ */
+public class LockFailedException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Failed locking stream %s.";
 
-@Data
-public class TxId {
-    private final long highBits;
-    private final long lowBits;
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     */
+    public LockFailedException(String name) {
+        super(String.format(FORMAT_STRING, name));
+    }
+
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     * @param cause   error cause
+     */
+    public LockFailedException(String name, Throwable cause) {
+        super(String.format(FORMAT_STRING, name), cause);
+    }
 }

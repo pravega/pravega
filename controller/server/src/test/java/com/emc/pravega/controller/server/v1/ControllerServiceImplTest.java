@@ -20,6 +20,7 @@ package com.emc.pravega.controller.server.v1;
 
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,7 +31,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -59,12 +67,26 @@ public class ControllerServiceImplTest {
     private final StreamMetadataStore streamStore =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
-    private Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+    private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-    private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore);
+    private final ControllerServiceImpl consumer;
+
+    private final TestingServer zkServer;
+
+    private final CuratorFramework client;
+
+    public ControllerServiceImplTest() throws Exception {
+        zkServer = new TestingServer();
+        client = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new ExponentialBackoffRetry(1000, 3));
+        zkServer.start();
+        client.start();
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, client);
+        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    }
 
     @Before
     public void prepareStreamStore() {
@@ -75,8 +97,8 @@ public class ControllerServiceImplTest {
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
-        streamStore.createStream(stream1, configuration1);
-        streamStore.createStream(stream2, configuration2);
+        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
+        streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion
 
         // region scaleSegments
@@ -96,6 +118,12 @@ public class ControllerServiceImplTest {
     public void prepareHostStore() {
         Host host = new Host("localhost", 9090);
         hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
+    }
+
+    @After
+    public void stopZKServer() throws IOException {
+        zkServer.close();
+        client.close();
     }
 
     @Test

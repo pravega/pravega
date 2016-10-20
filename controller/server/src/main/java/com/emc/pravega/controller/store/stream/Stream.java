@@ -18,9 +18,11 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -36,7 +38,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<Boolean> create(StreamConfiguration configuration);
+    CompletableFuture<Boolean> create(StreamConfiguration configuration, long createTimestamp);
 
     /**
      * Updates the configuration of an existing stream.
@@ -89,4 +91,14 @@ interface Stream {
      * @return sequence of newly created segments
      */
     CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
+
+    CompletableFuture<UUID> createTransaction();
+
+    CompletableFuture<TxStatus> sealTransaction(UUID txId);
+
+    CompletableFuture<TxStatus> checkTransactionStatus(UUID txId);
+
+    CompletableFuture<TxStatus> commitTransaction(UUID txId);
+
+    CompletableFuture<TxStatus> dropTransaction(UUID txId);
 }

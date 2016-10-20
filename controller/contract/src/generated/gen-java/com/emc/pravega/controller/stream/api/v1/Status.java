@@ -13,7 +13,9 @@ import org.apache.thrift.TEnum;
 
 public enum Status implements org.apache.thrift.TEnum {
   SUCCESS(0),
-  FAILURE(1);
+  FAILURE(1),
+  STREAM_NOT_FOUND(2),
+  DUPLICATE_STREAM_NAME(3);
 
   private final int value;
 
@@ -38,6 +40,10 @@ public enum Status implements org.apache.thrift.TEnum {
         return SUCCESS;
       case 1:
         return FAILURE;
+      case 2:
+        return STREAM_NOT_FOUND;
+      case 3:
+        return DUPLICATE_STREAM_NAME;
       default:
         return null;
     }

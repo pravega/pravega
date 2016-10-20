@@ -31,6 +31,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -45,14 +47,14 @@ public class ZkStreamTest {
 
     @Before
     public void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer(2181);
+        zkTestServer = new TestingServer();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
     }
 
     @After
     public void stopZookeeper() throws Exception {
         cli.close();
-        zkTestServer.stop();
+        zkTestServer.close();
     }
 
 
@@ -65,7 +67,7 @@ public class ZkStreamTest {
         final String streamName = "test";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(streamName, streamConfig).get();
+        store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> segments = store.getActiveSegments(streamName).get();
         assertEquals(segments.size(), 5);
@@ -80,8 +82,8 @@ public class ZkStreamTest {
         // existing range 0 = 0 - .2, 1 = .2 - .4, 2 = .4 - .6, 3 = .6 - .8, 4 = .8 - 1.0
 
         // 3, 4 -> 5 = .6 - 1.0
-        newRanges = Lists.newArrayList(
-                new AbstractMap.SimpleEntry<Double, Double>(0.6, 1.0));
+        newRanges = Collections.singletonList(
+                new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale1 = start + 10;
         store.scale(streamName, Lists.newArrayList(3, 4), newRanges, scale1).get();
@@ -92,10 +94,10 @@ public class ZkStreamTest {
 
         // 1 -> 6 = 0.2 -.3, 7 = .3 - .4
         // 2,5 -> 8 = .4 - 1.0
-        newRanges = Lists.newArrayList(
-                new AbstractMap.SimpleEntry<Double, Double>(0.2, 0.3),
-                new AbstractMap.SimpleEntry<Double, Double>(0.3, 0.4),
-                new AbstractMap.SimpleEntry<Double, Double>(0.4, 1.0));
+        newRanges = Arrays.asList(
+                new AbstractMap.SimpleEntry<>(0.2, 0.3),
+                new AbstractMap.SimpleEntry<>(0.3, 0.4),
+                new AbstractMap.SimpleEntry<>(0.4, 1.0));
 
         long scale2 = scale1 + 10;
         store.scale(streamName, Lists.newArrayList(1, 2, 5), newRanges, scale2).get();
@@ -106,10 +108,10 @@ public class ZkStreamTest {
 
         // 7 -> 9 = .3 - .35, 10 = .35 - .6
         // 8 -> 10 = .35 - .6, 11 = .6 - 1.0
-        newRanges = Lists.newArrayList(
-                new AbstractMap.SimpleEntry<Double, Double>(0.3, 0.35),
-                new AbstractMap.SimpleEntry<Double, Double>(0.35, 0.6),
-                new AbstractMap.SimpleEntry<Double, Double>(0.6, 1.0));
+        newRanges = Arrays.asList(
+                new AbstractMap.SimpleEntry<>(0.3, 0.35),
+                new AbstractMap.SimpleEntry<>(0.35, 0.6),
+                new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale3 = scale2 + 10;
         store.scale(streamName, Lists.newArrayList(7, 8), newRanges, scale3).get();
@@ -158,7 +160,7 @@ public class ZkStreamTest {
         final String streamName = "test2";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
-        store.createStream(streamName, streamConfig).get();
+        store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
 
         List<Segment> initial = store.getActiveSegments(streamName).get();
         assertEquals(initial.size(), 6);
@@ -170,13 +172,13 @@ public class ZkStreamTest {
 
 
         IntStream.range(0, SegmentRecord.SEGMENT_CHUNK_SIZE + 2).forEach(x -> {
-            List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Lists.newArrayList(
-                    new AbstractMap.SimpleEntry<Double, Double>(0.0, 0.2),
-                    new AbstractMap.SimpleEntry<Double, Double>(0.2, 0.4),
-                    new AbstractMap.SimpleEntry<Double, Double>(0.4, 0.6),
-                    new AbstractMap.SimpleEntry<Double, Double>(0.6, 0.8),
-                    new AbstractMap.SimpleEntry<Double, Double>(0.8, 0.9),
-                    new AbstractMap.SimpleEntry<Double, Double>(0.9, 1.0));
+            List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Arrays.asList(
+                    new AbstractMap.SimpleEntry<>(0.0, 0.2),
+                    new AbstractMap.SimpleEntry<>(0.2, 0.4),
+                    new AbstractMap.SimpleEntry<>(0.4, 0.6),
+                    new AbstractMap.SimpleEntry<>(0.6, 0.8),
+                    new AbstractMap.SimpleEntry<>(0.8, 0.9),
+                    new AbstractMap.SimpleEntry<>(0.9, 1.0));
 
             long scaleTs = start + 10 * (x + 1);
 

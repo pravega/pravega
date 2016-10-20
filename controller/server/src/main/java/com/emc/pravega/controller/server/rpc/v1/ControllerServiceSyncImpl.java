@@ -29,11 +29,14 @@ import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Synchronous controller service implementation
@@ -42,8 +45,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore);
+    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     /**
@@ -53,7 +56,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
      */
     @Override
     public Status createStream(StreamConfig streamConfig) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig)), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig),
+                System.currentTimeMillis()), RuntimeException::new);
     }
 
     @Override
@@ -72,6 +76,11 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
+    public boolean isSegmentValid(String scope, String stream, int segmentNumber, String caller) throws TException {
+        return false;
+    }
+
+    @Override
     public List<Position> getPositions(String scope, String stream, long timestamp, int count) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getPositions(scope, stream, timestamp, count), RuntimeException::new);
     }
@@ -82,27 +91,28 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
+    public List<SegmentRange> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), RuntimeException::new);
+    }
+
+    @Override
     public TxId createTransaction(String scope, String stream) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream), RuntimeException::new);
     }
 
     @Override
     public Status commitTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
     public Status dropTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
     public TxStatus checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+        return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid), RuntimeException::new);
     }
 
 

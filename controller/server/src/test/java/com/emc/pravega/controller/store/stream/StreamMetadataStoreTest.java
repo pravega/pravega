@@ -53,8 +53,8 @@ public class StreamMetadataStoreTest {
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
-        store.createStream(stream1, configuration1);
-        store.createStream(stream2, configuration2);
+        store.createStream(stream1, configuration1, System.currentTimeMillis());
+        store.createStream(stream2, configuration2, System.currentTimeMillis());
 
         assertEquals(stream1, store.getConfiguration(stream1).get().getName());
         // endregion

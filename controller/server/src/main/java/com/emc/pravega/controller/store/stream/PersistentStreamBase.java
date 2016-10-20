@@ -18,6 +18,8 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.HistoryRecord;
 import com.emc.pravega.controller.store.stream.tables.IndexRecord;
@@ -25,11 +27,13 @@ import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
@@ -38,7 +42,7 @@ import java.util.stream.IntStream;
 public abstract class PersistentStreamBase implements Stream {
     private final String name;
 
-    protected PersistentStreamBase(final String name, final String connectionString) {
+    protected PersistentStreamBase(final String name) {
         this.name = name;
     }
 
@@ -67,8 +71,8 @@ public abstract class PersistentStreamBase implements Stream {
      * @return : future of whether it was done or not
      */
     @Override
-    public CompletableFuture<Boolean> create(final StreamConfiguration configuration) {
-        final Create create = new Create(System.currentTimeMillis(), configuration);
+    public CompletableFuture<Boolean> create(final StreamConfiguration configuration, long createTimestamp) {
+        final Create create = new Create(createTimestamp, configuration);
         return createStream(create)
                 .thenCompose(x -> createConfiguration(create))
                 .thenCompose(x -> createSegmentTable(create))
@@ -249,6 +253,94 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(startingSegmentNumber -> getSegments(newRanges.size(), startingSegmentNumber));
     }
 
+    @Override
+    public CompletableFuture<UUID> createTransaction() {
+        UUID txId = UUID.randomUUID();
+        return createNewTransaction(txId, System.currentTimeMillis()).thenApply(x -> txId);
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> checkTransactionStatus(UUID txId) {
+        return getActiveTx(txId)
+                .thenCompose(x -> {
+                    if (x == null || x.getTxStatus().equals(TxStatus.UNKNOWN)) {
+                        return getCompletedTx(txId).thenApply(CompletedTxRecord::getCompletionStatus);
+                    } else
+                        return CompletableFuture.completedFuture(x.getTxStatus());
+                })
+                .thenApply(x -> {
+                    if (x == null) {
+                        return TxStatus.UNKNOWN;
+                    } else
+                        return x;
+                });
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> sealTransaction(UUID txId) {
+        return checkTransactionStatus(txId)
+                .thenCompose(x -> {
+                    switch (x) {
+                        case SEALED:
+                            return CompletableFuture.completedFuture(TxStatus.SEALED);
+                        case OPEN:
+                            return sealActiveTx(txId).thenApply(y -> TxStatus.SEALED);
+                        case DROPPED:
+                        case COMMITTED:
+                            throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                        default:
+                            throw new TransactionNotFoundException(txId.toString());
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> commitTransaction(UUID txId) {
+        return checkTransactionStatus(txId)
+                .thenApply(x -> {
+                    switch (x) {
+                        // Only sealed transactions can be committed
+                        case COMMITTED:
+                        case SEALED:
+                            return x;
+                        case OPEN:
+                        case DROPPED:
+                            throw new OperationOnTxNotAllowedException(txId.toString(), "commit");
+                        case UNKNOWN:
+                        default:
+                            throw new TransactionNotFoundException(txId.toString());
+                    }
+                })
+                .thenCompose(x -> {
+                    if (x.equals(TxStatus.SEALED))
+                        return createCompletedTxEntry(txId, TxStatus.COMMITTED, System.currentTimeMillis());
+                    else return CompletableFuture.completedFuture(null); // already committed, do nothing
+                })
+                .thenCompose(x -> removeActiveTxEntry(txId))
+                .thenApply(x -> TxStatus.COMMITTED);
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> dropTransaction(UUID txId) {
+        return checkTransactionStatus(txId)
+                .thenApply(x -> {
+                    switch (x) {
+                        case OPEN:
+                        case SEALED:
+                        case DROPPED:
+                            return x;
+                        case COMMITTED:
+                            throw new OperationOnTxNotAllowedException(txId.toString(), "dropped");
+                        case UNKNOWN:
+                        default:
+                            throw new TransactionNotFoundException(txId.toString());
+                    }
+                })
+                .thenCompose(x -> createCompletedTxEntry(txId, TxStatus.DROPPED, System.currentTimeMillis())
+                        .thenCompose(y -> removeActiveTxEntry(txId))
+                        .thenApply(y -> TxStatus.DROPPED));
+    }
+
     private CompletionStage<List<Segment>> getSegments(final int count,
                                                        final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
@@ -426,4 +518,16 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<byte[]> getHistoryTable();
 
     abstract CompletableFuture<Void> createSegmentFile(Create create);
+
+    abstract CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp);
+
+    abstract CompletableFuture<ActiveTxRecord> getActiveTx(UUID txId);
+
+    abstract CompletableFuture<Void> sealActiveTx(UUID txId);
+
+    abstract CompletableFuture<CompletedTxRecord> getCompletedTx(UUID txId);
+
+    abstract CompletableFuture<Void> removeActiveTxEntry(UUID txId);
+
+    abstract CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxStatus complete, long timestamp);
 }
