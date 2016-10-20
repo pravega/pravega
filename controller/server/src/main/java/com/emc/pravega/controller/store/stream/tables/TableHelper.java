@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream.tables;
 
 import com.emc.pravega.controller.store.stream.Segment;
+import com.emc.pravega.controller.store.stream.SegmentNotFoundException;
 
 import java.io.ByteArrayOutputStream;
 import java.util.AbstractMap;
@@ -52,7 +53,7 @@ public class TableHelper {
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
         } else
-            throw new RuntimeException(String.format("segment %d does not exist", number));
+            throw new SegmentNotFoundException(number);
     }
 
     /**

@@ -15,20 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream.tables;
+package com.emc.pravega.stream.impl;
 
-import java.io.Serializable;
+import lombok.Data;
 
-/**
- * Base class for tasks
- * @param <T>
- */
-public interface Task<T extends Task> extends Serializable {
-    Class<T> getType();
-
-    Create asCreate();
-
-    Scale asScale();
+@Data
+public class TxId {
+    private final long highBits;
+    private final long lowBits;
 }
-
-

@@ -74,6 +74,7 @@ service ControllerService {
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
     NodeUri getURI(1: SegmentId segment)
+    bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber, 4: string caller)
     TxId createTransaction(1:string scope, 2:string stream)
     Status commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
     Status dropTransaction(1:string scope, 2:string stream, 3:TxId txid)

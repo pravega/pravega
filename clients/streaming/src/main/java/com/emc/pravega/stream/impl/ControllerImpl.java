@@ -56,7 +56,6 @@ public class ControllerImpl implements Controller {
 
     private final ControllerService.AsyncClient client;
 
-
     public ControllerImpl(String host, int port) {
         try {
             // initialize transport, protocol factory, and async client manager
@@ -171,6 +170,18 @@ public class ControllerImpl implements Controller {
                 .getResult()
                 .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
                 .thenApply(ModelHelper::encode);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber, String caller) {
+        ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
+        ThriftHelper.thriftCall(() -> {
+            client.isSegmentValid(scope, stream, segmentNumber, caller, callback);
+            return callback.getResult();
+        });
+
+        return callback.getResult()
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
     }
 
     @Override

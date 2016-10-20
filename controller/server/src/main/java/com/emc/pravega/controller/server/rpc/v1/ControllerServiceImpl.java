@@ -17,21 +17,9 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-
-import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.StreamConfiguration;
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.thrift.TException;
-
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
+import com.emc.pravega.controller.store.stream.SegmentNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
@@ -39,12 +27,25 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.stream.PositionInternal;
+import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.thrift.TException;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Stream controller RPC server implementation
@@ -135,6 +136,17 @@ public class ControllerServiceImpl {
         );
     }
 
+    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber, String caller) throws TException {
+        return streamStore.getSegment(stream, segmentNumber).handle((ok, ex) -> {
+            if (ex != null) {
+                if(ex instanceof SegmentNotFoundException)
+                    return false;
+                else throw new RuntimeException(ex);
+            } else
+                return SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore).getEndpoint().equals(caller);
+        });
+    }
+
     private void notifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore);
 
@@ -148,10 +160,11 @@ public class ControllerServiceImpl {
      * distributes the future segments in segmentFutures among the shards. E.g., if n=5, and segmentFutures contains
      * a) 3 current segments, then 3 positions will be created each having one current segment
      * b) 6 current segments, then 5 positions will be created 1st position containing #1, #2 current segments
-     *    and remaining positions having 1 current segment each
-     * @param stream input stream
+     * and remaining positions having 1 current segment each
+     *
+     * @param stream         input stream
      * @param segmentFutures input segmentFutures
-     * @param n number of shards
+     * @param n              number of shards
      * @return the list of position objects
      */
     private List<Position> shard(String scope, String stream, SegmentFutures segmentFutures, int n) {
@@ -211,7 +224,8 @@ public class ControllerServiceImpl {
     /**
      * This method converts list of positions into list of segmentFutures.
      * While doing so it updates the completedSegments set and stores segment offsets in a map.
-     * @param positions input list of positions
+     *
+     * @param positions      input list of positions
      * @param segmentOffsets map of segment number of its offset that shall be populated in this method
      * @return the list of segmentFutures objects
      */
@@ -219,7 +233,7 @@ public class ControllerServiceImpl {
         List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
 
         // construct SegmentFutures for each position object.
-        for (PositionInternal position: positions) {
+        for (PositionInternal position : positions) {
             List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
             Map<Integer, Integer> futures = new HashMap<>();
             position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
@@ -251,5 +265,21 @@ public class ControllerServiceImpl {
                 }
         );
         return resultPositions;
+    }
+
+    public CompletableFuture<TxId> createTransaction(String scope, String stream) {
+        return null;
+    }
+
+    public CompletableFuture<Status> commitTransaction(String scope, String stream, TxId txid) {
+        return null;
+    }
+
+    public CompletableFuture<Status> dropTransaction(String scope, String stream, TxId txid) {
+        return null;
+    }
+
+    public CompletableFuture<Status> checkTransactionStatus(String scope, String stream, TxId txid) {
+        return null;
     }
 }

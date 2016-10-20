@@ -81,23 +81,33 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     }
 
     @Override
-    public void createTransaction(String scope, String stream, AsyncMethodCallback resultHandler) throws TException {
+    public void isSegmentValid(String scope, String stream, int segmentNumber, String caller, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("isSegmentValid called for stream " + scope + "/" + stream + " segment " + segmentNumber);
+        processResult(controllerService.isSegmentValid(scope, stream, segmentNumber, caller), resultHandler);
+    }
 
+    @Override
+    public void createTransaction(String scope, String stream, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("createTransaction called for stream " + scope + "/" + stream);
+        processResult(controllerService.createTransaction(scope, stream), resultHandler);
     }
 
     @Override
     public void commitTransaction(String scope, String stream, TxId txid, AsyncMethodCallback resultHandler) throws TException {
-
+        log.debug("commitTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.commitTransaction(scope, stream, txid), resultHandler);
     }
 
     @Override
     public void dropTransaction(String scope, String stream, TxId txid, AsyncMethodCallback resultHandler) throws TException {
-
+        log.debug("dropTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.dropTransaction(scope, stream, txid), resultHandler);
     }
 
     @Override
     public void checkTransactionStatus(String scope, String stream, TxId txid, AsyncMethodCallback resultHandler) throws TException {
-
+        log.debug("checkTransactionStatus called for stream " + scope + "/" + stream + " txid=" + txid);
+        processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);
     }
 
     private static <T> void processResult(CompletableFuture<T> result, AsyncMethodCallback resultHandler) {

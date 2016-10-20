@@ -21,22 +21,7 @@ import com.emc.pravega.stream.StreamConfiguration;
 import lombok.Data;
 
 @Data
-public class Create implements Task<Create> {
+public class Create {
     private final long eventTime;
     private final StreamConfiguration configuration;
-
-    @Override
-    public Class<Create> getType() {
-        return Create.class;
-    }
-
-    @Override
-    public Create asCreate() {
-        return this;
-    }
-
-    @Override
-    public Scale asScale() {
-        return null;
-    }
 }

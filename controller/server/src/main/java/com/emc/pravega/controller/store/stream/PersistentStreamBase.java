@@ -24,11 +24,8 @@ import com.emc.pravega.controller.store.stream.tables.IndexRecord;
 import com.emc.pravega.controller.store.stream.tables.Scale;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
-import com.emc.pravega.controller.store.stream.tables.Task;
 import com.emc.pravega.stream.StreamConfiguration;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.ImmutableTriple;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -41,7 +38,7 @@ import java.util.stream.IntStream;
 public abstract class PersistentStreamBase implements Stream {
     private final String name;
 
-    protected PersistentStreamBase(final String name) {
+    protected PersistentStreamBase(final String name, final String connectionString) {
         this.name = name;
     }
 
@@ -71,29 +68,14 @@ public abstract class PersistentStreamBase implements Stream {
      */
     @Override
     public CompletableFuture<Boolean> create(final StreamConfiguration configuration) {
-        return acquireDistributedLock()
-                .thenCompose(x -> getTaskDataIfExists())
-                .thenCompose(taskData -> processCreateTask(configuration, taskData))
-                        // Let create object fall through to all future callbacks as their own return values are uninteresting
-                .thenCompose(create -> createConfiguration(configuration, create).thenApply(x -> create))
-                .thenCompose(create -> createSegmentTable(create).thenApply(x -> create))
-                .thenCompose(create -> createSegmentFile(create).thenApply(x -> create))
-                .thenCompose(create -> createHistoryTable(create).thenApply(x -> create))
-                .thenCompose(this::createIndexTable)
-                .thenCompose(x -> deleteTask())
-                .handle((ok, ex) -> {
-                    try {
-                        releaseDistributedLock().get();
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    if (ex == null)
-                        return true;
-                    else {
-                        throw new RuntimeException(ex);
-                    }
-                });
+        final Create create = new Create(System.currentTimeMillis(), configuration);
+        return createStream(create)
+                .thenCompose(x -> createConfiguration(create))
+                .thenCompose(x -> createSegmentTable(create))
+                .thenCompose(x -> createSegmentFile(create))
+                .thenCompose(x -> createHistoryTable(create))
+                .thenCompose(x -> createIndexTable(create))
+                .thenApply(x -> true);
     }
 
     /**
@@ -250,48 +232,27 @@ public abstract class PersistentStreamBase implements Stream {
     public CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
                                                   final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                   final long scaleTimestamp) {
-        return acquireDistributedLock()
-                .thenCompose(x -> getTaskDataIfExists())
-                .thenCompose(taskData -> processScaleTask(sealedSegments, newRanges, scaleTimestamp, taskData))
-                .thenCompose(scale -> getSegmentChunks()
-                        .thenCompose(this::getLatestChunk)
-                        .thenCompose(latestSegmentData -> addNewSegments(scale, latestSegmentData))
-                        .thenApply(startingSegmentNumber -> new ImmutablePair<>(scale, startingSegmentNumber)))
+        final Scale scale = new Scale(sealedSegments, newRanges, scaleTimestamp);
+
+        return getSegmentChunks()
+                .thenCompose(this::getLatestChunk)
+                .thenCompose(latestSegmentData -> addNewSegments(scale, latestSegmentData))
+                .thenCompose(startingSegmentNumber ->
+                        addHistoryRecord(sealedSegments, scale, startingSegmentNumber)
+                                .thenApply(historyOffset -> new ImmutablePair<>(startingSegmentNumber, historyOffset)))
                 .thenCompose(pair -> {
-                    final Scale scale = pair.left;
-                    final int startingSegmentNumber = pair.right;
+                    final int historyOffset = pair.right;
+                    final int startingSegmentNumber = pair.left;
 
-                    return addHistoryRecord(sealedSegments, scale, startingSegmentNumber)
-                            .thenApply(historyOffset -> new ImmutableTriple<>(scale, startingSegmentNumber, historyOffset));
+                    return addIndexRecord(scale, historyOffset).thenApply(y -> startingSegmentNumber);
                 })
-                .thenCompose(triple -> {
-                    final Scale scale = triple.left;
-                    final int historyOffset = triple.right;
-                    final int startingSegmentNumber = triple.middle;
-
-                    return addIndexRecord(scale, historyOffset).thenApply(x -> startingSegmentNumber);
-                })
-                .thenCompose(startingSegmentNumber -> deleteTask().thenApply(x -> startingSegmentNumber))
-                .thenCompose(startingSegmentNumber -> getSegments(newRanges, startingSegmentNumber))
-                .handle((ok, ex) -> {
-                    try {
-                        releaseDistributedLock().get();
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    if (ex == null) {
-                        return ok;
-                    } else {
-                        throw new RuntimeException(ex);
-                    }
-                });
+                .thenCompose(startingSegmentNumber -> getSegments(newRanges.size(), startingSegmentNumber));
     }
 
-    private CompletionStage<List<Segment>> getSegments(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                       final Integer startingSegmentNumber) {
+    private CompletionStage<List<Segment>> getSegments(final int count,
+                                                       final int startingSegmentNumber) {
         final List<CompletableFuture<Segment>> segments = IntStream.range(startingSegmentNumber,
-                startingSegmentNumber + newRanges.size())
+                startingSegmentNumber + count)
                 .boxed()
                 .map(this::getSegment)
                 .collect(Collectors.<CompletableFuture<Segment>>toList());
@@ -423,65 +384,6 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
-    private CompletableFuture<Create> processCreateTask(final StreamConfiguration configuration, final byte[] taskData) {
-        final Create create;
-        if (taskData != null) {
-            try {
-                final Task task = (Task) SerializationUtils.deserialize(taskData);
-                // if the task is anything other than create, throw error and exit immediately
-                assert task.getType().equals(Create.class);
-
-                create = task.asCreate();
-                // assert that configuration is same, else fail create attempt
-                assert create.getConfiguration().equals(configuration);
-                return CompletableFuture.completedFuture(create);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            try {
-                // ensure that a previous create did not complete, if it did, we should throw an exception
-                // TODO: throw appropriate exception to let the caller know that previous attempt to create
-                // completed successfully. This is not a bad error and is recoverable.
-                create = new Create(System.currentTimeMillis(), configuration);
-                return createTask(SerializationUtils.serialize(create)).thenApply(x -> create);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    private CompletableFuture<Scale> processScaleTask(final List<Integer> sealedSegments,
-                                                      final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                      final long scaleTimestamp,
-                                                      final byte[] taskData) {
-        final Scale scale;
-        if (taskData != null) {
-            try {
-                final Task task = (Task) SerializationUtils.deserialize(taskData);
-                // if the task is anything other than scale, throw error and exit immediately
-                assert task.getType().equals(Scale.class);
-
-                scale = task.asScale();
-                // If existing scale task is different from requested scale task, we will complete the partially
-                // done scale task from the store and ignore the current task. We need to let the caller know
-                // in case we ignore so that there are no surprises.
-                assert scale.getSealedSegments().equals(sealedSegments) &&
-                        scale.getNewRanges().equals(newRanges);
-                return CompletableFuture.completedFuture(scale);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            try {
-                scale = new Scale(sealedSegments, newRanges, scaleTimestamp);
-                return createTask(SerializationUtils.serialize(scale)).thenApply(x -> scale);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
     private CompletionStage<ImmutablePair<Integer, byte[]>> getLatestChunk(final List<String> segmentChunks) {
         assert segmentChunks.size() > 0;
 
@@ -491,17 +393,9 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
 
-    abstract CompletableFuture<Void> acquireDistributedLock();
+    abstract CompletableFuture<Boolean> createStream(Create create) throws StreamAlreadyExistsException;
 
-    abstract CompletableFuture<Void> releaseDistributedLock();
-
-    abstract CompletableFuture<Void> createTask(byte[] serialize);
-
-    abstract CompletableFuture<byte[]> getTaskDataIfExists();
-
-    abstract CompletableFuture<Void> deleteTask();
-
-    abstract CompletionStage<Void> createConfiguration(StreamConfiguration configuration, Create create);
+    abstract CompletableFuture<Void> createConfiguration(Create create);
 
     abstract CompletableFuture<Void> setConfigurationData(StreamConfiguration configuration);
 
@@ -519,17 +413,17 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Void> setSegmentTableChunk(int chunkNumber, byte[] data);
 
-    abstract CompletionStage<Void> createIndexTable(Create create);
+    abstract CompletableFuture<Void> createIndexTable(Create create);
 
     abstract CompletableFuture<byte[]> getIndexTable();
 
     abstract CompletableFuture<Void> updateIndexTable(byte[] updated);
 
-    abstract CompletionStage<Void> createHistoryTable(Create create);
+    abstract CompletableFuture<Void> createHistoryTable(Create create);
 
     abstract CompletableFuture<Void> updateHistoryTable(byte[] updated);
 
     abstract CompletableFuture<byte[]> getHistoryTable();
 
-    abstract CompletionStage<Void> createSegmentFile(Create create);
+    abstract CompletableFuture<Void> createSegmentFile(Create create);
 }

@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.controller.store.stream.tables.Create;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.controller.store.stream.tables.TableHelper;
+import com.emc.pravega.controller.store.stream.tables.Utilities;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -49,55 +50,41 @@ import java.util.stream.IntStream;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 class ZKStream extends PersistentStreamBase {
+    private static final String STREAM_PATH = "/streams/%s/streamPath";
     private static final String CONFIGURATION_PATH = "/streams/%s/configurationPath";
     private static final String SEGMENT_PATH = "/streams/%s/segmentPath";
     private static final String HISTORY_PATH = "/streams/%s/historyPath";
     private static final String INDEX_PATH = "/streams/%s/indexPath";
-    private static final String TASK_PATH = "/streams/%s/taskPath";
-    private static final String LOCK_PATH = "/streams/%s/lockPath";
 
     private final CuratorFramework client;
-
     private final NodeCache configurationCache;
     private final PathChildrenCache segmentCache;
     private final NodeCache indexCache;
     private final NodeCache historyCache;
-    private final NodeCache taskCache;
 
+    private final String streamPath;
     private final String configurationPath;
     private final String segmentPath;
     private final String segmentChunkPathTemplate;
     private final String historyPath;
     private final String indexPath;
-    private final String taskPath;
-    private final InterProcessMutex mutex;
-
-    /**
-     * single threaded executor to handle a quirk from curator's mutex which requires same
-     * thread that acquires the lock to release it
-     */
-    private final ExecutorService mutexExecutor = Executors.newSingleThreadExecutor();
 
     public ZKStream(final String name, final String connectionString) {
-        super(name);
+        super(name, connectionString);
 
         client = CuratorFrameworkFactory.newClient(connectionString, new ExponentialBackoffRetry(1000, 3));
         client.start();
+        streamPath = String.format(STREAM_PATH, name);
         configurationPath = String.format(CONFIGURATION_PATH, name);
         segmentPath = String.format(SEGMENT_PATH, name);
         segmentChunkPathTemplate = segmentPath + "/%s";
         historyPath = String.format(HISTORY_PATH, name);
         indexPath = String.format(INDEX_PATH, name);
-        taskPath = String.format(TASK_PATH, name);
-        final String lockPath = String.format(LOCK_PATH, name);
 
         segmentCache = new PathChildrenCache(client, segmentPath, true);
         indexCache = new NodeCache(client, indexPath);
         historyCache = new NodeCache(client, historyPath);
         configurationCache = new NodeCache(client, configurationPath);
-        taskCache = new NodeCache(client, taskPath);
-
-        mutex = new InterProcessMutex(client, lockPath);
     }
 
     public void init() {
@@ -132,50 +119,20 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> acquireDistributedLock() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // Note: curator mutex has a constraint that lock has to be taken and
-                // released in the same thread!!
-                mutex.acquire();
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, mutexExecutor);
+    public CompletableFuture<Boolean> createStream(Create create) throws StreamAlreadyExistsException {
+        return createZNodeIfNotExist(streamPath, Utilities.toByteArray(create.getEventTime()))
+                .thenCompose(x -> getData(streamPath))
+                .thenApply(y -> {
+                    if(create.getEventTime() == Utilities.toLong(y))
+                        return true;
+                    else
+                        throw new StreamAlreadyExistsException(getName());
+                });
     }
 
     @Override
-    public CompletableFuture<Void> releaseDistributedLock() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                mutex.release();
-                return null;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, mutexExecutor);
-    }
-
-    @Override
-    public CompletableFuture<byte[]> getTaskDataIfExists() {
-        return checkExists(taskPath)
-                .thenCompose(x -> x == null ? CompletableFuture.<byte[]>completedFuture(null) : getData(taskCache, taskPath));
-    }
-
-    @Override
-    public CompletableFuture<Void> createTask(final byte[] serialize) {
-        return createZNodeIfNotExist(taskPath, serialize).thenApply(x -> null);
-    }
-
-    @Override
-    public CompletableFuture<Void> deleteTask() {
-        return deletePath(taskPath);
-    }
-
-    @Override
-    public CompletionStage<Void> createConfiguration(final StreamConfiguration configuration, final Create create) {
-        return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration)).thenApply(x -> null);
+    public CompletableFuture<Void> createConfiguration(final Create create) {
+        return createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(create.getConfiguration())).thenApply(x -> null);
     }
 
     @Override
@@ -189,13 +146,13 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletionStage<Void> createIndexTable(final Create create) {
+    public CompletableFuture<Void> createIndexTable(final Create create) {
         final byte[] indexTable = TableHelper.updateIndexTable(new byte[0], create.getEventTime(), 0);
         return createZNodeIfNotExist(indexPath, indexTable).thenApply(x -> null);
     }
 
     @Override
-    public CompletionStage<Void> createHistoryTable(final Create create) {
+    public CompletableFuture<Void> createHistoryTable(final Create create) {
         final int numSegments = create.getConfiguration().getScalingingPolicy().getMinNumSegments();
         final byte[] historyTable = TableHelper.updateHistoryTable(new byte[0],
                 create.getEventTime(),
@@ -210,7 +167,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletionStage<Void> createSegmentFile(final Create create) {
+    public CompletableFuture<Void> createSegmentFile(final Create create) {
         final int numSegments = create.getConfiguration().getScalingingPolicy().getMinNumSegments();
         final int chunkFileName = 0;
         final double keyRangeChunk = 1.0 / numSegments;

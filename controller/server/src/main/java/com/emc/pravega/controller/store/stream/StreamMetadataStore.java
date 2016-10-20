@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.stream.api.v1.TxId;
 import com.emc.pravega.stream.StreamConfiguration;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -92,4 +93,6 @@ public interface StreamMetadataStore {
      * @return the list of newly created segments
      */
     CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
+
+    CompletableFuture<TxId> createTransaction();
 }
