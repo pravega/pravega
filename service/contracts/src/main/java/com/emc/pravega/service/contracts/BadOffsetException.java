@@ -21,7 +21,7 @@ package com.emc.pravega.service.contracts;
 /**
  * Exception that is thrown whenever a Write failed due to a bad offset.
  */
-public class BadOffsetException extends StreamingException {
+public class BadOffsetException extends StreamSegmentException {
     /**
      *
      */
@@ -29,15 +29,16 @@ public class BadOffsetException extends StreamingException {
 
     /**
      * Creates a new instance of the BadOffsetException class.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param expectedOffset    The expected offset for the Operation.
+     * @param actualOffset      The real offset (length) of the StreamSegment.
      */
-    public BadOffsetException(String message) {
-        super(message);
+    public BadOffsetException(String streamSegmentName, long expectedOffset, long actualOffset) {
+        super(streamSegmentName, getMessage(expectedOffset, actualOffset));
     }
 
-    /**
-     * Creates a new instance of the BadOffsetException class.
-     */
-    public BadOffsetException(String message, Throwable cause) {
-        super(message, cause);
+    private static String getMessage(long expectedOffset, long actualOffset) {
+        return String.format("Bad Offset. Expected %d, Given %d.", expectedOffset, actualOffset);
     }
 }

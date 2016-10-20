@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -407,16 +408,16 @@ class OperationMetadataUpdater implements ContainerMetadata {
          */
         void acceptOperation(Operation operation) throws MetadataUpdateException {
             if (operation instanceof StorageOperation) {
-                TemporaryStreamSegmentMetadata streamMetadata = getStreamSegmentMetadata(((StorageOperation) operation).getStreamSegmentId());
+                TemporaryStreamSegmentMetadata segmentMetadata = getStreamSegmentMetadata(((StorageOperation) operation).getStreamSegmentId());
                 if (operation instanceof StreamSegmentAppendOperation) {
-                    streamMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
+                    segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
                 } else if (operation instanceof StreamSegmentSealOperation) {
-                    streamMetadata.acceptOperation((StreamSegmentSealOperation) operation);
+                    segmentMetadata.acceptOperation((StreamSegmentSealOperation) operation);
                 } else if (operation instanceof MergeTransactionOperation) {
-                    MergeTransactionOperation mbe = (MergeTransactionOperation) operation;
-                    TemporaryStreamSegmentMetadata transactionMetadata = getStreamSegmentMetadata(mbe.getTransactionSegmentId());
-                    transactionMetadata.acceptAsTransactionSegment(mbe);
-                    streamMetadata.acceptAsParentSegment(mbe, transactionMetadata);
+                    MergeTransactionOperation mto = (MergeTransactionOperation) operation;
+                    TemporaryStreamSegmentMetadata transactionMetadata = getStreamSegmentMetadata(mto.getTransactionSegmentId());
+                    transactionMetadata.acceptAsTransactionSegment(mto);
+                    segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
                 }
             } else if (operation instanceof MetadataOperation) {
                 if (operation instanceof MetadataCheckpointOperation) {
@@ -875,10 +876,12 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @param operation The operation to pre-process.
          * @throws StreamSegmentSealedException If the StreamSegment is sealed.
          * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
+         * @throws BadOffsetException           If the operation has an assigned offset, but it doesn't match the current
+         *                                      Segment DurableLogOffset.
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
-        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException {
-            ensureStreamId(operation);
+        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException, BadOffsetException {
+            ensureSegmentId(operation);
             if (this.merged) {
                 // We do not allow any operation after merging (since after merging the StreamSegment disappears).
                 throw new StreamSegmentMergedException(this.baseMetadata.getName());
@@ -888,9 +891,17 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 throw new StreamSegmentSealedException(this.baseMetadata.getName());
             }
 
-            if (!isRecoveryMode) {
-                // Assign entry offset and update stream offset afterwards.
-                operation.setStreamSegmentOffset(this.currentDurableLogLength);
+            if (!this.isRecoveryMode) {
+                long operationOffset = operation.getStreamSegmentOffset();
+                if (operationOffset >= 0) {
+                    // If the Operation already has an offset assigned, verify that it matches the current end offset of the Segment.
+                    if (operationOffset != this.currentDurableLogLength) {
+                        throw new BadOffsetException(this.baseMetadata.getName(), this.currentDurableLogLength, operationOffset);
+                    }
+                } else {
+                    // No pre-assigned offset. Put the Append at the end of the Segment.
+                    operation.setStreamSegmentOffset(this.currentDurableLogLength);
+                }
             }
         }
 
@@ -904,7 +915,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
         void preProcessOperation(StreamSegmentSealOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
             if (this.merged) {
                 // We do not allow any operation after merging (since after merging the Stream disappears).
                 throw new StreamSegmentMergedException(this.baseMetadata.getName());
@@ -916,7 +927,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             if (!this.isRecoveryMode) {
-                // Assign entry Stream Length.
+                // Assign entry StreamSegment Length.
                 operation.setStreamSegmentOffset(this.currentDurableLogLength);
             }
         }
@@ -932,10 +943,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
         void preProcessAsParentSegment(MergeTransactionOperation operation, TemporaryStreamSegmentMetadata transactionMetadata) throws StreamSegmentSealedException, MetadataUpdateException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
 
             if (this.sealed) {
-                // We do not allow merging into sealed streams.
+                // We do not allow merging into sealed Segments.
                 throw new StreamSegmentSealedException(this.baseMetadata.getName());
             }
 
@@ -954,7 +965,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             if (!this.isRecoveryMode) {
-                // Assign entry Stream offset and update stream offset afterwards.
+                // Assign entry StreamSegment offset and update StreamSegment offset afterwards.
                 operation.setStreamSegmentOffset(this.currentDurableLogLength);
             }
         }
@@ -995,7 +1006,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
         void acceptOperation(StreamSegmentAppendOperation operation) throws MetadataUpdateException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
             if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
                 throw new MetadataUpdateException(String.format("StreamSegmentAppendOperation offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
             }
@@ -1013,7 +1024,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
         void acceptOperation(StreamSegmentSealOperation operation) throws MetadataUpdateException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
             if (operation.getStreamSegmentOffset() < 0) {
                 throw new MetadataUpdateException("StreamSegmentSealOperation cannot be accepted if it hasn't been pre-processed.");
             }
@@ -1031,7 +1042,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws IllegalArgumentException If the operation is for a different stream.
          */
         void acceptAsParentSegment(MergeTransactionOperation operation, TemporaryStreamSegmentMetadata transactionMetadata) throws MetadataUpdateException {
-            ensureStreamId(operation);
+            ensureSegmentId(operation);
 
             if (operation.getStreamSegmentOffset() != this.currentDurableLogLength) {
                 throw new MetadataUpdateException(String.format("MergeTransactionOperation target offset mismatch. Expected %d, actual %d.", this.currentDurableLogLength, operation.getStreamSegmentOffset()));
@@ -1088,7 +1099,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
         }
 
-        private void ensureStreamId(StorageOperation operation) {
+        private void ensureSegmentId(StorageOperation operation) {
             Exceptions.checkArgument(this.baseMetadata.getId() == operation.getStreamSegmentId(), "operation", "Invalid Log Operation StreamSegment Id.");
         }
 
