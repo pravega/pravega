@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
@@ -62,8 +63,9 @@ public class OperationMetadataUpdaterTests {
     private static final long NOTSEALED_TRANSACTION_ID = 890;
     private static final long SEALED_TRANSACTION_LENGTH = 12;
     private static final long SEGMENT_LENGTH = 1234567;
-    private static final AppendContext DEFAULT_APPEND_CONTEXT = new AppendContext(UUID.randomUUID(), 0);
     private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
+    private final AtomicLong nextEventNumber = new AtomicLong();
+    private final Supplier<AppendContext> nextAppendContext = () -> new AppendContext(UUID.randomUUID(), nextEventNumber.incrementAndGet());
 
     //region StreamSegmentAppendOperation
 
@@ -99,7 +101,7 @@ public class OperationMetadataUpdaterTests {
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
 
         // When StreamSegment is merged (via transaction).
-        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT);
+        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, nextAppendContext.get());
         MergeTransactionOperation mergeOp = createMerge();
         updater.preProcessOperation(mergeOp);
         updater.acceptOperation(mergeOp);
@@ -201,6 +203,39 @@ public class OperationMetadataUpdaterTests {
                 "acceptOperation accepted an append that was rejected during preProcessing.",
                 () -> updater.acceptOperation(badAppendOp),
                 ex -> ex instanceof MetadataUpdateException);
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to reject StreamSegmentAppends with out-of-order EventNumbers.
+     */
+    @Test
+    public void testStreamSegmentAppendWithBadEventNumbers() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+
+        // Append #1.
+        StreamSegmentAppendOperation appendOp = createAppendNoOffset();
+        updater.preProcessOperation(appendOp);
+        updater.acceptOperation(appendOp);
+
+        // Append #2 (same context as Append #1)
+        StreamSegmentAppendOperation badAppendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, appendOp.getAppendContext());
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. (test #1)",
+                () -> updater.preProcessOperation(badAppendOp),
+                ex -> ex instanceof BadEventNumberException);
+
+        // Append #3 (same EventNumber, but different clientId).
+        StreamSegmentAppendOperation differentClientAppend = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, new AppendContext(UUID.randomUUID(), appendOp.getAppendContext().getEventNumber()));
+        updater.preProcessOperation(differentClientAppend);
+        updater.acceptOperation(differentClientAppend);
+
+        // Append #4 (same context as Append #3).
+        StreamSegmentAppendOperation badAppendOp2 = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, differentClientAppend.getAppendContext());
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. (test #2)",
+                () -> updater.preProcessOperation(badAppendOp2),
+                ex -> ex instanceof BadEventNumberException);
     }
 
     //endregion
@@ -548,7 +583,7 @@ public class OperationMetadataUpdaterTests {
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
         processOperation(mapOp, updater, seqNo::incrementAndGet);
-        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
+        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, nextAppendContext.get()), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
@@ -805,11 +840,11 @@ public class OperationMetadataUpdaterTests {
     }
 
     private StreamSegmentAppendOperation createAppendNoOffset() {
-        return new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT);
+        return new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, nextAppendContext.get());
     }
 
     private StreamSegmentAppendOperation createAppendWithOffset(long offset) {
-        return new StreamSegmentAppendOperation(SEGMENT_ID, offset, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT);
+        return new StreamSegmentAppendOperation(SEGMENT_ID, offset, DEFAULT_APPEND_DATA, nextAppendContext.get());
     }
 
     private StreamSegmentSealOperation createSeal() {

@@ -22,6 +22,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.io.EnhancedByteArrayOutputStream;
 import com.emc.pravega.common.util.CollectionHelpers;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadEventNumberException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentException;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
@@ -880,7 +881,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          *                                      Segment DurableLogOffset.
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
-        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException, BadOffsetException {
+        void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException, StreamSegmentMergedException, BadOffsetException, BadEventNumberException {
             ensureSegmentId(operation);
             if (this.merged) {
                 // We do not allow any operation after merging (since after merging the StreamSegment disappears).
@@ -892,6 +893,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             }
 
             if (!this.isRecoveryMode) {
+                // Offset check (if append-with-offset).
                 long operationOffset = operation.getStreamSegmentOffset();
                 if (operationOffset >= 0) {
                     // If the Operation already has an offset assigned, verify that it matches the current end offset of the Segment.
@@ -901,6 +903,15 @@ class OperationMetadataUpdater implements ContainerMetadata {
                 } else {
                     // No pre-assigned offset. Put the Append at the end of the Segment.
                     operation.setStreamSegmentOffset(this.currentDurableLogLength);
+                }
+
+                // Context Event-Number check (must be monotonically increasing).
+                AppendContext currentContext = operation.getAppendContext();
+                if (currentContext != null) {
+                    AppendContext lastContext = getLastAppendContext(operation.getAppendContext().getClientId());
+                    if (lastContext != null && currentContext.getEventNumber() <= lastContext.getEventNumber()) {
+                        throw new BadEventNumberException(this.baseMetadata.getName(), lastContext.getEventNumber(), currentContext.getEventNumber());
+                    }
                 }
             }
         }

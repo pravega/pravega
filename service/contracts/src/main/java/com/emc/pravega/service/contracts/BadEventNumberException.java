@@ -19,26 +19,26 @@
 package com.emc.pravega.service.contracts;
 
 /**
- * Exception that is thrown whenever a Write failed due to a bad offset.
+ * Exception that is thrown whenever an Append Operation failed because of inconsistent AppendContext.EventNumbers.
  */
-public class BadOffsetException extends StreamSegmentException {
+public class BadEventNumberException extends StreamSegmentException {
     /**
      *
      */
     private static final long serialVersionUID = 1L;
 
     /**
-     * Creates a new instance of the BadOffsetException class.
+     * Creates a new instance of the BadEventNumberException class.
      *
      * @param streamSegmentName The name of the StreamSegment.
-     * @param expectedOffset    The expected offset for the Operation.
-     * @param givenOffset       The offset that was given as part of the operation.
+     * @param lastEventNumber   The last known Event Number for the StreamSegment.
+     * @param actualEventNumber The Event Number that was given as part of the Operation.
      */
-    public BadOffsetException(String streamSegmentName, long expectedOffset, long givenOffset) {
-        super(streamSegmentName, getMessage(expectedOffset, givenOffset));
+    public BadEventNumberException(String streamSegmentName, long lastEventNumber, long actualEventNumber) {
+        super(streamSegmentName, getMessage(lastEventNumber, actualEventNumber));
     }
 
-    private static String getMessage(long expectedOffset, long givenOffset) {
-        return String.format("Bad Offset. Expected %d, given %d.", expectedOffset, givenOffset);
+    private static String getMessage(long expectedOffset, long actualOffset) {
+        return String.format("Bad EventNumber. Expected greater than %d, given %d.", expectedOffset, actualOffset);
     }
 }
