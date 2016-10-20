@@ -172,8 +172,9 @@ class HDFSLowerStorage implements Storage {
 
 
     Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
-        if (getFS().globStatus(new Path(targetStreamSegmentName))[0].getLen() != offset )
+        if (getFS().globStatus(new Path(targetStreamSegmentName))[0].getLen() != offset ) {
             throw new BadOffsetException(targetStreamSegmentName + " has more data than" + offset);
+        }
         getFS().concat(new Path(targetStreamSegmentName),
                 new Path[]{
                         new Path(targetStreamSegmentName),
