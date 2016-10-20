@@ -35,6 +35,7 @@ import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -151,9 +152,18 @@ public class ClusterZKImpl implements Cluster {
 
     @Override
     public void close() throws Exception {
-        CollectionHelpers.forEach(entryMap.values(), PersistentNode::close);
+        CollectionHelpers.forEach(entryMap.values(), this::close);
         if (cache.isPresent())
-            cache.get().close();
+            close(cache.get());
+    }
+
+    private void close(Closeable c) {
+        if (c == null) return;
+        try {
+            c.close();
+        } catch (IOException e) {
+            log.error("Error while closing resource", e);
+        }
     }
 
     private String getServerName(final PathChildrenCacheEvent event) {
