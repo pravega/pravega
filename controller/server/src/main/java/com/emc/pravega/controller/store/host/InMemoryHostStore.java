@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 public class InMemoryHostStore implements HostControllerStore {
     private final Map<Host, Set<Integer>> hostContainerMap;
 
-
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
         this.hostContainerMap = hostContainerMap;
     }
@@ -38,15 +37,17 @@ public class InMemoryHostStore implements HostControllerStore {
 
     @Override
     public Set<Integer> getContainersForHost(Host host) {
-        if (hostContainerMap.containsKey(host))
+        if (hostContainerMap.containsKey(host)) {
             return Collections.unmodifiableSet(hostContainerMap.get(host));
-        else throw new HostNotFoundException(host);
+        } else {
+            throw new HostNotFoundException(host);
+        }
     }
 
     @Override
     public Host getHostForContainer(int containerId) {
         Optional<Host> hosts = hostContainerMap.entrySet().stream()
-                .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
+                                               .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (hosts.isPresent()) {
             return hosts.get();
         } else {
