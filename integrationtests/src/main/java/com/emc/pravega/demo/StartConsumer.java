@@ -17,16 +17,15 @@
  */
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.Producer;
-import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.Consumer;
+import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.Stream;
-import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
 
-public class StartProducer {
+public class StartConsumer {
 
     public static void main(String[] args) throws Exception {
         @Cleanup
@@ -36,23 +35,15 @@ public class StartProducer {
         Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 
         @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
-        for (int i = 0; i < 10; i++) {
-            String event = "\n Transactional Publish \n";
-            System.err.println("Producing event: " + event);
-            transaction.publish("", event);
-            transaction.flush();
-            Thread.sleep(500);
+        Consumer<String> consumer = stream
+            .createConsumer(new JavaSerializer<>(),
+                            new ConsumerConfig(),
+                            streamManager.getInitialPosition(StartLocalService.STREAM_NAME),
+                            null);
+        for (int i = 0; i < 20; i++) {
+            String event = consumer.getNextEvent(60000);
+            System.err.println("Read event: " + event);
         }
-        for (int i = 0; i < 10; i++) {
-            String event = "\n Non-transactional Publish \n";
-            System.err.println("Producing event: " + event);
-            producer.publish("", event);
-            producer.flush();
-            Thread.sleep(500);
-        }
-        transaction.commit();
         System.exit(0);
     }
 }
