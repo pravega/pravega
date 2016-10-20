@@ -30,6 +30,6 @@ public class StartLocalService {
         streamManager.createStream(STREAM_NAME, null);
         
         Thread.sleep(60000);
-        
+        System.exit(0);
     }
 }
