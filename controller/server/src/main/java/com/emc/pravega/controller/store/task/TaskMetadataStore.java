@@ -59,6 +59,7 @@ public interface TaskMetadataStore {
 
     /**
      * Adds specified resource as a child of current host's hostId node.
+     * This is idempotent operation.
      * @param parent parent node.
      * @param child child noe.
      * @return void in future.
@@ -67,6 +68,7 @@ public interface TaskMetadataStore {
 
     /**
      * Removes the specified child node from the specified parent node.
+     * This is idempotent operation.
      * @param parent node whose child is to be removed.
      * @param child child node to remove.
      * @return void in future.
@@ -75,6 +77,7 @@ public interface TaskMetadataStore {
 
     /**
      * Remove a parent node if it is empty.
+     * This is idempotent operation.
      * @param parent parent node.
      * @return void in future.
      */

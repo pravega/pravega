@@ -47,6 +47,9 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         this.client.start();
     }
 
+    // todo: make all operations non-blocking
+    // todo: potentially merge this class with stream metadata store
+
     @Override
     public CompletableFuture<Void> lock(String resource, TaskData taskData, String owner, String oldOwner) {
         boolean lockAcquired = false;
@@ -127,6 +130,9 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         try {
             byte[] data = client.getData().forPath(getTaskPath(resource));
             return CompletableFuture.completedFuture(data);
+        } catch (KeeperException.NoNodeException e) {
+            log.debug("Node does not exist.", e);
+            return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
