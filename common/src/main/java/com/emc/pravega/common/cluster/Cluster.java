@@ -53,6 +53,6 @@ public interface Cluster extends AutoCloseable {
      *
      * @return List<Host>
      */
-    public List<Host> getClusterMembers();
+    public List<Host> getClusterMembers() throws Exception;
 
 }

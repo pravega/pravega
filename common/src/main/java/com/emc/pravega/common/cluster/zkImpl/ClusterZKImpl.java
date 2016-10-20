@@ -21,6 +21,7 @@ import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.util.CollectionHelpers;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -36,10 +37,10 @@ import org.apache.zookeeper.KeeperException;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_ADDED;
@@ -62,7 +63,7 @@ public class ClusterZKImpl implements Cluster {
     private final CuratorFramework client;
     private final String clusterName;
 
-    private Map<Host, PersistentNode> entryMap = new ConcurrentHashMap<>(INIT_SIZE);
+    private Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
     public ClusterZKImpl(CuratorFramework zkClient, String clusterName) {
@@ -74,13 +75,15 @@ public class ClusterZKImpl implements Cluster {
 
     /**
      * Register Host to cluster.
-     * Note: This method is not threadsafe.
      *
      * @param host
      * @throws Exception
      */
     @Override
+    @Synchronized
     public void registerHost(Host host) throws Exception {
+        if (entryMap.containsKey(host))
+            throw new IllegalArgumentException("Host already registered to cluster");
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS);
         createPathIfExists(basePath);
@@ -94,23 +97,19 @@ public class ClusterZKImpl implements Cluster {
 
     /**
      * Remove Host from cluster.
-     * Note: This method is not thread safe.
      *
      * @param host
      * @throws Exception
      */
     @Override
+    @Synchronized
     public void deregisterHost(Host host) throws Exception {
         PersistentNode node = entryMap.get(host);
-        try {
-            if (node == null) {
-                throw new IllegalArgumentException("Host not present inside cluster: " + clusterName + " Host: " + host);
-            } else {
-                entryMap.remove(host);
-                node.close();
-            }
-        } catch (IOException ex) {
-            log.error("Error while removing node from cluster", ex);
+        if (node == null) {
+            throw new IllegalArgumentException("Host not present inside cluster: " + clusterName + " Host: " + host);
+        } else {
+            entryMap.remove(host);
+            close(node);
         }
     }
 
@@ -122,13 +121,15 @@ public class ClusterZKImpl implements Cluster {
      */
     @Override
     public void addListener(ClusterListener listener) throws Exception {
-        if (cache.isPresent()) {
-            throw new UnsupportedOperationException("Listeners are already registered");
-        } else {
-            cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS), true));
-            cache.get().getListenable().addListener(pathChildrenCacheListener(listener));
-            cache.get().start(PathChildrenCache.StartMode.POST_INITIALIZED_EVENT);
+        if (!cache.isPresent()) {
+            initializeCache();
         }
+        cache.get().getListenable().addListener(pathChildrenCacheListener(listener));
+    }
+
+    private void initializeCache() throws Exception {
+        cache = Optional.of(new PathChildrenCache(client, ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS), true));
+        cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
     }
 
     private PathChildrenCacheListener pathChildrenCacheListener(final ClusterListener listener) {
@@ -144,7 +145,7 @@ public class ClusterZKImpl implements Cluster {
                     listener.onEvent(HOST_REMOVED, (Host) SerializationUtils.deserialize(event.getData().getData()));
                     break;
                 case CHILD_UPDATED:
-                    log.error("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
+                    log.warn("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
                     break;
             }
         };
@@ -153,18 +154,17 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Get the current cluster members.
      *
-     * @return List<Host>
+     * @return List<Host> list of cluster members
      */
     @Override
-    public List<Host> getClusterMembers() {
-        if (cache.isPresent()) {
-            List<ChildData> data = cache.get().getCurrentData();
-            return data.stream()
-                    .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
-                    .collect(Collectors.toList());
-        } else {
-            throw new UnsupportedOperationException("Cache is not present, addListeners to get the current member list ");
+    public List<Host> getClusterMembers() throws Exception {
+        if (!cache.isPresent()) {
+            initializeCache();
         }
+        List<ChildData> data = cache.get().getCurrentData();
+        return data.stream()
+                .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
+                .collect(Collectors.toList());
     }
 
     @Override
