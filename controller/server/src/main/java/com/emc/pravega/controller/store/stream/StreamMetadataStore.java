@@ -121,6 +121,8 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<TxStatus> commitTransaction(String scope, String stream, UUID txId);
 
+    CompletableFuture<TxStatus> sealTransaction(String scope, String stream, UUID txId);
+
     /**
      *
      * @param scope

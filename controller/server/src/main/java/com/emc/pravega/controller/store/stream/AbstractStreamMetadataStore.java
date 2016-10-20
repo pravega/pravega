@@ -123,6 +123,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<TxStatus> sealTransaction(String scope, String stream, UUID txId) {
+        return getStream(stream).sealTransaction(txId);
+    }
+
+    @Override
     public CompletableFuture<TxStatus> dropTransaction(String scope, String stream, UUID txId) {
         return getStream(stream).dropTransaction(txId);
     }
