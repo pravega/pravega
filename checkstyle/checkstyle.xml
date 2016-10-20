@@ -104,5 +104,6 @@
     <!--<module name="Indentation"/> TODO: this needs to be re-enabled once we figure out the lambda indentation problem -->
     <module name="MethodParamPad"/>
     <module name="TypecastParenPad"/>
+    <module name="NeedBraces"/>
   </module>
 </module>
