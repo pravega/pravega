@@ -31,7 +31,8 @@ public interface StreamMetadataStore {
 
     /**
      * Creates a new stream with the given name and configuration.
-     * @param name stream name.
+     *
+     * @param name          stream name.
      * @param configuration stream configuration.
      * @return boolean indicating whether the stream was created.
      */
@@ -39,7 +40,8 @@ public interface StreamMetadataStore {
 
     /**
      * Updates the configuration of an existing stream.
-     * @param name stream name.
+     *
+     * @param name          stream name.
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
@@ -47,45 +49,54 @@ public interface StreamMetadataStore {
 
     /**
      * Fetches the current stream configuration.
+     *
      * @param name stream name.
      * @return current stream configuration.
      */
     StreamConfiguration getConfiguration(String name);
 
     /**
+     * Gets a segment for the given stream and segment number.
      *
-     * @param name stream name.
+     * @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
     Segment getSegment(String name, int number);
 
     /**
+     * Gets all the currently active segments for the given stream.
+     *
      * @param name stream name.
      * @return currently active segments
      */
     SegmentFutures getActiveSegments(String name);
 
     /**
-     * @param name stream name.
+     * Gets all the active segments for the given stream at the given timestamp.
+     *
+     * @param name      stream name.
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
     SegmentFutures getActiveSegments(String name, long timestamp);
 
     /**
-     * @param name stream name.
+     * Gets the new consumer positions for the given arguments.
+     *
+     * @param name              stream name.
      * @param completedSegments completely read segments.
-     * @param currentSegments current consumer positions.
+     * @param currentSegments   current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
     List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
-     * @param name stream name.
+     *
+     * @param name           stream name.
      * @param sealedSegments segments to be sealed
-     * @param newRanges new key ranges to be added to the stream which maps to a new segment per range in the stream
+     * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments

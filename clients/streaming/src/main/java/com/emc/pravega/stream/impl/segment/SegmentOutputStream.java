@@ -14,10 +14,10 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
+import com.emc.pravega.stream.Serializer;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-
-import com.emc.pravega.stream.Serializer;
 
 /**
  * Defines an OuptputStream for a segment.
@@ -27,9 +27,10 @@ public abstract class SegmentOutputStream implements AutoCloseable {
     public static final int MAX_WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
 
     /**
-     * @param buff Data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
+     * Writes the data from the given ByteBuffer to this SegmentOutputStream.
+     *
+     * @param buff       Data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
      * @param onComplete future to be completed when data has been replicated and stored durably.
-     * @return
      */
     public abstract void write(ByteBuffer buff, CompletableFuture<Void> onComplete) throws SegmentSealedException;
 
@@ -41,7 +42,7 @@ public abstract class SegmentOutputStream implements AutoCloseable {
     public abstract void close() throws SegmentSealedException;
 
     /**
-     * Block on all writes who's future has not yet completed.
+     * Block on all writes that have not yet completed.
      */
     public abstract void flush() throws SegmentSealedException;
 }

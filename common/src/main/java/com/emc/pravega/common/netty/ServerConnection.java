@@ -28,8 +28,10 @@ public interface ServerConnection extends AutoCloseable {
     void send(WireCommand cmd);
 
     /**
-     * @param cp Sets the command processor to receive incoming commands from the client. This
-     *            method may only be called once.
+     * Sets the command processor to receive incoming commands from the client. This
+     * method may only be called once.
+     *
+     * @param cp
      */
     void setRequestProcessor(RequestProcessor cp);
 
@@ -42,5 +44,4 @@ public interface ServerConnection extends AutoCloseable {
      */
     @Override
     void close();
-
 }

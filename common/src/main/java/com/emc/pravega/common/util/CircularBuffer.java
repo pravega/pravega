@@ -17,9 +17,9 @@
  */
 package com.emc.pravega.common.util;
 
-import java.nio.ByteBuffer;
-
 import lombok.Getter;
+
+import java.nio.ByteBuffer;
 
 /**
  * Convenience class wrapping byteBuffer to provide a circular buffer. This works by maintaining
@@ -50,6 +50,8 @@ public class CircularBuffer {
     }
 
     /**
+     * Copies into the given ByteBuffer.
+     *
      * @return the number of bytes put into toFill
      */
     public int read(ByteBuffer toFill) {
@@ -77,6 +79,8 @@ public class CircularBuffer {
     }
 
     /**
+     * Copies from the given ByteBuffer.
+     *
      * @return the number of bytes read from fillFrom
      */
     public int fill(ByteBuffer fillFrom) {
@@ -109,7 +113,7 @@ public class CircularBuffer {
     }
 
     /**
-     * @return the number of bytes that can be read
+     * Gets the number of bytes that can be read.
      */
     public int dataAvailable() {
         if (readBuffer.position() < fillBuffer.position()) {

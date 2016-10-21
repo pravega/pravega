@@ -113,7 +113,7 @@
     <module name="JavadocStyle">
       <property name="scope" value="public"/>
       <property name="checkFirstSentence" value="true"/>
-      <property name="checkEmptyJavadoc" value="false"/>
+      <property name="checkEmptyJavadoc" value="true"/>
       <property name="checkHtml" value="true"/>
     </module>
   </module>
