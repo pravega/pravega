@@ -15,13 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.fault;
 
-package com.emc.pravega.controller.store.host;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import com.emc.pravega.common.cluster.Host;
+/**
+ * Container Balancers are used to fetch the new owners of a segment containers.
+ * It is used to compute the owners of the new segment containers.
+ */
+public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
+    /**
+     * Compute the new owners of the segment containers with the list of new hosts added and removed.
+     *
+     * @param hostsPresent hosts present in the cluster.
+     * @param hostsRemoved hosts removed from cluster.
+     * @return
+     */
+    public Optional<Map<C, H>> rebalance(List<H> hostsPresent, List<H> hostsRemoved);
 
-public class HostNotFoundException extends HostControllerException {
-    public HostNotFoundException(Host host) {
-        super(String.format("Host %s not found.", host.getIpAddr()));
-    }
 }

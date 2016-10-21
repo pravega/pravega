@@ -15,13 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.cluster;
 
-package com.emc.pravega.controller.store.host;
+import java.util.concurrent.Executor;
 
-import com.emc.pravega.common.cluster.Host;
+/**
+ * Receive notifications for node added or node removed.
+ */
+public interface ClusterListener {
 
-public class HostNotFoundException extends HostControllerException {
-    public HostNotFoundException(Host host) {
-        super(String.format("Host %s not found.", host.getIpAddr()));
-    }
+    /**
+     * Method invoked when node has been added
+     */
+    public void nodeAdded(Host host);
+
+    /**
+     * Method invoked when node has been removed
+     */
+    public void nodeRemoved(Host host);
+
+    /**
+     * Start listener
+     */
+    public void start() throws Exception;
+
+    /**
+     * Start listener on a custom executor.
+     *
+     * @param executor custom executor on which the listener should run.
+     */
+    public void start(final Executor executor) throws Exception;
 }

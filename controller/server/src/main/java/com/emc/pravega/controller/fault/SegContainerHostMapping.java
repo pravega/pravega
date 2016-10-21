@@ -15,13 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.fault;
 
-package com.emc.pravega.controller.store.host;
+import java.util.Map;
 
-import com.emc.pravega.common.cluster.Host;
+/**
+ * Interface used to store the SegmentContainer and host mapping tables
+ */
+public interface SegContainerHostMapping<C, H> {
 
-public class HostNotFoundException extends HostControllerException {
-    public HostNotFoundException(Host host) {
-        super(String.format("Host %s not found.", host.getIpAddr()));
-    }
+    /**
+     * Read Segment Container to Host Mapping from store
+     *
+     * @return
+     */
+    Map<C, H> getSegmentContainerHostMapping();
+
+    /**
+     * Persist Segment Container to HostMapping to store
+     *
+     * @param map
+     */
+    void persistSegmentContainerHostMapping(Map<C, H> map);
 }
