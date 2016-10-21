@@ -114,13 +114,13 @@
     </module>
     <module name="AvoidNestedBlocks"/>
     <module name="JavadocStyle">
-      <property name="scope" value="public"/>
+      <property name="scope" value="protected"/>
       <property name="checkFirstSentence" value="true"/>
       <property name="checkEmptyJavadoc" value="true"/>
       <property name="checkHtml" value="true"/>
     </module>
     <module name="JavadocMethod">
-      <property name="scope" value="public"/>
+      <property name="scope" value="protected"/>
       <property name="validateThrows" value="true"/>
       <property name="allowUndeclaredRTE" value="true"/>
       <property name="allowMissingThrowsTags" value="false"/>

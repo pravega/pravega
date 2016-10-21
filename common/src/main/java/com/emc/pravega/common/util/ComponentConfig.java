@@ -245,6 +245,7 @@ public abstract class ComponentConfig {
 
     /**
      * Refreshes the configuration based on the latest Property values.
+     * @throws ConfigurationException When a configuration issue has been detected.
      */
     protected abstract void refresh() throws ConfigurationException;
 
