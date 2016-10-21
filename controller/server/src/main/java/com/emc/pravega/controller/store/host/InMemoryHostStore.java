@@ -40,9 +40,11 @@ public class InMemoryHostStore implements HostControllerStore {
 
     @Override
     public Set<Integer> getContainersForHost(Host host) {
-        if (hostContainerMap.containsKey(host))
+        if (hostContainerMap.containsKey(host)) {
             return Collections.unmodifiableSet(hostContainerMap.get(host));
-        else throw new HostNotFoundException(host);
+        } else {
+            throw new HostNotFoundException(host);
+        }
     }
 
     @Override
