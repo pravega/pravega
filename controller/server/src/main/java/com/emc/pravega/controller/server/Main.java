@@ -73,7 +73,7 @@ public class Main {
             HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                     new ZKHostStoreControllerStoreConfig(zkClient));
 
-            monitor.start(); //start the monitor
+            monitor.startMonitor(); //start the monitor
 
             //2) start the Server implementations.
             //2.1) start RPC server with v1 implementation. Enable other versions if required.

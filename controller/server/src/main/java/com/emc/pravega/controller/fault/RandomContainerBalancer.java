@@ -49,8 +49,9 @@ public class RandomContainerBalancer extends SegContainerHostMappingZK implement
                 .map(ep -> ep.getKey())
                 .collect(Collectors.toList());
 
-        if (segContToBeUpdated.isEmpty()) // no updates
+        if (segContToBeUpdated.isEmpty()) { // no updates
             return Optional.empty();
+        }
 
         //choose a random Host
         segContToBeUpdated.stream().forEach(index -> segContainerMap.put(index, hostsPresent.get(index % hostsPresent.size())));

@@ -17,9 +17,10 @@
  */
 package com.emc.pravega.controller.fault;
 
+import com.emc.pravega.common.cluster.Cluster;
+import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
-import com.emc.pravega.common.cluster.NodeType;
-import com.emc.pravega.common.cluster.zkImpl.ClusterListenerZKImpl;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -46,13 +47,13 @@ import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
  * to the other Data nodes.
  */
 @Slf4j
-public class SegmentContainerMonitor extends ClusterListenerZKImpl {
+public class SegmentContainerMonitor implements AutoCloseable {
     private static final String LOCK_PATH = ZKPaths.makePath("cluster", "data", "faulthandler-lock");
 
     private final ContainerBalancer<Integer, Host> segBalancer;
     private final InterProcessMutex mutex;
-    private final LinkedBlockingQueue<Host> hostAdded = new LinkedBlockingQueue<>();
     private final LinkedBlockingQueue<Host> hostRemoved = new LinkedBlockingQueue<>();
+    private final Cluster pravegaServiceCluster;
 
     //Executor used to trigger fault handling operations.
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
@@ -60,40 +61,37 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
     private final ExecutorService mutexExecutor = Executors.newSingleThreadExecutor();
 
     public SegmentContainerMonitor(CuratorFramework client) {
-        super(client, Config.CLUSTER_NAME, NodeType.DATA);
+        pravegaServiceCluster = new ClusterZKImpl(client, Config.CLUSTER_NAME);
         createPathIfNotExists(client, LOCK_PATH);
         mutex = new InterProcessMutex(client, LOCK_PATH);
         segBalancer = new RandomContainerBalancer(client);
     }
 
-    /**
-     * Method invoked when node has been removed.
-     *
-     * @param host
-     */
-    @Override
-    public void nodeRemoved(Host host) {
-        hostRemoved.add(host);
-        log.info("DataNode:{} removed from cluster", host);
-        if (executor.getQueue().size() == 0) {
-            //submit only if there are no tasks in queue. Each each fault handling takes care of all events
-            executor.submit(() -> performFaultHandling().get());
+    public void startMonitor() {
+        try {
+            pravegaServiceCluster.addListener(getClusterListener());
+        } catch (Exception e) {
+            throw new RuntimeException("Not able to start monitor the Pravega service cluster", e);
         }
     }
 
-    /**
-     * Method invoked when node has been added
-     *
-     * @param host
-     */
-    @Override
+    private ClusterListener getClusterListener() {
+        ClusterListener listener = (type, host) -> {
+            if (type.equals(ClusterListener.EventType.HOST_ADDED)) {
+                log.info("DataNode:{} added to cluster", host);
+            } else {
+                hostRemoved.add(host);
+                log.info("DataNode:{} removed from cluster", host);
+            }
+            triggerFaultHandling(pravegaServiceCluster.getClusterMembers(), getHostsRemoved());
+        };
+        return listener;
+    }
 
-    public void nodeAdded(Host host) {
-        hostAdded.add(host);
-        log.info("DataNode:{} added to cluster", host);
+    private void triggerFaultHandling(List<Host> clusterMembers, List<Host> hostsRemoved) {
         if (executor.getQueue().size() == 0) {
             //submit only if there are no tasks in queue. Each each fault handling takes care of all events
-            executor.submit(() -> performFaultHandling().get());
+            executor.submit(() -> performFaultHandling(clusterMembers, hostsRemoved).get());
         }
     }
 
@@ -107,11 +105,11 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
      *
      * @return
      */
-    private CompletableFuture<Void> performFaultHandling() {
+    private CompletableFuture<Void> performFaultHandling(List<Host> clusterMembers, List<Host> hostsRemoved) {
         return acquireDistributedLock(mutexExecutor)
                 .thenApply(success -> {
                     if (success) {
-                        return segBalancer.rebalance(getClusterMembers(), getHostsRemoved());
+                        return segBalancer.rebalance(clusterMembers, hostsRemoved);
                     } else {
                         throw new CompletionException(new TimeoutException("Timeout while acquiring lock" + LOCK_PATH));
                     }
@@ -123,8 +121,9 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
                         if (TimeoutException.class.isInstance(t.getCause())) {
                             log.info("Timeout while acquiring a lock for fault handling as a different controller has" +
                                     "performed the fault handling operations");
-                        } else
+                        } else {
                             log.error("Error during fault handling", t);
+                        }
                     }
                 });
     }
@@ -133,12 +132,6 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
         List<Host> removedHosts = new ArrayList<>();
         hostRemoved.drainTo(removedHosts);
         return removedHosts;
-    }
-
-    private List<Host> getHostsAdded() {
-        List<Host> newHosts = new ArrayList<>();
-        hostAdded.drainTo(newHosts);
-        return newHosts;
     }
 
     private CompletableFuture<Boolean> acquireDistributedLock(final Executor executor) {
@@ -161,5 +154,10 @@ public class SegmentContainerMonitor extends ClusterListenerZKImpl {
         } catch (Exception e) {
             log.error("Exception while releasing distributed lock", e);
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        pravegaServiceCluster.close();
     }
 }

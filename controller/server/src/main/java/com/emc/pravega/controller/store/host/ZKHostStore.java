@@ -44,8 +44,9 @@ public class ZKHostStore implements HostControllerStore {
 
     public ZKHostStore(CuratorFramework client) {
         zkClient = client;
-        if (zkClient.getState().equals(CuratorFrameworkState.LATENT))
+        if (zkClient.getState().equals(CuratorFrameworkState.LATENT)) {
             zkClient.start();
+        }
 
         createPathIfNotExists(zkClient, path, SerializationUtils.serialize(new HashMap<Integer, Host>()));
         segContainerHostMapping = new NodeCache(zkClient, path);
@@ -70,8 +71,9 @@ public class ZKHostStore implements HostControllerStore {
                     .filter(ep -> ep.getValue().equals(host))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-        } else
+        } else {
             throw new HostNotFoundException(host);
+        }
     }
 
     @Override

@@ -21,6 +21,7 @@ import java.util.Map;
 
 /**
  * Interface used to store the SegmentContainer and host mapping tables
+ * TODO: Refactor interface
  */
 public interface SegContainerHostMapping<C, H> {
 

@@ -24,6 +24,7 @@ import java.util.Optional;
 /**
  * Container Balancers are used to fetch the new owners of a segment containers.
  * It is used to compute the owners of the new segment containers.
+ * TODO: remove dependency of SegContainerHostMapping
  */
 public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
     /**

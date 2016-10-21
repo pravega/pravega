@@ -17,32 +17,21 @@
  */
 package com.emc.pravega.common.cluster;
 
-import java.util.concurrent.Executor;
-
 /**
- * Receive notifications for node added or node removed.
+ * Cluster listener.
  */
 public interface ClusterListener {
 
-    /**
-     * Method invoked when node has been added
-     */
-    public void nodeAdded(Host host);
+    enum EventType {
+        HOST_ADDED,
+        HOST_REMOVED
+    }
 
     /**
-     * Method invoked when node has been removed
+     * Method invoked on cluster Event.
+     * @param type - Event type.
+     * @param host - Host added/removed.
      */
-    public void nodeRemoved(Host host);
+    public void onEvent(final EventType type, final Host host) throws Exception;
 
-    /**
-     * Start listener
-     */
-    public void start() throws Exception;
-
-    /**
-     * Start listener on a custom executor.
-     *
-     * @param executor custom executor on which the listener should run.
-     */
-    public void start(final Executor executor) throws Exception;
 }
