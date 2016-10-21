@@ -198,13 +198,13 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public void close() {
-            if (fs != null) {
-                try {
+        if (fs != null) {
+            try {
                 fs.close();
-                } catch (IOException e) {
-                    log.debug("Could not close the fs. The error is", e);
-                }
+            } catch (IOException e) {
+                log.debug("Could not close the fs. The error is", e);
             }
+        }
     }
 
     @Override

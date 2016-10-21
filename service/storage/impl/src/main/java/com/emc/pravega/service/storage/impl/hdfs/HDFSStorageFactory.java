@@ -34,6 +34,7 @@ public class HDFSStorageFactory implements StorageFactory {
 
     public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
         this.storage = new HDFSStorage(serviceBuilderConfig, executor);
+        this.closed = new AtomicBoolean();
     }
 
     public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig) {

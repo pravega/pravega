@@ -33,6 +33,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -230,8 +231,7 @@ public class HDFSStorage implements Storage {
             try {
                 return this.getSegmentFullPathContainingOffset(streamSegmentName, offset);
             } catch (IOException e) {
-                //TBD Log error
-                return null;
+                throw new CompletionException(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor).
                 thenAcceptAsync(
