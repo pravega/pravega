@@ -17,13 +17,6 @@
  */
 package com.emc.pravega.stream.impl.model;
 
-import static org.junit.Assert.assertEquals;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import org.junit.Test;
-
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
@@ -33,13 +26,19 @@ import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.PositionImpl;
+import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 
 public class ModelHelperTest {
 
     private static Segment createSegmentId(String streamName, int number) {
         return new Segment("scope", streamName, number);
     }
-    
+
     private static com.emc.pravega.stream.impl.FutureSegment createFutureSegmentId(String streamName, int number, int previous) {
         return new com.emc.pravega.stream.impl.FutureSegment("scope", streamName, number, previous);
     }
@@ -55,6 +54,7 @@ public class ModelHelperTest {
             public String getScope() {
                 return "scope";
             }
+
             @Override
             public String getName() {
                 return name;
@@ -104,7 +104,7 @@ public class ModelHelperTest {
         assertEquals("scope", segment.getScope());
         assertEquals(2, segment.getSegmentNumber());
     }
-    
+
     @Test // Preceding 
     public void encodeFutureSegmentId() {
         com.emc.pravega.stream.impl.FutureSegment segment = ModelHelper.encode(ModelHelper.decode(createFutureSegmentId("stream1", 2, 1)), 1);
@@ -198,7 +198,7 @@ public class ModelHelperTest {
 
     @Test
     public void encodePosition() {
-        PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition())); 
+        PositionInternal position = ModelHelper.encode(ModelHelper.decode(createPosition()));
         Map<Segment, Long> ownedLogs = position.getOwnedSegmentsWithOffsets();
         Map<com.emc.pravega.stream.impl.FutureSegment, Long> futureOwnedLogs = position.getFutureOwnedSegmentsWithOffsets();
         assertEquals(1, ownedLogs.size());

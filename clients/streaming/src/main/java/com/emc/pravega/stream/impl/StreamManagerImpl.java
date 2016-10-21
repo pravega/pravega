@@ -17,9 +17,6 @@
  */
 package com.emc.pravega.stream.impl;
 
-import java.net.URI;
-import java.util.concurrent.ConcurrentHashMap;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.ConnectionFactory;
 import com.emc.pravega.stream.Stream;
@@ -27,9 +24,11 @@ import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
+import java.net.URI;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A stream manager. Used to bootstrap the client. 
+ * A stream manager. Used to bootstrap the client.
  */
 public class StreamManagerImpl implements StreamManager {
 
@@ -37,7 +36,7 @@ public class StreamManagerImpl implements StreamManager {
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ControllerImpl controller;
     private final ConnectionFactory connectionFactory;
-    
+
     public StreamManagerImpl(String scope, URI controllerUri) {
         this.scope = scope;
         this.controller = new ControllerImpl(controllerUri.getHost(), controllerUri.getPort());
@@ -57,9 +56,8 @@ public class StreamManagerImpl implements StreamManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller
-            .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingingPolicy())),
-                                             RuntimeException::new);
-
+                        .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingingPolicy())),
+                RuntimeException::new);
 
         Stream stream = new StreamImpl(scope, streamName, config, controller, connectionFactory);
         created.put(streamName, stream);
