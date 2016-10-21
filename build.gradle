@@ -140,7 +140,7 @@ project('integrationtests') {
         compile project(':service:server:host')
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
-        testCompile files(project(':clients:streaming').sourceSets.test.output)
+        compile files(project(':clients:streaming').sourceSets.test.output)
         testCompile files(project(':service:server').sourceSets.test.output)
         testCompile files(project(':service:server:host').sourceSets.test.output)
     }
@@ -161,30 +161,21 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-
-
+	
+    task startLocalService(type: JavaExec) {
+        main = "com.emc.pravega.demo.StartLocalService"
+        classpath = sourceSets.main.runtimeClasspath
+        standardInput = System.in
+    }
+	
     task startProducer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartProducer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-}
-
-project('benchmark') {
-    dependencies {
-        compile project(':common')
-        compile project(':clients:streaming')
-        compile project(':service:server')
-        compile project(':service:server:host')
-        testCompile project(':testcommon')
-        testCompile files(project(':common').sourceSets.test.output)
-        testCompile files(project(':clients:streaming').sourceSets.test.output)
-        testCompile files(project(':service:server').sourceSets.test.output)
-        testCompile files(project(':service:server:host').sourceSets.test.output)
-    }
-
-    task startProducer(type: JavaExec) {
-        main = "com.emc.pravega.demo.StartECSProducer"
+	
+    task startConsumer(type: JavaExec) {
+        main = "com.emc.pravega.demo.StartConsumer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
