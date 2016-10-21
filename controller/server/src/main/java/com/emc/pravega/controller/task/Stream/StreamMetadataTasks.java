@@ -183,10 +183,6 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         );
     }
 
-    private String getResource(String scope, String stream) {
-        return scope + "/" + stream;
-    }
-
     private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {
         segmentNumbers
                 .stream()

@@ -86,6 +86,14 @@ public class TaskBase implements Cloneable {
         return (TaskBase) super.clone();
     }
 
+    public static String getResource(String scope, String stream) {
+        return scope + "_%_" + stream;
+    }
+
+    public static String getResource(String scope, String stream, String transactionId) {
+        return scope + "_%_" + stream + "_%_" + transactionId;
+    }
+
     public void setContext(Context context) {
         this.context = context;
     }
@@ -118,7 +126,7 @@ public class TaskBase implements Cloneable {
                         // After storing that fact, lock the resource, execute task and unlock the resource
                         .thenCompose(x -> executeTask(resource, taskData, operation))
                         // finally delete the resource child created under the controller's HostId
-                        .whenComplete((result, e) -> taskMetadataStore.removeChild(context.hostId, resourceTag, false));
+                        .whenComplete((result, e) -> taskMetadataStore.removeChild(context.hostId, resourceTag, true));
     }
 
     private <T> CompletableFuture<T> executeTask(String resource, TaskData taskData, FutureOperation<T> operation) {

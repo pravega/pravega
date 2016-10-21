@@ -53,8 +53,4 @@ public class TestTasks extends TaskBase implements Cloneable {
                     return  CompletableFuture.completedFuture(null);
                 });
     }
-
-    private String getResource(String scope, String stream) {
-        return scope + "/" + stream;
-    }
 }

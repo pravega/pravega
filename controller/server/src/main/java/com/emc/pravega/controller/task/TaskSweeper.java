@@ -19,14 +19,12 @@ package com.emc.pravega.controller.task;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.LockData;
+import com.emc.pravega.controller.store.task.TaskNotFoundException;
 import com.emc.pravega.controller.task.TaskBase.Context;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.zookeeper.KeeperException;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,14 +65,17 @@ public class TaskSweeper {
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      */
     public CompletableFuture<List<Object>> sweepOrphanedTasks(String oldHostId) {
+
+        // Initially read the list of resources that the failed host could have been executing tasks on.
         return taskMetadataStore.getChildren(oldHostId)
                 .thenCompose(resourceTags -> {
 
-                    // Initially read the list of resources that the failed host could have been executing tasks on.
-                    // Invariant: If no resources were found, it is safe to delete the old HostId node.
                     if (resourceTags == null || resourceTags.isEmpty()) {
+
+                        // Invariant: If no resources were found, it is safe to delete the old HostId node.
                         return taskMetadataStore.removeNode(oldHostId)
                                 .thenApply(x -> Collections.emptyList());
+
                     } else {
                         Map<String, List<String>> resourceGroups =
                                 resourceTags
@@ -96,30 +97,44 @@ public class TaskSweeper {
 
     public CompletableFuture<Object> executeResourceTask(String oldHostId, String resource, List<String> resourceTags) {
         final CompletableFuture<Object> result = new CompletableFuture<>();
-        taskMetadataStore.get(resource)
-                .whenComplete((bytes, ex) -> {
-                    if (ex != null && ex instanceof KeeperException.NoNodeException) {
-                        // If no task was found for the given resource, then either
-                        // 1. Task has been completely executed by some other controller instance, or
-                        // 2. Old host died immediately after creating the resource child under its HostId.
-                        // Invariant: In either case it is safe to delete resource child (all tagged variants) under old HostId
-                        resourceTags
-                                .stream()
-                                .forEach(resourceTag -> taskMetadataStore.removeChild(oldHostId, resourceTag, true));
-                        result.complete(null);
-                    } else {
-                        LockData lockData = LockData.deserialize(bytes);
-                        execute(lockData.getHostId(), TaskData.deserialize(lockData.getTaskData()), resourceTags)
+        taskMetadataStore.getTask(resource)
+                .whenComplete((taskData, ex) -> {
+                    if (taskData != null) {
+
+                        execute(oldHostId, taskData, resourceTags)
                                 .whenComplete((value, e) -> {
                                     if (e != null) {
                                         result.completeExceptionally(e);
                                     } else {
-                                        result.complete(result);
+                                        result.complete(value);
                                     }
                                 });
+
+                    } else {
+                        if (ex != null) {
+                            if (ex instanceof TaskNotFoundException) {
+                                // If no task was found for the given resource, then either
+                                // 1. Task has been completely executed by some other controller instance, or
+                                // 2. Old host died immediately after creating the resource child under its HostId.
+                                // Invariant: In either case it is safe to delete resource child (all tagged variants) under old HostId
+                                removeChildren(oldHostId, resourceTags);
+                                result.complete(null);
+
+                            } else {
+
+                                result.completeExceptionally(ex);
+
+                            }
+                        }
                     }
                 });
         return result;
+    }
+
+    public void removeChildren(String hostId, List<String> resourceTags) {
+        resourceTags
+                .stream()
+                .forEach(resourceTag -> taskMetadataStore.removeChild(hostId, resourceTag, true));
     }
 
     /**
@@ -132,9 +147,10 @@ public class TaskSweeper {
     public CompletableFuture<Object> execute(String oldHostId, TaskData taskData, List<String> resourceTags) {
 
         log.debug("Trying to execute {}", taskData.getMethodName());
-        String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
-        if (methodMap.containsKey(key)) {
-            try {
+        try {
+
+            String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
+            if (methodMap.containsKey(key)) {
 
                 // find the method and object
                 Method method = methodMap.get(key);
@@ -144,11 +160,14 @@ public class TaskSweeper {
                 // finally execute the method and return its result
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
 
-            } catch (IllegalAccessException | InvocationTargetException | CloneNotSupportedException ex) {
-                throw new RuntimeException("Error executing task.", ex);
+            } else {
+                throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
             }
-        } else {
-            throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
+
+        } catch (Exception e) {
+            CompletableFuture<Object> result = new CompletableFuture<>();
+            result.completeExceptionally(e);
+            return result;
         }
     }
 

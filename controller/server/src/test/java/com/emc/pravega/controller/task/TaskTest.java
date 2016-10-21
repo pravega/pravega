@@ -44,11 +44,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
@@ -60,9 +62,12 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 public class TaskTest {
+    private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
+    private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
+    private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
     private final StreamMetadataStore streamStore =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
@@ -76,11 +81,14 @@ public class TaskTest {
 
     private final TestingServer zkServer;
 
+    private final StreamMetadataTasks streamMetadataTasks;
+
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
         taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, HOSTNAME);
     }
 
     @Before
@@ -123,10 +131,6 @@ public class TaskTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
-        final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
-        final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
-
         CompletableFuture<CreateStreamStatus> result = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
         assertTrue(result.isCompletedExceptionally());
 
@@ -135,9 +139,33 @@ public class TaskTest {
         assertEquals(result.get(), CreateStreamStatus.SUCCESS);
     }
 
+    @Test
+    public void testTaskSweeper() throws ExecutionException, InterruptedException {
+        final String deadHost = "deadHost";
+        final String scope = SCOPE;
+        final String stream = "streamSweeper";
+        final TaskData taskData = new TaskData();
+        final String resource = StreamMetadataTasks.getResource(scope, stream);
+        final String taggedResource = TaskBase.TaggedResource.getTaggedResource(resource);
+        final long timestamp = System.currentTimeMillis();
+
+        taskData.setMethodName("createStream");
+        taskData.setMethodVersion("1.0");
+        taskData.setParameters(new Serializable[]{scope, stream, configuration1, timestamp});
+
+        taskMetadataStore.putChild(deadHost, taggedResource);
+        taskMetadataStore.lock(resource, taskData, deadHost, null);
+
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, streamMetadataTasks);
+        List<Object> resultList = taskSweeper.sweepOrphanedTasks(deadHost).get();
+        assertTrue(resultList.size() == 1);
+        assertTrue(resultList.get(0) instanceof CreateStreamStatus);
+        assertEquals(resultList.get(0), CreateStreamStatus.SUCCESS);
+    }
+
     @Test(expected = CompletionException.class)
     public void testLocking() {
-        TestTasks testTasks = new TestTasks(taskMetadataStore, "host");
+        TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
         LockingTask second = new LockingTask(testTasks, SCOPE, stream1);

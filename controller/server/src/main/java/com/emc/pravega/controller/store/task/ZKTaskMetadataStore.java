@@ -126,13 +126,20 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<byte[]> get(String resource) {
+    public CompletableFuture<TaskData> getTask(String resource) {
         try {
             byte[] data = client.getData().forPath(getTaskPath(resource));
-            return CompletableFuture.completedFuture(data);
+            if (data == null || data.length <= 0) {
+                log.debug(String.format("Empty data found for resource %s.", resource));
+                throw new TaskNotFoundException(resource);
+            } else {
+                LockData lockData = LockData.deserialize(data);
+                TaskData taskData = TaskData.deserialize(lockData.getTaskData());
+                return CompletableFuture.completedFuture(taskData);
+            }
         } catch (KeeperException.NoNodeException e) {
             log.debug("Node does not exist.", e);
-            return CompletableFuture.completedFuture(null);
+            throw new TaskNotFoundException(resource, e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

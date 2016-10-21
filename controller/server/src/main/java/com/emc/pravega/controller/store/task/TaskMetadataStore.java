@@ -55,7 +55,7 @@ public interface TaskMetadataStore {
      * @param resource node.
      * @return byte array in future.
      */
-    CompletableFuture<byte[]> get(String resource);
+    CompletableFuture<TaskData> getTask(String resource);
 
     /**
      * Adds specified resource as a child of current host's hostId node.

@@ -17,26 +17,31 @@
  */
 package com.emc.pravega.controller.store.task;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.apache.commons.lang3.SerializationUtils;
-
-import java.io.Serializable;
-
 /**
- * Lock row
+ * Task not found exception, thrown when no task is found for a given resource.
  */
-@Data
-@EqualsAndHashCode
-class LockData implements Serializable {
-    private final String hostId;
-    private final byte[] taskData;
+public class TaskNotFoundException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Task not found for resource %s.";
 
-    public byte[] serialize() {
-        return SerializationUtils.serialize(this);
+    /**
+     * Creates a new instance of TaskNotFoundException class
+     * @param resource resource name
+     */
+    public TaskNotFoundException(String resource) {
+        super(String.format(FORMAT_STRING, resource));
     }
 
-    public static LockData deserialize(byte[] bytes) {
-        return (LockData) SerializationUtils.deserialize(bytes);
+    /**
+     * Creates a new instance of TaskNotFoundException class
+     * @param resource resource name
+     * @param cause   error cause
+     */
+    public TaskNotFoundException(String resource, Throwable cause) {
+        super(String.format(FORMAT_STRING, resource), cause);
     }
+
 }

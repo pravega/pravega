@@ -17,21 +17,18 @@
  */
 package com.emc.pravega.controller.task;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import com.emc.pravega.controller.store.task.LockData;
 import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskNotFoundException;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import static org.junit.Assert.*;
 
 /**
  * ZK task metadata store tests.
@@ -88,39 +85,38 @@ public class ZKTaskMetadataStoreTests {
 
         taskMetadataStore.lock(resource, taskData, host1, null).get();
 
-        byte[] bytes = taskMetadataStore.get(resource).get();
-        LockData lockData = LockData.deserialize(bytes);
-
-        assertTrue(host1.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
+        TaskData data = taskMetadataStore.getTask(resource).get();
+        assertArrayEquals(taskData.serialize(), data.serialize());
 
         taskMetadataStore.lock(resource, taskData, host2, host1).get();
 
-        bytes = taskMetadataStore.get(resource).get();
-        lockData = LockData.deserialize(bytes);
-
-        assertTrue(host2.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
+        data = taskMetadataStore.getTask(resource).get();
+        assertArrayEquals(taskData.serialize(), data.serialize());
 
         taskMetadataStore.unlock(resource, host2).get();
 
-        bytes = taskMetadataStore.get(resource).get();
-
-        assertNull(bytes);
+        try {
+            taskMetadataStore.getTask(resource).get();
+            assertTrue(false);
+        } catch (TaskNotFoundException e) {
+            // TaskNotFound exception is expected
+            assertTrue(true);
+        }
 
         taskMetadataStore.lock(resource, taskData, host1, null).get();
 
-        bytes = taskMetadataStore.get(resource).get();
-        lockData = LockData.deserialize(bytes);
-
-        assertTrue(host1.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
+        data = taskMetadataStore.getTask(resource).get();
+        assertArrayEquals(taskData.serialize(), data.serialize());
 
         taskMetadataStore.unlock(resource, host1).get();
 
-        bytes = taskMetadataStore.get(resource).get();
-
-        assertNull(bytes);
+        try {
+            taskMetadataStore.getTask(resource).get();
+            assertTrue(false);
+        } catch (TaskNotFoundException e) {
+            // TaskNotFound exception is expected
+            assertTrue(true);
+        }
     }
 
     @Test(expected = LockFailedException.class)
@@ -128,11 +124,8 @@ public class ZKTaskMetadataStoreTests {
 
         taskMetadataStore.lock(resource, taskData, host1, null).get();
 
-        byte[] bytes = taskMetadataStore.get(resource).get();
-        LockData lockData = LockData.deserialize(bytes);
-
-        assertTrue(host1.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
+        TaskData data = taskMetadataStore.getTask(resource).get();
+        assertArrayEquals(taskData.serialize(), data.serialize());
 
         taskMetadataStore.lock(resource, taskData, host2, null).get();
     }
