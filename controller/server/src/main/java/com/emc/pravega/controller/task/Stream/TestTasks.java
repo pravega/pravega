@@ -17,12 +17,9 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.task.Paths;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
-import org.apache.curator.framework.CuratorFramework;
 
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
@@ -30,17 +27,21 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Set of tasks for test purposes.
  */
-public class TestTasks extends TaskBase {
+public class TestTasks extends TaskBase implements Cloneable {
 
-    public TestTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, client);
+    public TestTasks(TaskMetadataStore taskMetadataStore, String hostId) {
+        super(taskMetadataStore, hostId);
     }
 
-    @Task(name = "test", version = "1.0")
+    @Override
+    public TestTasks clone() throws CloneNotSupportedException {
+        return (TestTasks) super.clone();
+    }
+
+    @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<Void> testStreamLock(String scope, String stream) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream},
                 () -> {
                     try {
@@ -53,4 +54,7 @@ public class TestTasks extends TaskBase {
                 });
     }
 
+    private String getResource(String scope, String stream) {
+        return scope + "/" + stream;
+    }
 }

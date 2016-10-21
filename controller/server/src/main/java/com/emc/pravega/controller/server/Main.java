@@ -20,6 +20,8 @@ package com.emc.pravega.controller.server;
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.TASK_STORE_CONNECTION_STRING;
+import static com.emc.pravega.controller.util.Config.TASK_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.ZK_CONNECTION_STRING;
 
 import com.emc.pravega.controller.server.rpc.RPCServer;
@@ -31,6 +33,8 @@ import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
@@ -40,9 +44,12 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Entry point of controller server.
@@ -58,6 +65,16 @@ public class Main {
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
         hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
+        String hostId;
+        try {
+            // On each controller process restart, it gets a fresh hostId,
+            // which is a combination of hostname and random GUID.
+            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
+        } catch (UnknownHostException e) {
+            log.debug("Failed to get host address.", e);
+            hostId = UUID.randomUUID().toString();
+        }
+
         //1) LOAD configuration.
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
@@ -66,15 +83,26 @@ public class Main {
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));
+        log.info("Creating zk based task store");
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(
+                TaskStoreFactory.StoreType.valueOf(TASK_STORE_TYPE),
+                new StoreConfiguration(TASK_STORE_CONNECTION_STRING));
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
         CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, client);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
-        TaskSweeper taskSweeper = new TaskSweeper(client, streamMetadataTasks, streamTransactionMetadataTasks);
+        // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
+        // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
+        // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
+        // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
+        // are processed and deleted, that failed HostId is removed from FH folder.
+        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of controllers
+        // and starts sweeping tasks orphaned by those hostIds.
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 }

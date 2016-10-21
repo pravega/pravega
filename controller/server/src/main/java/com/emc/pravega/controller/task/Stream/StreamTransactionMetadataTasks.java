@@ -23,12 +23,12 @@ import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
-import com.emc.pravega.controller.task.Paths;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.impl.TxStatus;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.curator.framework.CuratorFramework;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.io.Serializable;
 import java.util.List;
@@ -42,18 +42,29 @@ import java.util.stream.Collectors;
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
- * <p>
+ *
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamTransactionMetadataTasks extends TaskBase {
+public class StreamTransactionMetadataTasks extends TaskBase implements Cloneable {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
     private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, client);
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private final ConnectionFactoryImpl connectionFactory;
+
+    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore,
+                                          HostControllerStore hostControllerStore,
+                                          TaskMetadataStore taskMetadataStore,
+                                          String hostId) {
+        super(taskMetadataStore, hostId);
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
+        this.connectionFactory = new ConnectionFactoryImpl(false);
+
         EXEC_SERVICE.scheduleAtFixedRate(() -> {
             // find transactions to be dropped
             try {
@@ -76,52 +87,51 @@ public class StreamTransactionMetadataTasks extends TaskBase {
 
     }
 
+    @Override
+    public StreamTransactionMetadataTasks clone() throws CloneNotSupportedException {
+        return (StreamTransactionMetadataTasks) super.clone();
+    }
+
     /**
      * Create transaction.
-     *
-     * @param scope  stream scope.
+     * @param scope stream scope.
      * @param stream stream name.
      * @return transaction id.
      */
-    @Task(name = "createTransaction", version = "1.0")
+    @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UUID> createTx(String scope, String stream) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream},
                 () -> createTxBody(scope, stream));
     }
 
     /**
      * Drop transaction.
-     *
-     * @param scope  stream scope.
+     * @param scope stream scope.
      * @param stream stream name.
-     * @param txId   transaction id.
+     * @param txId transaction id.
      * @return true/false.
      */
-    @Task(name = "dropTransaction", version = "1.0")
+    @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxStatus> dropTx(String scope, String stream, UUID txId) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
                 () -> dropTxBody(scope, stream, txId));
     }
 
     /**
      * Commit transaction.
-     *
-     * @param scope  stream scope.
+     * @param scope stream scope.
      * @param stream stream name.
-     * @param txId   transaction id.
+     * @param txId transaction id.
      * @return true/false.
      */
-    @Task(name = "commitTransaction", version = "1.0")
+    @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxStatus> commitTx(String scope, String stream, UUID txId) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
                 () -> commitTxBody(scope, stream, txId));
     }
@@ -181,53 +191,37 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 });
     }
 
-    public CompletableFuture<Void> notifyDropToHost(String scope, String stream, int segmentNumber, UUID txId) {
-        // TODO: fix infinite loop.. implement exponential back off
+    private CompletableFuture<Void> notifyDropToHost(String scope, String stream, int segmentNumber, UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
-            boolean result = false;
-            while (!result) {
-                try {
-                    NodeUri uri = SegmentHelper.getSegmentUri(scope,
-                            stream,
-                            segmentNumber,
-                            this.hostControllerStore);
-
-                    result = SegmentHelper.dropTransaction(scope,
-                            stream,
-                            segmentNumber,
-                            txId,
-                            ModelHelper.encode(uri),
-                            this.connectionFactory);
-                } catch (RuntimeException ex) {
-                    //log exception and continue retrying
-                }
-            }
+            SegmentHelper.dropTransaction(scope,
+                    stream,
+                    segmentNumber,
+                    txId,
+                    this.hostControllerStore,
+                    this.connectionFactory);
             return null;
         });
     }
 
-    public CompletableFuture<Void> notifyCommitToHost(String scope, String stream, int segmentNumber, UUID txId) {
-        // TODO: fix infinite loop.. implement exponential back off
+    private CompletableFuture<Void> notifyCommitToHost(String scope, String stream, int segmentNumber, UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
-            boolean result = false;
-            while (!result) {
-                try {
-                    NodeUri uri = SegmentHelper.getSegmentUri(scope,
-                            stream,
-                            segmentNumber,
-                            this.hostControllerStore);
-
-                    result = SegmentHelper.dropTransaction(scope,
+                    SegmentHelper.commitTransaction(scope,
                             stream,
                             segmentNumber,
                             txId,
-                            ModelHelper.encode(uri),
+                            this.hostControllerStore,
                             this.connectionFactory);
-                } catch (RuntimeException ex) {
-                    //log exception and continue retrying
-                }
-            }
             return null;
         });
     }
+
+
+    private String getResource(String scope, String stream) {
+        return scope + "/" + stream;
+    }
+
+    private String getResource(String scope, String stream, String txid) {
+        return scope + "/" + stream + "/" + txid;
+    }
+
 }

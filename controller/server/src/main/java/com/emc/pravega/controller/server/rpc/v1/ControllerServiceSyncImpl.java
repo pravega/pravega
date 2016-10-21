@@ -21,14 +21,16 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
@@ -55,13 +57,13 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
      * Asynchronously call createSegment on pravega hosts notifying them about new segments in the stream.
      */
     @Override
-    public Status createStream(StreamConfig streamConfig) throws TException {
+    public CreateStreamStatus createStream(StreamConfig streamConfig) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig),
                 System.currentTimeMillis()), RuntimeException::new);
     }
 
     @Override
-    public Status alterStream(StreamConfig streamConfig) throws TException {
+    public UpdateStreamStatus alterStream(StreamConfig streamConfig) throws TException {
         throw new NotImplementedException();
     }
 
@@ -101,17 +103,17 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public Status commitTransaction(String scope, String stream, TxId txid) throws TException {
+    public TransactionStatus commitTransaction(String scope, String stream, TxId txid) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
-    public Status dropTransaction(String scope, String stream, TxId txid) throws TException {
+    public TransactionStatus dropTransaction(String scope, String stream, TxId txid) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
-    public TxStatus checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
+    public TxState checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid), RuntimeException::new);
     }
 

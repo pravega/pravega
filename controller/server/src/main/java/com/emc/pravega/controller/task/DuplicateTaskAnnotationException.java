@@ -18,29 +18,32 @@
 package com.emc.pravega.controller.task;
 
 /**
- * Task Annotation missing exception
+ * Exception thrown on finding a duplicate task annotation: combination of method name and version.
  */
-public class TaskAnnotationMissingException extends RuntimeException {
+public class DuplicateTaskAnnotationException extends RuntimeException {
     /**
      *
      */
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Task annotation missing for method %s.";
+    private static final String FORMAT_STRING = "Duplicate task annotation for method %s version %s.";
 
     /**
-     * Creates a new instance of TaskAnnotationMissingException class
+     * Creates a new instance of DuplicateTaskAnnotationException class
      * @param method method name
+     * @param version method version
      */
-    public TaskAnnotationMissingException(String method) {
-        super(String.format(FORMAT_STRING, method));
+    public DuplicateTaskAnnotationException(String method, String version) {
+        super(String.format(FORMAT_STRING, method, version));
     }
 
     /**
-     * Creates a new instance of TaskAnnotationMissingException class
+     * Creates a new instance of DuplicateTaskAnnotationException class
      * @param method method name
+     * @param version method version
      * @param cause   error cause
      */
-    public TaskAnnotationMissingException(String method, Throwable cause) {
-        super(String.format(FORMAT_STRING, method), cause);
+    public DuplicateTaskAnnotationException(String method, String version, Throwable cause) {
+        super(String.format(FORMAT_STRING, method, version), cause);
     }
+
 }

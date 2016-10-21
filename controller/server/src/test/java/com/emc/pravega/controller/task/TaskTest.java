@@ -24,9 +24,12 @@ import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
 import com.emc.pravega.controller.task.Stream.TestTasks;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -35,9 +38,6 @@ import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -72,15 +72,15 @@ public class TaskTest {
     private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
             new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-    private final CuratorFramework client;
+    private final TaskMetadataStore taskMetadataStore;
 
     private final TestingServer zkServer;
 
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
-        client = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new ExponentialBackoffRetry(1000, 3));
         zkServer.start();
-        client.start();
+        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
+        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
     }
 
     @Before
@@ -119,32 +119,31 @@ public class TaskTest {
     public void stopZKServer() throws IOException {
         zkServer.stop();
         zkServer.close();
-        client.close();
     }
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, client);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
         final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
-        CompletableFuture<Status> result = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
+        CompletableFuture<CreateStreamStatus> result = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
         assertTrue(result.isCompletedExceptionally());
 
         result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis());
         assertTrue(result.isDone());
-        assertEquals(result.get(), Status.SUCCESS);
+        assertEquals(result.get(), CreateStreamStatus.SUCCESS);
     }
 
     @Test(expected = CompletionException.class)
     public void testLocking() {
-        TestTasks testTasks = new TestTasks(streamStore, hostStore, client);
+        TestTasks testTasks = new TestTasks(taskMetadataStore, "host");
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
         LockingTask second = new LockingTask(testTasks, SCOPE, stream1);
 
-        first.run();
-        second.run();
+        first.start();
+        second.start();
 
         first.result.join();
         second.result.join();
@@ -157,7 +156,7 @@ public class TaskTest {
         private final TestTasks testTasks;
         private final String scope;
         private final String stream;
-        private CompletableFuture<Void> result;
+        private CompletableFuture<Void> result = new CompletableFuture<>();
 
         LockingTask(TestTasks testTasks, String scope, String stream) {
             this.testTasks = testTasks;
@@ -167,7 +166,14 @@ public class TaskTest {
 
         @Override
         public void run() {
-            result = testTasks.testStreamLock(scope, stream);
+            testTasks.testStreamLock(scope, stream)
+            .handle((result, ex) -> {
+                if (ex != null) {
+                    this.result.completeExceptionally(ex);
+                }
+                this.result.complete(result);
+                return result;
+            });
         }
     }
 }

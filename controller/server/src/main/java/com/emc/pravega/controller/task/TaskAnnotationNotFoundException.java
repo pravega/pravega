@@ -18,29 +18,29 @@
 package com.emc.pravega.controller.task;
 
 /**
- * Lock failed exception
+ * Task Annotation missing exception
  */
-public class LockFailedException extends RuntimeException {
+public class TaskAnnotationNotFoundException extends RuntimeException {
     /**
      *
      */
     private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Failed locking stream %s.";
+    private static final String FORMAT_STRING = "Task annotation missing for method %s.";
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
+     * Creates a new instance of TaskAnnotationNotFoundException class
+     * @param method method name
      */
-    public LockFailedException(String name) {
-        super(String.format(FORMAT_STRING, name));
+    public TaskAnnotationNotFoundException(String method) {
+        super(String.format(FORMAT_STRING, method));
     }
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
+     * Creates a new instance of TaskAnnotationNotFoundException class
+     * @param method method name
      * @param cause   error cause
      */
-    public LockFailedException(String name, Throwable cause) {
-        super(String.format(FORMAT_STRING, name), cause);
+    public TaskAnnotationNotFoundException(String method, Throwable cause) {
+        super(String.format(FORMAT_STRING, method), cause);
     }
 }

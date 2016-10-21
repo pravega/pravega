@@ -24,14 +24,15 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
-import com.emc.pravega.controller.stream.api.v1.Status;
-import com.emc.pravega.controller.task.Paths;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.curator.framework.CuratorFramework;
+import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
@@ -46,10 +47,22 @@ import java.util.concurrent.CompletableFuture;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-public class StreamMetadataTasks extends TaskBase {
+public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
-        super(streamMetadataStore, hostControllerStore, client);
+    private final StreamMetadataStore streamMetadataStore;
+    private final HostControllerStore hostControllerStore;
+    private ConnectionFactoryImpl connectionFactory;
+
+    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore, String hostId) {
+        super(taskMetadataStore, hostId);
+        this.streamMetadataStore = streamMetadataStore;
+        this.hostControllerStore = hostControllerStore;
+        connectionFactory = new ConnectionFactoryImpl(false);
+    }
+
+    @Override
+    public StreamMetadataTasks clone() throws CloneNotSupportedException {
+        return (StreamMetadataTasks) super.clone();
     }
 
     /**
@@ -60,12 +73,11 @@ public class StreamMetadataTasks extends TaskBase {
      * @param createTimestamp creation timestamp.
      * @return creation status.
      */
-    @Task(name = "createStream", version = "1.0")
-    public CompletableFuture<Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+    @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
-                new Serializable[]{scope, stream, config, createTimestamp},
+                getResource(scope, stream),
+                new Serializable[]{scope, stream, config},
                 () -> createStreamBody(scope, stream, config, createTimestamp));
     }
 
@@ -76,11 +88,10 @@ public class StreamMetadataTasks extends TaskBase {
      * @param config modified stream configuration.
      * @return update status.
      */
-    @Task(name = "updateConfig", version = "1.0")
-    public CompletableFuture<Status> alterStream(String scope, String stream, StreamConfiguration config) {
+    @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
+    public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config) {
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream, config},
                 () -> updateStreamConfigBody(scope, stream, config));
     }
@@ -94,24 +105,22 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scaleTimestamp scaling time stamp.
      * @return returns the newly created segments.
      */
-    @Task(name = "scaleStream", version = "1.0")
+    @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<List<Segment>> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        Serializable[] params = {scope, stream, sealedSegments, newRanges, scaleTimestamp};
         return execute(
-                String.format(Paths.STREAM_LOCKS, scope, stream),
-                String.format(Paths.STREAM_TASKS, scope, stream),
+                getResource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
-    private CompletableFuture<Status> createStreamBody(String scope, String stream, StreamConfiguration config, long createTimestamp) {
-        return this.streamMetadataStore.createStream(stream, config, createTimestamp)
+    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
+        return this.streamMetadataStore.createStream(stream, config, timestamp)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamAlreadyExistsException) {
-                            return Status.DUPLICATE_STREAM_NAME;
+                            return CreateStreamStatus.STREAM_EXISTS;
                         } else {
-                            throw new RuntimeException(ex);
+                            return CreateStreamStatus.FAILURE;
                         }
                     } else {
                         // result is non-null
@@ -121,26 +130,26 @@ public class StreamMetadataTasks extends TaskBase {
                             this.streamMetadataStore.getActiveSegments(stream)
                                     .thenApply(activeSegments ->
                                             notifyNewSegments(config.getScope(), stream, activeSegments));
-                            return Status.SUCCESS;
+                            return CreateStreamStatus.SUCCESS;
                         } else {
                             // failure indicates that the stream creation failed due to some internal error, or
-                            return Status.FAILURE;
+                            return CreateStreamStatus.FAILURE;
                         }
                     }
                 });
     }
 
-    public CompletableFuture<Status> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
+    public CompletableFuture<UpdateStreamStatus> updateStreamConfigBody(String scope, String stream, StreamConfiguration config) {
         return streamMetadataStore.updateConfiguration(stream, config)
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamNotFoundException) {
-                            return Status.STREAM_NOT_FOUND;
+                            return UpdateStreamStatus.STREAM_NOT_FOUND;
                         } else {
-                            throw new RuntimeException(ex);
+                            return UpdateStreamStatus.FAILURE;
                         }
                     } else {
-                        return result ? Status.SUCCESS : Status.FAILURE;
+                        return result ? UpdateStreamStatus.SUCCESS : UpdateStreamStatus.FAILURE;
                     }
                 });
     }
@@ -159,7 +168,7 @@ public class StreamMetadataTasks extends TaskBase {
 
         return checkValidity.thenCompose(result -> {
 
-                    if (true) {
+                    if (result) {
                         return notifySealedSegments(scope, stream, sealedSegments)
                                 .thenCompose(results ->
                                         streamMetadataStore.scale(stream, sealedSegments, newRanges, scaleTimestamp))
@@ -172,6 +181,10 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 }
         );
+    }
+
+    private String getResource(String scope, String stream) {
+        return scope + "/" + stream;
     }
 
     private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {
@@ -195,28 +208,7 @@ public class StreamMetadataTasks extends TaskBase {
         sealedSegments
                 .stream()
                 .parallel()
-                .forEach(number -> sealSegment(scope, stream, number));
+                .forEach(number -> SegmentHelper.sealSegment(scope, stream, number, this.hostControllerStore, this.connectionFactory));
         return CompletableFuture.completedFuture(null);
-    }
-
-    /**
-     * This method sends segment sealed message for the specified segment.
-     * It owns up the responsibility of retrying the operation on failures until success.
-     * @param scope stream scope
-     * @param stream stream name
-     * @param segmentNumber number of segment to be sealed
-     * @return void
-     */
-    public Void sealSegment(String scope, String stream, int segmentNumber) {
-        boolean result = false;
-        while (!result) {
-            try {
-                NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, this.hostControllerStore);
-                result = SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory);
-            } catch (RuntimeException ex) {
-                //log exception and continue retrying
-            }
-        }
-        return null;
     }
 }

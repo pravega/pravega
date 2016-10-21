@@ -17,14 +17,23 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.LockData;
+import com.emc.pravega.controller.task.TaskBase.Context;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
+import org.apache.zookeeper.KeeperException;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * This class
@@ -32,86 +41,149 @@ import java.util.List;
 @Slf4j
 public class TaskSweeper {
 
-    private final CuratorFramework client;
+    private final TaskMetadataStore taskMetadataStore;
     private final TaskBase[] taskClassObjects;
+    private final Map<String, Method> methodMap = new HashMap<>();
+    private final Map<String, TaskBase> objectMap = new HashMap<>();
+    private final String hostId;
 
-    public TaskSweeper(CuratorFramework client, TaskBase... classes) {
-        this.client = client;
+    public TaskSweeper(TaskMetadataStore taskMetadataStore, String hostId, TaskBase... classes) {
+        this.taskMetadataStore = taskMetadataStore;
+        this.hostId = hostId;
+        for (TaskBase object : classes) {
+            Preconditions.checkArgument(object.getContext().getHostId().equals(hostId));
+        }
 
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
-        taskClassObjects = classes;
+        this.taskClassObjects = classes;
+        initializeMappingTable();
     }
 
     /**
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method.
      *
-     * It sweeps through all stream tasks under path /tasks/stream/, identifies orphaned tasks and attempts to execute
-     * them to completion.
+     * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      */
-    public void sweepOrphanedTasks() {
-        try {
-            List<String> children = client.getChildren().forPath(Paths.STREAM_TASK_ROOT);
-            for (String streamName: children) {
-                // find the task details for this stream's update operation
-                byte[] data = client.getData().forPath(Paths.STREAM_TASK_ROOT + streamName);
-                if (data != null && data.length > 0) {
-                    // if no one is holding a lock, try to lock the task and execute it
-                    List<String> locks = client.getChildren().forPath(Paths.STREAM_LOCKS_ROOT + streamName);
-                    if (locks != null && locks.size() == 0) {
-                        // execute this task
-                        try {
-                            TaskData taskData = TaskData.deserialize(data);
-                            execute(taskData);
-                        } catch (Exception e) {
-                            // log exception
-                            log.error("Error processing task", e);
-                        }
+    public CompletableFuture<List<Object>> sweepOrphanedTasks(String oldHostId) {
+        return taskMetadataStore.getChildren(oldHostId)
+                .thenCompose(resourceTags -> {
+
+                    // Initially read the list of resources that the failed host could have been executing tasks on.
+                    // Invariant: If no resources were found, it is safe to delete the old HostId node.
+                    if (resourceTags == null || resourceTags.isEmpty()) {
+                        return taskMetadataStore.removeNode(oldHostId)
+                                .thenApply(x -> Collections.emptyList());
+                    } else {
+                        Map<String, List<String>> resourceGroups =
+                                resourceTags
+                                        .stream()
+                                        .collect(Collectors.groupingBy(TaskBase.TaggedResource::getResource));
+
+                        // compete to execute tasks left unfinished by old HostId.
+                        List<CompletableFuture<Object>> list =
+                                resourceGroups
+                                        .entrySet()
+                                        .stream()
+                                        .map(pair -> executeResourceTask(oldHostId, pair.getKey(), pair.getValue()))
+                                        .collect(Collectors.toList());
+
+                        return FutureCollectionHelper.sequence(list);
                     }
-                }
+                });
+    }
+
+    public CompletableFuture<Object> executeResourceTask(String oldHostId, String resource, List<String> resourceTags) {
+        final CompletableFuture<Object> result = new CompletableFuture<>();
+        taskMetadataStore.get(resource)
+                .whenComplete((bytes, ex) -> {
+                    if (ex != null && ex instanceof KeeperException.NoNodeException) {
+                        // If no task was found for the given resource, then either
+                        // 1. Task has been completely executed by some other controller instance, or
+                        // 2. Old host died immediately after creating the resource child under its HostId.
+                        // Invariant: In either case it is safe to delete resource child (all tagged variants) under old HostId
+                        resourceTags
+                                .stream()
+                                .forEach(resourceTag -> taskMetadataStore.removeChild(oldHostId, resourceTag, true));
+                        result.complete(null);
+                    } else {
+                        LockData lockData = LockData.deserialize(bytes);
+                        execute(lockData.getHostId(), TaskData.deserialize(lockData.getTaskData()), resourceTags)
+                                .whenComplete((value, e) -> {
+                                    if (e != null) {
+                                        result.completeExceptionally(e);
+                                    } else {
+                                        result.complete(result);
+                                    }
+                                });
+                    }
+                });
+        return result;
+    }
+
+    /**
+     * This method identifies correct method to execute form among the task classes and executes it.
+     * @param oldHostId identifier of old failed host.
+     * @param taskData taks data.
+     * @param resourceTags resource on which old host had unfinished task.
+     * @return the object returned from task method.
+     */
+    public CompletableFuture<Object> execute(String oldHostId, TaskData taskData, List<String> resourceTags) {
+
+        log.debug("Trying to execute {}", taskData.getMethodName());
+        String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
+        if (methodMap.containsKey(key)) {
+            try {
+
+                // find the method and object
+                Method method = methodMap.get(key);
+                TaskBase o = objectMap.get(key).clone();
+                o.setContext(new Context(hostId, oldHostId, resourceTags));
+
+                // finally execute the method and return its result
+                return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
+
+            } catch (IllegalAccessException | InvocationTargetException | CloneNotSupportedException ex) {
+                throw new RuntimeException("Error executing task.", ex);
             }
-        } catch (Exception e) {
-            // log exception
-            log.error("Error processing task", e);
+        } else {
+            throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
         }
     }
 
     /**
-     * This method identifies correct method to execute form among the task classes and executes it
-     * @param taskData taks data
-     * @return the object returned from task method
-     * @throws MalformedURLException
-     * @throws IllegalAccessException
-     * @throws InstantiationException
-     * @throws InvocationTargetException
-     * @throws ClassNotFoundException
+     * Creates the table mapping method names and versions to Method objects and corresponding TaskBase objects
      */
-    public Object execute(TaskData taskData) throws MalformedURLException, IllegalAccessException,
-            InstantiationException, InvocationTargetException, ClassNotFoundException {
-
-        log.debug("Trying to execute {}", taskData.getMethodName());
-        for (int i = 0; i < taskClassObjects.length; i++) {
-            Class claz = taskClassObjects[i].getClass();
+    private void initializeMappingTable() {
+        for (TaskBase taskClassObject : taskClassObjects) {
+            Class claz = taskClassObject.getClass();
             for (Method method : claz.getDeclaredMethods()) {
-                if (matches(method, taskData)) {
-                    Object o = taskClassObjects[i];
-                    log.debug("Invoking method={}", method.getName());
-                    return method.invoke(o, taskData.getParameters());
+                for (Annotation annotation : method.getAnnotations()) {
+                    if (annotation instanceof Task) {
+                        String methodName = ((Task) annotation).name();
+                        String methodVersion = ((Task) annotation).version();
+                        String key = getKey(methodName, methodVersion);
+                        if (!methodMap.containsKey(key)) {
+                            methodMap.put(key, method);
+                            objectMap.put(key, taskClassObject);
+                        } else {
+                            // duplicate name--version pair
+                            throw new DuplicateTaskAnnotationException(methodName, methodVersion);
+                        }
+                    }
                 }
             }
         }
-        throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
     }
 
-    private boolean matches(Method method, TaskData taskData) {
-        for (Annotation annotation : method.getAnnotations()) {
-            if ((annotation instanceof Task)
-                    && ((Task) annotation).name().equals(taskData.getMethodName())
-                    && ((Task) annotation).version().equals(taskData.getMethodVersion())) {
-                return true;
-            }
-        }
-        return false;
+    /**
+     * Internal key used in mapping tables.
+     * @param taskName method name.
+     * @param taskVersion method version.,
+     * @return key
+     */
+    private String getKey(String taskName, String taskVersion) {
+        return taskName + "--" + taskVersion;
     }
 }

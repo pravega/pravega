@@ -17,18 +17,16 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.locks.InterProcessMutex;
-import org.apache.zookeeper.CreateMode;
+import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import lombok.Data;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * TaskBase contains the following.
@@ -37,79 +35,136 @@ import java.util.concurrent.TimeUnit;
  *
  * Actual tasks are implemented in sub-classes of TaskBase and annotated with @Task annotation.
  */
-public class TaskBase {
+public class TaskBase implements Cloneable {
 
     public interface FutureOperation<T> {
         CompletableFuture<T> apply();
     }
 
-    private static final long LOCK_WAIT_TIME = 2;
-    protected final StreamMetadataStore streamMetadataStore;
-    protected final HostControllerStore hostControllerStore;
-    protected ConnectionFactoryImpl connectionFactory;
-    private final CuratorFramework client;
+    @Data
+    public static class Context {
+        private final String hostId;
+        private final String oldHostId;
+        private final List<String> oldResourceTag;
 
-    public TaskBase(StreamMetadataStore streamMetadataStore,
-                    HostControllerStore hostControllerStore,
-                    CuratorFramework client) {
-        this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
-        this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.client = client;
+        public Context(String hostId) {
+            this.hostId = hostId;
+            this.oldHostId = null;
+            this.oldResourceTag = null;
+        }
+
+        public Context(String hostId, String oldHost, List<String> oldResourceTag) {
+            this.hostId = hostId;
+            this.oldHostId = oldHost;
+            this.oldResourceTag = oldResourceTag;
+        }
+    }
+
+    public static class TaggedResource {
+        private final static String SEPARATOR = "_%%%_";
+
+        public static String getResource(String taggedResource) {
+            return taggedResource.split(SEPARATOR)[0];
+        }
+
+        public static String getTaggedResource(String resource) {
+            return resource + SEPARATOR + UUID.randomUUID().toString();
+        }
+    }
+
+    private Context context;
+
+    private final TaskMetadataStore taskMetadataStore;
+
+    public TaskBase(TaskMetadataStore taskMetadataStore, String hostId) {
+        this.taskMetadataStore = taskMetadataStore;
+        context = new Context(hostId);
+    }
+
+    @Override
+    public TaskBase clone() throws CloneNotSupportedException {
+        return (TaskBase) super.clone();
+    }
+
+    public void setContext(Context context) {
+        this.context = context;
+    }
+
+    public Context getContext() {
+        return this.context;
     }
 
     /**
      * Wrapper method that initially obtains lock, persists the task data then executes the passed method,
-     * finally deletes task data and releases lock
+     * finally deletes task data and releases lock.
      *
-     * @param lockPath ZK path for lock
-     * @param taskDataPath ZK path for persisting task data
-     * @param parameters method parameters
-     * @param operation lambda operation that is the actual task
-     * @param <T> type parameter
-     * @return return value of task execution
+     * @param resource resource to be updated by the task.
+     * @param parameters method parameters.
+     * @param operation lambda operation that is the actual task.
+     * @param <T> type parameter of return value of operation to be executed.
+     * @return return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(String lockPath, String taskDataPath, Serializable[] parameters, FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> execute(String resource, Serializable[] parameters, FutureOperation<T> operation) {
         TaskData taskData = getTaskData(parameters);
-        try {
-            CompletableFuture<Boolean> lock = this.lock(lockPath);
-            return lock.thenCompose(success -> {
-                        if (success) {
-                            // todo: handle lock glitches possibly due to connectivity issues
-                            // todo: duplicate task data already exists
-                            // solution: perform the old task first and then execute the current one
-                            createTaskData(taskDataPath, taskData);
-                            CompletableFuture<T> o = operation.apply();
-                            deleteTaskData(taskDataPath);
-                            return o;
-                        } else {
-                            throw new LockFailedException(lockPath);
+        final String resourceTag = TaggedResource.getTaggedResource(resource);
+
+        return
+                // PutChild (HostId, resource)
+                // Initially store the fact that I am about the update the resource.
+                // Since multiple threads within this process could concurrently attempt to modify same resource,
+                // we tag the resource name with a random GUID so as not to interfere with other thread's
+                // creation or deletion of resource children under HostId node.
+                taskMetadataStore.putChild(context.hostId, resourceTag)
+                        // After storing that fact, lock the resource, execute task and unlock the resource
+                        .thenCompose(x -> executeTask(resource, taskData, operation))
+                        // finally delete the resource child created under the controller's HostId
+                        .whenComplete((result, e) -> taskMetadataStore.removeChild(context.hostId, resourceTag, false));
+    }
+
+    private <T> CompletableFuture<T> executeTask(String resource, TaskData taskData, FutureOperation<T> operation) {
+        final CompletableFuture<T> returnFuture = new CompletableFuture<>();
+
+        taskMetadataStore
+                .lock(resource, taskData, context.hostId, context.oldHostId)
+
+                // On acquiring lock, the following invariants hold
+                // Invariant 1. No other thread within any controller process is running an update task on the resource
+                // Invariant 2. We have denoted the fact that current controller's HostId is updating the resource. This
+                // fact can be used in case current controller instance crashes.
+                // Invariant 3. Any other controller that had created resource child under its HostId, can now be safely
+                // deleted, since that information redundant and is not useful during that HostId's fail over.
+                .whenComplete((result, e) -> {
+                    // Once I acquire the lock, the old HostId that held lock on this resource.
+                    if (e == null || !(e instanceof LockFailedException)) {
+                        // safe to delete resourceTags from oldHost, if available
+                        if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
+                            context.getOldResourceTag()
+                                    .stream()
+                                    .forEach(tag -> taskMetadataStore.removeChild(context.oldHostId, tag, true));
                         }
                     }
-            );
-        } finally {
-            unlock(lockPath);
-        }
-    }
+                })
 
-    private CompletableFuture<Boolean> lock(String path) {
-        InterProcessMutex mutex = new InterProcessMutex(client, path);
-        try {
-            boolean success = mutex.acquire(LOCK_WAIT_TIME, TimeUnit.SECONDS);
-            return CompletableFuture.completedFuture(success);
-        } catch (Exception ex) {
-            // log exception
-            return CompletableFuture.completedFuture(false);
-        }
-    }
+                // Exclusively execute the update task on the resource
+                .thenCompose(y -> operation.apply())
 
-    private void unlock(String path) {
-        InterProcessMutex mutex = new InterProcessMutex(client, path);
-        try {
-            mutex.release();
-        } catch (Exception e) {
-            // log exception
-        }
+                // If lock had been obtained, unlock it before completing the task.
+                .whenComplete((T value, Throwable e) -> {
+                    if (e != null && e instanceof LockFailedException) {
+                        returnFuture.completeExceptionally(e);
+                    } else {
+                        taskMetadataStore.unlock(resource, context.hostId)
+                                .thenApply(x -> {
+                                    if (e != null) {
+                                        returnFuture.completeExceptionally(e);
+                                    } else {
+                                        returnFuture.complete(value);
+                                    }
+                                    return null;
+                                });
+                    }
+                });
+        return returnFuture;
     }
 
     private TaskData getTaskData(Serializable[] parameters) {
@@ -134,25 +189,6 @@ public class TaskBase {
                 break;
             }
         }
-        throw new TaskAnnotationMissingException(method);
-    }
-
-    private void createTaskData(String taskDataPath, TaskData taskData) {
-        try {
-            client.create()
-                    .creatingParentsIfNeeded()
-                    .withMode(CreateMode.PERSISTENT)
-                    .forPath(taskDataPath, taskData.serialize());
-        } catch (Exception ex) {
-            throw new TaskDataWriteFailedException(taskDataPath, ex);
-        }
-    }
-
-    private void deleteTaskData(String taskDataPath) {
-        try {
-            client.delete().forPath(taskDataPath);
-        } catch (Exception ex) {
-            throw new TaskDataWriteFailedException(taskDataPath, ex);
-        }
+        throw new TaskAnnotationNotFoundException(method);
     }
 }

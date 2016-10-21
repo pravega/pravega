@@ -25,7 +25,7 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.stream.api.v1.TxState;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
@@ -53,7 +53,7 @@ public final class ModelHelper {
         return new UUID(txId.getHighBits(), txId.getLowBits());
     }
 
-    public static final com.emc.pravega.stream.impl.TxStatus encode(TxStatus txStatus) {
+    public static final com.emc.pravega.stream.impl.TxStatus encode(TxState txStatus) {
         Preconditions.checkNotNull(txStatus, "txStatus");
         return com.emc.pravega.stream.impl.TxStatus.valueOf(txStatus.name());
     }
@@ -97,8 +97,7 @@ public final class ModelHelper {
                 .map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue()))
                 .collect(Collectors.toList());
     }
-
-    public static Transaction.Status encode(TxStatus status, String logString) {
+    public static Transaction.Status encode(TxState status, String logString) {
         switch (status) {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
@@ -120,9 +119,9 @@ public final class ModelHelper {
         return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
     }
 
-    public static final TxStatus decode(com.emc.pravega.stream.impl.TxStatus txstatus) {
+    public static final TxState decode(com.emc.pravega.stream.impl.TxStatus txstatus) {
         Preconditions.checkNotNull(txstatus, "txstatus");
-        return TxStatus.valueOf(txstatus.name());
+        return TxState.valueOf(txstatus.name());
     }
 
     public static final SegmentId decode(final Segment segment) {
