@@ -74,7 +74,7 @@ public interface Stream {
     StreamConfiguration getConfig();
 
     /**
-     * Create a new producer that can publish to this stream
+     * Create a new producer that can publish to this stream.
      */
     <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
 

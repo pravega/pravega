@@ -18,22 +18,22 @@
 package com.emc.pravega.stream;
 
 /**
- * The configuration of a Stream
+ * The configuration of a Stream.
  */
 public interface StreamConfiguration {
 
     /**
-     * @return The scope of the stream
+     * @return The scope of the stream.
      */
     String getScope();
 
     /**
-     * @return The name of the stream
+     * @return The name of the stream.
      */
     String getName();
 
     /**
-     * @return The stream's scaling policy
+     * @return The stream's scaling policy.
      */
     ScalingPolicy getScalingPolicy();
 }

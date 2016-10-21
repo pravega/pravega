@@ -49,7 +49,7 @@ public final class StreamSegmentNameUtils {
     //endregion
 
     /**
-     * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent StreamSegment, and the transactionId
+     * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent StreamSegment, and the transactionId.
      *
      * @param parentStreamSegmentName The name of the Parent StreamSegment for this transaction.
      * @param transactionId The unique Id for the transaction.

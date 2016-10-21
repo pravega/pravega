@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Stream Metadata
+ * Stream Metadata.
  */
 //TODO: Add scope to most methods.
 public interface StreamMetadataStore {
@@ -33,7 +33,7 @@ public interface StreamMetadataStore {
      * Creates a new stream with the given name and configuration.
      * @param name stream name.
      * @param configuration stream configuration.
-     * @return boolean indicating whether the stream was created
+     * @return boolean indicating whether the stream was created.
      */
     boolean createStream(String name, StreamConfiguration configuration);
 

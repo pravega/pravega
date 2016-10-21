@@ -47,7 +47,7 @@ import java.util.concurrent.ExecutionException;
 import static org.junit.Assert.assertEquals;
 
 /**
- * ConsumerApiImpl test
+ * ConsumerApiImpl test.
  */
 public class ConsumerApiImplTest {
 

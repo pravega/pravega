@@ -17,7 +17,14 @@
  */
 package com.emc.pravega.service.storage.mocks;
 
-import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.testcommon.AssertExtensions;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -26,18 +33,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.BadOffsetException;
-import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.testcommon.AssertExtensions;
+import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
 
 /**
- * Unit tests for InMemoryStorage
+ * Unit tests for InMemoryStorage.
  */
 public class InMemoryStorageTests {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);

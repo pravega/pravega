@@ -178,7 +178,7 @@ public class StorageWriterTests {
     }
 
     /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not badOffset)
+     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not badOffset).
      */
     @Test
     public void testWithStorageTransientErrors() throws Exception {

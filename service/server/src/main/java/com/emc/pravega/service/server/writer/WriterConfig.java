@@ -27,7 +27,7 @@ import java.time.Duration;
 import java.util.Properties;
 
 /**
- * Writer Configuration
+ * Writer Configuration.
  */
 public class WriterConfig extends ComponentConfig {
     //region Members

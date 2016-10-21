@@ -56,7 +56,7 @@ public final class FutureHelpers {
     }
 
     /**
-     * Returns true if the future is done and successful
+     * Returns true if the future is done and successful.
      */
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
         return f.isDone() && !f.isCompletedExceptionally() && !f.isCancelled();
@@ -64,7 +64,7 @@ public final class FutureHelpers {
 
     /**
      * Calls get on the provided future, handling interrupted, and transforming the executionException into an exception
-     * of the type whose constructor is provided
+     * of the type whose constructor is provided.
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception

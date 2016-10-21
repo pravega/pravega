@@ -49,7 +49,7 @@ public interface ReadResultEntry {
     CompletableFuture<ReadResultEntryContents> getContent();
 
     /**
-     * Initiates an asynchronous action to fetch the contents of this ReadResultEntry, if necessary
+     * Initiates an asynchronous action to fetch the contents of this ReadResultEntry, if necessary.
      *
      * @param timeout Timeout for the operation.
      */

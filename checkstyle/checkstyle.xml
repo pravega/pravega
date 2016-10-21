@@ -109,5 +109,12 @@
       <property name="tokens" value="METHOD_DEF, CTOR_DEF, INTERFACE_DEF, CLASS_DEF, ENUM_DEF"/>
       <property name="allowMultipleEmptyLinesInsideClassMembers" value="false"/>
     </module>
+    <module name="AvoidNestedBlocks"/>
+    <module name="JavadocStyle">
+      <property name="scope" value="public"/>
+      <property name="checkFirstSentence" value="true"/>
+      <property name="checkEmptyJavadoc" value="false"/>
+      <property name="checkHtml" value="true"/>
+    </module>
   </module>
 </module>

@@ -41,7 +41,7 @@ public interface Controller {
     // Controller Apis for administrative action for streams
 
     /**
-     * Api to create stream
+     * Api to create stream.
      *
      * @param streamConfig
      * @return
@@ -49,7 +49,7 @@ public interface Controller {
     CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
 
     /**
-     * Api to alter stream
+     * Api to alter stream.
      *
      * @param streamConfig
      * @return
@@ -70,7 +70,7 @@ public interface Controller {
     CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
+     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
      */
     CompletableFuture<Status> commitTransaction(Stream stream, UUID txId);
@@ -89,7 +89,7 @@ public interface Controller {
 
     /**
      * Returns list of position objects by distributing available segments at the
-     * given timestamp into requested number of position objects
+     * given timestamp into requested number of position objects.
      *
      * @param stream
      * @param timestamp
@@ -99,7 +99,7 @@ public interface Controller {
     CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count);
 
     /**
-     * Called by consumer upon reaching end of segment on some segment in its position obejct
+     * Called by consumer upon reaching end of segment on some segment in its position object.
      *
      * @param stream
      * @param positions
