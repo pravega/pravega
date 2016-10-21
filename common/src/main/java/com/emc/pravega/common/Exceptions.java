@@ -19,7 +19,6 @@
 package com.emc.pravega.common;
 
 import com.google.common.base.Preconditions;
-
 import lombok.SneakyThrows;
 
 /**
@@ -31,7 +30,7 @@ public final class Exceptions {
     public static interface InterruptableRun<ExceptionT extends Exception> {
         void run() throws InterruptedException, ExceptionT;
     }
-    
+
     @FunctionalInterface
     public static interface InterruptableCall<ExceptionT extends Exception, ResultT> {
         ResultT call() throws InterruptedException, ExceptionT;
@@ -39,10 +38,10 @@ public final class Exceptions {
 
     /**
      * Eliminates boilerplate code of catching and re-interrupting the thread.
-     * 
+     * <p>
      * NOTE: This method currently has the limitation that it can only handle functions that throw up to one additional
      * exception besides {@link InterruptedException}. This is a limitation of the Compiler.
-     * 
+     *
      * @param run A method that should be run handling interrupts automatically
      */
     @SneakyThrows(InterruptedException.class)
@@ -55,14 +54,14 @@ public final class Exceptions {
             throw e;
         }
     }
-    
+
     /**
      * Eliminates boilerplate code of catching and re-interrupting the thread.
-     * 
+     * <p>
      * NOTE: This method currently has the limitation that it can only handle functions that throw up to one additional
      * exception besides {@link InterruptedException}. This is a limitation of the Compiler.
-     * 
-     * @param run A method that should be run handling interrupts automatically
+     *
+     * @param call A method that should be run handling interrupts automatically
      */
     @SneakyThrows(InterruptedException.class)
     public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptableCall<ExceptionT, ResultT> call)
@@ -74,7 +73,7 @@ public final class Exceptions {
             throw e;
         }
     }
-    
+
     /**
      * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the String arg
      * argument has a length of zero.
