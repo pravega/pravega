@@ -553,24 +553,17 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-            CompletableFuture<Boolean> retVal = new CompletableFuture<Boolean>();
-            retVal.complete(true);
-            return retVal;
-        }
-
-        @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             return this.getInfoHandler.apply(streamSegmentName);
         }
 
         //region Unimplemented methods
-
+        
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             return null;
         }
-
+        
         @Override
         public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
             return null;
