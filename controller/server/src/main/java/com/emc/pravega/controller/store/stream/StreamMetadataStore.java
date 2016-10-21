@@ -17,11 +17,15 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import com.emc.pravega.controller.store.stream.tables.TxnId;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxStatus;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -34,7 +38,8 @@ public interface StreamMetadataStore {
 
     /**
      * Creates a new stream with the given name and configuration.
-     * @param name stream name.
+     *
+     * @param name          stream name.
      * @param configuration stream configuration.
      * @return boolean indicating whether the stream was created
      */
@@ -42,7 +47,8 @@ public interface StreamMetadataStore {
 
     /**
      * Updates the configuration of an existing stream.
-     * @param name stream name.
+     *
+     * @param name          stream name.
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
@@ -50,14 +56,14 @@ public interface StreamMetadataStore {
 
     /**
      * Fetches the current stream configuration.
+     *
      * @param name stream name.
      * @return current stream configuration.
      */
     CompletableFuture<StreamConfiguration> getConfiguration(String name);
 
     /**
-     *
-     * @param name stream name.
+     * @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
@@ -70,25 +76,26 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Segment>> getActiveSegments(String name);
 
     /**
-     * @param name stream name.
+     * @param name      stream name.
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
     CompletableFuture<SegmentFutures> getActiveSegments(String name, long timestamp);
 
     /**
-     * @param name stream name.
+     * @param name              stream name.
      * @param completedSegments completely read segments.
-     * @param currentSegments current consumer positions.
+     * @param currentSegments   current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
     CompletableFuture<List<SegmentFutures>> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
-     * @param name stream name.
+     *
+     * @param name           stream name.
      * @param sealedSegments segments to be sealed
-     * @param newRanges new key ranges to be added to the stream which maps to a new segment per range in the stream
+     * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
@@ -96,7 +103,6 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 
     /**
-     *
      * @param scope
      * @param stream
      * @return
@@ -104,7 +110,6 @@ public interface StreamMetadataStore {
     CompletableFuture<UUID> createTransaction(String scope, String stream);
 
     /**
-     *
      * @param scope
      * @param stream
      * @param txId
@@ -113,7 +118,6 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> transactionStatus(String scope, String stream, UUID txId);
 
     /**
-     *
      * @param scope
      * @param stream
      * @param txId
@@ -124,11 +128,22 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> sealTransaction(String scope, String stream, UUID txId);
 
     /**
-     *
      * @param scope
      * @param stream
      * @param txId
      * @return
      */
     CompletableFuture<TxStatus> dropTransaction(String scope, String stream, UUID txId);
+
+    /**
+     *
+     * @return
+     */
+    CompletableFuture<Map<TxnId, ActiveTxRecord>> getAllActiveTx();
+
+    /**
+     *
+     * @return
+     */
+    CompletableFuture<Map<TxnId, CompletedTxRecord>> getAllCompletedTx();
 }

@@ -26,7 +26,7 @@ import java.io.IOException;
 
 @Data
 public class CompletedTxRecord {
-    private final long completeTimeStamp;
+    private final long completeTime;
     private final TxStatus completionStatus;
 
     public static CompletedTxRecord parse(byte[] bytes) {
@@ -41,7 +41,7 @@ public class CompletedTxRecord {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
-            outputStream.write(Utilities.toByteArray(completeTimeStamp));
+            outputStream.write(Utilities.toByteArray(completeTime));
 
             outputStream.write(Utilities.toByteArray(completionStatus.ordinal()));
         } catch (IOException e) {

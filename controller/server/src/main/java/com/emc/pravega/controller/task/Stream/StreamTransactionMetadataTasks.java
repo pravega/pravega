@@ -34,6 +34,9 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -44,9 +47,33 @@ import java.util.stream.Collectors;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamTransactionMetadataTasks extends TaskBase {
+    private static final long INITIAL_DELAY = 1;
+    private static final long PERIOD = 1;
+    private static final long TIMEOUT = 60 * 60 * 1000;
+    private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, CuratorFramework client) {
         super(streamMetadataStore, hostControllerStore, client);
+        EXEC_SERVICE.scheduleAtFixedRate(() -> {
+            // find transactions to be dropped
+            try {
+                final long currentTime = System.currentTimeMillis();
+                streamMetadataStore.getAllActiveTx().get().entrySet().stream()
+                        .forEach(x -> {
+                            if (currentTime - x.getValue().getTxCreationTimestamp() > TIMEOUT) {
+                                try {
+                                    dropTx(x.getKey().getScope(), x.getKey().getStream(), x.getKey().getTxid());
+                                } catch (Exception e) {
+                                    // TODO: log and ignore
+                                }
+                            }
+                        });
+            } catch (Exception e) {
+                // TODO: log! and ignore
+            }
+            // find completed transactions to be gc'd
+        }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
+
     }
 
     /**
@@ -102,7 +129,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     private CompletableFuture<UUID> createTxBody(String scope, String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenApply(txId -> {
-                    notifyTxCreationASync(scope, stream, txId);
+                    notifyTxCreationAsync(scope, stream, txId);
                     return txId;
                 });
     }
@@ -132,7 +159,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                 .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
     }
 
-    private void notifyTxCreationASync(String scope, String stream, UUID txid) {
+    private void notifyTxCreationAsync(String scope, String stream, UUID txid) {
         streamMetadataStore.getActiveSegments(stream)
                 .thenApply(activeSegments -> {
                     activeSegments
@@ -155,9 +182,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Void> notifyDropToHost(String scope, String stream, int segmentNumber, UUID txId) {
-        return CompletableFuture.supplyAsync(() -> {
-            // TODO: clean this. have exponential back off for retries.
-            // Also dont block a thread trying to just do this
+        // TODO: fix infinite loop.. implement exponential back off
+        return CompletableFuture.<Void>supplyAsync(() -> {
             boolean result = false;
             while (!result) {
                 try {
@@ -181,9 +207,8 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Void> notifyCommitToHost(String scope, String stream, int segmentNumber, UUID txId) {
-        return CompletableFuture.supplyAsync(() -> {
-            // TODO: clean this. have exponential back off for retries
-            // Also dont block a thread trying to just do this
+        // TODO: fix infinite loop.. implement exponential back off
+        return CompletableFuture.<Void>supplyAsync(() -> {
             boolean result = false;
             while (!result) {
                 try {
@@ -192,7 +217,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
                             segmentNumber,
                             this.hostControllerStore);
 
-                    result = SegmentHelper.commitTransaction(scope,
+                    result = SegmentHelper.dropTransaction(scope,
                             stream,
                             segmentNumber,
                             txId,
