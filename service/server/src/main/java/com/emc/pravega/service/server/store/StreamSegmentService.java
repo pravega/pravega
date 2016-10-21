@@ -132,7 +132,7 @@ public class StreamSegmentService implements StreamSegmentStore {
         return withCompletion(
                 () -> getContainer(streamSegmentName)
                         .thenCompose(container -> container.sealStreamSegment(streamSegmentName, timeout)),
-                r -> traceLeave(log, "deleteStreamSegment", traceId, r));
+                r -> traceLeave(log, "sealStreamSegment", traceId, r));
     }
 
     @Override

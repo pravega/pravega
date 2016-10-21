@@ -155,9 +155,6 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
         // Write DataFrame to DataFrameLog.
         try {
-            // TODO: This looks like a place where some improvement can be made. In theory, we can try to write the frame
-            // in parallel to us building the next frame. We need to watch out for cases when a frame fails to commit,
-            // and how that affects future frames. That may complicate things here and in calling classes.
             LogAddress logAddress = this.targetLog.append(dataFrame.getData(), DATA_FRAME_WRITE_TIMEOUT).get();
 
             // Need to assign the DataFrameSequence that we got back from the DataLog. This is used to record truncation markers.

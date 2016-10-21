@@ -134,6 +134,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.durableLog.close();
             this.readIndex.close();
             this.cache.close();
+            log.info("{}: Closed.", this.traceObjectId);
             this.closed = true;
         }
     }
@@ -145,6 +146,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     protected void doStart() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        log.info("{}: Starting.", this.traceObjectId);
         this.durableLog.startAsync();
         this.executor.execute(() -> {
             this.durableLog.awaitRunning();
@@ -153,6 +155,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             this.writer.startAsync();
             this.executor.execute(() -> {
                 this.writer.awaitRunning();
+                log.info("{}: Started.", this.traceObjectId);
                 LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
                 notifyStarted();
             });
@@ -162,11 +165,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        log.info("{}: Stopping.", this.traceObjectId);
         this.writer.stopAsync();
         this.durableLog.stopAsync();
         this.executor.execute(() -> {
             this.writer.awaitTerminated();
             this.durableLog.awaitTerminated();
+            log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
             this.notifyStopped();
         });

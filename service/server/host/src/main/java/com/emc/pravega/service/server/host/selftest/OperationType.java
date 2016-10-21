@@ -16,20 +16,29 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
-
-import java.util.Properties;
+package com.emc.pravega.service.server.host.selftest;
 
 /**
- * Extension to java.util.Properties that implements the Builder pattern.
+ * Defines various types of Producer Operations.
  */
-public class PropertyBag extends Properties {
-    public static PropertyBag create() {
-        return new PropertyBag();
-    }
+enum OperationType {
+    /**
+     * The Producer is requested to create an Append.
+     */
+    Append,
 
-    public PropertyBag with(String key, Object value) {
-        this.setProperty(key, value.toString());
-        return this;
-    }
+    /**
+     * The Producer is requested to seal a Segment.
+     */
+    Seal,
+
+    /**
+     * The Producer is requested to create a Transaction.
+     */
+    CreateTransaction,
+
+    /**
+     * The Producer is requested to merge a Transaction.
+     */
+    MergeTransaction
 }

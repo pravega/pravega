@@ -28,7 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
-import com.emc.pravega.service.server.PropertyBag;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;

@@ -124,6 +124,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             this.operationProcessor.close();
             this.durableDataLog.close();
+            log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
     }
@@ -135,6 +136,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStart() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        log.info("{}: Starting.", this.traceObjectId);
 
         this.executor.execute(() -> {
             try {
@@ -155,6 +157,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             }
 
             // If we got here, all is good. We were able to start successfully.
+            log.info("{}: Started.", this.traceObjectId);
             notifyStarted();
             LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
         });
@@ -163,6 +166,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        log.info("{}: Stopping.", this.traceObjectId);
         this.operationProcessor.stopAsync();
 
         this.executor.execute(() -> {
@@ -183,6 +187,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 notifyFailed(cause);
             }
 
+            log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
         });
     }
@@ -378,7 +383,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Update the metadata with the information from the Operation.
         try {
-            //TODO: should we also check that StreamSegments still exist in Storage, and that their lengths are what we think they are? Or we leave that to the StorageWriter?
             log.debug("{} Recovering {}.", this.traceObjectId, operation);
             metadataUpdater.preProcessOperation(operation);
             metadataUpdater.acceptOperation(operation);

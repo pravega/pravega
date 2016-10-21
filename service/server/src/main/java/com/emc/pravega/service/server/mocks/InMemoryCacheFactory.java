@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.mocks;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
 
@@ -35,6 +36,7 @@ public class InMemoryCacheFactory implements CacheFactory {
     public Cache getCache(String id) {
         InMemoryCache result;
         synchronized (this.caches) {
+            Exceptions.checkNotClosed(this.closed, this);
             result = this.caches.get(id);
             if (result == null) {
                 result = new InMemoryCache(id);
@@ -53,14 +55,13 @@ public class InMemoryCacheFactory implements CacheFactory {
     @Override
     public void close() {
         if (!this.closed) {
-            this.closed = true;
             ArrayList<InMemoryCache> toClose;
             synchronized (this.caches) {
+                this.closed = true;
                 toClose = new ArrayList<>(this.caches.values());
             }
 
             toClose.forEach(InMemoryCache::close);
-            assert this.caches.size() == 0 : "not all caches were closed";
         }
     }
 }

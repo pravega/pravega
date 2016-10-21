@@ -55,7 +55,7 @@ class Stream {
         this.configuration = configuration;
         currentSegments = new ArrayList<>();
         segments = new ArrayList<>();
-        int numSegments = configuration.getScalingingPolicy().getMinNumSegments();
+        int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
         IntStream.range(0, numSegments)
                 .forEach(

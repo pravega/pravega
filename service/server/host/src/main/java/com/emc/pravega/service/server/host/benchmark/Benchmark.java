@@ -35,16 +35,16 @@ import java.util.function.Supplier;
 public abstract class Benchmark {
     //region Members
 
-    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
-    protected static final int ONE_MB = 1024 * 1024;
-    protected static final int ONE_KB = 1024;
-    protected final Supplier<ServiceBuilder> serviceBuilderProvider;
+    static final Duration TIMEOUT = Duration.ofSeconds(30);
+    static final int ONE_MB = 1024 * 1024;
+    static final int ONE_KB = 1024;
+    final Supplier<ServiceBuilder> serviceBuilderProvider;
 
     //endregion
 
     //region Constructor
 
-    protected Benchmark(Supplier<ServiceBuilder> serviceBuilderProvider) {
+    Benchmark(Supplier<ServiceBuilder> serviceBuilderProvider) {
         Preconditions.checkNotNull(serviceBuilderProvider, "serviceBuilderProvider");
         this.serviceBuilderProvider = serviceBuilderProvider;
     }
@@ -67,7 +67,7 @@ public abstract class Benchmark {
 
     //region Helpers
 
-    protected List<String> createStreamSegments(StreamSegmentStore store, int segmentCount) {
+    List<String> createStreamSegments(StreamSegmentStore store, int segmentCount) {
         List<CompletableFuture<Void>> results = new ArrayList<>();
         List<String> result = new ArrayList<>();
 
@@ -81,11 +81,11 @@ public abstract class Benchmark {
         return result;
     }
 
-    protected void log(String messageTemplate, Object... args) {
+    void log(String messageTemplate, Object... args) {
         System.out.println(getTestName() + ": " + String.format(messageTemplate, args));
     }
 
-    protected void printResultLine(Object... args) {
+    void printResultLine(Object... args) {
         for (int i = 0; i < args.length; i++) {
             Object arg = args[i];
             if (arg instanceof Double) {

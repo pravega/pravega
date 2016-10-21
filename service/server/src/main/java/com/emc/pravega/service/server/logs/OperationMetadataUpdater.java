@@ -587,7 +587,6 @@ class OperationMetadataUpdater implements ContainerMetadata {
                     continue;
                 }
 
-                //TODO: should we check (again?) if the container metadata has knowledge of this stream?
                 UpdateableSegmentMetadata existingMetadata;
                 if (newMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                     existingMetadata = this.containerMetadata.mapStreamSegmentId(newMetadata.getName(), newMetadata.getId(), newMetadata.getParentId());
