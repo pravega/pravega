@@ -80,7 +80,7 @@ public final class ModelHelper {
             }
 
             @Override
-            public ScalingPolicy getScalingingPolicy() {
+            public ScalingPolicy getScalingPolicy() {
                 return encode(config.getPolicy());
             }
         };
@@ -132,7 +132,7 @@ public final class ModelHelper {
 
     public static final StreamConfig decode(final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "StreamConfiguration");
-        return new StreamConfig(configModel.getScope(), configModel.getName(), decode(configModel.getScalingingPolicy()));
+        return new StreamConfig(configModel.getScope(), configModel.getName(), decode(configModel.getScalingPolicy()));
     }
 
     public static final Position decode(final PositionInternal position) {

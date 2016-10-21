@@ -35,5 +35,5 @@ public interface StreamConfiguration {
     /**
      * @return The stream's scaling policy
      */
-    ScalingPolicy getScalingingPolicy();
+    ScalingPolicy getScalingPolicy();
 }

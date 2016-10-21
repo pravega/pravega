@@ -61,7 +61,7 @@ public class ModelHelperTest {
             }
 
             @Override
-            public ScalingPolicy getScalingingPolicy() {
+            public ScalingPolicy getScalingPolicy() {
                 return createScalingPolicy();
             }
         };
@@ -167,7 +167,7 @@ public class ModelHelperTest {
     public void encodeStreamConfig() {
         StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(createStreamConfig("test")));
         assertEquals("test", config.getName());
-        ScalingPolicy policy = config.getScalingingPolicy();
+        ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, policy.getType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
