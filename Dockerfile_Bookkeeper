@@ -1,0 +1,25 @@
+FROM java:8
+
+MAINTAINER Abhijeet Jadhav  <Abhijeet.Jadhav@emc.com>
+
+RUN apt-get -q update \
+    && apt-get -q install -y wget \
+    && mkdir -p /opt \
+    && wget -q -O -  http://apache.claz.org/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz | tar -xzf - -C /opt \
+    && mv /opt/bookkeeper-server-4.4.0 /opt/bookkeeper 
+
+WORKDIR /opt/bookkeeper
+
+
+RUN ["mkdir", "-p", "/tmp/bk1-txn", "/tmp/bk1-data","/tmp/bk2-txn","/tmp/bk2-data","/tmp/bk3-txn","/tmp/bk3-data" ]
+
+VOLUME ["/tmp"]
+
+EXPOSE 3181/tcp
+EXPOSE 3182/tcp
+EXPOSE 3183/tcp
+
+COPY /entry_point.sh .
+
+ENTRYPOINT ["./entry_point.sh"]
+

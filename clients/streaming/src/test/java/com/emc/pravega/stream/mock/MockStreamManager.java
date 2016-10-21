@@ -17,8 +17,6 @@
  */
 package com.emc.pravega.stream.mock;
 
-import java.util.concurrent.ConcurrentHashMap;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ScalingPolicy;
@@ -29,6 +27,8 @@ import com.emc.pravega.stream.StreamManager;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MockStreamManager implements StreamManager {
     
@@ -59,7 +59,7 @@ public class MockStreamManager implements StreamManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller
-            .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingingPolicy())),
+            .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
                                              RuntimeException::new);
         Stream stream = new StreamImpl(scope, streamName, config, controller, connectionFactory);
         created.put(streamName, stream);
