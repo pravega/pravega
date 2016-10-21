@@ -57,7 +57,6 @@
     <module name="UpperEll"/>
     <module name="LeftCurly"/>
     <module name="RightCurly"/>
-    <module name="EmptyStatement"/>
     <module name="ConstantName">
       <property name="format" value="(^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$)|(^log$)"/>
     </module>
@@ -105,5 +104,10 @@
     <module name="MethodParamPad"/>
     <module name="TypecastParenPad"/>
     <module name="NeedBraces"/>
+    <module name="CommentsIndentation"/>
+    <module name="EmptyLineSeparator">
+      <property name="tokens" value="METHOD_DEF, CTOR_DEF, INTERFACE_DEF, CLASS_DEF, ENUM_DEF"/>
+      <property name="allowMultipleEmptyLinesInsideClassMembers" value="false"/>
+    </module>
   </module>
 </module>
