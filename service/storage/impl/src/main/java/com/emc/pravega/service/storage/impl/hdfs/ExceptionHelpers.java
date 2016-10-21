@@ -25,8 +25,14 @@ import org.apache.hadoop.hdfs.protocol.AclException;
 import java.io.FileNotFoundException;
 import java.nio.file.FileAlreadyExistsException;
 
-public class ExceptionHelper {
+/**
+ * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions
+ * */
+public class ExceptionHelpers {
 
+    /**
+     * API to translated HDFS specific IOExceptions to StreamSegmentExceptions
+     * */
     public static Exception translateFromIOException(String streamSegmentName, Exception e) {
         if (e instanceof FileNotFoundException) {
             return new StreamSegmentNotExistsException(streamSegmentName);
