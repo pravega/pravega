@@ -21,37 +21,37 @@ package com.emc.pravega.common.cluster;
 import java.util.List;
 
 /**
- * Cluster interface enables you to register / de-register a Host to a cluster
+ * Cluster interface enables to register / de-register a Host to a cluster
  */
 public interface Cluster extends AutoCloseable {
 
     /**
-     * Register a Host to a cluster
+     * Register a Host to a cluster.
      *
-     * @param host
+     * @param host - Host to be part of cluster.
      * @throws Exception
      */
     public void registerHost(final Host host) throws Exception;
 
     /**
-     * De-register a Host from a cluster
+     * De-register a Host from a cluster.
      *
-     * @param host
-     * @throws Exception
+     * @param host - Host to be removed from cluster.
+     * @throws Exception - Error while communicating to Zookeeper.
      */
     public void deregisterHost(final Host host) throws Exception;
 
     /**
-     * Add Listeners
+     * Add Listeners.
      *
-     * @param listener   - Cluster event Listener
+     * @param listener - Cluster event listener.
      */
     public void addListener(final ClusterListener listener) throws Exception;
 
     /**
      * Get the current cluster members.
      *
-     * @return List<Host>
+     * @return List<Host> - List of cluster members.
      */
     public List<Host> getClusterMembers() throws Exception;
 

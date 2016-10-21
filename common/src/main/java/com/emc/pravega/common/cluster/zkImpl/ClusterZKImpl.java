@@ -17,10 +17,12 @@
  */
 package com.emc.pravega.common.cluster.zkImpl;
 
+import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.ClusterListener;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.util.CollectionHelpers;
+import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
@@ -47,7 +49,7 @@ import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_ADDE
 import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_REMOVED;
 
 /**
- * Zookeeper based implementation of Cluster
+ * Zookeeper based implementation of Cluster.
  * - It uses persistent ephemeral node which is an ephemeral node that attempts to stay present in ZooKeeper, even through
  * connection and session interruptions.
  * - Ephemeral Node is valid until a session timeout, default session timeout is 60 seconds.
@@ -63,27 +65,28 @@ public class ClusterZKImpl implements Cluster {
     private final CuratorFramework client;
     private final String clusterName;
 
-    private Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
+    private final Map<Host, PersistentNode> entryMap = new HashMap<>(INIT_SIZE);
     private Optional<PathChildrenCache> cache = Optional.empty();
 
     public ClusterZKImpl(CuratorFramework zkClient, String clusterName) {
         this.clusterName = clusterName;
         this.client = zkClient;
-        if (client.getState().equals(CuratorFrameworkState.LATENT))
+        if (client.getState().equals(CuratorFrameworkState.LATENT)) {
             client.start();
+        }
     }
 
     /**
      * Register Host to cluster.
      *
-     * @param host
-     * @throws Exception
+     * @param host - Host to be part of cluster.
+     * @throws Exception - Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
     public void registerHost(Host host) throws Exception {
-        if (entryMap.containsKey(host))
-            throw new IllegalArgumentException("Host already registered to cluster");
+        Preconditions.checkNotNull(host, "host");
+        Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS);
         createPathIfExists(basePath);
@@ -98,30 +101,29 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Remove Host from cluster.
      *
-     * @param host
-     * @throws Exception
+     * @param host - Host to be removed from cluster.
+     * @throws Exception - Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
     public void deregisterHost(Host host) throws Exception {
+        Preconditions.checkNotNull(host, "host");
         PersistentNode node = entryMap.get(host);
-        if (node == null) {
-            throw new IllegalArgumentException("Host not present inside cluster: " + clusterName + " Host: " + host);
-        } else {
-            entryMap.remove(host);
-            close(node);
-        }
+        Exceptions.checkArgument(node != null, "host", "host is not present in cluster.");
+        entryMap.remove(host);
+        close(node);
     }
 
     /**
      * Add Listener to the cluster.
      *
-     * @param listener - Cluster event Listener
-     * @throws Exception
+     * @param listener - Cluster event Listener.
+     * @throws Exception - Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
     public void addListener(ClusterListener listener) throws Exception {
+        Preconditions.checkNotNull(listener, "listener");
         if (!cache.isPresent()) {
             initializeCache();
         }
@@ -131,7 +133,7 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Get the current cluster members.
      *
-     * @return List<Host> list of cluster members
+     * @return List<Host> list of cluster members.
      */
     @Override
     @Synchronized
@@ -148,12 +150,15 @@ public class ClusterZKImpl implements Cluster {
     @Override
     public void close() throws Exception {
         CollectionHelpers.forEach(entryMap.values(), this::close);
-        if (cache.isPresent())
+        if (cache.isPresent()) {
             close(cache.get());
+        }
     }
 
     private void close(Closeable c) {
-        if (c == null) return;
+        if (c == null) {
+            return;
+        }
         try {
             c.close();
         } catch (IOException e) {

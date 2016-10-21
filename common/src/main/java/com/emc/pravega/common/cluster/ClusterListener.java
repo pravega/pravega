@@ -26,13 +26,11 @@ public interface ClusterListener {
         HOST_ADDED,
         HOST_REMOVED
     }
+
     /**
-     * Method invoked on a cluster Event
-     */
-    /**
-     * Method invoked on cluster Event
-     * @param type - EventType
-     * @param host - host added/removed.
+     * Method invoked on cluster Event.
+     * @param type - Event type.
+     * @param host - Host added/removed.
      */
     public void onEvent(final EventType type, final Host host);
 
