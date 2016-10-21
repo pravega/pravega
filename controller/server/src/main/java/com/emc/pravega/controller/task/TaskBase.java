@@ -17,20 +17,15 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-
-import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
 
 /**
  * TaskBase contains the following.
@@ -176,37 +171,30 @@ public class TaskBase implements Cloneable {
 
                 // If lock had been obtained, unlock it before completing the task.
                 .whenComplete((T value, Throwable e) -> {
-                    if (e != null && e.getCause() instanceof LockFailedException) {
+                    if (lockResult.isCompletedExceptionally()) {
 
                         result.completeExceptionally(e);
 
                     } else {
 
                         taskMetadataStore.unlock(resource, context.hostId)
-                                .thenApply(x -> {
+                                .whenComplete((innerValue, innerE) -> {
                                     if (e != null) {
                                         result.completeExceptionally(e);
                                     } else {
                                         result.complete(value);
                                     }
-                                    return null;
                                 });
                     }
                 });
         return result;
     }
 
-    private CompletableFuture<List<Void>> removeOldHostChildren() {
-        // todo add an API to delete list of children in one shot
+    private CompletableFuture<Void> removeOldHostChildren() {
         if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
-            List<CompletableFuture<Void>> list =
-                    context.oldResourceTag
-                            .stream()
-                            .map(resourceTag -> taskMetadataStore.removeChild(context.oldHostId, resourceTag, true))
-                            .collect(Collectors.toList());
-            return sequence(list);
+            return taskMetadataStore.removeChildren(context.oldHostId, context.oldResourceTag, true);
         } else {
-            return CompletableFuture.completedFuture(Collections.emptyList());
+            return CompletableFuture.completedFuture(null);
         }
     }
 

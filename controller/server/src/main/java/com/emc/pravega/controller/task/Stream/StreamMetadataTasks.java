@@ -19,13 +19,16 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.stream.ScalingConflictException;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
+import com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
@@ -37,8 +40,10 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -106,7 +111,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @return returns the newly created segments.
      */
     @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<List<Segment>> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         return execute(
                 getResource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
@@ -154,11 +159,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 });
     }
 
-    private CompletableFuture<List<Segment>> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    private CompletableFuture<ScaleResponse> scaleBody(String scope, String stream, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         // Abort scaling operation in the following error scenarios
-        // 1. if the active segments in the stream have ts greater than scaleTimestamp, or
-        // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges
-
+        // 1. if the active segments in the stream have ts greater than scaleTimestamp -- ScaleStreamStatus.PRECONDITION_FAILED
+        // 2. if active segments having creation timestamp as scaleTimestamp have different key ranges than the ones specified in newRanges (todo) -- ScaleStreamStatus.CONFLICT
+        // 3. Transaction is active on the stream (todo)-- return ScaleStreamStatus.CONFLICT status in this case
         CompletableFuture<Boolean> checkValidity =
                 streamMetadataStore.getActiveSegments(stream)
                         .thenApply(activeSegments ->
@@ -170,17 +175,34 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
                     if (result) {
                         return notifySealedSegments(scope, stream, sealedSegments)
+
                                 .thenCompose(results ->
                                         streamMetadataStore.scale(stream, sealedSegments, newRanges, scaleTimestamp))
-                                .thenApply(newSegments -> {
+
+                                .thenApply((List<Segment> newSegments) -> {
                                     notifyNewSegments(scope, stream, newSegments);
-                                    return newSegments;
+                                    ScaleResponse response = new ScaleResponse();
+                                    response.setStatus(ScaleStreamStatus.SUCCESS);
+                                    response.setSegments(
+                                            newSegments
+                                                    .stream()
+                                                    .map(segment -> convert(scope, stream, segment))
+                                                    .collect(Collectors.toList()));
+                                    return response;
                                 });
                     } else {
-                        throw new ScalingConflictException(stream, scaleTimestamp);
+                        ScaleResponse response = new ScaleResponse();
+                        response.setStatus(ScaleStreamStatus.PRECONDITION_FAILED);
+                        response.setSegments(Collections.emptyList());
+                        return CompletableFuture.completedFuture(response);
                     }
                 }
         );
+    }
+
+    private SegmentRange convert(String scope, String stream, com.emc.pravega.controller.store.stream.Segment segment) {
+        return new SegmentRange(
+                new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     private Void notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers) {

@@ -85,11 +85,10 @@ public class TaskTest {
 
     private final StreamMetadataTasks streamMetadataTasks;
 
-    private static final String localZK = "localhost:2181";
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
-        StoreConfiguration config = new StoreConfiguration(localZK);
+        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
         taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, HOSTNAME);
     }
@@ -170,7 +169,7 @@ public class TaskTest {
         assertEquals(resultList.get(0), CreateStreamStatus.SUCCESS);
     }
 
-    @Test(expected = CompletionException.class)
+    @Test
     public void testLocking() {
 
         TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);

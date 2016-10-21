@@ -68,12 +68,23 @@ public interface TaskMetadataStore {
 
     /**
      * Removes the specified child node from the specified parent node.
-     * This is idempotent operation.
+     * This is idempotent operation. If deleteEmptyParent is true and parent has no child after deletion of specified
+     * child, the parent is also deleted.
      * @param parent node whose child is to be removed.
      * @param child child node to remove.
      * @return void in future.
      */
     CompletableFuture<Void> removeChild(String parent, String child, boolean deleteEmptyParent);
+
+    /**
+     * Removes the specified children nodes from the specified parent node.
+     * This is idempotent operation. If deleteEmptyParent is true and parent has no child after deletion of specified
+     * children, the parent is also deleted.
+     * @param parent node whose child is to be removed.
+     * @param children child node to remove.
+     * @return void in future.
+     */
+    CompletableFuture<Void> removeChildren(String parent, List<String> children, boolean deleteEmptyParent);
 
     /**
      * Remove a parent node if it is empty.

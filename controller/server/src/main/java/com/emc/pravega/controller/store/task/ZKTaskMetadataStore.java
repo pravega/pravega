@@ -218,6 +218,40 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Void> removeChildren(String parent, List<String> children, boolean deleteEmptyParent) {
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+
+                for (String child : children) {
+                    client.delete()
+                            .forPath(getHostPath(parent, child));
+                }
+
+                if (deleteEmptyParent) {
+                    // if there are no children for the parent, remove parent znode
+                    Stat stat = new Stat();
+                    client.getData()
+                            .storingStatIn(stat)
+                            .forPath(getHostPath(parent));
+
+                    if (stat.getNumChildren() == 0) {
+                        client.delete()
+                                .withVersion(stat.getVersion())
+                                .forPath(getHostPath(parent));
+                    }
+                }
+                return null;
+            } catch (KeeperException.NoNodeException e) {
+                log.debug("Node does not exist.", e);
+                return null;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Void> removeNode(String parent) {
         return CompletableFuture.supplyAsync(() -> {
             try {
