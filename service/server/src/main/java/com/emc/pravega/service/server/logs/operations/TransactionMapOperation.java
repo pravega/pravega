@@ -78,6 +78,8 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
 
     /**
      * Sets the StreamSegmentId for this operation.
+     *
+     * @param value The Segment Id to set.
      */
     public void setStreamSegmentId(long value) {
         Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");

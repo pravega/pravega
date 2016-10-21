@@ -34,10 +34,12 @@ import java.util.function.Supplier;
  * Additional Assert Methods that are useful during testing.
  */
 public class AssertExtensions {
-    
-    
+
     /**
      * Asserts that an exception of the Type provided is thrown.
+     *
+     * @param run  The Runnable to execute.
+     * @param type The type of exception to expect.
      */
     public static void assertThrows(Class<? extends Exception> type, RunnableWithException run) {
         try {
@@ -51,7 +53,7 @@ public class AssertExtensions {
             }
         }
     }
-    
+
     /**
      * Asserts that a function throws an expected exception.
      *
@@ -81,7 +83,7 @@ public class AssertExtensions {
      * @param message        The message to include in the Assert calls.
      * @param futureSupplier A Supplier that returns a new CompletableFuture, to test.
      * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
-     * @param <T>
+     * @param <T>            The type of the future's result.
      */
     public static <T> void assertThrows(String message, Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
         try {
@@ -104,7 +106,7 @@ public class AssertExtensions {
      * @param message The message to include in the Assert calls.
      * @param future  A the CompletableFuture to test.
      * @param tester  A predicate that indicates whether the exception (if thrown) is as expected.
-     * @param <T>
+     * @param <T>     The type of the future's result.
      */
     public static <T> void assertThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
         try {
@@ -178,7 +180,7 @@ public class AssertExtensions {
      * @param message  The message to include in the Assert calls.
      * @param expected A collection to check against.
      * @param actual   The collection to check.
-     * @param <T>
+     * @param <T>      The type of the collection's elements.
      */
     public static <T extends Comparable<? super T>> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
@@ -192,10 +194,11 @@ public class AssertExtensions {
     /**
      * Asserts that the contents of the given collections are the same (in any order).
      *
-     * @param message  The message to include in the Assert calls.
-     * @param expected A collection to check against.
-     * @param actual   The collection to check.
-     * @param <T>
+     * @param message    The message to include in the Assert calls.
+     * @param expected   A collection to check against.
+     * @param actual     The collection to check.
+     * @param comparator A Comparator to use to compare elements of the two collections.
+     * @param <T>        The type of the collection's elements.
      */
     public static <T> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual, Comparator<T> comparator) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
@@ -221,7 +224,7 @@ public class AssertExtensions {
      * @param expected The list to check against.
      * @param actual   The list to check.
      * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each list are equivalent.
-     * @param <T>
+     * @param <T>      The type of the list's elements.
      */
     public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiConsumerWithMessage<T, T> tester) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
@@ -239,7 +242,6 @@ public class AssertExtensions {
      * @param expected The larger value.
      * @param actual   The smaller value.
      */
-
     public static void assertLessThan(String message, long expected, long actual) {
         Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, expected, actual), expected > actual);
     }

@@ -24,6 +24,8 @@ public interface ServerConnection extends AutoCloseable {
 
     /**
      * Sends the provided command asynchronously. This operation is non-blocking.
+     *
+     * @param cmd The command to send.
      */
     void send(WireCommand cmd);
 
@@ -31,7 +33,7 @@ public interface ServerConnection extends AutoCloseable {
      * Sets the command processor to receive incoming commands from the client. This
      * method may only be called once.
      *
-     * @param cp
+     * @param cp The Request Processor to set.
      */
     void setRequestProcessor(RequestProcessor cp);
 

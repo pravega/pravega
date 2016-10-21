@@ -23,12 +23,14 @@ package com.emc.pravega.service.storage;
  */
 public class BadOffsetException extends WriteFailureException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the BadOffsetException class.
+     *
+     * @param message The message to set.
      */
     public BadOffsetException(String message) {
         super(message);
@@ -36,6 +38,9 @@ public class BadOffsetException extends WriteFailureException {
 
     /**
      * Creates a new instance of the BadOffsetException class.
+     *
+     * @param message The message to set.
+     * @param cause   The triggering cause of this exception.
      */
     public BadOffsetException(String message, Throwable cause) {
         super(message, cause);

@@ -62,7 +62,7 @@ public class ErrorInjector<T extends Throwable> {
      * If the given error injector is null or does not generate an exception, nothing will happen.
      *
      * @param injector The Error Injector to use.
-     * @param <T>
+     * @param <T>      The type of exception to throw.
      */
     public static <T extends Throwable> void throwSyncExceptionIfNeeded(ErrorInjector<T> injector) {
         if (injector != null) {
@@ -78,7 +78,7 @@ public class ErrorInjector<T extends Throwable> {
      * If the given injector is null or does not generate an exception (null), this method returns a normally completed Future with no result.
      *
      * @param injector The Error Injector to use.
-     * @return
+     * @param <T>      The type of exception to throw.
      */
     public static <T extends Throwable> CompletableFuture<Void> throwAsyncExceptionIfNeeded(ErrorInjector<T> injector) {
         CompletableFuture<Void> result = null;
@@ -96,8 +96,6 @@ public class ErrorInjector<T extends Throwable> {
     /**
      * Gets a value indicating the Exception (T) that was thrown during the last call to throwIfNecessary(). If no
      * exception was thrown, null is returned.
-     *
-     * @return
      */
     public T getLastCycleException() {
         return this.lastCycleException;
@@ -108,7 +106,7 @@ public class ErrorInjector<T extends Throwable> {
      * the given ErrorInjectors (inspected in the order in which they were provided). If no exception was thrown, null is returned.
      *
      * @param injectors The injectors to inspect.
-     * @return
+     * @param <T>       The type of exception to throw.
      */
     @SafeVarargs
     public static <T extends Throwable> T getLastCycleException(ErrorInjector<T>... injectors) {

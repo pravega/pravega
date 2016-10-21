@@ -74,15 +74,25 @@ public interface Stream {
 
     /**
      * Creates a new producer that can publish to this stream.
+     *
+     * @param config The producer configuration.
+     * @param s      The Serializer.
+     * @param <T>    The producer data type.
      */
     <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config);
 
     /**
      * Creates a new consumer that will consumer from this stream at the startingPosition.
-     * To obtain an initial position use {@link RebalancerUtils#getIntitialPositions}
+     * To obtain an initial position use {@link RebalancerUtils#getInitialPositions}
      * Consumers are responsible for their own failure management. In the event that a consumer dies the system will do
      * nothing about it until you do so manually. (Usually by getting its last {@link Position}) object and either
      * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking this method.
+     *
+     * @param config           The consumer configuration.
+     * @param s                The Serializer.
+     * @param l                The RateChangeListener to use.
+     * @param startingPosition The StartingPosition to use.
+     * @param <T>              The consumer data type.
      */
     <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
 }

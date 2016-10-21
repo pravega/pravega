@@ -120,9 +120,9 @@
       <property name="scope" value="public"/>
       <property name="validateThrows" value="true"/>
       <property name="allowUndeclaredRTE" value="true"/>
-      <property name="allowMissingParamTags" value="true"/>
-      <property name="allowMissingReturnTag" value="true"/>
       <property name="allowMissingThrowsTags" value="true"/>
+      <property name="allowMissingParamTags" value="false"/>
+      <property name="allowMissingReturnTag" value="true"/>
       <property name="allowMissingJavadoc" value="true"/>
       <property name="suppressLoadErrors" value="true"/>
     </module>

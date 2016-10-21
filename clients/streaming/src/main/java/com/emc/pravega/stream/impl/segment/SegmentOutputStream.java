@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines an OuptputStream for a segment.
+ * Defines an OutputStream for a segment.
  * Allows data to be appended to the end of the segment by calling {@link #write()}
  */
 public abstract class SegmentOutputStream implements AutoCloseable {

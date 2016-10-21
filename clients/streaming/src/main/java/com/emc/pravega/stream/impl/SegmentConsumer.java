@@ -31,6 +31,8 @@ public interface SegmentConsumer<Type> extends AutoCloseable {
      * Return the next event, blocking for at most timeout.
      * If there is no event after timeout null will be returned.
      * EndOfSegmentException indicates the segment has ended an no more events may be read.
+     *
+     * @param timeout Timeout for the operation, in milliseconds.
      */
     Type getNextEvent(long timeout) throws EndOfSegmentException;
 
@@ -41,6 +43,8 @@ public interface SegmentConsumer<Type> extends AutoCloseable {
 
     /**
      * Given an offset obtained from {@link SegmentConsumer#getOffset()} reset consumption to that position.
+     *
+     * @param offset The offset to set.
      */
     void setOffset(long offset);
 

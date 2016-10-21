@@ -42,6 +42,9 @@ public interface Transaction<Type> extends Serializable {
     /**
      * Sends an event to the stream just like {@link Producer#publish} but with the caveat that the message will not be
      * visible to anyone until {@link #commit()} is called.
+     *
+     * @param routingKey The Routing Key to use for publishing.
+     * @param event      The Event to publish.
      */
     void publish(String routingKey, Type event) throws TxFailedException;
 

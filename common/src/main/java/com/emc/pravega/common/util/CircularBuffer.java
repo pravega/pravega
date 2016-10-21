@@ -52,6 +52,7 @@ public class CircularBuffer {
     /**
      * Copies into the given ByteBuffer.
      *
+     * @param toFill The ByteBuffer to fill into.
      * @return the number of bytes put into toFill
      */
     public int read(ByteBuffer toFill) {
@@ -81,6 +82,7 @@ public class CircularBuffer {
     /**
      * Copies from the given ByteBuffer.
      *
+     * @param fillFrom The ByteBuffer to read from.
      * @return the number of bytes read from fillFrom
      */
     public int fill(ByteBuffer fillFrom) {

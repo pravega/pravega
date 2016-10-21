@@ -27,29 +27,34 @@ import java.util.Map;
 public interface RebalancerUtils {
     /**
      * Given a time stamp returns positions corresponding (roughly) to that point in the stream.
-     * 
-     * @param stream The stream for which positions are desired.
-     * @param time The unix time that positions should be returned for.
+     *
+     * @param stream            The stream for which positions are desired.
+     * @param time              The unix time that positions should be returned for.
      * @param numberOfConsumers The desired number of position objects
      * @return A set of position objects that can be passed to {@link Stream#createConsumer} to create a new consumer at
-     *         the requested time.
+     * the requested time.
      */
-    Collection<Position> getIntitialPositions(Stream stream, long time, int numberOfConsumers);
+    Collection<Position> getInitialPositions(Stream stream, long time, int numberOfConsumers);
 
     /**
      * Given the positions from some existing consumers divide or combine them into positions for newNumberOfConsumers
      * consumers.
-     * 
-     * @param consumers The existing consumers that need to be rebalanced.
+     *
+     * @param consumers            The existing consumers that need to be rebalanced.
      * @param newNumberOfConsumers The desired number of consumers.
      * @return A collection of newNumberOfConsumers Positions that rebalance the same subset of events from a stream
-     *         that the provided consumers used.
+     * that the provided consumers used.
      */
     Collection<Position> rebalance(Collection<Position> consumers, int newNumberOfConsumers);
 
     /**
      * Similar to {@link #rebalance(Collection, int)} but "sticky" in that consumers can correspond so some consistent
      * identifier. (Like a host name) And an explicit mapping will be provided.
+     *
+     * @param consumers    The existing consumers that need to be rebalanced.
+     * @param newConsumers The new consumers.
+     * @return A collection of newNumberOfConsumers Positions that rebalance the same subset of events from a stream
+     * that the provided consumers used.
      */
     Map<String, Position> rebalance(Map<String, Position> consumers, List<String> newConsumers);
 }
