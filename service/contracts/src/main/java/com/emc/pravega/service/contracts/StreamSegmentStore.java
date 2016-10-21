@@ -35,7 +35,7 @@ public interface StreamSegmentStore {
      * @param appendContext     Append context for this append.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will contain the offset within the StreamSegment where
-     * the add was added. If the operation failed, it will contain the exception that caused the failure.
+     * the add was added. If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
@@ -53,13 +53,13 @@ public interface StreamSegmentStore {
      * @param data              The data to add.
      * @param appendContext     Append context for this append.
      * @param timeout           Timeout for the operation
-     * @return A CompletableFuture that, when completed normally, will contain the offset within the StreamSegment where
-     * the add was added. If the operation failed, it will contain the exception that caused the failure.
+     * @return A CompletableFuture that, when completed normally, will indicate the append completed successfully.
+     * If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout);
+    CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout);
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume the
@@ -70,7 +70,7 @@ public interface StreamSegmentStore {
      * @param maxLength         The maximum number of bytes to read.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain a ReadResult instance that can be used to
-     * consume the read data. If the operation failed, it will contain the exception that caused the failure.
+     * consume the read data. If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
@@ -81,8 +81,8 @@ public interface StreamSegmentStore {
      *
      * @param streamSegmentName The name of the StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, it
-     * will contain the exception that caused the failure.
+     * @return A CompletableFuture that, when completed normally, will contain the result. IIf the operation failed, the
+     * future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
@@ -93,7 +93,7 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to create.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, it will contain the exception that caused the failure.
+     * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout);
@@ -105,7 +105,7 @@ public interface StreamSegmentStore {
      * @param transactionId           A unique identifier for the transaction to be created.
      * @param timeout                 Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the name of the newly created transaction.
-     * If the operation failed, it will contain the exception that caused the failure.
+     * If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Duration timeout);
@@ -116,7 +116,7 @@ public interface StreamSegmentStore {
      * @param transactionName The name of the Transaction StreamSegment to merge.
      * @param timeout         Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the offset within the parent StreamSegment
-     * where the transaction has been merged at. If the operation failed, it will contain the exception that caused the failure.
+     * where the transaction has been merged at. If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout);
@@ -127,7 +127,7 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to seal.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will contain the final length of the StreamSegment.
-     * If the operation failed, it will contain the exception that caused the failure.
+     * If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout);
@@ -138,7 +138,7 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to delete.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, it will contain the exception that caused the failure.
+     * failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
@@ -152,8 +152,8 @@ public interface StreamSegmentStore {
      * @param clientId          A UUID representing the Client Id to inquire about.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the requested information. If any exception
-     * occurred during processing, or if the last append in flight failed to process, the Future will contain the exception
-     * that caused the failure. The future will also fail with a StreamSegmentNotExistsException if the given StreamSegmentName
+     * occurred during processing, or if the last append in flight failed to process, the future will be failed with the
+     * causing exception.. The future will also fail with a StreamSegmentNotExistsException if the given StreamSegmentName
      * does not exist.
      */
     CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout);

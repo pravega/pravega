@@ -183,7 +183,7 @@ public class StreamSegmentContainerTests {
         ArrayList<String> segmentNames = createSegments(context);
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
