@@ -44,6 +44,7 @@ public final class Exceptions {
      *
      * @param run          A method that should be run handling interrupts automatically
      * @param <ExceptionT> The type of exception.
+     * @throws ExceptionT If thrown by run.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run)
@@ -65,6 +66,7 @@ public final class Exceptions {
      * @param call         A method that should be run handling interrupts automatically
      * @param <ExceptionT> The type of exception.
      * @param <ResultT>    The type of the result.
+     * @throws ExceptionT If thrown by call.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)

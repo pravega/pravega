@@ -165,6 +165,7 @@ public class TestDurableDataLog implements DurableDataLog {
      *
      * @param converter The converter to apply to each entry.
      * @param <T>       The resulting type of each entry's conversion.
+     * @throws Exception If a general exception occurred.
      */
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();

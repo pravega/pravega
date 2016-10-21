@@ -31,18 +31,23 @@ public abstract class SegmentOutputStream implements AutoCloseable {
      *
      * @param buff       Data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
      * @param onComplete future to be completed when data has been replicated and stored durably.
+     * @throws SegmentSealedException If the segment is closed for modifications.
      */
     public abstract void write(ByteBuffer buff, CompletableFuture<Void> onComplete) throws SegmentSealedException;
 
     /**
      * Flushes and then closes the output stream.
      * Frees any resources associated with it.
+     *
+     * @throws SegmentSealedException If the segment is closed for modifications.
      */
     @Override
     public abstract void close() throws SegmentSealedException;
 
     /**
      * Block on all writes that have not yet completed.
+     *
+     * @throws SegmentSealedException If the segment is closed for modifications.
      */
     public abstract void flush() throws SegmentSealedException;
 }

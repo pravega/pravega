@@ -33,6 +33,7 @@ public interface SegmentConsumer<Type> extends AutoCloseable {
      * EndOfSegmentException indicates the segment has ended an no more events may be read.
      *
      * @param timeout Timeout for the operation, in milliseconds.
+     * @throws EndOfSegmentException If we reached the end of the segment.
      */
     Type getNextEvent(long timeout) throws EndOfSegmentException;
 

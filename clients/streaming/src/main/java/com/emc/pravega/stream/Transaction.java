@@ -45,6 +45,7 @@ public interface Transaction<Type> extends Serializable {
      *
      * @param routingKey The Routing Key to use for publishing.
      * @param event      The Event to publish.
+     * @throws TxFailedException The Transaction is no longer in state {@link Status#OPEN}
      */
     void publish(String routingKey, Type event) throws TxFailedException;
 

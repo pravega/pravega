@@ -29,6 +29,8 @@ public interface SegmentProducer<Type> extends AutoCloseable {
 
     /**
      * Blocks on all outstanding writes.
+     *
+     * @throws SegmentSealedException If the segment is closed for modifications.
      */
     void flush() throws SegmentSealedException;
 

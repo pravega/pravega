@@ -156,6 +156,7 @@ public class AssertExtensions {
      * @param s1        The first InputStream to check.
      * @param s2        The second InputStream to check.
      * @param maxLength The maximum number of bytes to check.
+     * @throws IOException If unable to read from any of the given streams.
      */
     public static void assertStreamEquals(String message, InputStream s1, InputStream s2, int maxLength) throws IOException {
         int readSoFar = 0;

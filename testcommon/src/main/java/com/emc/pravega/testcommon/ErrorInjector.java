@@ -48,7 +48,7 @@ public class ErrorInjector<T extends Throwable> {
     /**
      * Throws an exception of type T if the count trigger activates.
      *
-     * @throws T
+     * @throws T If necessary to throw the exception.
      */
     public void throwIfNecessary() throws T {
         T ex = generateExceptionIfNecessary();

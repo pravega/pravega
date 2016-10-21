@@ -27,6 +27,9 @@
   <module name="RegexpHeader">
     <property name="header" value="/\*\*\n *"/>
   </module>
+  <module name="SuppressionFilter">
+        <property name="file" value="checkstyle/suppressions.xml"/>
+  </module>
   <module name="SuppressWarningsFilter"/>
   <module name="TreeWalker">
     <module name="SuppressWarningsHolder" />
@@ -49,7 +52,7 @@
         <property name="max" value="4"/>
     </module>
     <module name="StringLiteralEquality"/>
-    
+
     <!-- style -->
     <module name="DefaultComesLast"/>
     <module name="EmptyStatement"/>
@@ -64,12 +67,12 @@
     <module name="LocalFinalVariableName"/>
     <module name="MemberName"/>
     <module name="ClassTypeParameterName">
-        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T' 
+        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T'
         IE: T, E, E1, TFoo, or FooT -->
       <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)|(T[a-zA-Z0-9]*$)"/>
     </module>
     <module name="MethodTypeParameterName">
-        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T' 
+        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T'
         IE: T, E, E1, TFoo, or FooT -->
       <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)|(T[a-zA-Z0-9]*$)"/>
     </module>
@@ -120,10 +123,10 @@
       <property name="scope" value="public"/>
       <property name="validateThrows" value="true"/>
       <property name="allowUndeclaredRTE" value="true"/>
-      <property name="allowMissingThrowsTags" value="true"/>
+      <property name="allowMissingThrowsTags" value="false"/>
       <property name="allowMissingParamTags" value="false"/>
       <property name="allowMissingReturnTag" value="true"/>
-      <property name="allowMissingJavadoc" value="true"/>
+      <property name="allowMissingJavadoc" value="true"/> <!--TODO: this should be enabled at one point. -->
       <property name="suppressLoadErrors" value="true"/>
     </module>
   </module>

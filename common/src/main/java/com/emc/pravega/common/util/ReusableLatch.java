@@ -46,6 +46,8 @@ public class ReusableLatch {
 
     /**
      * Block until another thread calls release, or the thread is interrupted.
+     *
+     * @throws InterruptedException If the operation was interrupted while waiting.
      */
     public void await() throws InterruptedException {
         if (released.get()) {
@@ -96,5 +98,4 @@ public class ReusableLatch {
             }
         }
     }
-
 }

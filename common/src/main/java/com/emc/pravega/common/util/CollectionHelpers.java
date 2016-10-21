@@ -53,7 +53,7 @@ public class CollectionHelpers {
      * @param processor  The element processor.
      * @param <T>        The type of the elements in the collection.
      * @param <TEX>      The type of exceptions to expect.
-     * @throws TEX
+     * @throws TEX If the processor threw one.
      */
     public static <T, TEX extends Throwable> void forEach(Collection<T> collection, ConsumerWithException<T, TEX> processor) throws TEX {
         for (T element : collection) {
@@ -69,7 +69,7 @@ public class CollectionHelpers {
      * @param processor  The element processor.
      * @param <T>        The type of the elements in the collection.
      * @param <TEX>      The type of exceptions to expect.
-     * @throws TEX
+     * @throws TEX If the processor threw one.
      */
     public static <T, TEX extends Throwable> void forEach(Collection<T> collection, Predicate<T> filter, ConsumerWithException<T, TEX> processor) throws TEX {
         for (T element : collection) {

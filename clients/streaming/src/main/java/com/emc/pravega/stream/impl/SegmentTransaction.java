@@ -27,6 +27,7 @@ public interface SegmentTransaction<Type> {
      * Guaranteed to be stored until after {@link #flush()} has been called.
      *
      * @param event The event to publish.
+     * @throws TxFailedException The item could be persisted because the transaction has failed. (Timed out or dropped)
      */
     void publish(Type event) throws TxFailedException;
 

@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
  * Extensions to Future and CompletableFuture.
  */
 public final class FutureHelpers {
-
     /**
      * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
      *
@@ -79,6 +78,7 @@ public final class FutureHelpers {
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
      * @return The result of calling future.get()
+     * @throws ExceptionT If thrown by the future.
      */
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
                                                                                          Function<Throwable, ExceptionT> exceptionConstructor) throws ExceptionT {
@@ -105,6 +105,8 @@ public final class FutureHelpers {
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
+     * @throws ExceptionT       If thrown by the future.
+     * @throws TimeoutException If the timeout expired prior to the future completing.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
