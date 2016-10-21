@@ -112,7 +112,6 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         return initResult;
     }
 
-
     @Override
     public void close() {
         this.closed = true;
@@ -153,7 +152,6 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
             assert this.handles.containsKey(containerId) : "found unregistered handle " + containerId;
             this.handles.remove(containerId);
         }
-
         log.info("Container {} has been unregistered.", containerId);
     }
 
@@ -168,7 +166,6 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode, we rely on not auto-restarting containers.
             });
         }
-
         log.info("Container {} has been registered.", handle.getContainerId());
     }
 
@@ -234,7 +231,6 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         complement.removeAll(complementOf);
         return complement;
     }
-
 
     private Map<Integer, Host> getSegmentContainerMapping() {
         Optional<ChildData> containerToHostMapSer = Optional.of(segContainerHostMapping.getCurrentData());
