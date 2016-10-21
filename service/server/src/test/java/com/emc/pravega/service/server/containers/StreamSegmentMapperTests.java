@@ -36,7 +36,6 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
-import com.sun.xml.internal.ws.util.CompletedFuture;
 import lombok.Cleanup;
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
