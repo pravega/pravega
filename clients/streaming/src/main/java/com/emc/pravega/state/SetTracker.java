@@ -1,21 +1,26 @@
 package com.emc.pravega.state;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.StreamManager;
+import com.emc.pravega.stream.impl.JavaSerializer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
-public class ListTracker<T> {
+public class SetTracker<T> {
 
-    private static class UpdatableList<T> implements Updatable<ListUpdate<T>>, Serializable {
-        private final List<T> impl = new ArrayList<>();
+    private static class UpdatableSet<T> implements Updatable<SetUpdate<T>>, Serializable {
+        private final Set<T> impl = new LinkedHashSet<>();
         private Revision currentRevision;
         
         @Synchronized
-        private List<T> getCurrentValues(){
-            return new ArrayList<>(impl);
+        private Set<T> getCurrentValues(){
+            return Collections.unmodifiableSet(impl);
         }
         
         @Synchronized
@@ -40,7 +45,7 @@ public class ListTracker<T> {
 
         @Synchronized
         @Override
-        public void applyUpdate(Revision newRevision, ListUpdate<T> update) {
+        public void applyUpdate(Revision newRevision, SetUpdate<T> update) {
             update.process(this);
             currentRevision = newRevision;
         }
@@ -52,41 +57,41 @@ public class ListTracker<T> {
         }
     }
     
-    private static abstract class ListUpdate<T> implements Serializable {
-        public abstract void process(UpdatableList<T> updatableList);
+    private static abstract class SetUpdate<T> implements Serializable {
+        public abstract void process(UpdatableSet<T> updatableList);
     }
     
     @RequiredArgsConstructor
-    private static class AddToList<T> extends ListUpdate<T> {
+    private static class AddToList<T> extends SetUpdate<T> {
         private final T value;
         @Override
-        public void process(UpdatableList<T> updatableList) {
+        public void process(UpdatableSet<T> updatableList) {
             updatableList.add(value);
         }
     }
     @RequiredArgsConstructor
-    private static class RemoveFromList<T> extends ListUpdate<T> {
+    private static class RemoveFromList<T> extends SetUpdate<T> {
         private final T value;
         @Override
-        public void process(UpdatableList<T> updatableList) {
+        public void process(UpdatableSet<T> updatableList) {
             updatableList.remove(value);
         }
     }
     @RequiredArgsConstructor
-    private static class ClearList<T> extends ListUpdate<T> {
+    private static class ClearList<T> extends SetUpdate<T> {
         @Override
-        public void process(UpdatableList<T> updatableList) {
+        public void process(UpdatableSet<T> updatableList) {
             updatableList.clear();
         }
     }
     
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
     
-    private final StateTracker<UpdatableList<T>, ListUpdate<T>> tracker;
-    private UpdatableList<T> current;
+    private final StateSyncronizer<UpdatableSet<T>, SetUpdate<T>> tracker;
+    private UpdatableSet<T> current;
     private int countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
     
-    public ListTracker(StateTracker<UpdatableList<T>, ListUpdate<T>> tracker) {
+    private SetTracker(StateSyncronizer<UpdatableSet<T>, SetUpdate<T>> tracker) {
         this.tracker = tracker;
         getNewBaseVersion();
         update();
@@ -97,12 +102,12 @@ public class ListTracker<T> {
     }
 
     public void update() {
-        while(!tracker.updateLocalState(current)) {
+        while(!tracker.synchronizeLocalState(current)) {
             getNewBaseVersion();
         }
     }
     
-    public List<T> getCurrentValues(){
+    public Set<T> getCurrentValues(){
         return current.getCurrentValues();
     }
     
@@ -118,7 +123,7 @@ public class ListTracker<T> {
         boolean result = tracker.attemptUpdate(current, new RemoveFromList<>(value));
         if (result) {
             countdownToCompaction--;
-            if (countdownToCompaction <=0) {
+            if (countdownToCompaction <= 0) {
                 tracker.compact(current);
                 countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
             }

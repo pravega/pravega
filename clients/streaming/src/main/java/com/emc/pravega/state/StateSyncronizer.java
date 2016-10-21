@@ -39,7 +39,7 @@ package com.emc.pravega.state;
  * @param <StateT> The type of the State object.
  * @param <UpdateT> The type of updates applied to the State object.
  */
-public interface StateTracker<StateT extends Updatable<UpdateT>, UpdateT> {
+public interface StateSyncronizer<StateT extends Updatable<UpdateT>, UpdateT> {
 
     /**
      * Get an initial state.
@@ -58,7 +58,7 @@ public interface StateTracker<StateT extends Updatable<UpdateT>, UpdateT> {
      * 
      * @return true iff updates were applied to the provided localState
      */
-    boolean updateLocalState(StateT localState);
+    boolean synchronizeLocalState(StateT localState);
 
     /**
      * Attempts to persist an update, that will be applied to the localState iff the local state is
