@@ -25,8 +25,10 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -83,10 +85,11 @@ public class TaskTest {
 
     private final StreamMetadataTasks streamMetadataTasks;
 
+    private static final String localZK = "localhost:2181";
     public TaskTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
-        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
+        StoreConfiguration config = new StoreConfiguration(localZK);
         taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, HOSTNAME);
     }
@@ -131,12 +134,14 @@ public class TaskTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        CompletableFuture<CreateStreamStatus> result = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
-        assertTrue(result.isCompletedExceptionally());
+        try {
+            streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
+        } catch (CompletionException e) {
+            assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
+        }
 
-        result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis());
-        assertTrue(result.isDone());
-        assertEquals(result.get(), CreateStreamStatus.SUCCESS);
+        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis()).join();
+        assertEquals(result, CreateStreamStatus.SUCCESS);
     }
 
     @Test
@@ -146,15 +151,17 @@ public class TaskTest {
         final String stream = "streamSweeper";
         final TaskData taskData = new TaskData();
         final String resource = StreamMetadataTasks.getResource(scope, stream);
-        final String taggedResource = TaskBase.TaggedResource.getTaggedResource(resource);
         final long timestamp = System.currentTimeMillis();
 
         taskData.setMethodName("createStream");
         taskData.setMethodVersion("1.0");
         taskData.setParameters(new Serializable[]{scope, stream, configuration1, timestamp});
 
-        taskMetadataStore.putChild(deadHost, taggedResource);
-        taskMetadataStore.lock(resource, taskData, deadHost, null);
+        for (int i = 0; i < 5; i++) {
+            final String taggedResource = TaskBase.TaggedResource.getTaggedResource(resource);
+            taskMetadataStore.putChild(deadHost, taggedResource).join();
+        }
+        taskMetadataStore.lock(resource, taskData, deadHost, null).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, streamMetadataTasks);
         List<Object> resultList = taskSweeper.sweepOrphanedTasks(deadHost).get();
@@ -165,6 +172,7 @@ public class TaskTest {
 
     @Test(expected = CompletionException.class)
     public void testLocking() {
+
         TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
@@ -173,8 +181,12 @@ public class TaskTest {
         first.start();
         second.start();
 
-        first.result.join();
-        second.result.join();
+        try {
+            first.result.join();
+            second.result.join();
+        } catch (CompletionException ce) {
+            assertTrue(ce.getCause() instanceof LockFailedException);
+        }
     }
 
     @Data
@@ -195,12 +207,12 @@ public class TaskTest {
         @Override
         public void run() {
             testTasks.testStreamLock(scope, stream)
-            .handle((result, ex) -> {
+            .whenComplete((value, ex) -> {
                 if (ex != null) {
                     this.result.completeExceptionally(ex);
+                } else {
+                    this.result.complete(value);
                 }
-                this.result.complete(result);
-                return result;
             });
         }
     }

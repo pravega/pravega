@@ -26,6 +26,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.*;
@@ -96,11 +97,11 @@ public class ZKTaskMetadataStoreTests {
         taskMetadataStore.unlock(resource, host2).get();
 
         try {
-            taskMetadataStore.getTask(resource).get();
+            taskMetadataStore.getTask(resource).join();
             assertTrue(false);
-        } catch (TaskNotFoundException e) {
+        } catch (Exception e) {
             // TaskNotFound exception is expected
-            assertTrue(true);
+            assertTrue(e.getCause() instanceof TaskNotFoundException);
         }
 
         taskMetadataStore.lock(resource, taskData, host1, null).get();
@@ -111,15 +112,15 @@ public class ZKTaskMetadataStoreTests {
         taskMetadataStore.unlock(resource, host1).get();
 
         try {
-            taskMetadataStore.getTask(resource).get();
+            taskMetadataStore.getTask(resource).join();
             assertTrue(false);
-        } catch (TaskNotFoundException e) {
+        } catch (Exception e) {
             // TaskNotFound exception is expected
-            assertTrue(true);
+            assertTrue(e.getCause() instanceof TaskNotFoundException);
         }
     }
 
-    @Test(expected = LockFailedException.class)
+    @Test
     public void lockFailureTest() throws ExecutionException, InterruptedException {
 
         taskMetadataStore.lock(resource, taskData, host1, null).get();
@@ -127,6 +128,10 @@ public class ZKTaskMetadataStoreTests {
         TaskData data = taskMetadataStore.getTask(resource).get();
         assertArrayEquals(taskData.serialize(), data.serialize());
 
-        taskMetadataStore.lock(resource, taskData, host2, null).get();
+        try {
+            taskMetadataStore.lock(resource, taskData, host2, null).join();
+        } catch (CompletionException e) {
+            assertTrue(e.getCause() instanceof LockFailedException);
+        }
     }
 }
