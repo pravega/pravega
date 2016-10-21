@@ -97,6 +97,12 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     }
 
     @Override
+    public void isTransactionOpen(String scope, String stream, TxId txid, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("isTransactionOpen called for stream " + scope + "/" + stream + " txid " + txid.toString());
+        processResult(controllerService.isTransactionOpen(scope, stream, txid), resultHandler);
+    }
+
+    @Override
     public void createTransaction(String scope, String stream, AsyncMethodCallback resultHandler) throws TException {
         log.debug("createTransaction called for stream " + scope + "/" + stream);
         processResult(controllerService.createTransaction(scope, stream), resultHandler);

@@ -79,7 +79,12 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     @Override
     public boolean isSegmentValid(String scope, String stream, int segmentNumber, String caller) throws TException {
-        return false;
+        return FutureHelpers.getAndHandleExceptions(controllerService.isSegmentValid(scope, stream, segmentNumber, caller), RuntimeException::new);
+    }
+
+    @Override
+    public boolean isTransactionOpen(String scope, String stream, TxId txid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.isTransactionOpen(scope, stream, txid), RuntimeException::new);
     }
 
     @Override

@@ -134,4 +134,14 @@ public interface Controller {
      */
     CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber, String caller);
 
+    /**
+     * Given a segment number, check if the segment is created and not sealed
+     *
+     * @param scope
+     * @param stream
+     * @param txid
+     * @return
+     */
+    CompletableFuture<Boolean> isTransactionOpen(String scope, String stream, UUID txid);
+
 }
