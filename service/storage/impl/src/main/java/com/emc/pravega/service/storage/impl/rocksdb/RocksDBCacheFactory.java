@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package rocksdb;
+package com.emc.pravega.service.storage.impl.rocksdb;
 
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
