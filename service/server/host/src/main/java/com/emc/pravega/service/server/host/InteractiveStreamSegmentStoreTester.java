@@ -42,6 +42,7 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.ExceptionHelpers;
+import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 
@@ -88,15 +89,14 @@ public class InteractiveStreamSegmentStoreTester {
         context.reset();
 
         ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
-        ServiceBuilder serviceBuilder;
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
         if (useDistributedLog) {
-            serviceBuilder = new DistributedLogServiceBuilder(config);
-        } else {
-            serviceBuilder = new HDFSServicebuilder(config);
+            // Real (Distributed Log) Data Log.
+            ServiceStarter.attachDistributedLog(serviceBuilder);
         }
 
         try {
-            serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+            serviceBuilder.initialize(TIMEOUT).join();
             InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
         } finally {
@@ -294,7 +294,7 @@ public class InteractiveStreamSegmentStoreTester {
 
     private static class InvalidCommandSyntax extends RuntimeException {
         /**
-         * 
+         *
          */
         private static final long serialVersionUID = 1L;
 

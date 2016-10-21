@@ -19,7 +19,7 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
-import com.emc.pravega.common.util.InvalidPropertyValueException;
+import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.MissingPropertyException;
 
 import java.util.Properties;
@@ -85,7 +85,7 @@ public class ServiceConfig extends ComponentConfig {
     //region ComponentConfig Implementation
 
     @Override
-    protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+    protected void refresh() throws ConfigurationException {
         this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
         this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);

@@ -20,6 +20,7 @@ package com.emc.pravega.common.function;
 
 import com.google.common.base.Preconditions;
 
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -40,6 +41,27 @@ public final class CallbackHelpers {
 
         try {
             consumer.accept(argument);
+        } catch (Exception ex) {
+            if (failureHandler != null) {
+                invokeSafely(failureHandler, ex, null);
+            }
+        }
+    }
+
+    /**
+     * Invokes the given Consumer with the given argument, and catches any exceptions that it may throw.
+     *
+     * @param consumer       The consumer to invoke.
+     * @param argument1      The first argument to pass to the consumer.
+     * @param argument2      The second argument to pass to the consumer.
+     * @param failureHandler An optional callback to invoke if the consumer threw any exceptions.
+     * @throws NullPointerException If the consumer is null.
+     */
+    public static <T1, T2> void invokeSafely(BiConsumer<T1, T2> consumer, T1 argument1, T2 argument2, Consumer<Throwable> failureHandler) {
+        Preconditions.checkNotNull(consumer, "consumer");
+
+        try {
+            consumer.accept(argument1, argument2);
         } catch (Exception ex) {
             if (failureHandler != null) {
                 invokeSafely(failureHandler, ex, null);

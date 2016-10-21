@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
 import com.emc.pravega.common.util.MissingPropertyException;
 
@@ -96,7 +97,7 @@ public class ReadIndexConfig extends ComponentConfig {
     }
 
     @Override
-    protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+    protected void refresh() throws ConfigurationException {
         this.storageReadMinLength = getInt32Property(PROPERTY_STORAGE_READ_MIN_LENGTH, DEFAULT_STORAGE_READ_MIN_LENGTH);
         this.storageReadMaxLength = getInt32Property(PROPERTY_STORAGE_READ_MAX_LENGTH, DEFAULT_STORAGE_READ_MAX_LENGTH);
         if (this.storageReadMinLength > this.storageReadMaxLength) {

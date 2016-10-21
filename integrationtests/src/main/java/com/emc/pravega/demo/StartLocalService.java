@@ -17,15 +17,14 @@
  */
 package com.emc.pravega.demo;
 
-import java.time.Duration;
-
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
-import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
+import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.mock.MockStreamManager;
-
 import lombok.Cleanup;
+
+import java.time.Duration;
 
 public class StartLocalService {
     
@@ -35,8 +34,8 @@ public class StartLocalService {
 
     public static void main(String[] args) throws Exception {
         @Cleanup
-        InMemoryServiceBuilder serviceBuilder = new InMemoryServiceBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize(Duration.ofMinutes(1)).get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store);

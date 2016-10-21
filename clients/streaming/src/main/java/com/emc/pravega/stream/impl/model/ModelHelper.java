@@ -17,12 +17,6 @@
  */
 package com.emc.pravega.stream.impl.model;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
@@ -40,6 +34,12 @@ import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.PositionImpl;
 import com.google.common.base.Preconditions;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 /**
  * Provides translation (encode/decode) between the Model classes and its Thrift representation.
  */
@@ -49,12 +49,12 @@ public final class ModelHelper {
         Preconditions.checkNotNull(txId, "txId");
         return new UUID(txId.getHighBits(), txId.getLowBits());
     }
-    
+
     public static final Segment encode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "Segment");
         return new Segment(segment.getScope(), segment.getStreamName(), segment.getNumber());
     }
-    
+
     public static final com.emc.pravega.stream.impl.FutureSegment encode(final SegmentId segment, int previous) {
         Preconditions.checkNotNull(segment, "Segment");
         return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
@@ -73,13 +73,14 @@ public final class ModelHelper {
             public String getScope() {
                 return config.getScope();
             }
+
             @Override
             public String getName() {
                 return config.getName();
             }
 
             @Override
-            public ScalingPolicy getScalingingPolicy() {
+            public ScalingPolicy getScalingPolicy() {
                 return encode(config.getPolicy());
             }
         };
@@ -93,24 +94,24 @@ public final class ModelHelper {
     public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
     }
-    
+
     public static Transaction.Status encode(TxStatus status, String logString) {
         switch (status) {
-        case COMMITTED:
-            return Transaction.Status.COMMITTED;
-        case DROPPED:
-            return Transaction.Status.DROPPED;
-        case OPEN:
-            return Transaction.Status.OPEN;
-        case SEALED:
-            return Transaction.Status.SEALED;
-        case UNKNOWN:
-            throw new RuntimeException("Unknown transaction: " + logString);
-        default:
-            throw new IllegalStateException("Unknown status: " + status);
+            case COMMITTED:
+                return Transaction.Status.COMMITTED;
+            case DROPPED:
+                return Transaction.Status.DROPPED;
+            case OPEN:
+                return Transaction.Status.OPEN;
+            case SEALED:
+                return Transaction.Status.SEALED;
+            case UNKNOWN:
+                throw new RuntimeException("Unknown transaction: " + logString);
+            default:
+                throw new IllegalStateException("Unknown status: " + status);
         }
     }
-    
+
     public static final TxId decode(UUID txId) {
         Preconditions.checkNotNull(txId, "txId");
         return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
@@ -119,9 +120,9 @@ public final class ModelHelper {
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "Segment");
         return new SegmentId().setScope(segment.getScope()).setStreamName(segment.getStreamName())
-                .setNumber(segment.getSegmentNumber());
-
+                              .setNumber(segment.getSegmentNumber());
     }
+
     public static final com.emc.pravega.controller.stream.api.v1.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "Policy");
         return new com.emc.pravega.controller.stream.api.v1.ScalingPolicy()
@@ -131,7 +132,7 @@ public final class ModelHelper {
 
     public static final StreamConfig decode(final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "StreamConfiguration");
-        return new StreamConfig(configModel.getScope(), configModel.getName(), decode(configModel.getScalingingPolicy()));
+        return new StreamConfig(configModel.getScope(), configModel.getName(), decode(configModel.getScalingPolicy()));
     }
 
     public static final Position decode(final PositionInternal position) {
@@ -152,7 +153,7 @@ public final class ModelHelper {
         }
         return result;
     }
-    
+
     private static Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(final Map<FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
         HashMap<com.emc.pravega.stream.impl.FutureSegment, Long> result = new HashMap<>();
@@ -161,7 +162,7 @@ public final class ModelHelper {
         }
         return result;
     }
-    
+
     private static Map<FutureSegment, Long> decodeFutureSegmentMap(final Map<com.emc.pravega.stream.impl.FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
         HashMap<FutureSegment, Long> result = new HashMap<>();
@@ -174,10 +175,9 @@ public final class ModelHelper {
         }
         return result;
     }
-    
+
     private static Map<SegmentId, Long> decodeSegmentMap(final Map<Segment, Long> map) {
         Preconditions.checkNotNull(map);
         return map.entrySet().stream().collect(Collectors.toMap(e -> decode(e.getKey()), Map.Entry::getValue));
     }
-
 }
