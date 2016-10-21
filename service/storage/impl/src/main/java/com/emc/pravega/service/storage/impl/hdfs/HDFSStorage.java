@@ -117,10 +117,10 @@ public class HDFSStorage implements Storage {
         String possibleValForAppend = null;
         for (FileStatus status: getStreamSegmentNameWildCard(streamSegmentName)) {
             long fileStartOffset = this.getStartOffsetInName(status.getPath().toString());
-            if (fileStartOffset <= offset && fileStartOffset + status.getLen() < offset) {
+            if (fileStartOffset <= offset && fileStartOffset + status.getLen() > offset) {
                 return status.getPath().toString();
             }
-            if (fileStartOffset <= offset && fileStartOffset + status.getLen() <= offset) {
+            if (fileStartOffset <= offset && fileStartOffset + status.getLen() == offset) {
                 possibleValForAppend = status.getPath().toString();
             }
         }

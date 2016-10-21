@@ -35,11 +35,4 @@ public class HDFSServicebuilder extends DistributedLogServiceBuilder {
         HDFSStorageConfig hdfsConfig = super.serviceBuilderConfig.getConfig(HDFSStorageConfig::new);
         return new HDFSStorageFactory(hdfsConfig);
     }
-
-
-    @Override
-    protected DurableDataLogFactory createDataLogFactory() {
-        return new InMemoryDurableDataLogFactory();
-    }
-
 }
