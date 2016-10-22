@@ -18,6 +18,18 @@
 
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.storage.Storage;
+import com.google.common.base.Preconditions;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -110,14 +122,6 @@ public class InMemoryStorage implements Storage {
                 }, this.executor)
                 .thenCompose(StreamSegmentData::getInfo);
     }
-
-    @Override
-    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        CompletableFuture<Boolean> retVal = new CompletableFuture<Boolean>();
-        retVal.complete(true);
-        return retVal;
-    }
-
 
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
@@ -424,7 +428,7 @@ public class InMemoryStorage implements Storage {
 
         CompletableFuture<SegmentProperties> getInfo() {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date())); //TODO: real modification time
+                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date()));
             }
         }
 

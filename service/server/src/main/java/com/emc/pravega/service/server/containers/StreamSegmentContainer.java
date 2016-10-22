@@ -28,6 +28,7 @@ import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.IllegalContainerStateException;
 import com.emc.pravega.service.server.MetadataRepository;
+import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.OperationLogFactory;
 import com.emc.pravega.service.server.ReadIndex;
 import com.emc.pravega.service.server.ReadIndexFactory;
@@ -35,14 +36,13 @@ import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
+import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.server.WriterFactory;
 import com.emc.pravega.service.server.logs.CacheUpdater;
-import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.logs.operations.MergeTransactionOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
-import com.emc.pravega.service.server.Writer;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.Storage;
@@ -194,8 +194,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureRunning();
 
-        logRequest("append", streamSegmentName, data.length, appendContext);
         TimeoutTimer timer = new TimeoutTimer(timeout);
+        logRequest("append", streamSegmentName, data.length, appendContext);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenCompose(streamSegmentId -> {
@@ -205,6 +205,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     // Add to Append Context Registry, if needed.
                     this.pendingAppendsCollection.register(operation, result);
                     return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+        ensureRunning();
+
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        logRequest("appendWithOffset", streamSegmentName, data.length, appendContext);
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId -> {
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, appendContext);
+                    CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
+
+                    // Add to Append Context Registry, if needed.
+                    this.pendingAppendsCollection.register(operation, result);
+                    return result.thenApply(seqNo -> null);
                 });
     }
 
@@ -228,13 +246,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
                 .thenApply(streamSegmentId -> {
-                SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                return new StreamSegmentInformation(streamSegmentName,
-                        sm.getDurableLogLength(),
-                        sm.isSealed(),
-                        sm.isDeleted(),
-                        new Date());
-            });
+                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
+                    return new StreamSegmentInformation(streamSegmentName,
+                            sm.getDurableLogLength(),
+                            sm.isSealed(),
+                            sm.isDeleted(),
+                            new Date());
+                });
     }
 
     @Override

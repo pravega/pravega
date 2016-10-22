@@ -40,7 +40,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
-import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
