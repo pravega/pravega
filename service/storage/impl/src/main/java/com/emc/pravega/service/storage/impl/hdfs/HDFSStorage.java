@@ -398,4 +398,7 @@ public class HDFSStorage implements Storage {
                 lastProp.getLastModified());
     }
 
+    public void initialize() throws IOException {
+        storage.getFS();
+    }
 }

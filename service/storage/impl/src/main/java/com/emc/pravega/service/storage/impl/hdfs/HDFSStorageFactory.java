@@ -23,6 +23,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 
+import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,5 +52,10 @@ public class HDFSStorageFactory implements StorageFactory {
     @Override
     public void close() {
         this.closed.set(true);
+    }
+
+    public void initialize() throws IOException {
+        this.storage.initialize();
+
     }
 }

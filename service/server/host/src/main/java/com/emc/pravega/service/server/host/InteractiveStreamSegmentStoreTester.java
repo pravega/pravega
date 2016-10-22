@@ -42,7 +42,6 @@ import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 
@@ -82,6 +81,7 @@ public class InteractiveStreamSegmentStoreTester {
 
     public static void main(String[] args) {
         final boolean useDistributedLog = false;
+        final boolean useHDFS = true;
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
@@ -93,6 +93,10 @@ public class InteractiveStreamSegmentStoreTester {
         if (useDistributedLog) {
             // Real (Distributed Log) Data Log.
             ServiceStarter.attachDistributedLog(serviceBuilder);
+        }
+        if(useHDFS) {
+            // Real (HDFS) storage
+            ServiceStarter.attachHDFS(serviceBuilder);
         }
 
         try {

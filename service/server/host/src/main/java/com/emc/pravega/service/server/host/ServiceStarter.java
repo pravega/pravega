@@ -26,9 +26,16 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.store.ServiceConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
+import org.omg.CORBA.ServiceDetail;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.concurrent.CompletionException;
 
 /**
  * Starts the Pravega Service.
@@ -42,7 +49,7 @@ public final class ServiceStarter {
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
-        this.serviceBuilder = new HDFSServicebuilder(this.serviceConfig);
+        //this.serviceBuilder = new HDFSServicebuilder(this.serviceConfig);
         //this.serviceBuilder = new DistributedLogServiceBuilder(this.serviceConfig);
         //this.serviceBuilder = new InMemoryServiceBuilder(this.serviceConfig);
         this.serviceBuilder = createServiceBuilder(this.serviceConfig, true);
@@ -117,6 +124,19 @@ public final class ServiceStarter {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
                 DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    static ServiceBuilder attachHDFS(ServiceBuilder builder) {
+        return builder.withStorageFactory(setup -> {
+            try {
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {
