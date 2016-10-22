@@ -16,28 +16,29 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.storage;
+package com.emc.pravega.service.contracts;
 
 /**
  * Exception that is thrown whenever a Write failed due to a bad offset.
  */
-public class BadOffsetException extends WriteFailureException {
+public class BadOffsetException extends StreamSegmentException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the BadOffsetException class.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param expectedOffset    The expected offset for the Operation.
+     * @param givenOffset       The offset that was given as part of the operation.
      */
-    public BadOffsetException(String message) {
-        super(message);
+    public BadOffsetException(String streamSegmentName, long expectedOffset, long givenOffset) {
+        super(streamSegmentName, getMessage(expectedOffset, givenOffset));
     }
 
-    /**
-     * Creates a new instance of the BadOffsetException class.
-     */
-    public BadOffsetException(String message, Throwable cause) {
-        super(message, cause);
+    private static String getMessage(long expectedOffset, long givenOffset) {
+        return String.format("Bad Offset. Expected %d, given %d.", expectedOffset, givenOffset);
     }
 }

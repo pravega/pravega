@@ -20,12 +20,12 @@ package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 
@@ -149,7 +149,7 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
-            Duration timeout) {
+                                          Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
@@ -396,8 +396,9 @@ public class InMemoryStorage implements Storage {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
                     synchronized (this.lock) {
                         if (offset != this.length) {
-                            throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
+                            throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
                         }
+
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
                         while (bytesCopied < other.length) {
@@ -438,7 +439,7 @@ public class InMemoryStorage implements Storage {
         private void writeInternal(long startOffset, InputStream data, int length) {
             Exceptions.checkArgument(length >= 0, "length", "bad length");
             if (startOffset != this.length) {
-                throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
+                throw new CompletionException(new BadOffsetException(this.name, this.length, startOffset));
             }
 
             if (this.sealed) {
@@ -474,5 +475,4 @@ public class InMemoryStorage implements Storage {
     }
 
     //endregion
-
 }
