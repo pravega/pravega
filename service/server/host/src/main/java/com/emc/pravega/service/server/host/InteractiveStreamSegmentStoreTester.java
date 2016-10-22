@@ -94,7 +94,7 @@ public class InteractiveStreamSegmentStoreTester {
             // Real (Distributed Log) Data Log.
             ServiceStarter.attachDistributedLog(serviceBuilder);
         }
-        if(useHDFS) {
+        if (useHDFS) {
             // Real (HDFS) storage
             ServiceStarter.attachHDFS(serviceBuilder);
         }

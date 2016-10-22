@@ -31,7 +31,6 @@ import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
-import org.omg.CORBA.ServiceDetail;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;

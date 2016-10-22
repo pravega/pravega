@@ -167,7 +167,6 @@ public class HDFSStorage implements Storage {
      */
     private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException {
 
-
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
         final long[] currStart = {0};
@@ -346,7 +345,6 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
 
-
         CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
                     try {
@@ -365,11 +363,11 @@ public class HDFSStorage implements Storage {
      }
 
 
-     /**
-      *
-      * Utility function that lists all the files and creates
-      * the segment info based on the status of the file containing the largest offset
-      */
+    /**
+     *
+     * Utility function that lists all the files and creates
+     * the segment info based on the status of the file containing the largest offset
+     */
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
