@@ -17,13 +17,14 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -44,30 +45,21 @@ public class TaskBase implements Cloneable {
     public static class Context {
         private final String hostId;
         private final String oldHostId;
-        private final List<String> oldResourceTag;
+        private final String oldThreadId;
+        private final Resource oldResource;
 
         public Context(String hostId) {
             this.hostId = hostId;
             this.oldHostId = null;
-            this.oldResourceTag = null;
+            this.oldThreadId = null;
+            this.oldResource = null;
         }
 
-        public Context(String hostId, String oldHost, List<String> oldResourceTag) {
+        public Context(String hostId, String oldHost, String oldThreadId, Resource oldResource) {
             this.hostId = hostId;
             this.oldHostId = oldHost;
-            this.oldResourceTag = oldResourceTag;
-        }
-    }
-
-    public static class TaggedResource {
-        private final static String SEPARATOR = "_%%%_";
-
-        public static String getResource(String taggedResource) {
-            return taggedResource.split(SEPARATOR)[0];
-        }
-
-        public static String getTaggedResource(String resource) {
-            return resource + SEPARATOR + UUID.randomUUID().toString();
+            this.oldThreadId = oldThreadId;
+            this.oldResource = oldResource;
         }
     }
 
@@ -85,14 +77,6 @@ public class TaskBase implements Cloneable {
         return (TaskBase) super.clone();
     }
 
-    public static String getResource(String scope, String stream) {
-        return scope + "_%_" + stream;
-    }
-
-    public static String getResource(String scope, String stream, String transactionId) {
-        return scope + "_%_" + stream + "_%_" + transactionId;
-    }
-
     public void setContext(Context context) {
         this.context = context;
     }
@@ -102,8 +86,7 @@ public class TaskBase implements Cloneable {
     }
 
     /**
-     * Wrapper method that initially obtains lock, persists the task data then executes the passed method,
-     * finally deletes task data and releases lock.
+     * Wrapper method that initially obtains lock then executes the passed method, and finally releases lock.
      *
      * @param resource resource to be updated by the task.
      * @param parameters method parameters.
@@ -111,10 +94,11 @@ public class TaskBase implements Cloneable {
      * @param <T> type parameter of return value of operation to be executed.
      * @return return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(String resource, Serializable[] parameters, FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> execute(Resource resource, Serializable[] parameters, FutureOperation<T> operation) {
+        final String threadId = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);
         final CompletableFuture<T> result = new CompletableFuture<>();
-        final String resourceTag = TaggedResource.getTaggedResource(resource);
+        final TaggedResource resourceTag = new TaggedResource(threadId, resource);
 
         // PutChild (HostId, resource)
         // Initially store the fact that I am about the update the resource.
@@ -123,29 +107,30 @@ public class TaskBase implements Cloneable {
         // creation or deletion of resource children under HostId node.
         taskMetadataStore.putChild(context.hostId, resourceTag)
                 // After storing that fact, lock the resource, execute task and unlock the resource
-                .thenCompose(x -> executeTask(resource, taskData, operation))
+                .thenCompose(x -> executeTask(resource, taskData, threadId, operation))
                         // finally delete the resource child created under the controller's HostId
-                .whenComplete((value, e) -> {
+                .whenComplete((value, e) ->
                     taskMetadataStore.removeChild(context.hostId, resourceTag, true)
                             .whenComplete((innerValue, innerE) -> {
+                                // ignore the result of removeChile operations, since it is an optimization
                                 if (e != null) {
                                     result.completeExceptionally(e);
                                 } else {
                                     result.complete(value);
                                 }
-                            });
-                });
+                            })
+                );
 
         return result;
     }
 
-    private <T> CompletableFuture<T> executeTask(String resource, TaskData taskData, FutureOperation<T> operation) {
+    private <T> CompletableFuture<T> executeTask(Resource resource, TaskData taskData, String threadId, FutureOperation<T> operation) {
         final CompletableFuture<T> result = new CompletableFuture<>();
 
         final CompletableFuture<Void> lockResult = new CompletableFuture<>();
 
         taskMetadataStore
-                .lock(resource, taskData, context.hostId, context.oldHostId)
+                .lock(resource, taskData, context.hostId, threadId, context.oldHostId, context.oldThreadId)
 
                 // On acquiring lock, the following invariants hold
                 // Invariant 1. No other thread within any controller process is running an update task on the resource
@@ -154,14 +139,14 @@ public class TaskBase implements Cloneable {
                 // Invariant 3. Any other controller that had created resource child under its HostId, can now be safely
                 // deleted, since that information is redundant and is not useful during that HostId's fail over.
                 .whenComplete((value, e) -> {
-                    // Once I acquire the lock, safe to delete resourceTags from oldHost, if available
+                    // Once I acquire the lock, safe to delete context.oldResource from oldHost, if available
                     if (e != null) {
 
                         lockResult.completeExceptionally(e);
 
                     } else {
 
-                        removeOldHostChildren().whenComplete((x, y) -> lockResult.complete(value));
+                        removeOldHostChild().whenComplete((x, y) -> lockResult.complete(value));
                     }
                 });
 
@@ -172,13 +157,17 @@ public class TaskBase implements Cloneable {
                 // If lock had been obtained, unlock it before completing the task.
                 .whenComplete((T value, Throwable e) -> {
                     if (lockResult.isCompletedExceptionally()) {
-
+                        // If lock was not obtained, complete the operation with error
                         result.completeExceptionally(e);
 
                     } else {
-
-                        taskMetadataStore.unlock(resource, context.hostId)
+                        // If lock was obtained, irrespective of result of operation execution,
+                        // release lock before completing operation.
+                        taskMetadataStore.unlock(resource, context.hostId, threadId)
                                 .whenComplete((innerValue, innerE) -> {
+                                    // If lock was acquired above, unlock operation retries until it is released.
+                                    // It throws exception only if non-lock holder tries to release it.
+                                    // Hence ignore result of unlock operation and complete future with previous result.
                                     if (e != null) {
                                         result.completeExceptionally(e);
                                     } else {
@@ -190,9 +179,12 @@ public class TaskBase implements Cloneable {
         return result;
     }
 
-    private CompletableFuture<Void> removeOldHostChildren() {
+    private CompletableFuture<Void> removeOldHostChild() {
         if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
-            return taskMetadataStore.removeChildren(context.oldHostId, context.oldResourceTag, true);
+            return taskMetadataStore.removeChild(
+                    context.oldHostId,
+                    new TaggedResource(context.oldThreadId, context.oldResource),
+                    true);
         } else {
             return CompletableFuture.completedFuture(null);
         }

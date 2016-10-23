@@ -17,31 +17,25 @@
  */
 package com.emc.pravega.controller.store.task;
 
+import com.google.common.base.Preconditions;
+import lombok.Data;
+
 /**
- * Task not found exception, thrown when no task is found for a given resource.
+ * Resources managed by controller
+ * 1. Stream resource: scope/streamName
+ * 2, Tx resource:     scope/streamName/txId
  */
-public class TaskNotFoundException extends RuntimeException {
-    /**
-     *
-     */
-    private static final long serialVersionUID = 1L;
-    private static final String FORMAT_STRING = "Task not found for resource %s.";
+@Data
+public class Resource {
+    private final String string;
 
-    /**
-     * Creates a new instance of TaskNotFoundException class
-     * @param resource resource name
-     */
-    public TaskNotFoundException(String resource) {
-        super(String.format(FORMAT_STRING, resource));
+    public Resource(String... parts) {
+        Preconditions.checkNotNull(parts);
+        Preconditions.checkArgument(parts.length > 0);
+        String representation = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            representation += "/" + parts[i];
+        }
+        string = representation;
     }
-
-    /**
-     * Creates a new instance of TaskNotFoundException class
-     * @param resource resource name
-     * @param cause   error cause
-     */
-    public TaskNotFoundException(String resource, Throwable cause) {
-        super(String.format(FORMAT_STRING, resource), cause);
-    }
-
 }

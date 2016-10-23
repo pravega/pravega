@@ -18,26 +18,19 @@
 package com.emc.pravega.controller.store.task;
 
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.apache.commons.lang3.SerializationUtils;
-
-import java.io.Serializable;
 
 /**
- * Lock row
+ * Resource tagged by threadId
  */
 @Data
-@EqualsAndHashCode
-class LockData implements Serializable {
-    private final String hostId;
+public class TaggedResource {
+
     private final String threadId;
-    private final byte[] taskData;
+    private final Resource resource;
 
-    public byte[] serialize() {
-        return SerializationUtils.serialize(this);
-    }
-
-    public static LockData deserialize(byte[] bytes) {
-        return (LockData) SerializationUtils.deserialize(bytes);
+    public TaggedResource(String threadId, Resource resource) {
+        this.threadId = threadId;
+        this.resource = resource;
     }
 }
+

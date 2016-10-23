@@ -23,6 +23,7 @@ import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
+import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -81,7 +82,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
-                getResource(scope, stream),
+                new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
                 () -> createStreamBody(scope, stream, config));
     }
@@ -96,7 +97,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UpdateStreamStatus> alterStream(String scope, String stream, StreamConfiguration config) {
         return execute(
-                getResource(scope, stream),
+                new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
                 () -> updateStreamConfigBody(scope, stream, config));
     }
@@ -113,7 +114,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     @Task(name = "scaleStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<ScaleResponse> scale(String scope, String stream, ArrayList<Integer> sealedSegments, ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
         return execute(
-                getResource(scope, stream),
+                new Resource(scope, stream),
                 new Serializable[]{scope, stream, sealedSegments, newRanges, scaleTimestamp},
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }

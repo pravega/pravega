@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.task;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.emc.pravega.controller.store.host.Host;
@@ -29,6 +30,8 @@ import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
@@ -52,9 +55,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
@@ -146,10 +150,11 @@ public class TaskTest {
     @Test
     public void testTaskSweeper() throws ExecutionException, InterruptedException {
         final String deadHost = "deadHost";
+        final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
         final TaskData taskData = new TaskData();
-        final String resource = StreamMetadataTasks.getResource(scope, stream);
+        final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
 
         taskData.setMethodName("createStream");
@@ -157,16 +162,28 @@ public class TaskTest {
         taskData.setParameters(new Serializable[]{scope, stream, configuration1, timestamp});
 
         for (int i = 0; i < 5; i++) {
-            final String taggedResource = TaskBase.TaggedResource.getTaggedResource(resource);
+            final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource);
             taskMetadataStore.putChild(deadHost, taggedResource).join();
         }
-        taskMetadataStore.lock(resource, taskData, deadHost, null).join();
+        final TaggedResource taggedResource = new TaggedResource(deadThreadId, resource);
+        taskMetadataStore.putChild(deadHost, taggedResource).join();
+
+        taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, streamMetadataTasks);
-        List<Object> resultList = taskSweeper.sweepOrphanedTasks(deadHost).get();
-        assertTrue(resultList.size() == 1);
-        assertTrue(resultList.get(0) instanceof CreateStreamStatus);
-        assertEquals(resultList.get(0), CreateStreamStatus.SUCCESS);
+        taskSweeper.sweepOrphanedTasks(deadHost).get();
+
+        Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
+        assertFalse(data.isPresent());
+
+        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
+        assertFalse(child.isPresent());
+
+        // ensure that the stream streamSweeper is created
+        StreamConfiguration config = streamStore.getConfiguration(stream).get();
+        assertTrue(config.getName().equals(configuration1.getName()));
+        assertTrue(config.getScope().equals(configuration1.getScope()));
+        assertTrue(config.getScalingingPolicy().equals(configuration1.getScalingingPolicy()));
     }
 
     @Test

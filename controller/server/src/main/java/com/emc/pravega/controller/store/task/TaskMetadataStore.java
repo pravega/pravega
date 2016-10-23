@@ -19,7 +19,7 @@ package com.emc.pravega.controller.store.task;
 
 import com.emc.pravega.controller.task.TaskData;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -28,18 +28,21 @@ import java.util.concurrent.CompletableFuture;
 public interface TaskMetadataStore {
 
     /**
-     * Locks a resource for update. If old owner is specified, it revokes old owner's lock and itself acquires it.
-     * This is non-reentrant lock, i.e., a process cannot lock the same resource twice.
-     * If oldOwner is null atomically create the key value pair resource -> (owner, taskData) if it does not exist.
-     * if oldOwner is non-null atomically replace the key value pair resource -> (oldOwner, taskData) with the pair
-     * resource -> (owner, taskData).
+     * Locks a resource for update.
+     * If (oldOwner, oldThreadId) are specified then it revokes old owner's lock and itself acquires it.
+     * This is non-reentrant lock, i.e., a process/thread cannot lock the same resource twice.
+     * If oldOwner is null then
+     *     atomically create the key value pair resource -> (owner, threadId, taskData) if it does not exist.
+     * If oldOwner is non-null
+     *     then atomically replace the key value pair resource -> (oldOwner, oldThreadId, taskData) with the pair
+     * resource -> (owner, threadId, taskData).
      * @param resource resource identifier.
      * @param taskData details of update task on the resource.
      * @param owner    owner of the task.
      * @param oldOwner host that had previously locked the resource.
      * @return void if the operation succeeds, otherwise throws LockFailedException.
      */
-    CompletableFuture<Void> lock(String resource, TaskData taskData, String owner, String oldOwner);
+    CompletableFuture<Void> lock(Resource resource, TaskData taskData, String owner, String threadId, String oldOwner, String oldThreadId);
 
     /**
      * Unlocks a resource if it is owned by the specified owner.
@@ -48,43 +51,35 @@ public interface TaskMetadataStore {
      * @param owner    owner of the lock.
      * @return void if successful, otherwise throws UnlockFailedException.
      */
-    CompletableFuture<Void> unlock(String resource, String owner);
+    CompletableFuture<Void> unlock(Resource resource, String owner, String threadId);
 
     /**
-     * Fetch details of task, including its current owner, associated with the specified resource.
-     * @param resource node.
-     * @return byte array in future.
+     * Fetch details of task associated with the specified resource and locked/owned by specified owner and threadId.
+     * @param resource resource.
+     * @param owner owner.
+     * @param threadId threadId.
+     * @return TaskData if owner and threadId hold a lock on the specified resource otherwise Optional.empty().
      */
-    CompletableFuture<TaskData> getTask(String resource);
+    CompletableFuture<Optional<TaskData>> getTask(Resource resource, String owner, String threadId);
 
     /**
      * Adds specified resource as a child of current host's hostId node.
      * This is idempotent operation.
-     * @param parent parent node.
-     * @param child child noe.
+     * @param parent Parent node.
+     * @param child TaggedResource node to be added as child of parent.
      * @return void in future.
      */
-    CompletableFuture<Void> putChild(String parent, String child);
+    CompletableFuture<Void> putChild(String parent, TaggedResource child);
 
     /**
      * Removes the specified child node from the specified parent node.
-     * This is idempotent operation. If deleteEmptyParent is true and parent has no child after deletion of specified
-     * child, the parent is also deleted.
+     * This is idempotent operation.
+     * If deleteEmptyParent is true and parent has no child after deletion of given child then parent is also deleted.
      * @param parent node whose child is to be removed.
-     * @param child child node to remove.
+     * @param child child TaggedResource node to remove.
      * @return void in future.
      */
-    CompletableFuture<Void> removeChild(String parent, String child, boolean deleteEmptyParent);
-
-    /**
-     * Removes the specified children nodes from the specified parent node.
-     * This is idempotent operation. If deleteEmptyParent is true and parent has no child after deletion of specified
-     * children, the parent is also deleted.
-     * @param parent node whose child is to be removed.
-     * @param children child node to remove.
-     * @return void in future.
-     */
-    CompletableFuture<Void> removeChildren(String parent, List<String> children, boolean deleteEmptyParent);
+    CompletableFuture<Void> removeChild(String parent, TaggedResource child, boolean deleteEmptyParent);
 
     /**
      * Remove a parent node if it is empty.
@@ -95,9 +90,9 @@ public interface TaskMetadataStore {
     CompletableFuture<Void> removeNode(String parent);
 
     /**
-     * Returns all children of a given parent node.
-     * @param parent host id.
-     * @return children list.
+     * Returns a random child from among the children of specified parent.
+     * @param parent parent node.
+     * @return A randomly selected child if parent has children, otherwise Optional.empty().
      */
-    CompletableFuture<List<String>> getChildren(String parent);
+    CompletableFuture<Optional<TaggedResource>> getRandomChild(String parent);
 }
