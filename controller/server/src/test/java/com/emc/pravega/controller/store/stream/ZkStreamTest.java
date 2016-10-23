@@ -239,16 +239,14 @@ public class ZkStreamTest {
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
-                    }
-                    else throw new RuntimeException("assert failed");
+                    } else throw new RuntimeException("assert failed");
                 }).get();
 
         assert store.dropTransaction(streamName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
-                    }
-                    else throw new RuntimeException("assert failed");
+                    } else throw new RuntimeException("assert failed");
                 }).get();
 
         assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxStatus.UNKNOWN);

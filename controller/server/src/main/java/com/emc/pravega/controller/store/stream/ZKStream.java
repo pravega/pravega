@@ -114,12 +114,11 @@ class ZKStream extends PersistentStreamBase {
                                     if (path.equals(indexPath) || path.equals(historyPath)) {
                                         zkNodes.invalidateAll();
                                     }
+
                                     return getData(path);
-                                }
-                                catch (DataNotFoundException d) {
+                                } catch (DataNotFoundException d) {
                                     throw d;
-                                }
-                                catch (Exception e) {
+                                } catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }
                             }
@@ -271,7 +270,7 @@ class ZKStream extends PersistentStreamBase {
         String activeTxPath = getActiveTxPath(txId.toString());
         return checkExists(activeTxPath)
                 .thenCompose(x -> {
-                    if(x) return deletePath(activeTxPath);
+                    if (x) return deletePath(activeTxPath);
                     else return CompletableFuture.completedFuture(null);
                 });
     }

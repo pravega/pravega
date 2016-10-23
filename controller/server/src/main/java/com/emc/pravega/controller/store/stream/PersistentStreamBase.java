@@ -267,8 +267,7 @@ public abstract class PersistentStreamBase implements Stream {
                     if (ok == null || ok.getTxStatus().equals(TxStatus.UNKNOWN) ||
                             (ex != null && ex instanceof DataNotFoundException)) {
                         return TxStatus.UNKNOWN;
-                    }
-                    else if(ex != null) throw new RuntimeException(ex);
+                    } else if (ex != null) throw new RuntimeException(ex);
                     else return ok.getTxStatus();
                 });
 
@@ -280,8 +279,7 @@ public abstract class PersistentStreamBase implements Stream {
                                     if (ok == null || ok.getCompletionStatus().equals(TxStatus.UNKNOWN) ||
                                             (ex != null && ex instanceof DataNotFoundException)) {
                                         return TxStatus.UNKNOWN;
-                                    }
-                                    else if(ex != null) throw new RuntimeException(ex);
+                                    } else if (ex != null) throw new RuntimeException(ex);
                                     else return ok.getCompletionStatus();
                                 });
                     } else
