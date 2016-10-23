@@ -17,13 +17,12 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
-import com.emc.pravega.controller.store.stream.tables.TxnId;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -56,12 +55,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Map<TxnId, ActiveTxRecord>> getAllActiveTx() {
-        throw new NotImplementedException();
-    }
-
-    @Override
-    public CompletableFuture<Map<TxnId, CompletedTxRecord>> getAllCompletedTx() {
+    public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         throw new NotImplementedException();
     }
 }

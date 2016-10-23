@@ -17,9 +17,7 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
-import com.emc.pravega.controller.store.stream.tables.TxnId;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -27,13 +25,12 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
-import java.util.Map;
-import java.util.UUID;
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * ZK stream metadata store
@@ -48,6 +45,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     public ZKStreamMetadataStore(StoreConfiguration storeConfiguration) {
 
+        // Garbage collector for completed transactions
         ZKStream.initialize(storeConfiguration.getConnectionString());
         EXEC_SERVICE.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
@@ -70,17 +68,19 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
 
-
         zkStreams = CacheBuilder.newBuilder()
                 .maximumSize(1000)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .removalListener(new RemovalListener<String, ZKStream>() {
+                    @ParametersAreNonnullByDefault
                     public void onRemoval(RemovalNotification<String, ZKStream> removal) {
-                        removal.getValue().tearDown();
+                        if (removal.getValue() != null)
+                            removal.getValue().tearDown();
                     }
                 })
                 .build(
                         new CacheLoader<String, ZKStream>() {
+                            @ParametersAreNonnullByDefault
                             public ZKStream load(String key) {
                                 ZKStream zkStream = new ZKStream(key);
                                 zkStream.init();
@@ -100,22 +100,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Map<TxnId, ActiveTxRecord>> getAllActiveTx() {
-        return ZKStream.getAllActiveTx()
-                .thenApply(x -> x.entrySet().stream()
-                        .collect(Collectors.toMap(y -> convertPathToTxnId(y.getKey()), Map.Entry::getValue)));
-    }
-
-    @Override
-    public CompletableFuture<Map<TxnId, CompletedTxRecord>> getAllCompletedTx() {
-        return ZKStream.getAllCompletedTx()
-                .thenApply(x -> x.entrySet().stream()
-                        .collect(Collectors.toMap(y -> convertPathToTxnId(y.getKey()), Map.Entry::getValue)));
-
-    }
-
-    private TxnId convertPathToTxnId(String key) {
-        String[] x = key.split("/");
-        return new TxnId(x[0], x[1], UUID.fromString(x[2]));
+    public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
+        return ZKStream.getAllActiveTx();
     }
 }

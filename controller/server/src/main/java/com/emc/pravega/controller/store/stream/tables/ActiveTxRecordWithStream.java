@@ -22,8 +22,9 @@ import lombok.Data;
 import java.util.UUID;
 
 @Data
-public class TxnId {
+public class ActiveTxRecordWithStream {
     private final String scope;
     private final String stream;
     private final UUID txid;
+    private final ActiveTxRecord txRecord;
 }

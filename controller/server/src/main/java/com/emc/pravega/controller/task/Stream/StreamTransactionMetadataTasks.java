@@ -65,15 +65,16 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
 
+        // drop timedout transactions periodically
         EXEC_SERVICE.scheduleAtFixedRate(() -> {
             // find transactions to be dropped
             try {
                 final long currentTime = System.currentTimeMillis();
-                streamMetadataStore.getAllActiveTx().get().entrySet().stream()
+                streamMetadataStore.getAllActiveTx().get().stream()
                         .forEach(x -> {
-                            if (currentTime - x.getValue().getTxCreationTimestamp() > TIMEOUT) {
+                            if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
                                 try {
-                                    dropTx(x.getKey().getScope(), x.getKey().getStream(), x.getKey().getTxid());
+                                    dropTx(x.getScope(), x.getStream(), x.getTxid());
                                 } catch (Exception e) {
                                     // TODO: log and ignore
                                 }

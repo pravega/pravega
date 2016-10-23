@@ -17,9 +17,11 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.SegmentRecord;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import com.emc.pravega.stream.impl.TxStatus;
 import com.google.common.collect.Lists;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -34,6 +36,7 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -195,6 +198,25 @@ public class ZkStreamTest {
 
         List<Segment> segments = store.getActiveSegments(streamName).get();
         assertEquals(segments.size(), 6);
+
+    }
+
+    @Test
+    public void TestTransaction() throws Exception {
+        final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
+
+        final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final String streamName = "testTx";
+
+        StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
+        store.createStream(streamName, streamConfig, System.currentTimeMillis()).get();
+
+        UUID tx = store.createTransaction(streamName, streamName).get();
+
+        List<ActiveTxRecordWithStream> y = store.getAllActiveTx().get();
+        ActiveTxRecordWithStream z = y.get(0);
+        assert z.getTxRecord().getTxStatus() == TxStatus.OPEN;
 
     }
 }

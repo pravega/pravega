@@ -17,15 +17,12 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.controller.store.stream.tables.ActiveTxRecord;
-import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
-import com.emc.pravega.controller.store.stream.tables.TxnId;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxStatus;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -103,9 +100,10 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
 
     /**
+     * Method to create a new transaction on a stream
      * @param scope
      * @param stream
-     * @return
+     * @return new Transaction Id
      */
     CompletableFuture<UUID> createTransaction(String scope, String stream);
 
@@ -125,6 +123,13 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<TxStatus> commitTransaction(String scope, String stream, UUID txId);
 
+    /**
+     *
+     * @param scope
+     * @param stream
+     * @param txId
+     * @return
+     */
     CompletableFuture<TxStatus> sealTransaction(String scope, String stream, UUID txId);
 
     /**
@@ -139,11 +144,5 @@ public interface StreamMetadataStore {
      *
      * @return
      */
-    CompletableFuture<Map<TxnId, ActiveTxRecord>> getAllActiveTx();
-
-    /**
-     *
-     * @return
-     */
-    CompletableFuture<Map<TxnId, CompletedTxRecord>> getAllCompletedTx();
+    CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
 }

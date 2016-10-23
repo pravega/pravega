@@ -296,6 +296,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<TxStatus> commitTransaction(UUID txId) {
+
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
                     switch (x) {
