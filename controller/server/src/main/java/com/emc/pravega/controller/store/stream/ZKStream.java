@@ -115,7 +115,11 @@ class ZKStream extends PersistentStreamBase {
                                         zkNodes.invalidateAll();
                                     }
                                     return getData(path);
-                                } catch (Exception e) {
+                                }
+                                catch (DataNotFoundException d) {
+                                    throw d;
+                                }
+                                catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }
                             }
@@ -151,7 +155,7 @@ class ZKStream extends PersistentStreamBase {
                         return getData(creationPath)
                                 .thenApply(creationTime -> Utilities.toLong(creationTime) == create.getEventTime());
                     } else
-                        return createZnode(creationPath, Utilities.toByteArray(create.getEventTime()))
+                        return createZNode(creationPath, Utilities.toByteArray(create.getEventTime()))
                                 .thenApply(z -> invalidateCache(creationPath))
                                 .thenApply(z -> true);
                 })
@@ -264,7 +268,12 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(UUID txId) {
-        return deletePath(getActiveTxPath(txId.toString()));
+        String activeTxPath = getActiveTxPath(txId.toString());
+        return checkExists(activeTxPath)
+                .thenCompose(x -> {
+                    if(x) return deletePath(activeTxPath);
+                    else return CompletableFuture.completedFuture(null);
+                });
     }
 
     @Override
@@ -423,7 +432,7 @@ class ZKStream extends PersistentStreamBase {
     private static CompletableFuture<Map<String, byte[]>> getAllTransactionData(final String rootPath) {
         return getChildrenPath(rootPath)
                 .thenApply(x -> x.stream()
-                        .map(z -> getChildrenPath(z))
+                        .map(ZKStream::getChildrenPath)
                         .collect(Collectors.toList()))
                 .thenCompose(FutureCollectionHelper::sequence)
                 .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList()))
@@ -450,7 +459,7 @@ class ZKStream extends PersistentStreamBase {
     private static CompletableFuture<Void> createZNodeIfNotExist(final String path) {
         return checkExists(path)
                 .thenCompose(x -> {
-                    if (!x) return createZnode(path);
+                    if (!x) return createZNode(path);
                     else return CompletableFuture.completedFuture(null);
                 });
     }
@@ -459,12 +468,12 @@ class ZKStream extends PersistentStreamBase {
 
         return checkExists(path)
                 .thenCompose(x -> {
-                    if (!x) return createZnode(path, data);
+                    if (!x) return createZNode(path, data);
                     else return CompletableFuture.completedFuture(null);
                 });
     }
 
-    private static CompletableFuture<Void> createZnode(final String path, final byte[] data) {
+    private static CompletableFuture<Void> createZNode(final String path, final byte[] data) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.create().creatingParentsIfNeeded().forPath(path, data);
@@ -474,7 +483,7 @@ class ZKStream extends PersistentStreamBase {
         }).thenApply(x -> null);
     }
 
-    private static CompletableFuture<Void> createZnode(final String path) {
+    private static CompletableFuture<Void> createZNode(final String path) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return client.create().creatingParentsIfNeeded().forPath(path);

@@ -261,18 +261,31 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<TxStatus> checkTransactionStatus(UUID txId) {
-        return getActiveTx(txId)
-                .thenCompose(x -> {
-                    if (x == null || x.getTxStatus().equals(TxStatus.UNKNOWN)) {
-                        return getCompletedTx(txId).thenApply(CompletedTxRecord::getCompletionStatus);
-                    } else
-                        return CompletableFuture.completedFuture(x.getTxStatus());
-                })
-                .thenApply(x -> {
-                    if (x == null) {
+
+        CompletableFuture<TxStatus> activeTx = getActiveTx(txId)
+                .handle((ok, ex) -> {
+                    if (ok == null || ok.getTxStatus().equals(TxStatus.UNKNOWN) ||
+                            (ex != null && ex instanceof DataNotFoundException)) {
                         return TxStatus.UNKNOWN;
+                    }
+                    else if(ex != null) throw new RuntimeException(ex);
+                    else return ok.getTxStatus();
+                });
+
+        return activeTx
+                .thenCompose(x -> {
+                    if (x.equals(TxStatus.UNKNOWN)) {
+                        return getCompletedTx(txId)
+                                .handle((ok, ex) -> {
+                                    if (ok == null || ok.getCompletionStatus().equals(TxStatus.UNKNOWN) ||
+                                            (ex != null && ex instanceof DataNotFoundException)) {
+                                        return TxStatus.UNKNOWN;
+                                    }
+                                    else if(ex != null) throw new RuntimeException(ex);
+                                    else return ok.getCompletionStatus();
+                                });
                     } else
-                        return x;
+                        return CompletableFuture.completedFuture(x);
                 });
     }
 
@@ -522,11 +535,11 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp);
 
-    abstract CompletableFuture<ActiveTxRecord> getActiveTx(UUID txId);
+    abstract CompletableFuture<ActiveTxRecord> getActiveTx(UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> sealActiveTx(UUID txId);
+    abstract CompletableFuture<Void> sealActiveTx(UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<CompletedTxRecord> getCompletedTx(UUID txId);
+    abstract CompletableFuture<CompletedTxRecord> getCompletedTx(UUID txId) throws DataNotFoundException;
 
     abstract CompletableFuture<Void> removeActiveTxEntry(UUID txId);
 

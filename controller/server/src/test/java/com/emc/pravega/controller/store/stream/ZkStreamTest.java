@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -216,7 +217,40 @@ public class ZkStreamTest {
 
         List<ActiveTxRecordWithStream> y = store.getAllActiveTx().get();
         ActiveTxRecordWithStream z = y.get(0);
-        assert z.getTxRecord().getTxStatus() == TxStatus.OPEN;
+        assert z.getTxid().equals(tx) && z.getTxRecord().getTxStatus() == TxStatus.OPEN;
 
+        UUID tx2 = store.createTransaction(streamName, streamName).get();
+        y = store.getAllActiveTx().get();
+
+        assert y.size() == 2;
+
+        store.sealTransaction(streamName, streamName, tx).get();
+        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.SEALED);
+
+        CompletableFuture<TxStatus> f1 = store.commitTransaction(streamName, streamName, tx);
+        CompletableFuture<TxStatus> f2 = store.dropTransaction(streamName, streamName, tx2);
+
+        CompletableFuture.allOf(f1, f2).get();
+
+        assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.COMMITTED);
+        assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.DROPPED);
+
+        assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
+                .handle((ok, ex) -> {
+                    if (ex.getCause() instanceof TransactionNotFoundException) {
+                        return true;
+                    }
+                    else throw new RuntimeException("assert failed");
+                }).get();
+
+        assert store.dropTransaction(streamName, streamName, UUID.randomUUID())
+                .handle((ok, ex) -> {
+                    if (ex.getCause() instanceof TransactionNotFoundException) {
+                        return true;
+                    }
+                    else throw new RuntimeException("assert failed");
+                }).get();
+
+        assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxStatus.UNKNOWN);
     }
 }
