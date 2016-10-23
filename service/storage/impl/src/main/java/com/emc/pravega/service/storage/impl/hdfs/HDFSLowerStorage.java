@@ -18,9 +18,9 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.storage.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
@@ -122,8 +122,7 @@ class HDFSLowerStorage implements Storage {
             throws BadOffsetException, IOException {
         try (FSDataOutputStream stream = getFS().append(new Path(streamSegmentName))) {
         if (stream.getPos() != offset) {
-            throw new BadOffsetException("Offset in the stream segment " + streamSegmentName + "" +
-                    " already has some data beyond offset "+ offset);
+            throw new BadOffsetException(streamSegmentName, offset, stream.getPos());
         }
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
@@ -172,8 +171,9 @@ class HDFSLowerStorage implements Storage {
 
 
     Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
-        if (getFS().globStatus(new Path(targetStreamSegmentName))[0].getLen() != offset ) {
-            throw new BadOffsetException(targetStreamSegmentName + " has more data than" + offset);
+        FileStatus status = getFS().globStatus(new Path(targetStreamSegmentName))[0];
+        if ( status.getLen() != offset ) {
+            throw new BadOffsetException(targetStreamSegmentName, offset, status.getLen());
         }
         getFS().concat(new Path(targetStreamSegmentName),
                 new Path[]{
