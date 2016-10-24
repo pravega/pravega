@@ -23,7 +23,7 @@ package com.emc.pravega.service.storage;
  */
 public class WriteTooLongException extends DurableDataLogException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
@@ -39,6 +39,8 @@ public class WriteTooLongException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the WriteTooLongException class.
+     *
+     * @param cause The triggering cause of this exception.
      */
     public WriteTooLongException(Throwable cause) {
         super("Maximum write length exceeded.", cause);

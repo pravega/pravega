@@ -60,7 +60,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -195,22 +194,36 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureRunning();
 
+        TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length, appendContext);
-        return appendInternal(
-                streamSegmentName,
-                segmentId -> new StreamSegmentAppendOperation(segmentId, data, appendContext),
-                timeout);
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId -> {
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, appendContext);
+                    CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
+
+                    // Add to Append Context Registry, if needed.
+                    this.pendingAppendsCollection.register(operation, result);
+                    return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
+                });
     }
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureRunning();
 
-        logRequest("appendWithOffset", streamSegmentName, offset, data.length, appendContext);
-        return appendInternal(
-                streamSegmentName,
-                segmentId -> new StreamSegmentAppendOperation(segmentId, offset, data, appendContext),
-                timeout);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        logRequest("appendWithOffset", streamSegmentName, data.length, appendContext);
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
+                .thenCompose(streamSegmentId -> {
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, appendContext);
+                    CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
+
+                    // Add to Append Context Registry, if needed.
+                    this.pendingAppendsCollection.register(operation, result);
+                    return result.thenApply(seqNo -> null);
+                });
     }
 
     @Override
@@ -344,20 +357,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //endregion
 
     //region Helpers
-
-    private CompletableFuture<Long> appendInternal(String streamSegmentName, Function<Long, StreamSegmentAppendOperation> getAppendOperation, Duration timeout) {
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = getAppendOperation.apply(streamSegmentId);
-                    CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
-
-                    // Add to Append Context Registry, if needed.
-                    this.pendingAppendsCollection.register(operation, result);
-                    return result.thenApply(seqNo -> operation.getStreamSegmentOffset());
-                });
-    }
 
     private void ensureRunning() {
         Exceptions.checkNotClosed(this.closed, this);

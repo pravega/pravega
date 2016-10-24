@@ -32,7 +32,7 @@ public interface CloseableIterator<T, TEx extends Exception> extends AutoCloseab
      *
      * @return The next item, or null if no more elements.
      * @throws ObjectClosedException If the CloseableIterator has been closed.
-     * @throws TEx
+     * @throws TEx                   If an exception of this type occurred.
      */
     T getNext() throws TEx;
 

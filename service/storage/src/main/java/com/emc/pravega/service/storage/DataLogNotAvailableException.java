@@ -24,12 +24,14 @@ package com.emc.pravega.service.storage;
  */
 public class DataLogNotAvailableException extends DurableDataLogException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the DataLogNotAvailable class.
+     *
+     * @param message The message to set.
      */
     public DataLogNotAvailableException(String message) {
         super(message);
@@ -37,6 +39,9 @@ public class DataLogNotAvailableException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the DataLogNotAvailable class.
+     *
+     * @param message The message to set.
+     * @param cause   The triggering cause of this exception.
      */
     public DataLogNotAvailableException(String message, Throwable cause) {
         super(message, cause);

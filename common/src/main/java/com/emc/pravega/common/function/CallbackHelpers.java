@@ -55,6 +55,8 @@ public final class CallbackHelpers {
      * @param argument1      The first argument to pass to the consumer.
      * @param argument2      The second argument to pass to the consumer.
      * @param failureHandler An optional callback to invoke if the consumer threw any exceptions.
+     * @param <T1>           The type of the first argument.
+     * @param <T2>           The type of the second argument.
      * @throws NullPointerException If the consumer is null.
      */
     public static <T1, T2> void invokeSafely(BiConsumer<T1, T2> consumer, T1 argument1, T2 argument2, Consumer<Throwable> failureHandler) {

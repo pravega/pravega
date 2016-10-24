@@ -29,7 +29,7 @@ import org.junit.Test;
  */
 public class ReadResultEntryBaseTests {
     /**
-     * Tests the ability of the ReadResultEntry base class to adjust offsets when instructed so
+     * Tests the ability of the ReadResultEntry base class to adjust offsets when instructed so.
      */
     @Test
     public void testAdjustOffset() {

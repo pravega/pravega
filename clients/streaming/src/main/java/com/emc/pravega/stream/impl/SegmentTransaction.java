@@ -12,9 +12,9 @@
  */
 package com.emc.pravega.stream.impl;
 
-import java.util.UUID;
-
 import com.emc.pravega.stream.TxFailedException;
+
+import java.util.UUID;
 
 /**
  * The mirror of Transaction but that is specific to one segment.
@@ -25,12 +25,16 @@ public interface SegmentTransaction<Type> {
     /**
      * Publishes the provided event to this transaction on this segment. This operation is asyncronus, the item is not
      * Guaranteed to be stored until after {@link #flush()} has been called.
+     *
+     * @param event The event to publish.
+     * @throws TxFailedException The item could be persisted because the transaction has failed. (Timed out or dropped)
      */
     void publish(Type event) throws TxFailedException;
 
     /**
      * Blocks until all events passed to the publish call have made it to durable storage.
-     * After this the transaction can be committed. 
+     * After this the transaction can be committed.
+     *
      * @throws TxFailedException Not all of the items could be persisted because the transaction has failed. (Timed out or dropped)
      */
     void flush() throws TxFailedException;
