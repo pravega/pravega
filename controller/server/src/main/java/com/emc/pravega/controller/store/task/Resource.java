@@ -21,7 +21,8 @@ import com.google.common.base.Preconditions;
 import lombok.Data;
 
 /**
- * Resources managed by controller
+ * Resources managed by controller.
+ * Currently there are two kinds of resources.
  * 1. Stream resource: scope/streamName
  * 2, Tx resource:     scope/streamName/txId
  */

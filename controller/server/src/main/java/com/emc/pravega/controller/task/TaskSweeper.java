@@ -71,9 +71,9 @@ public class TaskSweeper {
      */
     public CompletableFuture<Void> sweepOrphanedTasks(String oldHostId) {
 
-        return FutureHelpers.loop(
-                x -> x == null,
-                () -> executeHostTask(oldHostId));
+        return FutureHelpers.doWhileLoop(
+                () -> executeHostTask(oldHostId),
+                x -> x != null);
     }
 
     public CompletableFuture<Result> executeHostTask(String oldHostId) {
