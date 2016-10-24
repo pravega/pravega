@@ -17,30 +17,34 @@
  */
 package com.emc.pravega.controller.task;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import com.emc.pravega.controller.store.task.LockData;
 import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
-import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * ZK task metadata store tests.
  */
 public class ZKTaskMetadataStoreTests {
 
-    private final String resource = "resource1";
+    private final Resource resource = new Resource("scope", "stream1");
     private final String host1 = "host1";
     private final String host2 = "host2";
+    private final String threadId1 = UUID.randomUUID().toString();
+    private final String threadId2 = UUID.randomUUID().toString();
     private final TaskData taskData = new TaskData();
 
     private final TaskMetadataStore taskMetadataStore;
@@ -58,82 +62,80 @@ public class ZKTaskMetadataStoreTests {
 
     @Test
     public void testFolderOperations() throws ExecutionException, InterruptedException {
-        final String child1 = "child1";
-        final String child2 = "child2";
+        final TaggedResource child1 = new TaggedResource(UUID.randomUUID().toString(), resource);
+        final TaggedResource child2 = new TaggedResource(UUID.randomUUID().toString(), resource);
+        final TaggedResource child3 = new TaggedResource(UUID.randomUUID().toString(), resource);
 
         taskMetadataStore.putChild(host1, child1).get();
         taskMetadataStore.putChild(host1, child2).get();
 
-        List<String> children = taskMetadataStore.getChildren(host1).get();
-        assertEquals(children.size(), 2);
+        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(host1).get();
+        assertTrue(child.isPresent());
+        assertTrue(child.get().getResource().equals(resource));
 
         taskMetadataStore.removeChild(host1, child1, true).get();
 
-        children = taskMetadataStore.getChildren(host1).get();
-        assertEquals(children.size(), 1);
+        child = taskMetadataStore.getRandomChild(host1).get();
+        assertTrue(child.isPresent());
+        assertTrue(child.get().getResource().equals(resource));
 
-        taskMetadataStore.removeChild(host1, "randomChild", true).get();
+        taskMetadataStore.removeChild(host1, child3, true).get();
 
-        children = taskMetadataStore.getChildren(host1).get();
-        assertEquals(children.size(), 1);
+        child = taskMetadataStore.getRandomChild(host1).get();
+        assertTrue(child.isPresent());
+        assertTrue(child.get().getResource().equals(resource));
 
         taskMetadataStore.removeChild(host1, child2, true).get();
 
-        children = taskMetadataStore.getChildren(host1).get();
-        assertEquals(children.size(), 0);
+        child = taskMetadataStore.getRandomChild(host1).get();
+        assertFalse(child.isPresent());
     }
 
     @Test
     public void lockUnlockTests() throws ExecutionException, InterruptedException {
 
-        taskMetadataStore.lock(resource, taskData, host1, null).get();
+        taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
 
-        byte[] bytes = taskMetadataStore.get(resource).get();
-        LockData lockData = LockData.deserialize(bytes);
+        Optional<TaskData> data = taskMetadataStore.getTask(resource, host1, threadId1).get();
+        assertTrue(data.isPresent());
+        assertArrayEquals(taskData.serialize(), data.get().serialize());
 
-        assertTrue(host1.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
+        taskMetadataStore.lock(resource, taskData, host2, threadId2, host1, threadId1).get();
 
-        taskMetadataStore.lock(resource, taskData, host2, host1).get();
+        data = taskMetadataStore.getTask(resource, host2, threadId2).get();
+        assertTrue(data.isPresent());
+        assertArrayEquals(taskData.serialize(), data.get().serialize());
 
-        bytes = taskMetadataStore.get(resource).get();
-        lockData = LockData.deserialize(bytes);
+        taskMetadataStore.unlock(resource, host2, threadId2).get();
 
-        assertTrue(host2.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
+        data = taskMetadataStore.getTask(resource, host2, threadId2).join();
+        assertFalse(data.isPresent());
 
-        taskMetadataStore.unlock(resource, host2).get();
+        taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
 
-        bytes = taskMetadataStore.get(resource).get();
+        data = taskMetadataStore.getTask(resource, host1, threadId1).get();
+        assertTrue(data.isPresent());
+        assertArrayEquals(taskData.serialize(), data.get().serialize());
 
-        assertNull(bytes);
+        taskMetadataStore.unlock(resource, host1, threadId1).get();
 
-        taskMetadataStore.lock(resource, taskData, host1, null).get();
-
-        bytes = taskMetadataStore.get(resource).get();
-        lockData = LockData.deserialize(bytes);
-
-        assertTrue(host1.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
-
-        taskMetadataStore.unlock(resource, host1).get();
-
-        bytes = taskMetadataStore.get(resource).get();
-
-        assertNull(bytes);
+        data = taskMetadataStore.getTask(resource, host1, threadId1).join();
+        assertFalse(data.isPresent());
     }
 
-    @Test(expected = LockFailedException.class)
+    @Test
     public void lockFailureTest() throws ExecutionException, InterruptedException {
 
-        taskMetadataStore.lock(resource, taskData, host1, null).get();
+        taskMetadataStore.lock(resource, taskData, host1, threadId1, null, null).get();
 
-        byte[] bytes = taskMetadataStore.get(resource).get();
-        LockData lockData = LockData.deserialize(bytes);
+        Optional<TaskData> data = taskMetadataStore.getTask(resource, host1, threadId1).get();
+        assertTrue(data.isPresent());
+        assertArrayEquals(taskData.serialize(), data.get().serialize());
 
-        assertTrue(host1.equals(lockData.getHostId()));
-        assertArrayEquals(taskData.serialize(), lockData.getTaskData());
-
-        taskMetadataStore.lock(resource, taskData, host2, null).get();
+        try {
+            taskMetadataStore.lock(resource, taskData, host2, threadId2, null, null).join();
+        } catch (CompletionException e) {
+            assertTrue(e.getCause() instanceof LockFailedException);
+        }
     }
 }

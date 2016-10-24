@@ -17,27 +17,25 @@
  */
 package com.emc.pravega.controller.store.task;
 
+import com.google.common.base.Preconditions;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.apache.commons.lang3.SerializationUtils;
-
-import java.io.Serializable;
 
 /**
- * Lock row
+ * Resources managed by controller
+ * 1. Stream resource: scope/streamName
+ * 2, Tx resource:     scope/streamName/txId
  */
 @Data
-@EqualsAndHashCode
-class LockData implements Serializable {
-    private final String hostId;
-    private final String threadId;
-    private final byte[] taskData;
+public class Resource {
+    private final String string;
 
-    public byte[] serialize() {
-        return SerializationUtils.serialize(this);
-    }
-
-    public static LockData deserialize(byte[] bytes) {
-        return (LockData) SerializationUtils.deserialize(bytes);
+    public Resource(String... parts) {
+        Preconditions.checkNotNull(parts);
+        Preconditions.checkArgument(parts.length > 0);
+        String representation = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            representation += "/" + parts[i];
+        }
+        string = representation;
     }
 }

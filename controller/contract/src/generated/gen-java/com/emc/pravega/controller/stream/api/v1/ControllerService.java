@@ -49,7 +49,7 @@ public class ControllerService {
 
     public List<Position> updatePositions(String scope, String stream, List<Position> positions) throws org.apache.thrift.TException;
 
-    public List<SegmentRange> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double,Double> newKeyRanges, long scaleTimestamp) throws org.apache.thrift.TException;
+    public ScaleResponse scale(String scope, String stream, List<Integer> sealedSegments, Map<Double,Double> newKeyRanges, long scaleTimestamp) throws org.apache.thrift.TException;
 
     public NodeUri getURI(SegmentId segment) throws org.apache.thrift.TException;
 
@@ -238,7 +238,7 @@ public class ControllerService {
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "updatePositions failed: unknown result");
     }
 
-    public List<SegmentRange> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double,Double> newKeyRanges, long scaleTimestamp) throws org.apache.thrift.TException
+    public ScaleResponse scale(String scope, String stream, List<Integer> sealedSegments, Map<Double,Double> newKeyRanges, long scaleTimestamp) throws org.apache.thrift.TException
     {
       send_scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp);
       return recv_scale();
@@ -255,7 +255,7 @@ public class ControllerService {
       sendBase("scale", args);
     }
 
-    public List<SegmentRange> recv_scale() throws org.apache.thrift.TException
+    public ScaleResponse recv_scale() throws org.apache.thrift.TException
     {
       scale_result result = new scale_result();
       receiveBase(result, "scale");
@@ -668,7 +668,7 @@ public class ControllerService {
         prot.writeMessageEnd();
       }
 
-      public List<SegmentRange> getResult() throws org.apache.thrift.TException {
+      public ScaleResponse getResult() throws org.apache.thrift.TException {
         if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
           throw new IllegalStateException("Method call not finished!");
         }
@@ -1513,7 +1513,7 @@ public class ControllerService {
       }
     }
 
-    public static class scale<I extends AsyncIface> extends org.apache.thrift.AsyncProcessFunction<I, scale_args, List<SegmentRange>> {
+    public static class scale<I extends AsyncIface> extends org.apache.thrift.AsyncProcessFunction<I, scale_args, ScaleResponse> {
       public scale() {
         super("scale");
       }
@@ -1522,10 +1522,10 @@ public class ControllerService {
         return new scale_args();
       }
 
-      public AsyncMethodCallback<List<SegmentRange>> getResultHandler(final AsyncFrameBuffer fb, final int seqid) {
+      public AsyncMethodCallback<ScaleResponse> getResultHandler(final AsyncFrameBuffer fb, final int seqid) {
         final org.apache.thrift.AsyncProcessFunction fcall = this;
-        return new AsyncMethodCallback<List<SegmentRange>>() { 
-          public void onComplete(List<SegmentRange> o) {
+        return new AsyncMethodCallback<ScaleResponse>() { 
+          public void onComplete(ScaleResponse o) {
             scale_result result = new scale_result();
             result.success = o;
             try {
@@ -1559,7 +1559,7 @@ public class ControllerService {
         return false;
       }
 
-      public void start(I iface, scale_args args, org.apache.thrift.async.AsyncMethodCallback<List<SegmentRange>> resultHandler) throws TException {
+      public void start(I iface, scale_args args, org.apache.thrift.async.AsyncMethodCallback<ScaleResponse> resultHandler) throws TException {
         iface.scale(args.scope, args.stream, args.sealedSegments, args.newKeyRanges, args.scaleTimestamp,resultHandler);
       }
     }
@@ -4185,14 +4185,14 @@ public class ControllerService {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
                 {
-                  org.apache.thrift.protocol.TList _list20 = iprot.readListBegin();
-                  struct.success = new ArrayList<SegmentRange>(_list20.size);
-                  SegmentRange _elem21;
-                  for (int _i22 = 0; _i22 < _list20.size; ++_i22)
+                  org.apache.thrift.protocol.TList _list28 = iprot.readListBegin();
+                  struct.success = new ArrayList<SegmentRange>(_list28.size);
+                  SegmentRange _elem29;
+                  for (int _i30 = 0; _i30 < _list28.size; ++_i30)
                   {
-                    _elem21 = new SegmentRange();
-                    _elem21.read(iprot);
-                    struct.success.add(_elem21);
+                    _elem29 = new SegmentRange();
+                    _elem29.read(iprot);
+                    struct.success.add(_elem29);
                   }
                   iprot.readListEnd();
                 }
@@ -4220,9 +4220,9 @@ public class ControllerService {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.success.size()));
-            for (SegmentRange _iter23 : struct.success)
+            for (SegmentRange _iter31 : struct.success)
             {
-              _iter23.write(oprot);
+              _iter31.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -4253,9 +4253,9 @@ public class ControllerService {
         if (struct.isSetSuccess()) {
           {
             oprot.writeI32(struct.success.size());
-            for (SegmentRange _iter24 : struct.success)
+            for (SegmentRange _iter32 : struct.success)
             {
-              _iter24.write(oprot);
+              _iter32.write(oprot);
             }
           }
         }
@@ -4267,14 +4267,14 @@ public class ControllerService {
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
           {
-            org.apache.thrift.protocol.TList _list25 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-            struct.success = new ArrayList<SegmentRange>(_list25.size);
-            SegmentRange _elem26;
-            for (int _i27 = 0; _i27 < _list25.size; ++_i27)
+            org.apache.thrift.protocol.TList _list33 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+            struct.success = new ArrayList<SegmentRange>(_list33.size);
+            SegmentRange _elem34;
+            for (int _i35 = 0; _i35 < _list33.size; ++_i35)
             {
-              _elem26 = new SegmentRange();
-              _elem26.read(iprot);
-              struct.success.add(_elem26);
+              _elem34 = new SegmentRange();
+              _elem34.read(iprot);
+              struct.success.add(_elem34);
             }
           }
           struct.setSuccessIsSet(true);
@@ -5268,14 +5268,14 @@ public class ControllerService {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
                 {
-                  org.apache.thrift.protocol.TList _list28 = iprot.readListBegin();
-                  struct.success = new ArrayList<Position>(_list28.size);
-                  Position _elem29;
-                  for (int _i30 = 0; _i30 < _list28.size; ++_i30)
+                  org.apache.thrift.protocol.TList _list36 = iprot.readListBegin();
+                  struct.success = new ArrayList<Position>(_list36.size);
+                  Position _elem37;
+                  for (int _i38 = 0; _i38 < _list36.size; ++_i38)
                   {
-                    _elem29 = new Position();
-                    _elem29.read(iprot);
-                    struct.success.add(_elem29);
+                    _elem37 = new Position();
+                    _elem37.read(iprot);
+                    struct.success.add(_elem37);
                   }
                   iprot.readListEnd();
                 }
@@ -5303,9 +5303,9 @@ public class ControllerService {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.success.size()));
-            for (Position _iter31 : struct.success)
+            for (Position _iter39 : struct.success)
             {
-              _iter31.write(oprot);
+              _iter39.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -5336,9 +5336,9 @@ public class ControllerService {
         if (struct.isSetSuccess()) {
           {
             oprot.writeI32(struct.success.size());
-            for (Position _iter32 : struct.success)
+            for (Position _iter40 : struct.success)
             {
-              _iter32.write(oprot);
+              _iter40.write(oprot);
             }
           }
         }
@@ -5350,14 +5350,14 @@ public class ControllerService {
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
           {
-            org.apache.thrift.protocol.TList _list33 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-            struct.success = new ArrayList<Position>(_list33.size);
-            Position _elem34;
-            for (int _i35 = 0; _i35 < _list33.size; ++_i35)
+            org.apache.thrift.protocol.TList _list41 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+            struct.success = new ArrayList<Position>(_list41.size);
+            Position _elem42;
+            for (int _i43 = 0; _i43 < _list41.size; ++_i43)
             {
-              _elem34 = new Position();
-              _elem34.read(iprot);
-              struct.success.add(_elem34);
+              _elem42 = new Position();
+              _elem42.read(iprot);
+              struct.success.add(_elem42);
             }
           }
           struct.setSuccessIsSet(true);
@@ -5863,14 +5863,14 @@ public class ControllerService {
             case 3: // POSITIONS
               if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
                 {
-                  org.apache.thrift.protocol.TList _list36 = iprot.readListBegin();
-                  struct.positions = new ArrayList<Position>(_list36.size);
-                  Position _elem37;
-                  for (int _i38 = 0; _i38 < _list36.size; ++_i38)
+                  org.apache.thrift.protocol.TList _list44 = iprot.readListBegin();
+                  struct.positions = new ArrayList<Position>(_list44.size);
+                  Position _elem45;
+                  for (int _i46 = 0; _i46 < _list44.size; ++_i46)
                   {
-                    _elem37 = new Position();
-                    _elem37.read(iprot);
-                    struct.positions.add(_elem37);
+                    _elem45 = new Position();
+                    _elem45.read(iprot);
+                    struct.positions.add(_elem45);
                   }
                   iprot.readListEnd();
                 }
@@ -5908,9 +5908,9 @@ public class ControllerService {
           oprot.writeFieldBegin(POSITIONS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.positions.size()));
-            for (Position _iter39 : struct.positions)
+            for (Position _iter47 : struct.positions)
             {
-              _iter39.write(oprot);
+              _iter47.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -5953,9 +5953,9 @@ public class ControllerService {
         if (struct.isSetPositions()) {
           {
             oprot.writeI32(struct.positions.size());
-            for (Position _iter40 : struct.positions)
+            for (Position _iter48 : struct.positions)
             {
-              _iter40.write(oprot);
+              _iter48.write(oprot);
             }
           }
         }
@@ -5975,14 +5975,14 @@ public class ControllerService {
         }
         if (incoming.get(2)) {
           {
-            org.apache.thrift.protocol.TList _list41 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-            struct.positions = new ArrayList<Position>(_list41.size);
-            Position _elem42;
-            for (int _i43 = 0; _i43 < _list41.size; ++_i43)
+            org.apache.thrift.protocol.TList _list49 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+            struct.positions = new ArrayList<Position>(_list49.size);
+            Position _elem50;
+            for (int _i51 = 0; _i51 < _list49.size; ++_i51)
             {
-              _elem42 = new Position();
-              _elem42.read(iprot);
-              struct.positions.add(_elem42);
+              _elem50 = new Position();
+              _elem50.read(iprot);
+              struct.positions.add(_elem50);
             }
           }
           struct.setPositionsIsSet(true);
@@ -6308,14 +6308,14 @@ public class ControllerService {
             case 0: // SUCCESS
               if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
                 {
-                  org.apache.thrift.protocol.TList _list44 = iprot.readListBegin();
-                  struct.success = new ArrayList<Position>(_list44.size);
-                  Position _elem45;
-                  for (int _i46 = 0; _i46 < _list44.size; ++_i46)
+                  org.apache.thrift.protocol.TList _list52 = iprot.readListBegin();
+                  struct.success = new ArrayList<Position>(_list52.size);
+                  Position _elem53;
+                  for (int _i54 = 0; _i54 < _list52.size; ++_i54)
                   {
-                    _elem45 = new Position();
-                    _elem45.read(iprot);
-                    struct.success.add(_elem45);
+                    _elem53 = new Position();
+                    _elem53.read(iprot);
+                    struct.success.add(_elem53);
                   }
                   iprot.readListEnd();
                 }
@@ -6343,9 +6343,9 @@ public class ControllerService {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.success.size()));
-            for (Position _iter47 : struct.success)
+            for (Position _iter55 : struct.success)
             {
-              _iter47.write(oprot);
+              _iter55.write(oprot);
             }
             oprot.writeListEnd();
           }
@@ -6376,9 +6376,9 @@ public class ControllerService {
         if (struct.isSetSuccess()) {
           {
             oprot.writeI32(struct.success.size());
-            for (Position _iter48 : struct.success)
+            for (Position _iter56 : struct.success)
             {
-              _iter48.write(oprot);
+              _iter56.write(oprot);
             }
           }
         }
@@ -6390,14 +6390,14 @@ public class ControllerService {
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
           {
-            org.apache.thrift.protocol.TList _list49 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-            struct.success = new ArrayList<Position>(_list49.size);
-            Position _elem50;
-            for (int _i51 = 0; _i51 < _list49.size; ++_i51)
+            org.apache.thrift.protocol.TList _list57 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
+            struct.success = new ArrayList<Position>(_list57.size);
+            Position _elem58;
+            for (int _i59 = 0; _i59 < _list57.size; ++_i59)
             {
-              _elem50 = new Position();
-              _elem50.read(iprot);
-              struct.success.add(_elem50);
+              _elem58 = new Position();
+              _elem58.read(iprot);
+              struct.success.add(_elem58);
             }
           }
           struct.setSuccessIsSet(true);
@@ -7078,13 +7078,13 @@ public class ControllerService {
             case 3: // SEALED_SEGMENTS
               if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
                 {
-                  org.apache.thrift.protocol.TList _list52 = iprot.readListBegin();
-                  struct.sealedSegments = new ArrayList<Integer>(_list52.size);
-                  int _elem53;
-                  for (int _i54 = 0; _i54 < _list52.size; ++_i54)
+                  org.apache.thrift.protocol.TList _list60 = iprot.readListBegin();
+                  struct.sealedSegments = new ArrayList<Integer>(_list60.size);
+                  int _elem61;
+                  for (int _i62 = 0; _i62 < _list60.size; ++_i62)
                   {
-                    _elem53 = iprot.readI32();
-                    struct.sealedSegments.add(_elem53);
+                    _elem61 = iprot.readI32();
+                    struct.sealedSegments.add(_elem61);
                   }
                   iprot.readListEnd();
                 }
@@ -7096,15 +7096,15 @@ public class ControllerService {
             case 4: // NEW_KEY_RANGES
               if (schemeField.type == org.apache.thrift.protocol.TType.MAP) {
                 {
-                  org.apache.thrift.protocol.TMap _map55 = iprot.readMapBegin();
-                  struct.newKeyRanges = new HashMap<Double,Double>(2*_map55.size);
-                  double _key56;
-                  double _val57;
-                  for (int _i58 = 0; _i58 < _map55.size; ++_i58)
+                  org.apache.thrift.protocol.TMap _map63 = iprot.readMapBegin();
+                  struct.newKeyRanges = new HashMap<Double,Double>(2*_map63.size);
+                  double _key64;
+                  double _val65;
+                  for (int _i66 = 0; _i66 < _map63.size; ++_i66)
                   {
-                    _key56 = iprot.readDouble();
-                    _val57 = iprot.readDouble();
-                    struct.newKeyRanges.put(_key56, _val57);
+                    _key64 = iprot.readDouble();
+                    _val65 = iprot.readDouble();
+                    struct.newKeyRanges.put(_key64, _val65);
                   }
                   iprot.readMapEnd();
                 }
@@ -7150,9 +7150,9 @@ public class ControllerService {
           oprot.writeFieldBegin(SEALED_SEGMENTS_FIELD_DESC);
           {
             oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.I32, struct.sealedSegments.size()));
-            for (int _iter59 : struct.sealedSegments)
+            for (int _iter67 : struct.sealedSegments)
             {
-              oprot.writeI32(_iter59);
+              oprot.writeI32(_iter67);
             }
             oprot.writeListEnd();
           }
@@ -7162,10 +7162,10 @@ public class ControllerService {
           oprot.writeFieldBegin(NEW_KEY_RANGES_FIELD_DESC);
           {
             oprot.writeMapBegin(new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.DOUBLE, org.apache.thrift.protocol.TType.DOUBLE, struct.newKeyRanges.size()));
-            for (Map.Entry<Double, Double> _iter60 : struct.newKeyRanges.entrySet())
+            for (Map.Entry<Double, Double> _iter68 : struct.newKeyRanges.entrySet())
             {
-              oprot.writeDouble(_iter60.getKey());
-              oprot.writeDouble(_iter60.getValue());
+              oprot.writeDouble(_iter68.getKey());
+              oprot.writeDouble(_iter68.getValue());
             }
             oprot.writeMapEnd();
           }
@@ -7217,19 +7217,19 @@ public class ControllerService {
         if (struct.isSetSealedSegments()) {
           {
             oprot.writeI32(struct.sealedSegments.size());
-            for (int _iter61 : struct.sealedSegments)
+            for (int _iter69 : struct.sealedSegments)
             {
-              oprot.writeI32(_iter61);
+              oprot.writeI32(_iter69);
             }
           }
         }
         if (struct.isSetNewKeyRanges()) {
           {
             oprot.writeI32(struct.newKeyRanges.size());
-            for (Map.Entry<Double, Double> _iter62 : struct.newKeyRanges.entrySet())
+            for (Map.Entry<Double, Double> _iter70 : struct.newKeyRanges.entrySet())
             {
-              oprot.writeDouble(_iter62.getKey());
-              oprot.writeDouble(_iter62.getValue());
+              oprot.writeDouble(_iter70.getKey());
+              oprot.writeDouble(_iter70.getValue());
             }
           }
         }
@@ -7252,28 +7252,28 @@ public class ControllerService {
         }
         if (incoming.get(2)) {
           {
-            org.apache.thrift.protocol.TList _list63 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.I32, iprot.readI32());
-            struct.sealedSegments = new ArrayList<Integer>(_list63.size);
-            int _elem64;
-            for (int _i65 = 0; _i65 < _list63.size; ++_i65)
+            org.apache.thrift.protocol.TList _list71 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.I32, iprot.readI32());
+            struct.sealedSegments = new ArrayList<Integer>(_list71.size);
+            int _elem72;
+            for (int _i73 = 0; _i73 < _list71.size; ++_i73)
             {
-              _elem64 = iprot.readI32();
-              struct.sealedSegments.add(_elem64);
+              _elem72 = iprot.readI32();
+              struct.sealedSegments.add(_elem72);
             }
           }
           struct.setSealedSegmentsIsSet(true);
         }
         if (incoming.get(3)) {
           {
-            org.apache.thrift.protocol.TMap _map66 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.DOUBLE, org.apache.thrift.protocol.TType.DOUBLE, iprot.readI32());
-            struct.newKeyRanges = new HashMap<Double,Double>(2*_map66.size);
-            double _key67;
-            double _val68;
-            for (int _i69 = 0; _i69 < _map66.size; ++_i69)
+            org.apache.thrift.protocol.TMap _map74 = new org.apache.thrift.protocol.TMap(org.apache.thrift.protocol.TType.DOUBLE, org.apache.thrift.protocol.TType.DOUBLE, iprot.readI32());
+            struct.newKeyRanges = new HashMap<Double,Double>(2*_map74.size);
+            double _key75;
+            double _val76;
+            for (int _i77 = 0; _i77 < _map74.size; ++_i77)
             {
-              _key67 = iprot.readDouble();
-              _val68 = iprot.readDouble();
-              struct.newKeyRanges.put(_key67, _val68);
+              _key75 = iprot.readDouble();
+              _val76 = iprot.readDouble();
+              struct.newKeyRanges.put(_key75, _val76);
             }
           }
           struct.setNewKeyRangesIsSet(true);
@@ -7290,7 +7290,7 @@ public class ControllerService {
   public static class scale_result implements org.apache.thrift.TBase<scale_result, scale_result._Fields>, java.io.Serializable, Cloneable, Comparable<scale_result>   {
     private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("scale_result");
 
-    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.LIST, (short)0);
+    private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField("success", org.apache.thrift.protocol.TType.STRUCT, (short)0);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
@@ -7298,7 +7298,7 @@ public class ControllerService {
       schemes.put(TupleScheme.class, new scale_resultTupleSchemeFactory());
     }
 
-    private List<SegmentRange> success; // required
+    private ScaleResponse success; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -7363,8 +7363,7 @@ public class ControllerService {
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.ListMetaData(org.apache.thrift.protocol.TType.LIST, 
-              new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, SegmentRange.class))));
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, ScaleResponse.class)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(scale_result.class, metaDataMap);
     }
@@ -7373,7 +7372,7 @@ public class ControllerService {
     }
 
     public scale_result(
-      List<SegmentRange> success)
+      ScaleResponse success)
     {
       this();
       this.success = success;
@@ -7384,11 +7383,7 @@ public class ControllerService {
      */
     public scale_result(scale_result other) {
       if (other.isSetSuccess()) {
-        List<SegmentRange> __this__success = new ArrayList<SegmentRange>(other.success.size());
-        for (SegmentRange other_element : other.success) {
-          __this__success.add(new SegmentRange(other_element));
-        }
-        this.success = __this__success;
+        this.success = new ScaleResponse(other.success);
       }
     }
 
@@ -7401,26 +7396,11 @@ public class ControllerService {
       this.success = null;
     }
 
-    public int getSuccessSize() {
-      return (this.success == null) ? 0 : this.success.size();
-    }
-
-    public java.util.Iterator<SegmentRange> getSuccessIterator() {
-      return (this.success == null) ? null : this.success.iterator();
-    }
-
-    public void addToSuccess(SegmentRange elem) {
-      if (this.success == null) {
-        this.success = new ArrayList<SegmentRange>();
-      }
-      this.success.add(elem);
-    }
-
-    public List<SegmentRange> getSuccess() {
+    public ScaleResponse getSuccess() {
       return this.success;
     }
 
-    public scale_result setSuccess(List<SegmentRange> success) {
+    public scale_result setSuccess(ScaleResponse success) {
       this.success = success;
       return this;
     }
@@ -7446,7 +7426,7 @@ public class ControllerService {
         if (value == null) {
           unsetSuccess();
         } else {
-          setSuccess((List<SegmentRange>)value);
+          setSuccess((ScaleResponse)value);
         }
         break;
 
@@ -7564,6 +7544,9 @@ public class ControllerService {
     public void validate() throws org.apache.thrift.TException {
       // check for required fields
       // check for sub-struct validity
+      if (success != null) {
+        success.validate();
+      }
     }
 
     private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
@@ -7601,19 +7584,9 @@ public class ControllerService {
           }
           switch (schemeField.id) {
             case 0: // SUCCESS
-              if (schemeField.type == org.apache.thrift.protocol.TType.LIST) {
-                {
-                  org.apache.thrift.protocol.TList _list70 = iprot.readListBegin();
-                  struct.success = new ArrayList<SegmentRange>(_list70.size);
-                  SegmentRange _elem71;
-                  for (int _i72 = 0; _i72 < _list70.size; ++_i72)
-                  {
-                    _elem71 = new SegmentRange();
-                    _elem71.read(iprot);
-                    struct.success.add(_elem71);
-                  }
-                  iprot.readListEnd();
-                }
+              if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
+                struct.success = new ScaleResponse();
+                struct.success.read(iprot);
                 struct.setSuccessIsSet(true);
               } else { 
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
@@ -7636,14 +7609,7 @@ public class ControllerService {
         oprot.writeStructBegin(STRUCT_DESC);
         if (struct.success != null) {
           oprot.writeFieldBegin(SUCCESS_FIELD_DESC);
-          {
-            oprot.writeListBegin(new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, struct.success.size()));
-            for (SegmentRange _iter73 : struct.success)
-            {
-              _iter73.write(oprot);
-            }
-            oprot.writeListEnd();
-          }
+          struct.success.write(oprot);
           oprot.writeFieldEnd();
         }
         oprot.writeFieldStop();
@@ -7669,13 +7635,7 @@ public class ControllerService {
         }
         oprot.writeBitSet(optionals, 1);
         if (struct.isSetSuccess()) {
-          {
-            oprot.writeI32(struct.success.size());
-            for (SegmentRange _iter74 : struct.success)
-            {
-              _iter74.write(oprot);
-            }
-          }
+          struct.success.write(oprot);
         }
       }
 
@@ -7684,17 +7644,8 @@ public class ControllerService {
         TTupleProtocol iprot = (TTupleProtocol) prot;
         BitSet incoming = iprot.readBitSet(1);
         if (incoming.get(0)) {
-          {
-            org.apache.thrift.protocol.TList _list75 = new org.apache.thrift.protocol.TList(org.apache.thrift.protocol.TType.STRUCT, iprot.readI32());
-            struct.success = new ArrayList<SegmentRange>(_list75.size);
-            SegmentRange _elem76;
-            for (int _i77 = 0; _i77 < _list75.size; ++_i77)
-            {
-              _elem76 = new SegmentRange();
-              _elem76.read(iprot);
-              struct.success.add(_elem76);
-            }
-          }
+          struct.success = new ScaleResponse();
+          struct.success.read(iprot);
           struct.setSuccessIsSet(true);
         }
       }

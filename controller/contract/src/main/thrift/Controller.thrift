@@ -12,6 +12,13 @@ enum UpdateStreamStatus {
     STREAM_NOT_FOUND
 }
 
+enum ScaleStreamStatus {
+    SUCCESS,
+    FAILURE,
+    PRECONDITION_FAILED,
+    UPDATE_CONFLICT
+}
+
 enum TransactionStatus {
     SUCCESS,
     FAILURE,
@@ -79,6 +86,11 @@ struct TxId {
  2: required i64 lowBits
 }
 
+struct ScaleResponse {
+ 1: required ScaleStreamStatus status,
+ 2: required list<SegmentRange> segments,
+}
+
 /*
  * Producer, Consumer and Admin APIs supported by Stream Controller Service
  */
@@ -88,7 +100,7 @@ service ControllerService {
     list<SegmentRange> getCurrentSegments(1:string scope, 2:string stream)
     list<Position> getPositions(1:string scope, 2:string stream, 3:i64 timestamp, 4:i32 count)
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
-    list<SegmentRange> scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
+    ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
     bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber, 4: string caller)
     bool isTransactionOpen(1: string scope, 2: string stream, 3: TxId txid)

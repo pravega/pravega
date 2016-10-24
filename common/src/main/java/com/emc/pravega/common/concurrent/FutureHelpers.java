@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -269,5 +270,12 @@ public final class FutureHelpers {
         } else {
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    public static <T> CompletableFuture<Void> loop(Predicate<T> terminationCondition, Supplier<CompletableFuture<T>> loopBody) {
+        return loopBody.get().thenComposeAsync(result ->
+                terminationCondition.test(result)
+                        ? CompletableFuture.completedFuture(null)
+                        : loop(terminationCondition, loopBody));
     }
 }

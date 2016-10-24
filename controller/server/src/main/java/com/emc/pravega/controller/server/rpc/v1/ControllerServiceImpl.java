@@ -25,6 +25,7 @@ import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
@@ -114,12 +115,8 @@ public class ControllerServiceImpl {
                         convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
     }
 
-    public CompletableFuture<List<SegmentRange>> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) {
-        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp)
-                .thenApply(segments -> segments
-                        .stream()
-                        .map(segment -> convert(scope, stream, segment))
-                        .collect(Collectors.toList()));
+    public CompletableFuture<ScaleResponse> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) {
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp);
     }
 
     public CompletableFuture<NodeUri> getURI(SegmentId segment) throws TException {

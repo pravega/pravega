@@ -24,6 +24,7 @@ import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -98,7 +99,7 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public List<SegmentRange> scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) throws TException {
+    public ScaleResponse scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), RuntimeException::new);
     }
 

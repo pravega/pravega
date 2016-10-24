@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
@@ -41,7 +42,7 @@ public class TestTasks extends TaskBase implements Cloneable {
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<Void> testStreamLock(String scope, String stream) {
         return execute(
-                getResource(scope, stream),
+                new Resource(scope, stream),
                 new Serializable[]{scope, stream},
                 () -> {
                     try {
@@ -52,9 +53,5 @@ public class TestTasks extends TaskBase implements Cloneable {
                     }
                     return  CompletableFuture.completedFuture(null);
                 });
-    }
-
-    private String getResource(String scope, String stream) {
-        return scope + "/" + stream;
     }
 }

@@ -17,14 +17,14 @@
  */
 package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.store.task.LockFailedException;
+import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -45,30 +45,21 @@ public class TaskBase implements Cloneable {
     public static class Context {
         private final String hostId;
         private final String oldHostId;
-        private final List<String> oldResourceTag;
+        private final String oldThreadId;
+        private final Resource oldResource;
 
         public Context(String hostId) {
             this.hostId = hostId;
             this.oldHostId = null;
-            this.oldResourceTag = null;
+            this.oldThreadId = null;
+            this.oldResource = null;
         }
 
-        public Context(String hostId, String oldHost, List<String> oldResourceTag) {
+        public Context(String hostId, String oldHost, String oldThreadId, Resource oldResource) {
             this.hostId = hostId;
             this.oldHostId = oldHost;
-            this.oldResourceTag = oldResourceTag;
-        }
-    }
-
-    public static class TaggedResource {
-        private final static String SEPARATOR = "_%%%_";
-
-        public static String getResource(String taggedResource) {
-            return taggedResource.split(SEPARATOR)[0];
-        }
-
-        public static String getTaggedResource(String resource) {
-            return resource + SEPARATOR + UUID.randomUUID().toString();
+            this.oldThreadId = oldThreadId;
+            this.oldResource = oldResource;
         }
     }
 
@@ -95,8 +86,7 @@ public class TaskBase implements Cloneable {
     }
 
     /**
-     * Wrapper method that initially obtains lock, persists the task data then executes the passed method,
-     * finally deletes task data and releases lock.
+     * Wrapper method that initially obtains lock then executes the passed method, and finally releases lock.
      *
      * @param resource resource to be updated by the task.
      * @param parameters method parameters.
@@ -104,70 +94,104 @@ public class TaskBase implements Cloneable {
      * @param <T> type parameter of return value of operation to be executed.
      * @return return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(String resource, Serializable[] parameters, FutureOperation<T> operation) {
-        TaskData taskData = getTaskData(parameters);
-        final String resourceTag = TaggedResource.getTaggedResource(resource);
+    public <T> CompletableFuture<T> execute(Resource resource, Serializable[] parameters, FutureOperation<T> operation) {
+        final String threadId = UUID.randomUUID().toString();
+        final TaskData taskData = getTaskData(parameters);
+        final CompletableFuture<T> result = new CompletableFuture<>();
+        final TaggedResource resourceTag = new TaggedResource(threadId, resource);
 
-        return
-                // PutChild (HostId, resource)
-                // Initially store the fact that I am about the update the resource.
-                // Since multiple threads within this process could concurrently attempt to modify same resource,
-                // we tag the resource name with a random GUID so as not to interfere with other thread's
-                // creation or deletion of resource children under HostId node.
-                taskMetadataStore.putChild(context.hostId, resourceTag)
-                        // After storing that fact, lock the resource, execute task and unlock the resource
-                        .thenCompose(x -> executeTask(resource, taskData, operation))
+        // PutChild (HostId, resource)
+        // Initially store the fact that I am about the update the resource.
+        // Since multiple threads within this process could concurrently attempt to modify same resource,
+        // we tag the resource name with a random GUID so as not to interfere with other thread's
+        // creation or deletion of resource children under HostId node.
+        taskMetadataStore.putChild(context.hostId, resourceTag)
+                // After storing that fact, lock the resource, execute task and unlock the resource
+                .thenCompose(x -> executeTask(resource, taskData, threadId, operation))
                         // finally delete the resource child created under the controller's HostId
-                        .whenComplete((result, e) -> taskMetadataStore.removeChild(context.hostId, resourceTag, false));
+                .whenComplete((value, e) ->
+                    taskMetadataStore.removeChild(context.hostId, resourceTag, true)
+                            .whenComplete((innerValue, innerE) -> {
+                                // ignore the result of removeChile operations, since it is an optimization
+                                if (e != null) {
+                                    result.completeExceptionally(e);
+                                } else {
+                                    result.complete(value);
+                                }
+                            })
+                );
+
+        return result;
     }
 
-    private <T> CompletableFuture<T> executeTask(String resource, TaskData taskData, FutureOperation<T> operation) {
-        final CompletableFuture<T> returnFuture = new CompletableFuture<>();
+    private <T> CompletableFuture<T> executeTask(Resource resource, TaskData taskData, String threadId, FutureOperation<T> operation) {
+        final CompletableFuture<T> result = new CompletableFuture<>();
+
+        final CompletableFuture<Void> lockResult = new CompletableFuture<>();
 
         taskMetadataStore
-                .lock(resource, taskData, context.hostId, context.oldHostId)
+                .lock(resource, taskData, context.hostId, threadId, context.oldHostId, context.oldThreadId)
 
                 // On acquiring lock, the following invariants hold
                 // Invariant 1. No other thread within any controller process is running an update task on the resource
                 // Invariant 2. We have denoted the fact that current controller's HostId is updating the resource. This
                 // fact can be used in case current controller instance crashes.
                 // Invariant 3. Any other controller that had created resource child under its HostId, can now be safely
-                // deleted, since that information redundant and is not useful during that HostId's fail over.
-                .whenComplete((result, e) -> {
-                    // Once I acquire the lock, the old HostId that held lock on this resource.
-                    if (e == null || !(e instanceof LockFailedException)) {
-                        // safe to delete resourceTags from oldHost, if available
-                        if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
-                            context.getOldResourceTag()
-                                    .stream()
-                                    .forEach(tag -> taskMetadataStore.removeChild(context.oldHostId, tag, true));
-                        }
-                    }
-                })
+                // deleted, since that information is redundant and is not useful during that HostId's fail over.
+                .whenComplete((value, e) -> {
+                    // Once I acquire the lock, safe to delete context.oldResource from oldHost, if available
+                    if (e != null) {
 
+                        lockResult.completeExceptionally(e);
+
+                    } else {
+
+                        removeOldHostChild().whenComplete((x, y) -> lockResult.complete(value));
+                    }
+                });
+
+        lockResult
                 // Exclusively execute the update task on the resource
                 .thenCompose(y -> operation.apply())
 
                 // If lock had been obtained, unlock it before completing the task.
                 .whenComplete((T value, Throwable e) -> {
-                    if (e != null && e instanceof LockFailedException) {
-                        returnFuture.completeExceptionally(e);
+                    if (lockResult.isCompletedExceptionally()) {
+                        // If lock was not obtained, complete the operation with error
+                        result.completeExceptionally(e);
+
                     } else {
-                        taskMetadataStore.unlock(resource, context.hostId)
-                                .thenApply(x -> {
+                        // If lock was obtained, irrespective of result of operation execution,
+                        // release lock before completing operation.
+                        taskMetadataStore.unlock(resource, context.hostId, threadId)
+                                .whenComplete((innerValue, innerE) -> {
+                                    // If lock was acquired above, unlock operation retries until it is released.
+                                    // It throws exception only if non-lock holder tries to release it.
+                                    // Hence ignore result of unlock operation and complete future with previous result.
                                     if (e != null) {
-                                        returnFuture.completeExceptionally(e);
+                                        result.completeExceptionally(e);
                                     } else {
-                                        returnFuture.complete(value);
+                                        result.complete(value);
                                     }
-                                    return null;
                                 });
                     }
                 });
-        return returnFuture;
+        return result;
+    }
+
+    private CompletableFuture<Void> removeOldHostChild() {
+        if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
+            return taskMetadataStore.removeChild(
+                    context.oldHostId,
+                    new TaggedResource(context.oldThreadId, context.oldResource),
+                    true);
+        } else {
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     private TaskData getTaskData(Serializable[] parameters) {
+        // Quirk of using stack tract shall be rendered redundant when Task Annotation's handler is coded up.
         TaskData taskData = new TaskData();
         StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
         StackTraceElement e = stacktrace[3];
