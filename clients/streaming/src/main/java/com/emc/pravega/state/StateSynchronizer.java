@@ -39,7 +39,7 @@ package com.emc.pravega.state;
  * @param <StateT> The type of the State object.
  * @param <UpdateT> The type of updates applied to the State object.
  */
-public interface StateSyncronizer<StateT extends Updatable<UpdateT>, UpdateT> {
+public interface StateSynchronizer<StateT extends Updatable<UpdateT>, UpdateT> {
 
     /**
      * Get an initial state.

@@ -5,14 +5,10 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.StreamManager;
-import com.emc.pravega.stream.impl.JavaSerializer;
-
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
-public class SetTracker<T> {
+public class SetSynchronizer<T> {
 
     private static class UpdatableSet<T> implements Updatable<SetUpdate<T>>, Serializable {
         private final Set<T> impl = new LinkedHashSet<>();
@@ -87,22 +83,22 @@ public class SetTracker<T> {
     
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
     
-    private final StateSyncronizer<UpdatableSet<T>, SetUpdate<T>> tracker;
+    private final StateSynchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer;
     private UpdatableSet<T> current;
     private int countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
     
-    private SetTracker(StateSyncronizer<UpdatableSet<T>, SetUpdate<T>> tracker) {
-        this.tracker = tracker;
+    private SetSynchronizer(StateSynchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer) {
+        this.synchronizer = synchronizer;
         getNewBaseVersion();
         update();
     }
 
     private void getNewBaseVersion() {
-        current = tracker.getInitialState();
+        current = synchronizer.getInitialState();
     }
 
     public void update() {
-        while(!tracker.synchronizeLocalState(current)) {
+        while(!synchronizer.synchronizeLocalState(current)) {
             getNewBaseVersion();
         }
     }
@@ -116,15 +112,15 @@ public class SetTracker<T> {
     }
     
     public boolean attemptAdd(T value) {
-        return tracker.attemptUpdate(current, new AddToList<>(value));
+        return synchronizer.attemptUpdate(current, new AddToList<>(value));
     }
     
     public boolean attemptRemove(T value) {
-        boolean result = tracker.attemptUpdate(current, new RemoveFromList<>(value));
+        boolean result = synchronizer.attemptUpdate(current, new RemoveFromList<>(value));
         if (result) {
             countdownToCompaction--;
             if (countdownToCompaction <= 0) {
-                tracker.compact(current);
+                synchronizer.compact(current);
                 countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
             }
         }
@@ -132,9 +128,9 @@ public class SetTracker<T> {
     }
     
     public boolean attemptClear() {
-        boolean result = tracker.attemptUpdate(current, new ClearList<>());
+        boolean result = synchronizer.attemptUpdate(current, new ClearList<>());
         if (result) {
-            tracker.compact(current);
+            synchronizer.compact(current);
             countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
         }
         return result;
