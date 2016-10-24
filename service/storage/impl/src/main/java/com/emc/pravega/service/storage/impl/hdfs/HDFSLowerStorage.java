@@ -59,7 +59,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(createSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -109,7 +109,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(writeSync(streamSegmentName, offset, length, data, timeout));
                     } catch (Exception e) {
-                        retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -138,7 +138,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(sealSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -163,7 +163,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
             } catch (Exception e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(sourceStreamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(sourceStreamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -190,7 +190,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(deleteSync(streamSegmentName, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -214,7 +214,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -237,7 +237,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 retVal.complete(this.getStreamSegmentInfoSync(streamSegmentName, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         });
         return retVal;
@@ -250,7 +250,7 @@ class HDFSLowerStorage implements Storage {
                     try {
                         retVal.complete(existsSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);

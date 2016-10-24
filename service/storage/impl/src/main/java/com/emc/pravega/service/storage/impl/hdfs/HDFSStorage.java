@@ -149,7 +149,7 @@ public class HDFSStorage implements Storage {
                     try {
                         retVal.complete(acquireLockForSegmentSync(streamSegmentName));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);
@@ -230,7 +230,7 @@ public class HDFSStorage implements Storage {
             try {
                 return this.getSegmentFullPathContainingOffset(streamSegmentName, offset);
             } catch (IOException e) {
-                throw new CompletionException(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                throw new CompletionException(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor).
                 thenAcceptAsync(
@@ -249,7 +249,7 @@ public class HDFSStorage implements Storage {
             try {
                 retVal.complete(this.setAllFilesReadOnlySync(streamSegmentName));
             } catch (IOException e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -268,7 +268,7 @@ public class HDFSStorage implements Storage {
                         this.getFirstSegmentFullPath(sourceStreamSegmentName),
                         timeout));
             } catch (Exception e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(targetStreamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(targetStreamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -288,7 +288,7 @@ public class HDFSStorage implements Storage {
             try {
                 retVal.complete(deleteSync(streamSegmentName, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -324,7 +324,7 @@ public class HDFSStorage implements Storage {
             try {
                 retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
             } catch (IOException e) {
-                retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
             }
         }, executor);
         return retVal;
@@ -350,7 +350,7 @@ public class HDFSStorage implements Storage {
                     try {
                         retVal.complete(getStreamSegmentInfoSync(streamSegmentName, timeout));
                     } catch (IOException e) {
-                        retVal.completeExceptionally(ExceptionHelpers.translateFromIOException(streamSegmentName, e));
+                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
                     }
                 },
                 executor);

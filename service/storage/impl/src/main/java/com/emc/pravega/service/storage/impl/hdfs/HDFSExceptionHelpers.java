@@ -28,7 +28,7 @@ import java.nio.file.FileAlreadyExistsException;
 /**
  * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions
  * */
-public class ExceptionHelpers {
+public class HDFSExceptionHelpers {
 
     /**
      * API to translated HDFS specific IOExceptions to StreamSegmentExceptions
