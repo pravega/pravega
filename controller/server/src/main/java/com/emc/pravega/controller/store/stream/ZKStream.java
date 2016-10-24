@@ -36,6 +36,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.TreeCache;
 import org.apache.curator.framework.recipes.cache.TreeCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.utils.ZKPaths;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
@@ -110,8 +111,13 @@ class ZKStream extends PersistentStreamBase {
                                 try {
                                     // TODO: if path is indexTable, or history table, check if
                                     // existing data (if any) in the cache is consistent
-                                    if (path.equals(indexPath) || path.equals(historyPath)) {
-                                        zkNodes.invalidateAll();
+                                    // right now we will blindly invalidate all
+                                    if (path.equals(indexPath)) {
+                                        zkNodes.invalidate(historyPath);
+                                    }
+                                    if (path.equals(historyPath)) {
+                                        zkNodes.invalidateAll(getSegmentChunks().get().stream()
+                                                .map(x -> ZKPaths.makePath(segmentPath, x)).collect(Collectors.toList()));
                                     }
 
                                     return getData(path);
@@ -146,7 +152,6 @@ class ZKStream extends PersistentStreamBase {
     public CompletableFuture<Boolean> createStream(Create create) throws StreamAlreadyExistsException {
 
         return createZNodeIfNotExist(activeTxPath)
-                .thenApply(x -> invalidateCache(activeTxPath))
                 .thenCompose(x -> checkExists(creationPath))
                 .thenCompose(x -> {
                     if (x) {
@@ -242,9 +247,8 @@ class ZKStream extends PersistentStreamBase {
     @Override
     CompletableFuture<ActiveTxRecord> getActiveTx(UUID txId) {
         final String activeTxPath = getActiveTxPath(txId.toString());
-        invalidateCache(activeTxPath);
 
-        return getCachedData(activeTxPath)
+        return getData(activeTxPath)
                 .thenApply(ActiveTxRecord::parse);
     }
 
@@ -266,10 +270,12 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(UUID txId) {
-        String activeTxPath = getActiveTxPath(txId.toString());
-        return checkExists(activeTxPath)
+        String activePath = getActiveTxPath(txId.toString());
+        return checkExists(activePath)
                 .thenCompose(x -> {
-                    if (x) return deletePath(activeTxPath);
+                    if (x) return deletePath(activePath);
+                        // TODO: delete empty active tx directory for stream
+                        // make sure no other transaction is being created for the stream while deleting
                     else return CompletableFuture.completedFuture(null);
                 });
     }
@@ -351,20 +357,21 @@ class ZKStream extends PersistentStreamBase {
     }
 
     private String getActiveTxPath(String txId) {
-        return activeTxPath + "/" + txId;
+        return ZKPaths.makePath(activeTxPath, txId);
     }
 
     private String getCompletedTxPath(String txId) {
-        return completedTxPath + "/" + txId;
+        return ZKPaths.makePath(completedTxPath, txId);
     }
 
     static CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
         return getAllTransactionData(ACTIVE_TX_ROOT_PATH)
                 .thenApply(x -> x.entrySet().stream()
                         .map(z -> {
-                            final String[] pathTokens = z.getKey().replace(ACTIVE_TX_ROOT_PATH, "").split("/");
-                            final String stream = pathTokens[1];
-                            final UUID txId = UUID.fromString(pathTokens[2]);
+                            ZKPaths.PathAndNode pathAndNode = ZKPaths.getPathAndNode(z.getKey());
+                            String node = pathAndNode.getNode();
+                            final String stream = ZKPaths.getNodeFromPath(pathAndNode.getPath());
+                            final UUID txId = UUID.fromString(node);
                             return new ActiveTxRecordWithStream(stream, stream, txId, ActiveTxRecord.parse(z.getValue()));
                         })
                         .collect(Collectors.toList()));
@@ -410,7 +417,7 @@ class ZKStream extends PersistentStreamBase {
 
     private static CompletableFuture<List<String>> getChildrenPath(final String rootPath) {
         return getChildren(rootPath)
-                .thenApply(children -> children.stream().map(x -> rootPath + "/" + x).collect(Collectors.toList()));
+                .thenApply(children -> children.stream().map(x -> ZKPaths.makePath(rootPath, x)).collect(Collectors.toList()));
     }
 
     private static CompletableFuture<List<String>> getChildren(final String path) {
@@ -424,15 +431,15 @@ class ZKStream extends PersistentStreamBase {
     }
 
     private static CompletableFuture<Map<String, byte[]>> getAllTransactionData(final String rootPath) {
-        return getChildrenPath(rootPath)
+        return getChildrenPath(rootPath) // list of all streams for either active or completed tx based on root path
                 .thenApply(x -> x.stream()
-                        .map(ZKStream::getChildrenPath)
+                        .map(ZKStream::getChildrenPath) // get all transactions on the stream
                         .collect(Collectors.toList()))
                 .thenCompose(FutureCollectionHelper::sequence)
-                .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList()))
+                .thenApply(z -> z.stream().flatMap(Collection::stream).collect(Collectors.toList())) // flatten list<list> to list
                 .thenApply(x -> x.stream()
                         .collect(Collectors.toMap(z -> z, ZKStream::getData)))
-                .thenCompose(FutureCollectionHelper::sequenceMap);
+                .thenCompose(FutureCollectionHelper::sequenceMap); // convert Map<string, future<byte[]>> to future<map<String, byte[]>>
     }
 
     private static CompletableFuture<Void> setData(final String path, final byte[] data) {

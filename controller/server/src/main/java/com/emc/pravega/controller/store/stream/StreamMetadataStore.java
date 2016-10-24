@@ -101,6 +101,7 @@ public interface StreamMetadataStore {
 
     /**
      * Method to create a new transaction on a stream
+     *
      * @param scope
      * @param stream
      * @return new Transaction Id
@@ -108,6 +109,8 @@ public interface StreamMetadataStore {
     CompletableFuture<UUID> createTransaction(String scope, String stream);
 
     /**
+     * get transaction status from the stream store
+     *
      * @param scope
      * @param stream
      * @param txId
@@ -116,6 +119,8 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> transactionStatus(String scope, String stream, UUID txId);
 
     /**
+     * Update stream store to mark transaction as committed
+     *
      * @param scope
      * @param stream
      * @param txId
@@ -124,6 +129,7 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> commitTransaction(String scope, String stream, UUID txId);
 
     /**
+     * Update stream store to mark transaction as sealed
      *
      * @param scope
      * @param stream
@@ -133,6 +139,8 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> sealTransaction(String scope, String stream, UUID txId);
 
     /**
+     * Update stream store to mark the transaction as dropped
+     *
      * @param scope
      * @param stream
      * @param txId
@@ -141,6 +149,8 @@ public interface StreamMetadataStore {
     CompletableFuture<TxStatus> dropTransaction(String scope, String stream, UUID txId);
 
     /**
+     * Returns all active transactions for all streams
+     * This is used for periodically identifying timedout transactions which can be dropped
      *
      * @return
      */
