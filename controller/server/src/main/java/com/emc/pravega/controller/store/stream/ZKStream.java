@@ -388,11 +388,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     private CompletableFuture<byte[]> getCachedData(String path) {
-        try {
-            return zkNodes.get(path);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+            return zkNodes.getUnchecked(path);
     }
 
     private Void invalidateCache(String path) {
