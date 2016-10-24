@@ -36,6 +36,7 @@ public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
 
     public static final byte OPERATION_TYPE = 1;
+    private static final long NO_OFFSET = -1;
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentOffset;
     private byte[] data;
@@ -53,12 +54,24 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      * @param appendContext   Append Context for this append.
      */
     public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, AppendContext appendContext) {
+        this(streamSegmentId, NO_OFFSET, data, appendContext);
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentAppendOperation class.
+     *
+     * @param streamSegmentId The Id of the StreamSegment to append to.
+     * @param offset          The offset to append at.
+     * @param data            The payload to append.
+     * @param appendContext   Append Context for this append.
+     */
+    public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, AppendContext appendContext) {
         super(streamSegmentId);
         Preconditions.checkNotNull(data, "data");
         Preconditions.checkNotNull(appendContext, "appendContext");
 
         this.data = data;
-        this.streamSegmentOffset = -1;
+        this.streamSegmentOffset = offset;
         this.appendContext = appendContext;
     }
 

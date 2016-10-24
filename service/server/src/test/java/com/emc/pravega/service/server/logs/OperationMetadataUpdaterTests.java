@@ -19,6 +19,8 @@
 package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadEventNumberException;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentMergedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -60,46 +62,11 @@ public class OperationMetadataUpdaterTests {
     private static final long NOTSEALED_TRANSACTION_ID = 890;
     private static final long SEALED_TRANSACTION_LENGTH = 12;
     private static final long SEGMENT_LENGTH = 1234567;
-    private static final AppendContext DEFAULT_APPEND_CONTEXT = new AppendContext(UUID.randomUUID(), 0);
     private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
+    private final AtomicLong nextEventNumber = new AtomicLong();
+    private final Supplier<AppendContext> nextAppendContext = () -> new AppendContext(UUID.randomUUID(), nextEventNumber.incrementAndGet());
 
-    /**
-     * Tests the behavior of preProcessOperation and acceptOperation when encountering an invalid StreamSegmentId, or
-     * when encountering a StreamSegment Id for a deleted StreamSegment.
-     */
-    @Test
-    public void testPreProcessAndAcceptWithInvalidSegmentId() throws Exception {
-        UpdateableContainerMetadata metadata = createBlankMetadata();
-        OperationMetadataUpdater updater = createUpdater(metadata);
-
-        ArrayList<StorageOperation> testOperations = new ArrayList<>();
-        testOperations.add(createAppend());
-        testOperations.add(createSeal());
-        testOperations.add(createMerge());
-
-        for (StorageOperation op : testOperations) {
-            AssertExtensions.assertThrows(
-                    "Unexpected behavior from preProcessOperation when processing an operation for a non-existent Segment: " + op,
-                    () -> updater.preProcessOperation(op),
-                    ex -> ex instanceof MetadataUpdateException);
-
-            AssertExtensions.assertThrows(
-                    "Unexpected behavior from acceptOperation when processing an operation for a non-existent Segment: " + op,
-                    () -> updater.acceptOperation(op),
-                    ex -> ex instanceof MetadataUpdateException);
-        }
-
-        // If the StreamSegment was previously marked as deleted.
-        UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId("foo", SEGMENT_ID);
-        segmentMetadata.markDeleted();
-
-        for (StorageOperation op : testOperations) {
-            AssertExtensions.assertThrows(
-                    "Unexpected behavior from preProcessOperation when processing an operation for deleted Segment: " + op,
-                    () -> updater.preProcessOperation(op),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
-        }
-    }
+    //region StreamSegmentAppendOperation
 
     /**
      * Tests the preProcess method with StreamSegmentAppend operations.
@@ -112,8 +79,7 @@ public class OperationMetadataUpdaterTests {
     @Test
     public void testPreProcessStreamSegmentAppend() throws Exception {
         UpdateableContainerMetadata metadata = createMetadata();
-
-        StreamSegmentAppendOperation appendOp = createAppend();
+        StreamSegmentAppendOperation appendOp = createAppendNoOffset();
 
         // When everything is OK (in recovery mode) - nothing should change.
         metadata.enterRecoveryMode();
@@ -130,11 +96,11 @@ public class OperationMetadataUpdaterTests {
         updater.preProcessOperation(appendOp);
         Assert.assertEquals("Unexpected StreamSegmentOffset after call to preProcess in non-recovery mode.", SEGMENT_LENGTH, appendOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
-        Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.", SEGMENT_LENGTH, recoveryUpdater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.", SEGMENT_LENGTH, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
 
         // When StreamSegment is merged (via transaction).
-        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT);
+        StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, nextAppendContext.get());
         MergeTransactionOperation mergeOp = createMerge();
         updater.preProcessOperation(mergeOp);
         updater.acceptOperation(mergeOp);
@@ -159,7 +125,7 @@ public class OperationMetadataUpdaterTests {
         Assert.assertFalse("StreamSegment should not be sealed in metadata (yet).", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is sealed (in transaction).",
-                () -> updater.preProcessOperation(createAppend()),
+                () -> updater.preProcessOperation(createAppendNoOffset()),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         // When StreamSegment is sealed (via metadata).
@@ -167,9 +133,113 @@ public class OperationMetadataUpdaterTests {
         Assert.assertTrue("StreamSegment should have been sealed in metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is sealed (in metadata).",
-                () -> updater.preProcessOperation(createAppend()),
+                () -> updater.preProcessOperation(createAppendNoOffset()),
                 ex -> ex instanceof StreamSegmentSealedException);
     }
+
+    /**
+     * Tests the accept method with StreamSegmentAppend operations.
+     */
+    @Test
+    public void testAcceptStreamSegmentAppend() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+        StreamSegmentAppendOperation appendOp = createAppendNoOffset();
+
+        // When no pre-process has happened.
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from acceptOperation() when no pre-processing was made.",
+                () -> updater.acceptOperation(appendOp),
+                ex -> ex instanceof MetadataUpdateException);
+
+        Assert.assertEquals("acceptOperation updated the transaction even if it threw an exception.", SEGMENT_LENGTH, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        Assert.assertEquals("acceptOperation updated the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+
+        // When all is good.
+        updater.preProcessOperation(appendOp);
+        updater.acceptOperation(appendOp);
+        Assert.assertEquals("acceptOperation did not update the transaction.", SEGMENT_LENGTH + appendOp.getData().length, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        Assert.assertEquals("acceptOperation updated the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to process (and accept) StreamSegmentAppendOperations with
+     * predefined offsets.
+     */
+    @Test
+    public void testStreamSegmentAppendWithOffset() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+
+        // Append #1 (at offset 0).
+        long offset = metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength();
+        StreamSegmentAppendOperation appendOp = createAppendWithOffset(offset);
+        updater.preProcessOperation(appendOp);
+        Assert.assertEquals("Unexpected StreamSegmentOffset after call to preProcess in non-recovery mode.", offset, appendOp.getStreamSegmentOffset());
+        checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
+        Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.", offset, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        Assert.assertEquals("preProcess(Append) seems to have changed the metadata.", offset, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        updater.acceptOperation(appendOp);
+
+        // Append #2 (after Append #1)
+        offset = appendOp.getStreamSegmentOffset() + appendOp.getLength();
+        appendOp = createAppendWithOffset(offset);
+        updater.preProcessOperation(appendOp);
+        Assert.assertEquals("Unexpected StreamSegmentOffset after call to preProcess in non-recovery mode.", offset, appendOp.getStreamSegmentOffset());
+        checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
+        Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.", offset, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        Assert.assertEquals("preProcess(Append) seems to have changed the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+        updater.acceptOperation(appendOp);
+
+        // Append #3 (wrong offset)
+        offset = appendOp.getStreamSegmentOffset() + appendOp.getLength() - 1;
+        StreamSegmentAppendOperation badAppendOp = createAppendWithOffset(offset);
+        AssertExtensions.assertThrows(
+                "preProcessOperations accepted an append with the wrong offset.",
+                () -> updater.preProcessOperation(badAppendOp),
+                ex -> ex instanceof BadOffsetException);
+        AssertExtensions.assertThrows(
+                "acceptOperation accepted an append that was rejected during preProcessing.",
+                () -> updater.acceptOperation(badAppendOp),
+                ex -> ex instanceof MetadataUpdateException);
+    }
+
+    /**
+     * Tests the ability of the OperationMetadataUpdater to reject StreamSegmentAppends with out-of-order EventNumbers.
+     */
+    @Test
+    public void testStreamSegmentAppendWithBadEventNumbers() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+
+        // Append #1.
+        StreamSegmentAppendOperation appendOp = createAppendNoOffset();
+        updater.preProcessOperation(appendOp);
+        updater.acceptOperation(appendOp);
+
+        // Append #2 (same context as Append #1)
+        StreamSegmentAppendOperation badAppendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, appendOp.getAppendContext());
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. (test #1)",
+                () -> updater.preProcessOperation(badAppendOp),
+                ex -> ex instanceof BadEventNumberException);
+
+        // Append #3 (same EventNumber, but different clientId).
+        StreamSegmentAppendOperation differentClientAppend = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, new AppendContext(UUID.randomUUID(), appendOp.getAppendContext().getEventNumber()));
+        updater.preProcessOperation(differentClientAppend);
+        updater.acceptOperation(differentClientAppend);
+
+        // Append #4 (same context as Append #3).
+        StreamSegmentAppendOperation badAppendOp2 = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, differentClientAppend.getAppendContext());
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. (test #2)",
+                () -> updater.preProcessOperation(badAppendOp2),
+                ex -> ex instanceof BadEventNumberException);
+    }
+
+    //endregion
+
+    //region StreamSegmentSealOperation
 
     /**
      * Tests the preProcess method with StreamSegmentSeal operations.
@@ -238,6 +308,35 @@ public class OperationMetadataUpdaterTests {
                 () -> updater.preProcessOperation(createSeal()),
                 ex -> ex instanceof StreamSegmentSealedException);
     }
+
+    /**
+     * Tests the accept method with StreamSegmentSeal operations.
+     */
+    @Test
+    public void testAcceptStreamSegmentSeal() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+        StreamSegmentSealOperation sealOp = createSeal();
+
+        // When no pre-process has happened.
+        AssertExtensions.assertThrows(
+                "Unexpected behavior from acceptOperation() when no pre-processing was made.",
+                () -> updater.acceptOperation(sealOp),
+                ex -> ex instanceof MetadataUpdateException);
+
+        Assert.assertFalse("acceptOperation updated the transaction even if it threw an exception.", updater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
+        Assert.assertFalse("acceptOperation updated the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
+
+        // When all is good.
+        updater.preProcessOperation(sealOp);
+        updater.acceptOperation(sealOp);
+        Assert.assertTrue("acceptOperation did not update the transaction.", updater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
+        Assert.assertFalse("acceptOperation updated the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
+    }
+
+    //endregion
+
+    //region MergeTransactionOperation
 
     /**
      * Tests the preProcess method with MergeTransactionOperations.
@@ -321,56 +420,6 @@ public class OperationMetadataUpdaterTests {
     }
 
     /**
-     * Tests the accept method with StreamSegmentAppend operations.
-     */
-    @Test
-    public void testAcceptStreamSegmentAppend() throws Exception {
-        UpdateableContainerMetadata metadata = createMetadata();
-        OperationMetadataUpdater updater = createUpdater(metadata);
-        StreamSegmentAppendOperation appendOp = createAppend();
-
-        // When no pre-process has happened.
-        AssertExtensions.assertThrows(
-                "Unexpected behavior from acceptOperation() when no pre-processing was made.",
-                () -> updater.acceptOperation(appendOp),
-                ex -> ex instanceof MetadataUpdateException);
-
-        Assert.assertEquals("acceptOperation updated the transaction even if it threw an exception.", SEGMENT_LENGTH, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
-        Assert.assertEquals("acceptOperation updated the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
-
-        // When all is good.
-        updater.preProcessOperation(appendOp);
-        updater.acceptOperation(appendOp);
-        Assert.assertEquals("acceptOperation did not update the transaction.", SEGMENT_LENGTH + appendOp.getData().length, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
-        Assert.assertEquals("acceptOperation updated the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
-    }
-
-    /**
-     * Tests the accept method with StreamSegmentSeal operations.
-     */
-    @Test
-    public void testAcceptStreamSegmentSeal() throws Exception {
-        UpdateableContainerMetadata metadata = createMetadata();
-        OperationMetadataUpdater updater = createUpdater(metadata);
-        StreamSegmentSealOperation sealOp = createSeal();
-
-        // When no pre-process has happened.
-        AssertExtensions.assertThrows(
-                "Unexpected behavior from acceptOperation() when no pre-processing was made.",
-                () -> updater.acceptOperation(sealOp),
-                ex -> ex instanceof MetadataUpdateException);
-
-        Assert.assertFalse("acceptOperation updated the transaction even if it threw an exception.", updater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
-        Assert.assertFalse("acceptOperation updated the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
-
-        // When all is good.
-        updater.preProcessOperation(sealOp);
-        updater.acceptOperation(sealOp);
-        Assert.assertTrue("acceptOperation did not update the transaction.", updater.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
-        Assert.assertFalse("acceptOperation updated the metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
-    }
-
-    /**
      * Tests the accept method with MergeTransactionOperations.
      */
     @Test
@@ -397,6 +446,10 @@ public class OperationMetadataUpdaterTests {
         Assert.assertEquals("acceptOperation did not update the transaction.", SEGMENT_LENGTH + SEALED_TRANSACTION_LENGTH, updater.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
         Assert.assertEquals("acceptOperation updated the metadata.", SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
     }
+
+    //endregion
+
+    //region MetadataOperations
 
     /**
      * Tests the preProcessOperation and acceptOperation methods with StreamSegmentMap operations.
@@ -529,7 +582,7 @@ public class OperationMetadataUpdaterTests {
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new Date()));
         processOperation(mapOp, updater, seqNo::incrementAndGet);
-        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT), updater, seqNo::incrementAndGet);
+        processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, nextAppendContext.get()), updater, seqNo::incrementAndGet);
         processOperation(checkpoint2, updater, seqNo::incrementAndGet);
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
@@ -571,6 +624,48 @@ public class OperationMetadataUpdaterTests {
         Assert.assertNotNull("Checkpoint seems to have not been applied.", metadata.getStreamSegmentMetadata(SEGMENT_ID));
     }
 
+    //endregion
+
+    //region Other tests
+
+    /**
+     * Tests the behavior of preProcessOperation and acceptOperation when encountering an invalid StreamSegmentId, or
+     * when encountering a StreamSegment Id for a deleted StreamSegment.
+     */
+    @Test
+    public void testPreProcessAndAcceptWithInvalidSegmentId() throws Exception {
+        UpdateableContainerMetadata metadata = createBlankMetadata();
+        OperationMetadataUpdater updater = createUpdater(metadata);
+
+        ArrayList<StorageOperation> testOperations = new ArrayList<>();
+        testOperations.add(createAppendNoOffset());
+        testOperations.add(createSeal());
+        testOperations.add(createMerge());
+
+        for (StorageOperation op : testOperations) {
+            AssertExtensions.assertThrows(
+                    "Unexpected behavior from preProcessOperation when processing an operation for a non-existent Segment: " + op,
+                    () -> updater.preProcessOperation(op),
+                    ex -> ex instanceof MetadataUpdateException);
+
+            AssertExtensions.assertThrows(
+                    "Unexpected behavior from acceptOperation when processing an operation for a non-existent Segment: " + op,
+                    () -> updater.acceptOperation(op),
+                    ex -> ex instanceof MetadataUpdateException);
+        }
+
+        // If the StreamSegment was previously marked as deleted.
+        UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId("foo", SEGMENT_ID);
+        segmentMetadata.markDeleted();
+
+        for (StorageOperation op : testOperations) {
+            AssertExtensions.assertThrows(
+                    "Unexpected behavior from preProcessOperation when processing an operation for deleted Segment: " + op,
+                    () -> updater.preProcessOperation(op),
+                    ex -> ex instanceof StreamSegmentNotExistsException);
+        }
+    }
+
     /**
      * Tests the functionality of the nextOperationSequenceNumber() method.
      */
@@ -595,7 +690,7 @@ public class OperationMetadataUpdaterTests {
         int appendCount = 500;
         ArrayList<StorageOperation> operations = new ArrayList<>();
         for (int i = 0; i < appendCount; i++) {
-            operations.add(createAppend());
+            operations.add(createAppendNoOffset());
         }
 
         operations.add(createMerge());
@@ -652,7 +747,7 @@ public class OperationMetadataUpdaterTests {
 
         UpdateableContainerMetadata metadata = createMetadata();
         OperationMetadataUpdater updater = createUpdater(metadata);
-        StreamSegmentAppendOperation committedAppend = createAppend();
+        StreamSegmentAppendOperation committedAppend = createAppendNoOffset();
         updater.preProcessOperation(committedAppend);
         updater.acceptOperation(committedAppend);
         updater.commit(); // This is the last extent of the modifications to the metadata.
@@ -660,7 +755,7 @@ public class OperationMetadataUpdaterTests {
         int appendCount = 500;
         ArrayList<StorageOperation> operations = new ArrayList<>();
         for (int i = 0; i < appendCount; i++) {
-            operations.add(createAppend());
+            operations.add(createAppendNoOffset());
         }
 
         operations.add(createMerge());
@@ -713,6 +808,10 @@ public class OperationMetadataUpdaterTests {
         }
     }
 
+    //endregion
+
+    //region Helpers
+
     private UpdateableContainerMetadata createBlankMetadata() {
         return new StreamSegmentContainerMetadata(CONTAINER_ID);
     }
@@ -739,8 +838,12 @@ public class OperationMetadataUpdaterTests {
         return new OperationMetadataUpdater(metadata);
     }
 
-    private StreamSegmentAppendOperation createAppend() {
-        return new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, DEFAULT_APPEND_CONTEXT);
+    private StreamSegmentAppendOperation createAppendNoOffset() {
+        return new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA, nextAppendContext.get());
+    }
+
+    private StreamSegmentAppendOperation createAppendWithOffset(long offset) {
+        return new StreamSegmentAppendOperation(SEGMENT_ID, offset, DEFAULT_APPEND_DATA, nextAppendContext.get());
     }
 
     private StreamSegmentSealOperation createSeal() {
@@ -796,4 +899,6 @@ public class OperationMetadataUpdaterTests {
         Assert.assertTrue("OperationMetadataUpdater.commit() did not make any modifications.", success);
         return metadata;
     }
+
+    //endregion
 }
