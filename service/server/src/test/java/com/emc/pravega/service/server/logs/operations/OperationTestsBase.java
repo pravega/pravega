@@ -29,10 +29,14 @@ import java.util.Random;
 /**
  * Base class for all Log Operation test.
  */
+@SuppressWarnings("checkstyle:JavadocMethod")
 public abstract class OperationTestsBase<T extends Operation> {
     private static final int MAX_CONFIG_ITERATIONS = 10;
     private static final OperationFactory OPERATION_FACTORY = new OperationFactory();
 
+    /**
+     * Tests the ability of an Operation to serialize/deserialize itself.
+     */
     @Test
     public void testSerialization() throws Exception {
         Random random = new Random();

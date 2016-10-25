@@ -18,6 +18,18 @@
 
 package com.emc.pravega.service.server.reading;
 
+import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.service.contracts.ReadResultEntry;
+import com.emc.pravega.service.contracts.ReadResultEntryContents;
+import com.emc.pravega.service.contracts.ReadResultEntryType;
+import com.emc.pravega.service.server.CloseableExecutorService;
+import com.emc.pravega.service.server.ServiceShutdownListener;
+import com.emc.pravega.testcommon.AssertExtensions;
+import com.emc.pravega.testcommon.IntentionalException;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,20 +41,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.emc.pravega.common.io.StreamHelpers;
-import com.emc.pravega.service.contracts.ReadResultEntry;
-import com.emc.pravega.service.contracts.ReadResultEntryContents;
-import com.emc.pravega.service.contracts.ReadResultEntryType;
-import com.emc.pravega.service.server.CloseableExecutorService;
-import com.emc.pravega.service.server.ServiceShutdownListener;
-import com.emc.pravega.testcommon.AssertExtensions;
-import com.emc.pravega.testcommon.IntentionalException;
-
-import lombok.Cleanup;
 
 /**
  * Unit tests for AsyncReadResultProcessor.
@@ -117,7 +115,7 @@ public class AsyncReadResultProcessorTests {
             return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
         };
 
-         // Start an AsyncReadResultProcessor.
+        // Start an AsyncReadResultProcessor.
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
@@ -158,7 +156,7 @@ public class AsyncReadResultProcessorTests {
             return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
         };
 
-         // Start an AsyncReadResultProcessor.
+        // Start an AsyncReadResultProcessor.
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         TestEntryHandler testEntryHandler = new TestEntryHandler(new ArrayList<>());

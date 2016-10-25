@@ -37,6 +37,7 @@ public class InMemoryCache implements Cache {
 
     /**
      * Creates a new instance of the InMemoryCache class.
+     * @param id The cache Id.
      */
     public InMemoryCache(String id) {
         this.id = id;

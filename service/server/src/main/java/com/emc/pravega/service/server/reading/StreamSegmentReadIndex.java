@@ -341,7 +341,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         SegmentMetadata sourceMetadata = sourceIndex.metadata;
         Exceptions.checkArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId", "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
 
-        // TODO: an alternative to this is just drop the RedirectReadIndexEntry; next time we want to read, we'll just read from storage. That may be faster actually than just appending all these entries (there could be tens of thousands...)
         // Get all the entries from the source index and append them here.
         List<CacheReadIndexEntry> sourceEntries = sourceIndex.getAllEntries(redirectEntry.getStreamSegmentOffset());
 
@@ -349,8 +348,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // Remove redirect entry (again, no need to update the Cache Stats, as this is a RedirectReadIndexEntry).
             this.indexEntries.remove(endOffset);
             this.mergeOffsets.remove(sourceSegmentStreamId);
-
-            // TODO: Verify offsets are correct and that they do not exceed boundaries.
             sourceEntries.forEach(this::addToIndex);
         }
 
@@ -443,6 +440,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             assert entry != null : "Serving a StorageReadResultEntry with a null result";
             assert !(entry instanceof FutureReadResultEntry) : "Serving a FutureReadResultEntry with another FutureReadResultEntry.";
 
+            log.trace("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
                 r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
@@ -624,13 +622,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private void queueStorageRead(long offset, int length, Consumer<ReadResultEntryContents> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
         // Create a callback that inserts into the ReadIndex (and cache) and invokes the success callback.
         Consumer<StorageReader.Result> doneCallback = result -> {
+            ByteArraySegment data = result.getData();
             if (!result.isDerived()) {
                 // Only insert primary results into the cache. Derived results are always sub-portions of primaries
                 // and there is no need to insert them too, as they are already contained within.
-                insert(offset, result.getData());
+                insert(offset, data);
             }
 
-            ByteArraySegment data = result.getData();
             successCallback.accept(new ReadResultEntryContents(data.getReader(), data.getLength()));
         };
 

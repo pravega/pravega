@@ -86,6 +86,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
      * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
+     * @param executor            The Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
     public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, ScheduledExecutorService executor) {
@@ -124,6 +125,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             this.operationProcessor.close();
             this.durableDataLog.close();
+            log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
     }
@@ -135,6 +137,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStart() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        log.info("{}: Starting.", this.traceObjectId);
 
         this.executor.execute(() -> {
             try {
@@ -155,6 +158,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             }
 
             // If we got here, all is good. We were able to start successfully.
+            log.info("{}: Started.", this.traceObjectId);
             notifyStarted();
             LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
         });
@@ -163,6 +167,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        log.info("{}: Stopping.", this.traceObjectId);
         this.operationProcessor.stopAsync();
 
         this.executor.execute(() -> {
@@ -183,6 +188,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 notifyFailed(cause);
             }
 
+            log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
         });
     }
@@ -378,7 +384,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Update the metadata with the information from the Operation.
         try {
-            //TODO: should we also check that StreamSegments still exist in Storage, and that their lengths are what we think they are? Or we leave that to the StorageWriter?
             log.debug("{} Recovering {}.", this.traceObjectId, operation);
             metadataUpdater.preProcessOperation(operation);
             metadataUpdater.acceptOperation(operation);

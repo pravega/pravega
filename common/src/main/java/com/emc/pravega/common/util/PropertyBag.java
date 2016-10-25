@@ -16,30 +16,34 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.core;
+package com.emc.pravega.common.util;
 
-import java.util.Random;
+import java.util.Properties;
 
 /**
- * Generates Magic Numbers, which can be used for sequencing elements.
+ * Extension to java.util.Properties that implements the Builder pattern.
  */
-public class MagicGenerator {
-    /**
-     * Default value for a Magic Number. This indicates no Magic Number has been assigned.
-     */
-    public static final int NO_MAGIC = Integer.MIN_VALUE;
-    private static final Random GENERATOR = new Random();
+public class PropertyBag extends Properties {
+
+    private PropertyBag() {
+    }
 
     /**
-     * Generates a new number that is different from NO_MAGIC.
-     *
-     * @return The newly generated number.
+     * Creates a new instance of the PropertyBag class.
      */
-    public static int newMagic() {
-        int value;
-        do {
-            value = GENERATOR.nextInt();
-        } while (value == NO_MAGIC);
-        return value;
+    public static PropertyBag create() {
+        return new PropertyBag();
+    }
+
+    /**
+     * Adds the given key-value to the PropertyBag.
+     *
+     * @param key   The key to add.
+     * @param value The value to add.
+     * @return A pointer to this object.
+     */
+    public PropertyBag with(String key, Object value) {
+        setProperty(key, value.toString());
+        return this;
     }
 }

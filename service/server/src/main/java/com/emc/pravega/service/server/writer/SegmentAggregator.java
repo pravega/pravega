@@ -39,7 +39,7 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
-import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;

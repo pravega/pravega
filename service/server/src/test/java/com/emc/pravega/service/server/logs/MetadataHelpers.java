@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.service.server.logs;
 
+import com.emc.pravega.service.server.SegmentMetadata;
+import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import org.junit.Assert;
 
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -27,12 +29,12 @@ import java.util.Collection;
 /**
  * Unit test helpers for Metadata tests.
  */
-public class MetadataHelpers {
+class MetadataHelpers {
 
     /**
      * Verify that the given ContainerMetadata objects contain the same data.
      */
-    public static void assertMetadataEquals(String message, UpdateableContainerMetadata expected, UpdateableContainerMetadata actual) {
+    static void assertMetadataEquals(String message, UpdateableContainerMetadata expected, UpdateableContainerMetadata actual) {
         Assert.assertEquals("Unexpected ContainerId.", expected.getContainerId(), actual.getContainerId());
         Collection<Long> expectedSegmentIds = expected.getAllStreamSegmentIds();
         Collection<Long> actualSegmentIds = actual.getAllStreamSegmentIds();
@@ -48,7 +50,7 @@ public class MetadataHelpers {
     /**
      * Verifies that the given SegmentMetadata objects contain the same data.
      */
-    public static void assertSegmentMetadataEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
+    static void assertSegmentMetadataEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
         String idPrefix = message + " SegmentId " + expected.getId();
         Assert.assertEquals(idPrefix + " getId() mismatch.", expected.getId(), actual.getId());
         Assert.assertEquals(idPrefix + " getParentId() mismatch.", expected.getParentId(), actual.getParentId());

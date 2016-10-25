@@ -19,9 +19,6 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
-import com.emc.pravega.service.server.logs.DurableLogConfig;
-import com.emc.pravega.service.server.reading.ReadIndexConfig;
-import com.emc.pravega.service.server.writer.WriterConfig;
 import com.google.common.base.Preconditions;
 
 import java.util.Properties;
@@ -52,37 +49,10 @@ public class ServiceBuilderConfig {
     //endregion
 
     /**
-     * Gets a new instance of the ServiceConfig for this builder.
-     */
-    public ServiceConfig getServiceConfig() {
-        return getConfig(ServiceConfig::new);
-    }
-
-    /**
-     * Gets a new instance of the DurableLogConfig for this builder.
-     */
-    public DurableLogConfig getDurableLogConfig() {
-        return getConfig(DurableLogConfig::new);
-    }
-
-    /**
-     * Gets a new instance of the WriterConfig for this builder.
-     */
-    public WriterConfig getWriterConfig() {
-        return getConfig(WriterConfig::new);
-    }
-
-    /**
-     * Gets a new instance of the ReadIndexConfig for this builder.
-     */
-    public ReadIndexConfig getReadIndexConfig() {
-        return getConfig(ReadIndexConfig::new);
-    }
-
-    /**
      * Gets a new instance of a ComponentConfig for this builder.
      *
      * @param constructor The constructor for the new instance.
+     * @param <T>         The type of the ComponentConfig to instantiate.
      */
     public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
         return constructor.apply(this.properties);
