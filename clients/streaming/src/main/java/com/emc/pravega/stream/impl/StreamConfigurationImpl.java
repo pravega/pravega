@@ -36,7 +36,7 @@ public class StreamConfigurationImpl implements StreamConfiguration {
     }
 
     @Override
-    public ScalingPolicy getScalingingPolicy() {
+    public ScalingPolicy getScalingPolicy() {
         return scalingPolicy;
     }
 }

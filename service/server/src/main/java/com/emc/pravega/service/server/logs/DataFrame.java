@@ -732,7 +732,7 @@ public class DataFrame {
             }
 
             // Determine the length of the next record && advance the position by the appropriate amount of bytes.
-            EntryHeader header = new EntryHeader(this.contents.subSegment(this.currentPosition, EntryHeader.HEADER_SIZE)); // TODO: fix for versioning
+            EntryHeader header = new EntryHeader(this.contents.subSegment(this.currentPosition, EntryHeader.HEADER_SIZE));
             this.currentPosition += EntryHeader.HEADER_SIZE;
 
             // Integrity check. This means that we have a corrupt frame.

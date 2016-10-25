@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * Stream properties
+ * Stream properties.
  */
 class Stream {
     private String name;
@@ -39,7 +39,7 @@ class Stream {
 
     /**
      * Stores all segments in the stream, ordered by number, which implies that
-     * these segments are also ordered in the increaing order of their start times.
+     * these segments are also ordered in the increasing order of their start times.
      * Segment number is the index of that segment in this list.
      */
     private List<Segment> segments;
@@ -55,7 +55,7 @@ class Stream {
         this.configuration = configuration;
         currentSegments = new ArrayList<>();
         segments = new ArrayList<>();
-        int numSegments = configuration.getScalingingPolicy().getMinNumSegments();
+        int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
         IntStream.range(0, numSegments)
                 .forEach(

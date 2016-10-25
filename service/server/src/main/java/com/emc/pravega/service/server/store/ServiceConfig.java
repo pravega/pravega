@@ -19,8 +19,7 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
-import com.emc.pravega.common.util.InvalidPropertyValueException;
-import com.emc.pravega.common.util.MissingPropertyException;
+import com.emc.pravega.common.util.ConfigurationException;
 
 import java.util.Properties;
 
@@ -46,12 +45,13 @@ public class ServiceConfig extends ComponentConfig {
      * Creates a new instance of the ServiceConfig class.
      *
      * @param properties The java.util.Properties object to read Properties from.
-     * @throws MissingPropertyException Whenever a required Property is missing from the given properties collection.
-     * @throws NumberFormatException    Whenever a Property has a value that is invalid for it.
+     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
+     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
-     * @throws IllegalArgumentException If componentCode is an empty string..
+     * @throws IllegalArgumentException If componentCode is an empty string.
      */
-    public ServiceConfig(Properties properties) {
+    public ServiceConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
     }
 
@@ -85,7 +85,7 @@ public class ServiceConfig extends ComponentConfig {
     //region ComponentConfig Implementation
 
     @Override
-    protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+    protected void refresh() throws ConfigurationException {
         this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
         this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);

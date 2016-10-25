@@ -18,23 +18,7 @@
 
 package com.emc.pravega.controller.server.v1;
 
-import static org.junit.Assert.assertEquals;
-
-import java.util.AbstractMap.SimpleEntry;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-
 import com.emc.pravega.common.cluster.Host;
-import org.apache.thrift.TException;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -46,9 +30,24 @@ import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import org.apache.thrift.TException;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+
+import static org.junit.Assert.assertEquals;
 
 /**
- * ConsumerApiImpl test
+ * ConsumerApiImpl test.
  */
 public class ConsumerApiImplTest {
 
@@ -123,7 +122,6 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
 
-
         Position newPosition = new Position(
                 Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),
                 Collections.emptyMap());
@@ -173,6 +171,5 @@ public class ConsumerApiImplTest {
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
         assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
-
     }
 }

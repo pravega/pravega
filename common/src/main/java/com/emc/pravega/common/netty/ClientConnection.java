@@ -22,11 +22,12 @@ import java.util.concurrent.Future;
 public interface ClientConnection extends AutoCloseable {
 
     Future<Void> sendAsync(WireCommand cmd);
-    
+
     /**
      * Sends the provided command. This operation may block. (Though buffering is used to try to
      * prevent it)
-     * 
+     *
+     * @param cmd The command to send.
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(WireCommand cmd) throws ConnectionFailedException;
@@ -36,5 +37,4 @@ public interface ClientConnection extends AutoCloseable {
      */
     @Override
     void close();
-
 }
