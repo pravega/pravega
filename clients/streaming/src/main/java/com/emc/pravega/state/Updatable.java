@@ -7,13 +7,13 @@ package com.emc.pravega.state;
  * via the applyUpdate method. 
  * IE: a.equals(b) should return true if a.getCurrentRevision().equals(b.getCurrentRevision());
  */
-public interface Updatable<UpdateT> {
+public interface Updatable<SelfT extends Updatable<SelfT,UpdateT>, UpdateT> {
 
     /**
      * Apply an update.
      * After this operation is complete {@link #getCurrentRevision()} should return the newRevision.
      */
-    void applyUpdate(Revision newRevision, UpdateT update);
+    SelfT applyUpdate(Revision newRevision, UpdateT update);
 
     /**
      * @return

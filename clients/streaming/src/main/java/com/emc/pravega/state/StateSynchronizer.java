@@ -39,38 +39,29 @@ package com.emc.pravega.state;
  * @param <StateT> The type of the State object.
  * @param <UpdateT> The type of updates applied to the State object.
  */
-public interface StateSynchronizer<StateT extends Updatable<UpdateT>, UpdateT> {
+public interface StateSynchronizer<StateT extends Updatable<StateT, UpdateT>, UpdateT> {
 
     /**
-     * Get an initial state.
+     * Gets the latest version of the state object. As an optimization an existing state object can
+     * be provided, so that only Updates after this point need to be read.
      * 
-     * @return A base state from which updates can be tracked.
-     *         NOTE: This is usually the most recent state passed to compact(). However that is not
-     *         guaranteed.
+     * @param localState Optional. A base state which updates can be applied to to get the latest
+     *            state.
      */
-    StateT getInitialState();
-
+    StateT getCurrentState(StateT localState);
+    
     /**
-     * Given a a local state apply all updates that have occurred since that revision if possible.
-     * If the local state's revision is too old and the requested updates have been compacted away,
-     * false will be returned.
-     * In this case, a new state can be obtained by calling {@link #getInitialState()}.
-     * 
-     * @return true iff updates were applied to the provided localState
-     */
-    boolean synchronizeLocalState(StateT localState);
-
-    /**
-     * Attempts to persist an update, that will be applied to the localState iff the local state is
-     * up to date.
+     * Given a state object, if it is up to date, persists the provided update, applies it to the
+     * provided state and returns the result.
+     * If the state is not up to date nothing happens and null is returned instead.
      * 
      * @param localState The current revision of the state. The update will only be applied if this
      *            is in-fact the most recent revision.
      * @param update The update that all other processes should receive, and that should be applied
      *            to the localState if it can be persisted.
-     * @return if the update was persisted, and subsequently applied to the provided local state.
+     * @return The newly updated state, if the update was persisted or null if localState was out of date.
      */
-    boolean attemptUpdate(StateT localState, UpdateT update);
+    StateT attemptUpdate(StateT localState, UpdateT update);
 
     /**
      * Delete all history up through the provided revision and replace it with compactState. The
