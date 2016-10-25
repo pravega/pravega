@@ -36,7 +36,6 @@ import static org.junit.Assert.assertEquals;
 
 public class ClusterZKTest {
 
-    private static final String ZK_URL = "localhost:2182";
     private final static String HOST_1 = "host1";
     private final static String HOST_2 = "host2";
     private final static int PORT = 1234;
@@ -47,11 +46,12 @@ public class ClusterZKTest {
     private final static int MAX_RETRY = 5;
 
     private static TestingServer zkTestServer;
-
+    private static String zkUrl;
 
     @BeforeClass
     public static void startZookeeper() throws Exception {
-        zkTestServer = new TestingServer(2182);
+        zkTestServer = new TestingServer();
+        zkUrl = zkTestServer.getConnectString();
     }
 
     @AfterClass
@@ -65,7 +65,7 @@ public class ClusterZKTest {
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
 
         //ClusterListener for testing purposes
-        CuratorFramework client2 = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+        CuratorFramework client2 = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
         Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME);
         clusterListener.addListener((eventType, host) -> {
@@ -79,7 +79,7 @@ public class ClusterZKTest {
             }
         });
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
 
         //Create Add a node to the cluster.
@@ -104,7 +104,7 @@ public class ClusterZKTest {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
 
-        CuratorFramework client2 = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+        CuratorFramework client2 = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
         Cluster clusterListener = new ClusterZKImpl(client2, CLUSTER_NAME_2);
         clusterListener.addListener((eventType, host) -> {
@@ -118,7 +118,7 @@ public class ClusterZKTest {
             }
         });
 
-        CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
+        CuratorFramework client = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
         //Create Add a node to the cluster.
         Cluster clusterZKInstance1 = new ClusterZKImpl(client, CLUSTER_NAME_2);
