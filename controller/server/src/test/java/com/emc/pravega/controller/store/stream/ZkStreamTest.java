@@ -53,6 +53,7 @@ public class ZkStreamTest {
     public void startZookeeper() throws Exception {
         zkTestServer = new TestingServer();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
+        cli.start();
     }
 
     @After
@@ -60,7 +61,6 @@ public class ZkStreamTest {
         cli.close();
         zkTestServer.close();
     }
-
 
     @Test
     public void TestZkStream() throws Exception {

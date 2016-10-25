@@ -15,10 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream.tables;
 
-@lombok.Data
-public class Data<T> {
-    private final byte[] data;
-    private final T version;
+package com.emc.pravega.controller.store.stream;
+
+/**
+ * Exception thrown when you are attempting to update a stale value
+ */
+public class WriteConflictException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "concurrency error for path %s.";
+
+    /**
+     * Creates a new instance of WriteConflictException class
+     * @param value
+     */
+    public WriteConflictException(String value) {
+        super(String.format(FORMAT_STRING, value));
+    }
 }

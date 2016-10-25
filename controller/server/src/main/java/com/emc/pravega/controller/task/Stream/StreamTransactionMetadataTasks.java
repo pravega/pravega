@@ -22,10 +22,11 @@ import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.impl.TxStatus;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -42,7 +43,7 @@ import java.util.stream.Collectors;
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
- *
+ * <p>
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
@@ -95,44 +96,47 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     /**
      * Create transaction.
-     * @param scope stream scope.
+     *
+     * @param scope  stream scope.
      * @param stream stream name.
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UUID> createTx(String scope, String stream) {
         return execute(
-                getResource(scope, stream),
+                new Resource(scope, stream),
                 new Serializable[]{scope, stream},
                 () -> createTxBody(scope, stream));
     }
 
     /**
      * Drop transaction.
-     * @param scope stream scope.
+     *
+     * @param scope  stream scope.
      * @param stream stream name.
-     * @param txId transaction id.
+     * @param txId   transaction id.
      * @return true/false.
      */
     @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxStatus> dropTx(String scope, String stream, UUID txId) {
         return execute(
-                getResource(scope, stream, txId.toString()),
+                new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
                 () -> dropTxBody(scope, stream, txId));
     }
 
     /**
      * Commit transaction.
-     * @param scope stream scope.
+     *
+     * @param scope  stream scope.
      * @param stream stream name.
-     * @param txId transaction id.
+     * @param txId   transaction id.
      * @return true/false.
      */
     @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxStatus> commitTx(String scope, String stream, UUID txId) {
         return execute(
-                getResource(scope, stream, txId.toString()),
+                new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
                 () -> commitTxBody(scope, stream, txId));
     }
@@ -206,23 +210,13 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     private CompletableFuture<Void> notifyCommitToHost(String scope, String stream, int segmentNumber, UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
-                    SegmentHelper.commitTransaction(scope,
-                            stream,
-                            segmentNumber,
-                            txId,
-                            this.hostControllerStore,
-                            this.connectionFactory);
+            SegmentHelper.commitTransaction(scope,
+                    stream,
+                    segmentNumber,
+                    txId,
+                    this.hostControllerStore,
+                    this.connectionFactory);
             return null;
         });
     }
-
-
-    private String getResource(String scope, String stream) {
-        return scope + "/" + stream;
-    }
-
-    private String getResource(String scope, String stream, String txid) {
-        return scope + "/" + stream + "/" + txid;
-    }
-
 }
