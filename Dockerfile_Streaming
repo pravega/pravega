@@ -2,7 +2,8 @@ FROM java:8
 
 MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
-COPY . /opt/streaming/
+COPY  .  /opt/streaming/
+
 RUN mkdir -p /root/.m2/repository/com/twitter/
 RUN mkdir -p /root/.m2/repository/org/apache/thrift/
 WORKDIR /opt/streaming/

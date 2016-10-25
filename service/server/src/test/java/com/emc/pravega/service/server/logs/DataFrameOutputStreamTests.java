@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DataFrameOutputStreamTests {
     /**
-     * Tests the basic functionality of startNewRecord(), endRecord() and discardRecord()
+     * Tests the basic functionality of startNewRecord(), endRecord() and discardRecord().
      */
     @Test
     public void testRecordCreation() throws Exception {

@@ -20,14 +20,12 @@ package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.emc.pravega.common.util.ConfigurationException;
-import com.emc.pravega.common.util.InvalidPropertyValueException;
-import com.emc.pravega.common.util.MissingPropertyException;
 
 import java.time.Duration;
 import java.util.Properties;
 
 /**
- * Writer Configuration
+ * Writer Configuration.
  */
 public class WriterConfig extends ComponentConfig {
     //region Members
@@ -74,12 +72,13 @@ public class WriterConfig extends ComponentConfig {
      * Creates a new instance of the WriterConfig class.
      *
      * @param properties The java.util.Properties object to read Properties from.
-     * @throws MissingPropertyException Whenever a required Property is missing from the given properties collection.
-     * @throws NumberFormatException    Whenever a Property has a value that is invalid for it.
+     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
+     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
-    public WriterConfig(Properties properties) throws MissingPropertyException, InvalidPropertyValueException {
+    public WriterConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
     }
 

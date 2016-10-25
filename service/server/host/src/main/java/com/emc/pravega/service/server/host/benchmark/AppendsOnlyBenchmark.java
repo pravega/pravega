@@ -40,7 +40,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
     private static final int APPEND_COUNT = 10000;
     private static final int MAX_APPEND_SIZE = ONE_MB;
     private static final int[] BURST_SIZES = new int[]{1, 100, 1000, Integer.MAX_VALUE};
-    private static final int[] APPEND_SIZES = new int[]{100, 1024, 10 * 1024, 100 * 1024, MAX_APPEND_SIZE};
+    private static final int[] APPEND_SIZES = new int[]{100, 1024, 10 * 1024, 100 * 1024}; //, MAX_APPEND_SIZE};
     private static final int[] SEGMENT_COUNTS = new int[]{1, 5, 10, 20};
     private static final List<TestInput> INPUTS;
 
@@ -95,7 +95,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
     private TestOutput runSingleBenchmark(TestInput testInput, ServiceBuilder serviceBuilder) {
         log("Running %s", testInput);
 
-        serviceBuilder.getContainerManager().initialize(TIMEOUT).join();
+        serviceBuilder.initialize(TIMEOUT).join();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         List<String> segmentNames = createStreamSegments(store, testInput.segmentCount);
 

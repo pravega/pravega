@@ -27,6 +27,9 @@
   <module name="RegexpHeader">
     <property name="header" value="/\*\*\n *"/>
   </module>
+  <module name="SuppressionFilter">
+        <property name="file" value="checkstyle/suppressions.xml"/>
+  </module>
   <module name="SuppressWarningsFilter"/>
   <module name="TreeWalker">
     <module name="SuppressWarningsHolder" />
@@ -49,7 +52,7 @@
         <property name="max" value="4"/>
     </module>
     <module name="StringLiteralEquality"/>
-    
+
     <!-- style -->
     <module name="DefaultComesLast"/>
     <module name="EmptyStatement"/>
@@ -57,7 +60,6 @@
     <module name="UpperEll"/>
     <module name="LeftCurly"/>
     <module name="RightCurly"/>
-    <module name="EmptyStatement"/>
     <module name="ConstantName">
       <property name="format" value="(^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$)|(^log$)"/>
     </module>
@@ -65,12 +67,12 @@
     <module name="LocalFinalVariableName"/>
     <module name="MemberName"/>
     <module name="ClassTypeParameterName">
-        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T' 
+        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T'
         IE: T, E, E1, TFoo, or FooT -->
       <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)|(T[a-zA-Z0-9]*$)"/>
     </module>
     <module name="MethodTypeParameterName">
-        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T' 
+        <!-- Allows type parameters that are a single capital letter (with optional number) or a name that either begins on ends with 'T'
         IE: T, E, E1, TFoo, or FooT -->
       <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)|(T[a-zA-Z0-9]*$)"/>
     </module>
@@ -101,9 +103,31 @@
       <property name="allowEmptyMethods" value="true"/>
 	  <property name="tokens" value="ASSIGN, BAND, BAND_ASSIGN, BOR, BOR_ASSIGN, BSR, BSR_ASSIGN, BXOR, BXOR_ASSIGN, COLON, DIV, DIV_ASSIGN, DO_WHILE, EQUAL, GE, GT, LAMBDA, LAND, LCURLY, LE, LITERAL_CATCH, LITERAL_DO, LITERAL_ELSE, LITERAL_FINALLY, LITERAL_FOR, LITERAL_IF, LITERAL_RETURN, LITERAL_SWITCH, LITERAL_SYNCHRONIZED, LITERAL_TRY, LITERAL_WHILE, LOR, LT, MINUS_ASSIGN, MOD, MOD_ASSIGN, NOT_EQUAL, PLUS_ASSIGN, QUESTION, RCURLY, SL, SLIST, SL_ASSIGN, SR, SR_ASSIGN, STAR, STAR_ASSIGN, LITERAL_ASSERT, TYPE_EXTENSION_AND"/>
     </module>
-    <!--<module name="Indentation"/> TODO: this needs to be re-enabled once we figure out the lambda indentation problem -->
+    <!--<module name="Indentation"/> TODO: this needs to be re-enabled once we figure out the lambda indentation problem. -->
     <module name="MethodParamPad"/>
     <module name="TypecastParenPad"/>
     <module name="NeedBraces"/>
+    <module name="CommentsIndentation"/>
+    <module name="EmptyLineSeparator">
+      <property name="tokens" value="METHOD_DEF, CTOR_DEF, INTERFACE_DEF, CLASS_DEF, ENUM_DEF"/>
+      <property name="allowMultipleEmptyLinesInsideClassMembers" value="false"/>
+    </module>
+    <module name="AvoidNestedBlocks"/>
+    <module name="JavadocStyle">
+      <property name="scope" value="protected"/>
+      <property name="checkFirstSentence" value="true"/>
+      <property name="checkEmptyJavadoc" value="true"/>
+      <property name="checkHtml" value="true"/>
+    </module>
+    <module name="JavadocMethod">
+      <property name="scope" value="protected"/>
+      <property name="validateThrows" value="true"/>
+      <property name="allowUndeclaredRTE" value="true"/>
+      <property name="allowMissingThrowsTags" value="false"/>
+      <property name="allowMissingParamTags" value="false"/>
+      <property name="allowMissingReturnTag" value="true"/>
+      <property name="allowMissingJavadoc" value="true"/> <!--TODO: this should be enabled at one point. -->
+      <property name="suppressLoadErrors" value="true"/>
+    </module>
   </module>
 </module>

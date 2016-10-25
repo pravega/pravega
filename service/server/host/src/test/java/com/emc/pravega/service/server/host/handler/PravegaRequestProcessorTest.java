@@ -17,15 +17,6 @@
  */
 package com.emc.pravega.service.server.host.handler;
 
-import java.io.ByteArrayInputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-
-import org.junit.Ignore;
-import org.junit.Test;
-
 import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommands.ReadSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
@@ -35,12 +26,21 @@ import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.reading.ReadResultEntryBase;
+import lombok.Data;
+import org.junit.Ignore;
+import org.junit.Test;
+
+import java.io.ByteArrayInputStream;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.fail;
-
-import static org.mockito.Mockito.*;
-
-import lombok.Data;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class PravegaRequestProcessorTest {
 
@@ -94,25 +94,24 @@ public class PravegaRequestProcessorTest {
     @Test
     public void testReadSegment() {
         String streamSegmentName = "testReadSegment";
-        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         int readLength = 1000;
-        
+
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
-       
-        
+
         TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Cache, 0, readLength);
         entry1.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
         TestReadResultEntry entry2 = new TestReadResultEntry(ReadResultEntryType.Future, data.length, readLength);
-               
+
         List<ReadResultEntry> results = new ArrayList<>();
         results.add(entry1);
         results.add(entry2);
         CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
-        readResult.complete(new TestReadResult(0, readLength, results));      
+        readResult.complete(new TestReadResult(0, readLength, results));
         when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
-        
+
         processor.readSegment(new ReadSegment(streamSegmentName, 0, readLength));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         verify(connection).send(new SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data)));

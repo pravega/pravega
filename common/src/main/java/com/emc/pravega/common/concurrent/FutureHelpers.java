@@ -42,9 +42,11 @@ import java.util.stream.Collectors;
  * Extensions to Future and CompletableFuture.
  */
 public final class FutureHelpers {
-
     /**
      * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
+     *
+     * @param f   The future to wait for.
+     * @param <T> The Type of the future's result.
      */
     public static <T> boolean await(CompletableFuture<T> f) {
         try {
@@ -56,7 +58,10 @@ public final class FutureHelpers {
     }
 
     /**
-     * Returns true if the future is done and successful
+     * Returns true if the future is done and successful.
+     *
+     * @param f   The future to inspect.
+     * @param <T> The Type of the future's result.
      */
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
         return f.isDone() && !f.isCompletedExceptionally() && !f.isCancelled();
@@ -64,13 +69,16 @@ public final class FutureHelpers {
 
     /**
      * Calls get on the provided future, handling interrupted, and transforming the executionException into an exception
-     * of the type whose constructor is provided
+     * of the type whose constructor is provided.
      *
      * @param future               The future whose result is wanted
      * @param exceptionConstructor This can be any function that either transforms an exception
      *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
      *                             If null is returned from the function no exception will be thrown.
+     * @param <ResultT>            Type of the result.
+     * @param <ExceptionT>         Type of the Exception.
      * @return The result of calling future.get()
+     * @throws ExceptionT If thrown by the future.
      */
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
                                                                                          Function<Throwable, ExceptionT> exceptionConstructor) throws ExceptionT {
@@ -90,7 +98,15 @@ public final class FutureHelpers {
     /**
      * Same as {@link #getAndHandleExceptions(Future, Function)} but with a timeout on get().
      *
-     * @param timeoutMillis the timeout expressed in milliseconds before throwing {@link TimeoutException}
+     * @param future               The future whose result is wanted
+     * @param exceptionConstructor This can be any function that either transforms an exception
+     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
+     *                             If null is returned from the function no exception will be thrown.
+     * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
+     * @param <ResultT>            Type of the result.
+     * @param <ExceptionT>         Type of the Exception.
+     * @throws ExceptionT       If thrown by the future.
+     * @throws TimeoutException If the timeout expired prior to the future completing.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
@@ -114,6 +130,7 @@ public final class FutureHelpers {
      * Creates a new CompletableFuture that is failed with the given exception.
      *
      * @param exception The exception to fail the CompletableFuture.
+     * @param <T>       The Type of the future's result.
      */
     public static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
@@ -126,6 +143,7 @@ public final class FutureHelpers {
      *
      * @param completableFuture The Future to register to.
      * @param exceptionListener The Listener to register.
+     * @param <T>               The Type of the future's result.
      */
     public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
@@ -141,6 +159,8 @@ public final class FutureHelpers {
      * @param completableFuture The Future to register to.
      * @param exceptionClass    The type of exception to listen to.
      * @param exceptionListener The Listener to register.
+     * @param <T>               The Type of the future's result.
+     * @param <E>               The Type of the exception.
      */
     @SuppressWarnings("unchecked")
     public static <T, E extends Throwable> void exceptionListener(CompletableFuture<T> completableFuture, Class<E> exceptionClass, Consumer<E> exceptionListener) {
@@ -227,6 +247,7 @@ public final class FutureHelpers {
      *
      * @param future   The future to attach to.
      * @param callback The callback to invoke.
+     * @param <T>      The Type of the future's result.
      */
     public static <T> void onTimeout(CompletableFuture<T> future, Consumer<TimeoutException> callback) {
         exceptionListener(future, TimeoutException.class, callback);
@@ -258,6 +279,7 @@ public final class FutureHelpers {
      *                       supplier is invoked every time the loopBody needs to execute.
      * @param resultConsumer A Consumer that will be invoked with the result of every call to loopBody.
      * @param executor       An Executor that is used to execute the condition and the loop support code.
+     * @param <T>            The Type of the future's result.
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
