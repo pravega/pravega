@@ -84,6 +84,7 @@ public class TaskSweeper {
 
                     if (!taggedResourceOption.isPresent()) {
 
+                        log.debug("Host={} fetched no child of {}", this.hostId, oldHostId);
                         // Invariant: If no taggedResources were found, it is safe to delete oldHostId node.
                         // Moreover, no need to get any more children, hence return null.
                         return taskMetadataStore.removeNode(oldHostId)
@@ -91,9 +92,12 @@ public class TaskSweeper {
 
                     } else {
 
+                        TaggedResource taggedResource = taggedResourceOption.get();
+                        log.debug("Host={} processing child <{}, {}> of {}",
+                                this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                         // Fetch task corresponding to resourceTag.resource owned by (oldHostId, resourceTag.threadId)
                         // and compete to execute it to completion.
-                        return executeResourceTask(oldHostId, taggedResourceOption.get());
+                        return executeResourceTask(oldHostId, taggedResource);
 
                     }
                 });
@@ -110,10 +114,12 @@ public class TaskSweeper {
         // Else
         //     It is safe to delete the taggedResource child under oldHostId, since there is no pending task on
         //     resource taggedResource.resource and owned by (oldHostId, taggedResource.threadId).
-        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getThreadId())
+        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag())
                 .whenComplete((taskData, ex) -> {
                     if (taskData != null && taskData.isPresent()) {
 
+                        log.debug("Host={} found task for child <{}, {}> of {}",
+                                this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                         execute(oldHostId, taskData.get(), taggedResource)
                                 .whenComplete((value, e) -> result.complete(new Result(taggedResource, value, e)));
 
@@ -121,6 +127,8 @@ public class TaskSweeper {
 
                         if (taskData != null) {
 
+                            log.debug("Host={} found no task for child <{}, {}> of {}. Removing child.",
+                                    this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                             // taskData.isPresent() is false
                             // If no task was found for the taggedResource.resource owned by
                             // (oldHostId, taggedResource.threadId), then either of the following holds
@@ -155,7 +163,8 @@ public class TaskSweeper {
      */
     public CompletableFuture<Object> execute(String oldHostId, TaskData taskData, TaggedResource taggedResource) {
 
-        log.debug("Trying to execute {}", taskData.getMethodName());
+        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
+                this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
         try {
 
             String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
@@ -164,7 +173,7 @@ public class TaskSweeper {
                 // find the method and object
                 Method method = methodMap.get(key);
                 TaskBase o = objectMap.get(key).clone();
-                o.setContext(new Context(hostId, oldHostId, taggedResource.getThreadId(), taggedResource.getResource()));
+                o.setContext(new Context(hostId, oldHostId, taggedResource.getTag(), taggedResource.getResource()));
 
                 // finally execute the task by invoking corresponding method and return its result
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());

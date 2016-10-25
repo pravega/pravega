@@ -20,19 +20,18 @@ package com.emc.pravega.controller.store.task;
 import lombok.Data;
 
 /**
- * Resource tagged by threadId.
- * ThreadId does not correspond to the identifier of Java thread executing the request. It is a logical identifier
- * intended to distinguish between multiple attempts by a single controller host to execute tasks on a resource.
+ * Resource with a tag.
+ * Tag is a logical identifier intended to distinguish between multiple attempts by a single controller host to
+ * execute tasks on a resource.
  */
 @Data
 public class TaggedResource {
 
-    private final String threadId;
+    private final String tag;
     private final Resource resource;
 
-    public TaggedResource(String threadId, Resource resource) {
-        this.threadId = threadId;
+    public TaggedResource(String tag, Resource resource) {
+        this.tag = tag;
         this.resource = resource;
     }
 }
-

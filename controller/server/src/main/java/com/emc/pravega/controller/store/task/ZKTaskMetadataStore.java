@@ -372,7 +372,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     private String getNode(TaggedResource resource) {
-        return getNode(resource.getResource()) + TAG_SEPARATOR + resource.getThreadId();
+        return getNode(resource.getResource()) + TAG_SEPARATOR + resource.getTag();
     }
 
     private Resource getResource(String node) {
