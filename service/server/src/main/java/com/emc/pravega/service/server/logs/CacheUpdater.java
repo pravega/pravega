@@ -125,18 +125,4 @@ public class CacheUpdater {
 
         this.readIndex.triggerFutureReads(elements);
     }
-
-    /**
-     * Clears all in-memory structures of all data and resets the cache to empty.
-     *
-     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system, such
-     *                               as metadata not being in Recovery mode.
-     */
-    void clear() {
-        this.readIndex.clear();
-        this.cache.reset();
-        synchronized (this.readIndex) {
-            this.recentStreamSegmentIds = new HashSet<>();
-        }
-    }
 }

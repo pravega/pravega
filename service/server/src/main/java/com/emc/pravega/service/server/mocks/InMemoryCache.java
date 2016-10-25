@@ -111,13 +111,12 @@ public class InMemoryCache implements Cache {
         }
     }
 
-    @Override
-    public void reset() {
+    //endregion
+
+    public void clear() {
         Exceptions.checkNotClosed(this.closed, this);
         synchronized (this.map) {
             this.map.clear();
         }
     }
-
-    //endregion
 }

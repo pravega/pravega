@@ -20,7 +20,6 @@ package com.emc.pravega.service.storage.impl.rocksdb;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
-import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
@@ -32,7 +31,6 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteOptions;
 
-import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -167,36 +165,6 @@ class RocksDBCache implements Cache {
         return true;
     }
 
-    @Override
-    public void reset() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-
-        RocksDB db = null;
-        boolean oldDatabaseClosed = false;
-        try {
-            // Close the existing database and mark the event as having happened.
-            db = this.database.getAndSet(null);
-            db.close();
-            oldDatabaseClosed = true;
-
-            // TODO: remove reset() from the interface. Auto-reset when starting up the service.
-
-            // Delete all files for this database.
-            File dbDir = new File(getDatabaseDir());
-            if (FileHelpers.deleteFileOrDirectory(dbDir)) {
-                log.debug("{}: Deleted database dir '%s'.", dbDir.getAbsolutePath());
-            }
-        } finally {
-            if (oldDatabaseClosed || db == null) {
-                // If we already closed the database, open a new one.
-                // If an exception happened and we still haven't closed the old database, reuse it.
-                db = openDatabase();
-            }
-
-            this.database.set(db);
-        }
-    }
-
     //endregion
 
     private RocksDB getDatabase() {
@@ -211,8 +179,8 @@ class RocksDBCache implements Cache {
     /**
      * Creates the RocksDB WriteOptions to use. Since we use RocksDB as an in-process cache with disk spillover,
      * we do not care about the data being persisted to disk for recovery purposes. As such:
-     * * Write-Ahead-Log is disabled
-     * * Sync is disabled (does not wait for a disk flush before returning from the write call).
+     * * Write-Ahead-Log is disabled (2.8x performance improvement)
+     * * Sync is disabled - does not wait for a disk flush before returning from the write call (50x or more improvement).
      */
     private WriteOptions createWriteOptions() {
         return new WriteOptions()

@@ -168,37 +168,6 @@ public class MemoryLogUpdaterTests {
         AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
     }
 
-    /**
-     * Tests the clear() method on the MemoryLogUpdater (clear ReadIndex+MemoryLog; immediate calls to flush() will not
-     * trigger any future reads on ReadIndex).
-     */
-    @Test
-    public void testClear() throws Exception {
-        int segmentCount = 10;
-        int operationCountPerType = 5;
-
-        // Add to MTL + Add to ReadIndex (append; beginMerge).
-        MemoryOperationLog opLog = new MemoryOperationLog();
-        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
-        populate(updater, segmentCount, operationCountPerType);
-
-        methodInvocations.clear(); // We've already tested up to here.
-        updater.clear();
-        updater.flush();
-        Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.size());
-
-        Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 2, methodInvocations.size());
-        TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
-        Assert.assertEquals("No call to ReadIndex.clear() after call to clear().", TestReadIndex.CLEAR, mi.methodName);
-
-        mi = methodInvocations.get(1);
-        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
-        Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");
-        Assert.assertEquals("Call to ReadIndex.triggerFutureReads() with non-empty collection after call to clear() and flush().", 0, triggerSegmentIds.size());
-    }
-
     private ArrayList<Operation> populate(MemoryLogUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
         ArrayList<Operation> operations = new ArrayList<>();
         long offset = 0;
@@ -229,7 +198,6 @@ public class MemoryLogUpdaterTests {
         static final String COMPLETE_MERGE = "completeMerge";
         static final String READ = "read";
         static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
-        static final String CLEAR = "clear";
         static final String PERFORM_GARBAGE_COLLECTION = "performGarbageCollection";
         static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
         static final String EXIT_RECOVERY_MODE = "exitRecoveryMode";
@@ -281,7 +249,7 @@ public class MemoryLogUpdaterTests {
 
         @Override
         public void clear() {
-            invoke(new MethodInvocation(CLEAR));
+            throw new IllegalStateException("Not Implemented");
         }
 
         @Override

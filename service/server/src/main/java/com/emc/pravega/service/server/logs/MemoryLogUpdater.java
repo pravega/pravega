@@ -116,17 +116,6 @@ class MemoryLogUpdater {
         }
     }
 
-    /**
-     * Clears all in-memory structures of all data.
-     *
-     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system, such
-     *                               as metadata not being in Recovery mode.
-     */
-    void clear() {
-        this.cacheUpdater.clear();
-        this.inMemoryOperationLog.clear();
-    }
-
     private CacheKey addToCache(Operation operation) {
         if (operation instanceof StorageOperation) {
             return this.cacheUpdater.addToReadIndex((StorageOperation) operation);

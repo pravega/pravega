@@ -62,11 +62,6 @@ public interface Cache extends AutoCloseable {
     boolean remove(Key key);
 
     /**
-     * Clears all the contents of this cache and brings it back to the initial (empty) state.
-     */
-    void reset();
-
-    /**
      * Closes this cache and releases all resources owned by it.
      */
     @Override

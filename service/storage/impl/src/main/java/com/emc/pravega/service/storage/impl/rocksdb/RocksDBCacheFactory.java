@@ -19,6 +19,7 @@
 package com.emc.pravega.service.storage.impl.rocksdb;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.google.common.base.Preconditions;
@@ -49,9 +50,9 @@ public class RocksDBCacheFactory implements CacheFactory {
      */
     private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
     private final HashMap<String, RocksDBCache> caches;
-    private final Options options;
     private final RocksDBConfig config;
     private final AtomicBoolean closed;
+    private Options options;
 
     //endregion
 
@@ -65,31 +66,9 @@ public class RocksDBCacheFactory implements CacheFactory {
     public RocksDBCacheFactory(RocksDBConfig config) {
         Preconditions.checkNotNull(config, "config");
 
-        // Load the RocksDB C++ library. Doing this more than once has no effect, so it's safe to put in the constructor.
-        RocksDB.loadLibrary();
-
         this.config = config;
         this.caches = new HashMap<>();
         this.closed = new AtomicBoolean();
-        createDatabaseDir();
-        this.options = createOptions();
-        log.info("{}: Initialized.", LOG_ID);
-    }
-
-    private void createDatabaseDir() {
-        File file = new File(this.config.getDatabaseDir());
-        if (file.mkdirs()) {
-            log.info("{}: Created path '{}'.", this.config.getDatabaseDir());
-        }
-    }
-
-    private Options createOptions() {
-        return new Options()
-                .setCreateIfMissing(true)
-                .setDbLogDir(Paths.get(this.config.getDatabaseDir(), DB_LOG_DIR).toString())
-                .setWalDir(Paths.get(this.config.getDatabaseDir(), DB_WRITE_AHEAD_LOG_DIR).toString())
-                .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
     }
 
     //endregion
@@ -99,7 +78,10 @@ public class RocksDBCacheFactory implements CacheFactory {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            this.options.close();
+            if (this.options != null) {
+                this.options.close();
+            }
+
             this.closed.set(true);
 
             ArrayList<RocksDBCache> toClose;
@@ -114,15 +96,66 @@ public class RocksDBCacheFactory implements CacheFactory {
 
     //endregion
 
+    //region Initialization
+
+    /**
+     * Ensures all the file system is properly set up and loads the RocksDB library in memory.
+     *
+     * @param reset If true, the entire on-disk cache is cleared prior to initialization; otherwise it is reused.
+     */
+    public void initialize(boolean reset) {
+        if (reset) {
+            // Delete all existing databases.
+            clear();
+        }
+
+        // Create (or recreate the database dir).
+        createDatabaseDir();
+
+        // Load the RocksDB C++ library. Doing this more than once has no effect, so it's safe to put in the constructor.
+        RocksDB.loadLibrary();
+        this.options = createOptions();
+
+        log.info("{}: Initialized.", LOG_ID);
+    }
+
+    private void createDatabaseDir() {
+        File file = new File(this.config.getDatabaseDir());
+        if (file.mkdirs()) {
+            log.info("{}: Created path '{}'.", LOG_ID, this.config.getDatabaseDir());
+        }
+    }
+
+    private void clear() {
+        Preconditions.checkState(this.options == null, "Cannot clear all caches after initialization.");
+
+        // Delete all files for this database.
+        File dbDir = new File(config.getDatabaseDir());
+        if (FileHelpers.deleteFileOrDirectory(dbDir)) {
+            log.debug("{}: Deleted database dir '%s'.", dbDir.getAbsolutePath());
+        }
+    }
+
+    private Options createOptions() {
+        return new Options()
+                .setCreateIfMissing(true)
+                .setDbLogDir(Paths.get(this.config.getDatabaseDir(), DB_LOG_DIR).toString())
+                .setWalDir(Paths.get(this.config.getDatabaseDir(), DB_WRITE_AHEAD_LOG_DIR).toString())
+                .setWalTtlSeconds(0)
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+    }
+
+    //endregion
+
     //region CacheFactory Implementation
 
     @Override
     public Cache getCache(String id) {
-        RocksDBCache result;
         Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.options != null, "RocksDBCacheFactory not initialized.");
 
         synchronized (this.caches) {
-            result = this.caches.get(id);
+            RocksDBCache result = this.caches.get(id);
             if (result == null) {
                 result = new RocksDBCache(id, this.options, this.config);
                 result.setCloseCallback(idToRemove -> {
@@ -132,9 +165,9 @@ public class RocksDBCacheFactory implements CacheFactory {
                 });
                 this.caches.put(id, result);
             }
-        }
 
-        return result;
+            return result;
+        }
     }
 
     //endregion

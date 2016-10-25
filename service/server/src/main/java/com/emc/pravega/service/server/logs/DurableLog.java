@@ -302,9 +302,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         boolean successfulRecovery = false;
         boolean anyItemsRecovered;
         try {
-            // Reset the in-memory structures (Read Index, cache, etc.)
-            this.memoryLogUpdater.clear();
-
             this.durableDataLog.initialize(timer.getRemaining());
             anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
             log.info("{} Recovery completed. Items Recovered = {}.", this.traceObjectId, anyItemsRecovered);

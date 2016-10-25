@@ -42,27 +42,37 @@ public class Playground {
 
         @Cleanup
         RocksDBCacheFactory factory = new RocksDBCacheFactory(config);
+        factory.initialize(true);
         final String cacheId = "MockCache";
         Cache cache = factory.getCache(cacheId);
-        cache.reset();
 
         long maxSegmentId = 100;
         long maxOffsetId = 100;
-//        for (long segmentId = 0; segmentId < maxSegmentId; segmentId++) {
-//            for (long offset = 0; offset < maxOffsetId; offset++) {
-//                Cache.Key key = new CacheKey(segmentId, offset);
-//                byte[] data = String.format("SegmentId=%s,Offset=%s", segmentId, offset).getBytes();
-//                cache.insert(key, data);
-//            }
-//        }
 
+        //byte[] data = String.format("SegmentId=%s,Offset=%s", maxSegmentId, maxOffsetId).getBytes();
+        long writeStart = System.nanoTime();
         for (long segmentId = 0; segmentId < maxSegmentId; segmentId++) {
             for (long offset = 0; offset < maxOffsetId; offset++) {
                 Cache.Key key = new CacheKey(segmentId, offset);
-                byte[] data = cache.get(key);
-                String dataString = new String(data);
+                byte[] data = String.format("SegmentId=%s,Offset=%s", segmentId, offset).getBytes();
+                cache.insert(key, data);
+                System.out.println(String.format("SegmentId=%s,Offset=%s", segmentId, offset));
+            }
+        }
+
+        long writeElapsed = System.nanoTime() - writeStart;
+
+        long readStart = System.nanoTime();
+        for (long segmentId = 0; segmentId < maxSegmentId; segmentId++) {
+            for (long offset = 0; offset < maxOffsetId; offset++) {
+                Cache.Key key = new CacheKey(segmentId, offset);
+                byte[] readData = cache.get(key);
+                String dataString = readData == null ? "(null)" : new String(readData);
                 System.out.println(String.format("SegmentId=%s,Offset=%d - %s", segmentId, offset, dataString));
             }
         }
+
+        long readElapsed = System.nanoTime() - readStart;
+        System.out.println(String.format("Count = %s, Write = %sms, Read = %sms", maxSegmentId * maxOffsetId, writeElapsed / 1000 / 1000, readElapsed / 1000 / 1000));
     }
 }
