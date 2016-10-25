@@ -44,6 +44,10 @@ public class InMemoryCache implements Cache {
         this.map = new HashMap<>();
     }
 
+    /**
+     * Attaches a callback to be invoked when the Cache is closed.
+     * @param callback The callback to attach.
+     */
     void setCloseCallback(Consumer<String> callback) {
         this.closeCallback = callback;
     }
