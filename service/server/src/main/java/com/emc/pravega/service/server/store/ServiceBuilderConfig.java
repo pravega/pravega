@@ -52,6 +52,7 @@ public class ServiceBuilderConfig {
      * Gets a new instance of a ComponentConfig for this builder.
      *
      * @param constructor The constructor for the new instance.
+     * @param <T>         The type of the ComponentConfig to instantiate.
      */
     public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
         return constructor.apply(this.properties);

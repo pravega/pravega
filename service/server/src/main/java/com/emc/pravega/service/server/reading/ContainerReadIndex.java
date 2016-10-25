@@ -77,11 +77,12 @@ public class ContainerReadIndex implements ReadIndex {
     /**
      * Creates a new instance of the ContainerReadIndex class.
      *
-     * @param config   Configuration for the ReadIndex.
-     * @param metadata The ContainerMetadata to attach to.
-     * @param cache    The cache to store data into.
-     * @param storage  Storage to read data not in the ReadIndex from.
-     * @param executor An Executor to run async callbacks on.
+     * @param config       Configuration for the ReadIndex.
+     * @param metadata     The ContainerMetadata to attach to.
+     * @param cache        The cache to store data into.
+     * @param storage      Storage to read data not in the ReadIndex from.
+     * @param cacheManager The CacheManager to use for cache lifecycle management.
+     * @param executor     An Executor to run async callbacks on.
      */
     public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, Cache cache, ReadOnlyStorage storage, CacheManager cacheManager, Executor executor) {
         Preconditions.checkNotNull(config, "config");

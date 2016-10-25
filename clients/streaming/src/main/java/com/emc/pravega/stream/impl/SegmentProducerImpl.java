@@ -17,16 +17,16 @@
  */
 package com.emc.pravega.stream.impl;
 
+import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
+import com.google.common.base.Preconditions;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.emc.pravega.stream.Serializer;
-import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
-import com.emc.pravega.stream.impl.segment.SegmentSealedException;
-import com.google.common.base.Preconditions;
 
 /**
  * Sends events to the SegmentOutputStream and tracks the ones that are outstanding.
@@ -85,9 +85,6 @@ public class SegmentProducerImpl<Type> implements SegmentProducer<Type> {
         Preconditions.checkState(!closed.get(), "Already Closed");
     }
 
-    /**
-     * @return All unacked events in the order in which they were published.
-     */
     @Override
     public List<Event<Type>> getUnackedEvents() {
         return new ArrayList<>(outstanding);

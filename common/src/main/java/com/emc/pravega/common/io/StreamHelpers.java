@@ -36,7 +36,7 @@ public final class StreamHelpers {
      * @param startOffset The offset within the target array to start writing data to.
      * @param maxLength   The maximum number of bytes to copy.
      * @return The number of bytes copied.
-     * @throws IOException
+     * @throws IOException If unable to read from the given stream.
      */
     public static int readAll(InputStream stream, byte[] target, int startOffset, int maxLength) throws IOException {
         Preconditions.checkNotNull(stream, "stream");

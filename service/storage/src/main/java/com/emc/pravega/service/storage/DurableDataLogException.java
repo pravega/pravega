@@ -23,12 +23,14 @@ package com.emc.pravega.service.storage;
  */
 public class DurableDataLogException extends Exception {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the DurableDataLogException class.
+     *
+     * @param message The message to set.
      */
     public DurableDataLogException(String message) {
         super(message);
@@ -36,6 +38,9 @@ public class DurableDataLogException extends Exception {
 
     /**
      * Creates a new instance of the DurableDataLogException class.
+     *
+     * @param message The message to set.
+     * @param cause   The triggering cause of this exception.
      */
     public DurableDataLogException(String message, Throwable cause) {
         super(message, cause);

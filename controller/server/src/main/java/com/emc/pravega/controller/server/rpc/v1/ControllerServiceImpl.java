@@ -17,17 +17,6 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.thrift.TException;
-
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
@@ -48,9 +37,19 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.thrift.TException;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
- * Stream controller RPC server implementation
+ * Stream controller RPC server implementation.
  */
 public class ControllerServiceImpl implements ControllerService.Iface {
 

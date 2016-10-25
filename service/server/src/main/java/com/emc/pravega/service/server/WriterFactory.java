@@ -29,7 +29,8 @@ public interface WriterFactory {
      *
      * @param containerMetadata Metadata for the container that this Writer will be for.
      * @param operationLog      The OperationLog to attach to.
-     * @param cache             The cache to use.
+     * @param readIndex         The ReadIndex to attach to (to provide feedback for mergers).
+     * @param cache             The cache to use (to fetch cached append data).
      * @return An instance of a class that implements the Writer interface.
      */
     Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache);

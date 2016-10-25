@@ -85,6 +85,11 @@ public final class ServiceBuilder implements AutoCloseable {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the ServiceBuilder class.
+     *
+     * @param serviceBuilderConfig The ServiceBuilderConfig to use.
+     */
     public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
         Preconditions.checkNotNull(serviceBuilderConfig, "config");
         this.serviceBuilderConfig = serviceBuilderConfig;
@@ -208,6 +213,8 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Initializes the ServiceBuilder.
+     *
+     * @param timeout Timeout for the operation.
      */
     public CompletableFuture<Void> initialize(Duration timeout) {
         return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
@@ -333,6 +340,7 @@ public final class ServiceBuilder implements AutoCloseable {
          * Gets the ComponentConfig with specified constructor from the ServiceBuilder's config.
          *
          * @param constructor The ComponentConfig constructor.
+         * @param <T>         The type of the ComponentConfig to instantiate.
          */
         public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
             return this.builder.serviceBuilderConfig.getConfig(constructor);
