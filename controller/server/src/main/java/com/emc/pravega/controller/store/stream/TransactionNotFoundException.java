@@ -22,9 +22,7 @@ package com.emc.pravega.controller.store.stream;
  * Exception thrown when a stream with a given name is not found in the metadata
  */
 public class TransactionNotFoundException extends RuntimeException {
-    /**
-     *
-     */
+
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Transaction %s not found.";
 
@@ -32,7 +30,7 @@ public class TransactionNotFoundException extends RuntimeException {
      * Creates a new instance of StreamNotFoundException class
      * @param name missing stream name
      */
-    public TransactionNotFoundException(String name) {
+    public TransactionNotFoundException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
@@ -41,7 +39,7 @@ public class TransactionNotFoundException extends RuntimeException {
      * @param name  missing stream name
      * @param cause error cause
      */
-    public TransactionNotFoundException(String name, Throwable cause) {
+    public TransactionNotFoundException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

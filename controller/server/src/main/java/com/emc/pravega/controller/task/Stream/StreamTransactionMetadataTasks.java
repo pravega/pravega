@@ -57,10 +57,10 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
 
-    public StreamTransactionMetadataTasks(StreamMetadataStore streamMetadataStore,
-                                          HostControllerStore hostControllerStore,
-                                          TaskMetadataStore taskMetadataStore,
-                                          String hostId) {
+    public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                                          final HostControllerStore hostControllerStore,
+                                          final TaskMetadataStore taskMetadataStore,
+                                          final String hostId) {
         super(taskMetadataStore, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
@@ -102,7 +102,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @return transaction id.
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UUID> createTx(String scope, String stream) {
+    public CompletableFuture<UUID> createTx(final String scope, final String stream) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream},
@@ -118,7 +118,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @return true/false.
      */
     @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxStatus> dropTx(String scope, String stream, UUID txId) {
+    public CompletableFuture<TxStatus> dropTx(final String scope, final String stream, final UUID txId) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
@@ -134,14 +134,14 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      * @return true/false.
      */
     @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
-    public CompletableFuture<TxStatus> commitTx(String scope, String stream, UUID txId) {
+    public CompletableFuture<TxStatus> commitTx(final String scope, final String stream, final UUID txId) {
         return execute(
                 new Resource(scope, stream, txId.toString()),
                 new Serializable[]{scope, stream, txId},
                 () -> commitTxBody(scope, stream, txId));
     }
 
-    private CompletableFuture<UUID> createTxBody(String scope, String stream) {
+    private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenApply(txId -> {
                     notifyTxCreationAsync(scope, stream, txId);
@@ -149,7 +149,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 });
     }
 
-    private CompletableFuture<TxStatus> dropTxBody(String scope, String stream, UUID txid) {
+    private CompletableFuture<TxStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
         // notify hosts to drop transaction
         return streamMetadataStore.getActiveSegments(stream)
                 .thenCompose(segments ->
@@ -161,7 +161,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid));
     }
 
-    private CompletableFuture<TxStatus> commitTxBody(String scope, String stream, UUID txid) {
+    private CompletableFuture<TxStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid)
                 .thenCompose(x -> streamMetadataStore.getActiveSegments(stream)
                         .thenCompose(segments -> {
@@ -174,7 +174,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
     }
 
-    private void notifyTxCreationAsync(String scope, String stream, UUID txid) {
+    private void notifyTxCreationAsync(final String scope, final String stream, final UUID txid) {
         streamMetadataStore.getActiveSegments(stream)
                 .thenApply(activeSegments -> {
                     activeSegments
@@ -196,7 +196,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 });
     }
 
-    private CompletableFuture<Void> notifyDropToHost(String scope, String stream, int segmentNumber, UUID txId) {
+    private CompletableFuture<Void> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
             SegmentHelper.dropTransaction(scope,
                     stream,
@@ -208,7 +208,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         });
     }
 
-    private CompletableFuture<Void> notifyCommitToHost(String scope, String stream, int segmentNumber, UUID txId) {
+    private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
             SegmentHelper.commitTransaction(scope,
                     stream,

@@ -22,9 +22,7 @@ package com.emc.pravega.controller.store.stream;
  * Exception thrown when you are attempting to update a stale value
  */
 public class WriteConflictException extends RuntimeException {
-    /**
-     *
-     */
+
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "concurrency error for path %s.";
 
@@ -32,7 +30,7 @@ public class WriteConflictException extends RuntimeException {
      * Creates a new instance of WriteConflictException class
      * @param value
      */
-    public WriteConflictException(String value) {
+    public WriteConflictException(final String value) {
         super(String.format(FORMAT_STRING, value));
     }
 }

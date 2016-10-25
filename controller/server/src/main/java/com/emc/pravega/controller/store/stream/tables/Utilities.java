@@ -24,32 +24,32 @@ import java.nio.ByteBuffer;
  */
 public class Utilities {
 
-    public static int toInt(byte[] b) {
+    public static int toInt(final byte[] b) {
         return ByteBuffer.wrap(b).getInt();
     }
 
-    public static long toLong(byte[] b) {
+    public static long toLong(final byte[] b) {
         return ByteBuffer.wrap(b).getLong();
     }
 
-    public static double toDouble(byte[] b) {
+    public static double toDouble(final byte[] b) {
         return ByteBuffer.wrap(b).getDouble();
     }
 
-    public static byte[] toByteArray(double value) {
-        byte[] bytes = new byte[Double.SIZE / 8];
+    public static byte[] toByteArray(final double value) {
+        final byte[] bytes = new byte[Double.SIZE / 8];
         ByteBuffer.wrap(bytes).putDouble(value);
         return bytes;
     }
 
-    public static byte[] toByteArray(int value) {
-        byte[] bytes = new byte[Integer.SIZE / 8];
+    public static byte[] toByteArray(final int value) {
+        final byte[] bytes = new byte[Integer.SIZE / 8];
         ByteBuffer.wrap(bytes).putInt(value);
         return bytes;
     }
 
-    public static byte[] toByteArray(long value) {
-        byte[] bytes = new byte[Long.SIZE / 8];
+    public static byte[] toByteArray(final long value) {
+        final byte[] bytes = new byte[Long.SIZE / 8];
         ByteBuffer.wrap(bytes).putLong(value);
         return bytes;
     }

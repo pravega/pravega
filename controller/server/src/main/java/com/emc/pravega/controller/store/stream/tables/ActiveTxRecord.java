@@ -29,16 +29,16 @@ public class ActiveTxRecord {
     private final long txCreationTimestamp;
     private final TxStatus txStatus;
 
-    public static ActiveTxRecord parse(byte[] bytes) {
-        long txCreationTimestamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
+    public static ActiveTxRecord parse(final byte[] bytes) {
+        final long txCreationTimestamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
 
-        TxStatus status = TxStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
+        final TxStatus status = TxStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
 
         return new ActiveTxRecord(txCreationTimestamp, status);
     }
 
     public byte[] toByteArray() {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
             outputStream.write(Utilities.toByteArray(txCreationTimestamp));

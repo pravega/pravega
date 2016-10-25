@@ -207,6 +207,11 @@ class InMemoryStream implements Stream {
         throw new NotImplementedException();
     }
 
+    @Override
+    public void refresh() {
+
+    }
+
     public String toString() {
         return String.format("Current Segments:%s\nSegments:%s\n", currentSegments.toString(), segments.toString());
     }

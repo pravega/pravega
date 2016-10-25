@@ -32,7 +32,7 @@ public class OperationOnTxNotAllowedException extends RuntimeException {
      * Creates a new instance of OperationOnTxNotAllowedException class
      * @param txid
      */
-    public OperationOnTxNotAllowedException(String txid, String op) {
+    public OperationOnTxNotAllowedException(final String txid, final String op) {
         super(String.format(FORMAT_STRING, op, txid));
     }
 }

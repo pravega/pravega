@@ -32,7 +32,7 @@ public class SegmentNotFoundException extends RuntimeException {
      * Creates a new instance of SegmentNotFoundException class
      * @param segmentNumber missing Segment name
      */
-    public SegmentNotFoundException(int segmentNumber) {
+    public SegmentNotFoundException(final int segmentNumber) {
         super(String.format(FORMAT_STRING, segmentNumber));
     }
 
@@ -41,7 +41,7 @@ public class SegmentNotFoundException extends RuntimeException {
      * @param segmentNumber  missing Segment name
      * @param cause error cause
      */
-    public SegmentNotFoundException(int segmentNumber, Throwable cause) {
+    public SegmentNotFoundException(final int segmentNumber, final Throwable cause) {
         super(String.format(FORMAT_STRING, segmentNumber), cause);
     }
 }

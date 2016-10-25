@@ -72,7 +72,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    ZKStream getStream(String name) {
+    ZKStream newStream(final String name) {
         return new ZKStream(name);
     }
 

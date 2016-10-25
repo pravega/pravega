@@ -42,18 +42,18 @@ public class HistoryRecord {
     private final List<Integer> segments;
     private final int startOfRowPointer;
 
-    public HistoryRecord(long eventTime, List<Integer> segments, int offset) {
+    public HistoryRecord(final long eventTime, final List<Integer> segments, final int offset) {
         this.eventTime = eventTime;
         this.segments = segments;
         this.startOfRowPointer = offset;
         endOfRowPointer = offset + (Integer.SIZE + Long.SIZE + segments.size() * Integer.SIZE + Integer.SIZE) / 8 - 1;
     }
 
-    public static Optional<HistoryRecord> readRecord(byte[] historyTable, int offset) {
+    public static Optional<HistoryRecord> readRecord(final byte[] historyTable, final int offset) {
         if (offset >= historyTable.length)
             return Optional.empty();
 
-        int rowEndOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
+        final int rowEndOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
                 offset,
                 offset + (Integer.SIZE / 8)));
 
@@ -62,18 +62,18 @@ public class HistoryRecord {
                 rowEndOffset + 1)));
     }
 
-    public static Optional<HistoryRecord> readLatestRecord(byte[] historyTable) {
+    public static Optional<HistoryRecord> readLatestRecord(final byte[] historyTable) {
         if (historyTable.length == 0)
             return Optional.empty();
 
-        int lastRowStartOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
+        final int lastRowStartOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
                 historyTable.length - (Integer.SIZE / 8),
                 historyTable.length));
 
         return readRecord(historyTable, lastRowStartOffset);
     }
 
-    public static Optional<HistoryRecord> fetchNext(HistoryRecord record, byte[] historyTable) {
+    public static Optional<HistoryRecord> fetchNext(final HistoryRecord record, final byte[] historyTable) {
         assert historyTable.length >= record.getEndOfRowPointer();
 
         if (historyTable.length == record.getEndOfRowPointer())
@@ -83,12 +83,12 @@ public class HistoryRecord {
         }
     }
 
-    public static Optional<HistoryRecord> fetchPrevious(HistoryRecord record,
-                                                        byte[] historyTable) {
+    public static Optional<HistoryRecord> fetchPrevious(final HistoryRecord record,
+                                                        final byte[] historyTable) {
         if (record.getStartOfRowPointer() == 0)
             return Optional.empty();
         else {
-            int rowStartOffset = Utilities.toInt(
+            final int rowStartOffset = Utilities.toInt(
                     org.apache.commons.lang3.ArrayUtils.subarray(historyTable,
                             record.getStartOfRowPointer() - (Integer.SIZE / 8),
                             record.getStartOfRowPointer()));
@@ -97,21 +97,21 @@ public class HistoryRecord {
         }
     }
 
-    private static HistoryRecord parse(byte[] b) {
-        int endOfRowPtr = Utilities.toInt(ArrayUtils.subarray(b, 0, Integer.SIZE / 8));
-        long eventTime = Utilities.toLong(ArrayUtils.subarray(b, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8));
+    private static HistoryRecord parse(final byte[] b) {
+        final int endOfRowPtr = Utilities.toInt(ArrayUtils.subarray(b, 0, Integer.SIZE / 8));
+        final long eventTime = Utilities.toLong(ArrayUtils.subarray(b, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8));
 
-        List<Integer> segments = extractSegments(ArrayUtils.subarray(b,
+        final List<Integer> segments = extractSegments(ArrayUtils.subarray(b,
                 (Integer.SIZE + Long.SIZE) / 8,
                 b.length - (Integer.SIZE / 8)));
 
-        int startOfRowPtr = Utilities.toInt(ArrayUtils.subarray(b, b.length - (Integer.SIZE / 8), b.length));
+        final int startOfRowPtr = Utilities.toInt(ArrayUtils.subarray(b, b.length - (Integer.SIZE / 8), b.length));
 
         return new HistoryRecord(endOfRowPtr, eventTime, segments, startOfRowPtr);
     }
 
-    private static List<Integer> extractSegments(byte[] b) {
-        List<Integer> result = new ArrayList<>();
+    private static List<Integer> extractSegments(final byte[] b) {
+        final List<Integer> result = new ArrayList<>();
         for (int i = 0; i < b.length; i = i + (Integer.SIZE / 8)) {
             result.add(Utilities.toInt(ArrayUtils.subarray(b, i, i + (Integer.SIZE / 8))));
         }
@@ -119,7 +119,7 @@ public class HistoryRecord {
     }
 
     public byte[] toByteArray() {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
             outputStream.write(Utilities.toByteArray(endOfRowPointer));

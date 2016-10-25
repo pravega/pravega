@@ -30,7 +30,7 @@ public class Cache<T> {
 
     @FunctionalInterface
     public interface Loader<U> {
-        CompletableFuture<Data<U>> get(String path);
+        CompletableFuture<Data<U>> get(final String key) throws DataNotFoundException;
     }
 
     private final LoadingCache<String, CompletableFuture<Data<T>>> cache;
@@ -43,9 +43,9 @@ public class Cache<T> {
                 .build(
                         new CacheLoader<String, CompletableFuture<Data<T>>>() {
                             @ParametersAreNonnullByDefault
-                            public CompletableFuture<Data<T>> load(String path) {
+                            public CompletableFuture<Data<T>> load(final String key) {
                                 try {
-                                    return loader.get(path);
+                                    return loader.get(key);
                                 } catch (DataNotFoundException d) {
                                     throw d;
                                 } catch (Exception e) {
@@ -55,13 +55,23 @@ public class Cache<T> {
                         });
     }
 
-    public CompletableFuture<Data<T>> getCachedData(String key) {
+    public CompletableFuture<Data<T>> getCachedData(final String key) {
         return cache.getUnchecked(key);
     }
 
-    public Void invalidateCache(String key) {
+    public Void invalidateCache(final String key) {
         cache.invalidate(key);
         return null;
     }
 
+    public Void invalidateAll() {
+        cache.invalidateAll();
+        return null;
+    }
+
+
+    public Void invalidateAll(final Iterable<String> keys) {
+        cache.invalidateAll(keys);
+        return null;
+    }
 }

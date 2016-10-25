@@ -44,7 +44,7 @@ public class InMemorySegment extends Segment {
     private final List<Integer> successors;
     private final List<Integer> predecessors;
 
-    InMemorySegment(int number, long start, long end, double keyStart, double keyEnd) {
+    InMemorySegment(final int number, final long start, final long end, final double keyStart, final double keyEnd) {
         super(number, start, keyStart, keyEnd);
         this.end = end;
         this.status = Status.Active;
@@ -52,7 +52,14 @@ public class InMemorySegment extends Segment {
         predecessors = new ArrayList<>();
     }
 
-    InMemorySegment(int number, long start, long end, double keyStart, double keyEnd, Status status, List<Integer> successors, List<Integer> predecessors) {
+    InMemorySegment(final int number,
+                    final long start,
+                    final long end,
+                    final double keyStart,
+                    final double keyEnd,
+                    final Status status,
+                    final List<Integer> successors,
+                    final List<Integer> predecessors) {
         super(number, start, keyStart, keyEnd);
         Preconditions.checkNotNull(successors);
         Preconditions.checkNotNull(predecessors);

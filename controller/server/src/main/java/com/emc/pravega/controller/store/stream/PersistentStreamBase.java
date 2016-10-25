@@ -172,8 +172,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return CompletableFuture.allOf(futures).thenCompose(x -> {
             try {
                 final Segment segment = (Segment) futures[0].get();
-                final Data<T> indexTable = (Data) futures[1].get();
-                final Data<T> historyTable = (Data) futures[2].get();
+                final Data<T> indexTable = (Data<T>) futures[1].get();
+                final Data<T> historyTable = (Data<T>) futures[2].get();
                 return FutureCollectionHelper.sequence(
                         TableHelper.findSegmentPredecessorCandidates(segment,
                                 indexTable.getData(),
@@ -204,7 +204,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of active segment numbers at given time stamp
      */
     @Override
-    public CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {
+    public CompletableFuture<List<Integer>> getActiveSegments(final long timestamp) {
         final CompletableFuture<Data<T>> indexFuture = getIndexTable();
 
         final CompletableFuture<Data<T>> historyFuture = getHistoryTable();
@@ -258,14 +258,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<UUID> createTransaction() {
-        UUID txId = UUID.randomUUID();
+        final UUID txId = UUID.randomUUID();
         return createNewTransaction(txId, System.currentTimeMillis()).thenApply(x -> txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> checkTransactionStatus(UUID txId) {
+    public CompletableFuture<TxStatus> checkTransactionStatus(final UUID txId) {
 
-        CompletableFuture<TxStatus> activeTx = getActiveTx(txId)
+        final CompletableFuture<TxStatus> activeTx = getActiveTx(txId)
                 .handle((ok, ex) -> {
                     if (ok == null ||
                             (ex != null && ex instanceof DataNotFoundException)) {
@@ -295,7 +295,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> sealTransaction(UUID txId) {
+    public CompletableFuture<TxStatus> sealTransaction(final UUID txId) {
         return checkTransactionStatus(txId)
                 .thenCompose(x -> {
                     switch (x) {
@@ -313,7 +313,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> commitTransaction(UUID txId) {
+    public CompletableFuture<TxStatus> commitTransaction(final UUID txId) {
 
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
@@ -340,7 +340,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<TxStatus> dropTransaction(UUID txId) {
+    public CompletableFuture<TxStatus> dropTransaction(final UUID txId) {
         return checkTransactionStatus(txId)
                 .thenApply(x -> {
                     switch (x) {
@@ -464,10 +464,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    private List<Integer> getNewActiveSegments(List<Integer> sealedSegments,
-                                               Scale scale,
-                                               int startingSegmentNumber,
-                                               HistoryRecord lastRecord) {
+    private List<Integer> getNewActiveSegments(final List<Integer> sealedSegments,
+                                               final Scale scale,
+                                               final int startingSegmentNumber,
+                                               final HistoryRecord lastRecord) {
         final List<Integer> segments = lastRecord.getSegments();
         segments.removeAll(sealedSegments);
         segments.addAll(
@@ -503,53 +503,53 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
 
-    abstract CompletableFuture<Void> checkStreamExists(Create create) throws StreamAlreadyExistsException;
+    abstract CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException;
 
-    abstract CompletableFuture<Void> storeCreationTime(Create create);
+    abstract CompletableFuture<Void> storeCreationTime(final Create create);
 
-    abstract CompletableFuture<Void> createConfiguration(Create create);
+    abstract CompletableFuture<Void> createConfiguration(final Create create);
 
-    abstract CompletableFuture<Void> setConfigurationData(StreamConfiguration configuration);
+    abstract CompletableFuture<Void> setConfigurationData(final StreamConfiguration configuration);
 
     abstract CompletableFuture<StreamConfiguration> getConfigurationData();
 
-    abstract CompletableFuture<Void> createSegmentTable(Create create);
+    abstract CompletableFuture<Void> createSegmentTable(final Create create);
 
-    abstract CompletableFuture<Void> createSegmentChunk(int chunkNumber, Data<T> data);
+    abstract CompletableFuture<Void> createSegmentChunk(final int chunkNumber, final Data<T> data);
 
     abstract CompletableFuture<List<String>> getSegmentChunks();
 
-    abstract CompletableFuture<Segment> getSegmentRow(int number);
+    abstract CompletableFuture<Segment> getSegmentRow(final int number);
 
-    abstract CompletableFuture<Data<T>> getSegmentTableChunk(int chunkNumber);
+    abstract CompletableFuture<Data<T>> getSegmentTableChunk(final int chunkNumber);
 
-    abstract CompletableFuture<Void> setSegmentTableChunk(int chunkNumber, Data<T> data);
+    abstract CompletableFuture<Void> setSegmentTableChunk(final int chunkNumber, final Data<T> data);
 
-    abstract CompletableFuture<Void> createIndexTable(Create create);
+    abstract CompletableFuture<Void> createIndexTable(final Create create);
 
     abstract CompletableFuture<Data<T>> getIndexTable();
 
-    abstract CompletableFuture<Void> updateIndexTable(Data<T> updated);
+    abstract CompletableFuture<Void> updateIndexTable(final Data<T> updated);
 
-    abstract CompletableFuture<Void> createHistoryTable(Create create);
+    abstract CompletableFuture<Void> createHistoryTable(final Create create);
 
-    abstract CompletableFuture<Void> updateHistoryTable(Data<T> updated);
+    abstract CompletableFuture<Void> updateHistoryTable(final Data<T> updated);
 
     abstract CompletableFuture<Data<T>> getHistoryTable();
 
-    abstract CompletableFuture<Void> createSegmentFile(Create create);
+    abstract CompletableFuture<Void> createSegmentFile(final Create create);
 
-    abstract CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp);
+    abstract CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp);
 
-    abstract CompletableFuture<Data<T>> getActiveTx(UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Data<T>> getActiveTx(final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> sealActiveTx(UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Void> sealActiveTx(final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Data<T>> getCompletedTx(UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Data<T>> getCompletedTx(final UUID txId) throws DataNotFoundException;
 
-    abstract CompletableFuture<Void> removeActiveTxEntry(UUID txId);
+    abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
-    abstract CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxStatus complete, long timestamp);
+    abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long timestamp);
 
-    abstract Data<T> createDataObj(byte[] data, T version);
+    abstract Data<T> createDataObj(final byte[] data, final T version);
 }

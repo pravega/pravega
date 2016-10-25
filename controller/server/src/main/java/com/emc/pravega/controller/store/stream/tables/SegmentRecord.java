@@ -40,14 +40,14 @@ public class SegmentRecord {
     private final double routingKeyStart;
     private final double routingKeyEnd;
 
-    public static Optional<SegmentRecord> readRecord(byte[] segmentTable, int number) {
+    public static Optional<SegmentRecord> readRecord(final byte[] segmentTable, final int number) {
         int offset = (number % SegmentRecord.SEGMENT_CHUNK_SIZE) * SegmentRecord.SEGMENT_RECORD_SIZE;
 
         if (offset >= segmentTable.length) return Optional.empty();
         return Optional.of(parse(ArrayUtils.subarray(segmentTable, offset, offset + SEGMENT_RECORD_SIZE)));
     }
 
-    private static SegmentRecord parse(byte[] bytes) {
+    private static SegmentRecord parse(final byte[] bytes) {
         assert bytes.length == SEGMENT_RECORD_SIZE;
 
         return new SegmentRecord(Utilities.toInt(ArrayUtils.subarray(bytes, 0, Integer.SIZE / 8)),
@@ -57,7 +57,7 @@ public class SegmentRecord {
     }
 
     public byte[] toByteArray() {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
             outputStream.write(Utilities.toByteArray(segmentNumber));

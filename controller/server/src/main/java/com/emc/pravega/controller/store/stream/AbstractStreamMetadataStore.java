@@ -20,8 +20,12 @@ package com.emc.pravega.controller.store.stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.TxStatus;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,11 +36,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.filter;
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
-
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -44,30 +48,53 @@ import static com.emc.pravega.common.concurrent.FutureCollectionHelper.sequence;
  */
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
-    abstract Stream getStream(String name);
+    private final LoadingCache<String, Stream> cache;
+
+    protected AbstractStreamMetadataStore() {
+        cache = CacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .refreshAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .build(
+                        new CacheLoader<String, Stream>() {
+                            @ParametersAreNonnullByDefault
+                            public Stream load(String name) {
+                                try {
+                                    return newStream(name);
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        });
+    }
+
+    abstract Stream newStream(final String name);
 
     @Override
-    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long createTimestamp) {
+    public CompletableFuture<Boolean> createStream(final String name,
+                                                   final StreamConfiguration configuration,
+                                                   final long createTimestamp) {
         return getStream(name).create(configuration, createTimestamp);
     }
 
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(String name, StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> updateConfiguration(final String name,
+                                                          final StreamConfiguration configuration) {
         return getStream(name).updateConfiguration(configuration);
     }
 
     @Override
-    public CompletableFuture<StreamConfiguration> getConfiguration(String name) {
+    public CompletableFuture<StreamConfiguration> getConfiguration(final String name) {
         return getStream(name).getConfiguration();
     }
 
     @Override
-    public CompletableFuture<Segment> getSegment(String name, int number) {
+    public CompletableFuture<Segment> getSegment(final String name, final int number) {
         return getStream(name).getSegment(number);
     }
 
     @Override
-    public CompletableFuture<List<Segment>> getActiveSegments(String name) {
+    public CompletableFuture<List<Segment>> getActiveSegments(final String name) {
         Stream stream = getStream(name);
         return stream
                 .getActiveSegments()
@@ -75,14 +102,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<SegmentFutures> getActiveSegments(String name, long timestamp) {
+    public CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp) {
         Stream stream = getStream(name);
         CompletableFuture<List<Integer>> futureActiveSegments = stream.getActiveSegments(timestamp);
         return futureActiveSegments.thenCompose(activeSegments -> constructSegmentFutures(stream, activeSegments));
     }
 
     @Override
-    public CompletableFuture<List<SegmentFutures>> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> positions) {
+    public CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
+                                                                   final Set<Integer> completedSegments,
+                                                                   final List<SegmentFutures> positions) {
         Preconditions.checkNotNull(positions);
         Preconditions.checkArgument(positions.size() > 0);
 
@@ -108,36 +137,45 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Segment>> scale(String name, List<Integer> sealedSegments, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public CompletableFuture<List<Segment>> scale(final String name,
+                                                  final List<Integer> sealedSegments,
+                                                  final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                  final long scaleTimestamp) {
         return getStream(name).scale(sealedSegments, newRanges, scaleTimestamp);
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(String scope, String stream) {
+    public CompletableFuture<UUID> createTransaction(final String scope, final String stream) {
         return getStream(stream).createTransaction();
     }
 
     @Override
-    public CompletableFuture<TxStatus> transactionStatus(String scope, String stream, UUID txId) {
+    public CompletableFuture<TxStatus> transactionStatus(final String scope, final String stream, final UUID txId) {
         return getStream(stream).checkTransactionStatus(txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> commitTransaction(String scope, String stream, UUID txId) {
+    public CompletableFuture<TxStatus> commitTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).commitTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> sealTransaction(String scope, String stream, UUID txId) {
+    public CompletableFuture<TxStatus> sealTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).sealTransaction(txId);
     }
 
     @Override
-    public CompletableFuture<TxStatus> dropTransaction(String scope, String stream, UUID txId) {
+    public CompletableFuture<TxStatus> dropTransaction(final String scope, final String stream, final UUID txId) {
         return getStream(stream).dropTransaction(txId);
     }
 
-    private CompletableFuture<SegmentFutures> constructSegmentFutures(Stream stream, List<Integer> activeSegments) {
+    private Stream getStream(final String name) {
+        Stream stream = cache.getUnchecked(name);
+        stream.refresh();
+        return stream;
+    }
+
+    private CompletableFuture<SegmentFutures> constructSegmentFutures(final Stream stream, final List<Integer> activeSegments) {
         Map<Integer, Integer> futureSegments = new HashMap<>();
         List<CompletableFuture<List<Integer>>> list =
                 activeSegments.stream().map(number -> getDefaultFutures(stream, number)).collect(Collectors.toList());
@@ -167,13 +205,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * .filter(x -> stream.getPredecessors(x).size() == 1)
      * .*                collect(Collectors.toList());
      */
-    private CompletableFuture<List<Integer>> getDefaultFutures(Stream stream, int number) {
+    private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);
         return futureSuccessors.thenCompose(
                 list -> filter(list, elem -> stream.getPredecessors(elem).thenApply(x -> x.size() == 1)));
     }
 
-    private CompletableFuture<Set<Integer>> getImplicitCompletedSegments(Stream stream, Set<Integer> completedSegments, Set<Integer> current) {
+    private CompletableFuture<Set<Integer>> getImplicitCompletedSegments(final Stream stream,
+                                                                         final Set<Integer> completedSegments,
+                                                                         final Set<Integer> current) {
         List<CompletableFuture<Set<Integer>>> futures =
                 current
                         .stream()
@@ -194,7 +234,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 //        ).thenApply(set -> Sets.union(set, completedSegments));
     }
 
-    private CompletableFuture<Set<Integer>> getSuccessors(Stream stream, Set<Integer> completedSegments) {
+    private CompletableFuture<Set<Integer>> getSuccessors(final Stream stream, final Set<Integer> completedSegments) {
         // successors of completed segments are interesting, which means
         // some of them may become current, and
         // some of them may become future
@@ -218,7 +258,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 //        );
     }
 
-    private CompletableFuture<List<Integer>> getNewCurrents(Stream stream, Set<Integer> successors, Set<Integer> completedSegments, List<SegmentFutures> positions) {
+    private CompletableFuture<List<Integer>> getNewCurrents(final Stream stream,
+                                                            final Set<Integer> successors,
+                                                            final Set<Integer> completedSegments,
+                                                            final List<SegmentFutures> positions) {
         // a successor that has
         // 1. it is not completed yet, and
         // 2. it is not current in any of the positions, and
@@ -238,7 +281,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         );
     }
 
-    private CompletableFuture<Map<Integer, List<Integer>>> getNewFutures(Stream stream, Set<Integer> successors, Set<Integer> completedSegments) {
+    private CompletableFuture<Map<Integer, List<Integer>>> getNewFutures(final Stream stream,
+                                                                         final Set<Integer> successors,
+                                                                         final Set<Integer> completedSegments) {
         List<Integer> subset = successors.stream().filter(x -> !completedSegments.contains(x)).collect(Collectors.toList());
 
         List<CompletableFuture<List<Integer>>> predecessors = new ArrayList<>();
@@ -276,7 +321,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @param positions   positions to be updated
      * @return the updated sequence of positions
      */
-    private CompletableFuture<List<SegmentFutures>> divideSegments(Stream stream, List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
+    private CompletableFuture<List<SegmentFutures>> divideSegments(final Stream stream,
+                                                                   final List<Integer> newCurrents,
+                                                                   final Map<Integer, List<Integer>> newFutures,
+                                                                   final List<SegmentFutures> positions) {
         List<CompletableFuture<SegmentFutures>> newPositions = new ArrayList<>(positions.size());
 
         int quotient = newCurrents.size() / positions.size();

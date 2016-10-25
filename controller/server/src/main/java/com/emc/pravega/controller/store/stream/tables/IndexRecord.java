@@ -38,20 +38,20 @@ public class IndexRecord {
     private final long eventTime;
     private final int historyOffset;
 
-    public static Optional<IndexRecord> readRecord(byte[] indexTable, int offset) {
+    public static Optional<IndexRecord> readRecord(final byte[] indexTable, final int offset) {
         if (offset >= indexTable.length)
             return Optional.empty();
         else
             return Optional.of(parse(ArrayUtils.subarray(indexTable, offset, offset + INDEX_RECORD_SIZE)));
     }
 
-    public static Optional<IndexRecord> readLatestRecord(byte[] indexTable) {
-        int lastIndexedRecordOffset = Integer.max(indexTable.length - IndexRecord.INDEX_RECORD_SIZE, 0);
+    public static Optional<IndexRecord> readLatestRecord(final byte[] indexTable) {
+        final int lastIndexedRecordOffset = Integer.max(indexTable.length - IndexRecord.INDEX_RECORD_SIZE, 0);
 
         return readRecord(indexTable, lastIndexedRecordOffset);
     }
 
-    public static Optional<IndexRecord> fetchPrevious(byte[] indexTable, int offset) {
+    public static Optional<IndexRecord> fetchPrevious(final byte[] indexTable, final int offset) {
         if (offset == 0) {
             return Optional.<IndexRecord>empty();
         } else {
@@ -59,7 +59,7 @@ public class IndexRecord {
         }
     }
 
-    public static Optional<IndexRecord> fetchNext(byte[] indexTable, int offset) {
+    public static Optional<IndexRecord> fetchNext(final byte[] indexTable, final int offset) {
         if (offset + IndexRecord.INDEX_RECORD_SIZE == indexTable.length) {
             return Optional.<IndexRecord>empty();
         } else {
@@ -67,30 +67,30 @@ public class IndexRecord {
         }
     }
 
-    public static Pair<Integer, Optional<IndexRecord>> search(long timestamp, byte[] indexTable) {
-        int lower = 0;
-        int upper = (indexTable.length - IndexRecord.INDEX_RECORD_SIZE) / IndexRecord.INDEX_RECORD_SIZE;
+    public static Pair<Integer, Optional<IndexRecord>> search(final long timestamp, final byte[] indexTable) {
+        final int lower = 0;
+        final int upper = (indexTable.length - IndexRecord.INDEX_RECORD_SIZE) / IndexRecord.INDEX_RECORD_SIZE;
         return binarySearchIndex(lower, upper, timestamp, indexTable);
     }
 
-    private static IndexRecord parse(byte[] bytes) {
-        long eventTime = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
-        int offset = Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length));
+    private static IndexRecord parse(final byte[] bytes) {
+        final long eventTime = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
+        final int offset = Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length));
         return new IndexRecord(eventTime, offset);
     }
 
-    private static Pair<Integer, Optional<IndexRecord>> binarySearchIndex(int lower,
-                                                                          int upper,
-                                                                          long timestamp,
-                                                                          byte[] indexTable) {
+    private static Pair<Integer, Optional<IndexRecord>> binarySearchIndex(final int lower,
+                                                                          final int upper,
+                                                                          final long timestamp,
+                                                                          final byte[] indexTable) {
         if (upper < lower || indexTable.length == 0)
             return new ImmutablePair<>(0, Optional.empty());
 
-        int offset = ((lower + upper) / 2) * IndexRecord.INDEX_RECORD_SIZE;
+        final int offset = ((lower + upper) / 2) * IndexRecord.INDEX_RECORD_SIZE;
 
-        IndexRecord record = IndexRecord.readRecord(indexTable, offset).get();
+        final IndexRecord record = IndexRecord.readRecord(indexTable, offset).get();
 
-        Optional<IndexRecord> next = IndexRecord.fetchNext(indexTable, offset);
+        final Optional<IndexRecord> next = IndexRecord.fetchNext(indexTable, offset);
 
         if (record.getEventTime() <= timestamp) {
             if (!next.isPresent() || (next.get().getEventTime() > timestamp)) {
@@ -104,7 +104,7 @@ public class IndexRecord {
     }
 
     public byte[] toByteArray() {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         try {
             outputStream.write(Utilities.toByteArray(eventTime));

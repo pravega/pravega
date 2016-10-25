@@ -34,7 +34,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Map<String, InMemoryStream> streams = new HashMap<>();
 
     @Override
-    public InMemoryStream getStream(String name) {
+    Stream newStream(String name) {
         if (streams.containsKey(name)) {
             return streams.get(name);
         } else {

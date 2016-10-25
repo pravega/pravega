@@ -32,7 +32,7 @@ public class DataNotFoundException extends RuntimeException {
      * Creates a new instance of StreamNotFoundException class
      * @param name missing stream name
      */
-    public DataNotFoundException(String name) {
+    public DataNotFoundException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
@@ -41,7 +41,7 @@ public class DataNotFoundException extends RuntimeException {
      * @param name  missing stream name
      * @param cause error cause
      */
-    public DataNotFoundException(String name, Throwable cause) {
+    public DataNotFoundException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

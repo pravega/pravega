@@ -94,7 +94,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> checkStreamExists(Create create) throws StreamAlreadyExistsException {
+    public void refresh() {
+        cache.invalidateAll();
+    }
+
+    @Override
+    public CompletableFuture<Void> checkStreamExists(final Create create) throws StreamAlreadyExistsException {
 
         return checkExists(creationPath)
                 .thenCompose(x -> {
@@ -112,7 +117,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTime(Create create) {
+    CompletableFuture<Void> storeCreationTime(final Create create) {
         return createZNodeIfNotExist(creationPath, Utilities.toByteArray(create.getEventTime()));
     }
 
@@ -129,7 +134,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createSegmentChunk(final int chunkNumber, final Data<Integer> data) {
-        String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkNumber);
+        final String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkNumber);
         return createZNodeIfNotExist(segmentChunkPath, data.getData())
                 .thenApply(x -> cache.invalidateCache(segmentChunkPath));
     }
@@ -177,13 +182,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 create.getEventTime()
         );
 
-        String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkFileName);
+        final String segmentChunkPath = String.format(segmentChunkPathTemplate, chunkFileName);
         return createZNodeIfNotExist(segmentChunkPath, segmentTable)
                 .thenApply(x -> cache.invalidateCache(segmentChunkPath));
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp) {
+    CompletableFuture<Void> createNewTransaction(final UUID txId, final long timestamp) {
         final String activePath = getActiveTxPath(txId.toString());
         return createZNodeIfNotExist(activePath,
                 new ActiveTxRecord(timestamp, TxStatus.OPEN).toByteArray())
@@ -191,14 +196,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getActiveTx(UUID txId) {
+    CompletableFuture<Data<Integer>> getActiveTx(final UUID txId) {
         final String activeTxPath = getActiveTxPath(txId.toString());
 
         return getData(activeTxPath);
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(UUID txId) {
+    CompletableFuture<Void> sealActiveTx(final UUID txId) {
         final String activePath = getActiveTxPath(txId.toString());
 
         return getActiveTx(txId)
@@ -211,13 +216,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getCompletedTx(UUID txId) {
+    CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
         return cache.getCachedData(getCompletedTxPath(txId.toString()));
     }
 
     @Override
-    CompletableFuture<Void> removeActiveTxEntry(UUID txId) {
-        String activePath = getActiveTxPath(txId.toString());
+    CompletableFuture<Void> removeActiveTxEntry(final UUID txId) {
+        final String activePath = getActiveTxPath(txId.toString());
         return checkExists(activePath)
                 .thenCompose(x -> {
                     if (x) {
@@ -227,7 +232,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxStatus complete, long timestamp) {
+    CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long timestamp) {
         final String completedTxPath = getCompletedTxPath(txId.toString());
         return createZNodeIfNotExist(completedTxPath,
                 new CompletedTxRecord(timestamp, complete).toByteArray())
@@ -289,15 +294,15 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
 
     @Override
-    Data<Integer> createDataObj(byte[] data, Integer version) {
+    Data<Integer> createDataObj(final byte[] data, final Integer version) {
         return new Data<>(data, version);
     }
 
-    private String getActiveTxPath(String txId) {
+    private String getActiveTxPath(final String txId) {
         return ZKPaths.makePath(activeTxPath, txId);
     }
 
-    private String getCompletedTxPath(String txId) {
+    private String getCompletedTxPath(final String txId) {
         return ZKPaths.makePath(completedTxPath, txId);
     }
 
@@ -320,6 +325,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
+    public static void initialize(final CuratorFramework cf) {
+        client = cf;
+    }
+
     public static CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -332,7 +341,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
             }
         }).thenApply(x -> {
             if (deleteEmptyContainer) {
-                String container = ZKPaths.getPathAndNode(path).getPath();
+                final String container = ZKPaths.getPathAndNode(path).getPath();
                 try {
                     client.delete().forPath(container);
                 } catch (KeeperException.NotEmptyException | KeeperException.NoNodeException e) {
@@ -345,7 +354,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         });
     }
 
-    private static CompletableFuture<Data<Integer>> getData(final String path) {
+    private static CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException {
         return checkExists(path)
                 .thenApply(x -> {
                     if (x) {
@@ -443,9 +452,5 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     }
                 })
                 .thenApply(x -> x != null);
-    }
-
-    public static void initialize(final CuratorFramework cf) {
-        client = cf;
     }
 }
