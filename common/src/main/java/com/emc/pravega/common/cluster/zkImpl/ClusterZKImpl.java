@@ -89,7 +89,7 @@ public class ClusterZKImpl implements Cluster {
         Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS);
-        createPathIfExists(basePath);
+        createPathIfNotExists(basePath);
         String hostPath = ZKPaths.makePath(basePath, host.getIpAddr());
 
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath, SerializationUtils.serialize(host));
@@ -195,11 +195,9 @@ public class ClusterZKImpl implements Cluster {
         return path.substring(path.lastIndexOf("/") + 1);
     }
 
-    private void createPathIfExists(String basePath) throws Exception {
+    private void createPathIfNotExists(String basePath) throws Exception {
         try {
-            if (client.checkExists().forPath(basePath) == null) {
-                client.create().creatingParentsIfNeeded().forPath(basePath);
-            }
+            client.create().creatingParentsIfNeeded().forPath(basePath);
         } catch (KeeperException.NodeExistsException e) {
             log.debug("Path exists {} , ignoring exception", basePath, e);
         }
