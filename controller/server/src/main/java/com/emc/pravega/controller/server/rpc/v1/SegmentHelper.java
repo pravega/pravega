@@ -42,15 +42,22 @@ import com.emc.pravega.stream.Segment;
 
 public class SegmentHelper {
 
-    public static NodeUri getSegmentUri(String scope, String stream, int segmentNumber, HostControllerStore hostStore) {
-        int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore.getContainerCount());
-        Host host = hostStore.getHostForContainer(container);
+    public static NodeUri getSegmentUri(final String scope,
+                                        final String stream,
+                                        final int segmentNumber,
+                                        final HostControllerStore hostStore) {
+        final int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore.getContainerCount());
+        final Host host = hostStore.getHostForContainer(container);
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
     
-    public static boolean createSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+    public static boolean createSegment(final String scope,
+                                        final String stream,
+                                        final int segmentNumber,
+                                        final PravegaNodeUri uri,
+                                        final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -72,7 +79,7 @@ public class SegmentHelper {
                 result.complete(true);
             }
         };
-        ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
+        final ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
                 RuntimeException::new);
         try {
             connection.send(new WireCommands.CreateSegment(Segment.getQualifiedName(scope, stream, segmentNumber)));
@@ -90,7 +97,11 @@ public class SegmentHelper {
      * @param segmentNumber number of segment to be sealed
      * @return void
      */
-    public static Boolean sealSegment(String scope, String stream, int segmentNumber, HostControllerStore hostControllerStore, ConnectionFactory clientCF) {
+    public static Boolean sealSegment(final String scope,
+                                      final String stream,
+                                      final int segmentNumber,
+                                      final HostControllerStore hostControllerStore,
+                                      final ConnectionFactory clientCF) {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
@@ -103,10 +114,14 @@ public class SegmentHelper {
         return true;
     }
 
-    public static CompletableFuture<Boolean> sealSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
+    public static CompletableFuture<Boolean> sealSegment(final String scope,
+                                                         final String stream,
+                                                         final int segmentNumber,
+                                                         final PravegaNodeUri uri,
+                                                         final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -141,10 +156,15 @@ public class SegmentHelper {
                 .thenCompose(x -> result);
     }
 
-    public static boolean createTransaction(String scope, String stream, int segmentNumber, UUID txId, PravegaNodeUri uri, ConnectionFactory clientCF) {
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
+    public static boolean createTransaction(final String scope,
+                                            final String stream,
+                                            final int segmentNumber,
+                                            final UUID txId,
+                                            final PravegaNodeUri uri,
+                                            final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -166,7 +186,7 @@ public class SegmentHelper {
                 result.complete(true);
             }
         };
-        ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
+        final ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
                 RuntimeException::new);
         try {
 
@@ -180,7 +200,12 @@ public class SegmentHelper {
         return FutureHelpers.getAndHandleExceptions(result, RuntimeException::new);
     }
 
-    public static boolean commitTransaction(String scope, String stream, int segmentNumber, UUID txId, HostControllerStore hostControllerStore, ConnectionFactory clientCF) {
+    public static boolean commitTransaction(final String scope,
+                                            final String stream,
+                                            final int segmentNumber,
+                                            final UUID txId,
+                                            final HostControllerStore hostControllerStore,
+                                            final ConnectionFactory clientCF) {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
@@ -193,10 +218,15 @@ public class SegmentHelper {
         return true;
     }
 
-    private static CompletableFuture<Boolean> commitTransaction(String scope, String stream, int segmentNumber, UUID txId, PravegaNodeUri uri, ConnectionFactory clientCF) {
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
+    private static CompletableFuture<Boolean> commitTransaction(final String scope,
+                                                                final String stream,
+                                                                final int segmentNumber,
+                                                                final UUID txId,
+                                                                final PravegaNodeUri uri,
+                                                                final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -232,7 +262,12 @@ public class SegmentHelper {
                 .thenCompose(x -> result);
     }
 
-    public static boolean dropTransaction(String scope, String stream, int segmentNumber, UUID txId, HostControllerStore hostControllerStore, ConnectionFactory clientCF) {
+    public static boolean dropTransaction(final String scope,
+                                          final String stream,
+                                          final int segmentNumber,
+                                          final UUID txId,
+                                          final HostControllerStore hostControllerStore,
+                                          final ConnectionFactory clientCF) {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
@@ -245,10 +280,15 @@ public class SegmentHelper {
         return true;
     }
 
-    private static CompletableFuture<Boolean> dropTransaction(String scope, String stream, int segmentNumber, UUID txId, PravegaNodeUri uri, ConnectionFactory clientCF) {
-        CompletableFuture<Boolean> result = new CompletableFuture<>();
+    private static CompletableFuture<Boolean> dropTransaction(final String scope,
+                                                              final String stream,
+                                                              final int segmentNumber,
+                                                              final UUID txId,
+                                                              final PravegaNodeUri uri,
+                                                              final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {

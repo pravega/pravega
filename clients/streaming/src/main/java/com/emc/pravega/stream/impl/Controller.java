@@ -49,7 +49,7 @@ public interface Controller {
      * @param streamConfig
      * @return
      */
-    CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig);
+    CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
 
     /**
      * Api to alter stream
@@ -57,36 +57,36 @@ public interface Controller {
      * @param streamConfig
      * @return
      */
-    CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig);
+    CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
     // Controller Apis called by pravega producers for getting stream specific information
 
     /**
      * Api to get list of current segments for the stream to produce to.
      */
-    CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
+    CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
      * Api to create a new transaction.
      * The transaction timeout is relative to the creation time.
      */
-    CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
+    CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
      */
-    CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId);
+    CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
      * Drops a transaction. No events published to it may be read, and no further events may be published.
      */
-    CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId);
+    CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
      */
-    CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId);
+    CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
     // Controller Apis that are called by consumers
 
@@ -99,7 +99,7 @@ public interface Controller {
      * @param count
      * @return
      */
-    CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count);
+    CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
      * Called by consumer upon reaching end of segment on some segment in its position obejct
@@ -108,7 +108,7 @@ public interface Controller {
      * @param positions
      * @return
      */
-    CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions);
+    CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
 
     //Controller Apis that are called by producers and consumers
 
@@ -120,7 +120,7 @@ public interface Controller {
      *
      * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
      */
-    CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName);
+    CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 
     // Controller Apis that are called by Pravega host
 
@@ -132,7 +132,7 @@ public interface Controller {
      * @param segmentNumber
      * @return
      */
-    CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber, String caller);
+    CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber, final String caller);
 
     /**
      * Given a segment number, check if the segment is created and not sealed
@@ -142,6 +142,6 @@ public interface Controller {
      * @param txid
      * @return
      */
-    CompletableFuture<Boolean> isTransactionOpen(String scope, String stream, UUID txid);
+    CompletableFuture<Boolean> isTransactionOpen(final String scope, final String stream, final UUID txid);
 
 }

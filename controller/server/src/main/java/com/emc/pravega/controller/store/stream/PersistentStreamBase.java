@@ -395,12 +395,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final int toCreate = Integer.min(maxSegmentNumberForChunk - startingSegmentNumber + 1,
                 scale.getNewRanges().size());
 
-        final Data<T> updatedChunkData = createDataObj(TableHelper.updateSegmentTable(startingSegmentNumber,
+        final byte[] updated = TableHelper.updateSegmentTable(startingSegmentNumber,
                 currentChunkData.getData(),
                 toCreate,
                 scale.getNewRanges(),
                 scale.getScaleTimestamp()
-        ), currentChunkData.getVersion());
+        );
+
+        final Data<T> updatedChunkData = new Data<>(updated, currentChunkData.getVersion());
 
         return setSegmentTableChunk(currentChunk, updatedChunkData)
                 .thenCompose(y -> {
@@ -408,11 +410,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final int remaining = Integer.max(scale.getNewRanges().size() - toCreate, 0);
 
                     if (remaining > 0) {
-                        final Data<T> newChunk = createDataObj(TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
+                        final byte[] newSegmentChunk = TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
                                 new byte[0], // new chunk
                                 remaining,
                                 scale.getNewRanges(),
-                                scale.getScaleTimestamp()), null);
+                                scale.getScaleTimestamp());
+                        final Data<T> newChunk = new Data<>(newSegmentChunk, null);
 
                         return createSegmentChunk(chunkNumber, newChunk);
                     } else {
@@ -456,9 +459,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             startingSegmentNumber,
                             lastRecord);
 
-                    final Data<T> updated = createDataObj(TableHelper.updateHistoryTable(historyTable.getData(),
+                    byte[] updatedTable = TableHelper.updateHistoryTable(historyTable.getData(),
                             scale.getScaleTimestamp(),
-                            newActiveSegments), historyTable.getVersion());
+                            newActiveSegments);
+                    final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
 
                     return updateHistoryTable(updated).thenApply(y -> lastRecord.getEndOfRowPointer() + 1);
                 });
@@ -487,9 +491,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (lastRecord.isPresent() && lastRecord.get().getEventTime() >= scale.getScaleTimestamp())
                         return CompletableFuture.completedFuture(null);
 
-                    final Data<T> updated = createDataObj(TableHelper.updateIndexTable(indexTable.getData(),
+                    final byte[] updatedTable = TableHelper.updateIndexTable(indexTable.getData(),
                             scale.getScaleTimestamp(),
-                            historyOffset), indexTable.getVersion());
+                            historyOffset);
+                    final Data<T> updated = new Data<>(updatedTable, indexTable.getVersion());
                     return updateIndexTable(updated);
                 });
     }
@@ -550,6 +555,4 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxStatus complete, final long timestamp);
-
-    abstract Data<T> createDataObj(final byte[] data, final T version);
 }

@@ -292,12 +292,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return setData(indexPath, updated).thenApply(x -> cache.invalidateCache(indexPath));
     }
 
-
-    @Override
-    Data<Integer> createDataObj(final byte[] data, final Integer version) {
-        return new Data<>(data, version);
-    }
-
     private String getActiveTxPath(final String txId) {
         return ZKPaths.makePath(activeTxPath, txId);
     }
