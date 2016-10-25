@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -27,6 +28,7 @@ import com.google.common.cache.RemovalNotification;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,9 +56,10 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
                 ZKStream.getAllCompletedTx().get().entrySet().stream()
                         .forEach(x -> {
-                            if (currentTime - x.getValue().getCompleteTime() > TIMEOUT) {
+                            CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
+                            if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
                                 try {
-                                    ZKStream.deletePath(x.getKey());
+                                    ZKStream.deletePath(x.getKey(), Optional.of((Integer) x.getValue().getVersion()));
                                 } catch (Exception e) {
                                     // TODO: log and ignore
                                 }
