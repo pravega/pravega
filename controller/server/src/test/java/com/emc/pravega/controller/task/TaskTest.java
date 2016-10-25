@@ -153,13 +153,14 @@ public class TaskTest {
         final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
+        final StreamConfiguration configuration = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+
         final TaskData taskData = new TaskData();
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
-
         taskData.setMethodName("createStream");
         taskData.setMethodVersion("1.0");
-        taskData.setParameters(new Serializable[]{scope, stream, configuration1, timestamp});
+        taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp});
 
         for (int i = 0; i < 5; i++) {
             final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource);
@@ -181,9 +182,76 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(stream).get();
-        assertTrue(config.getName().equals(configuration1.getName()));
-        assertTrue(config.getScope().equals(configuration1.getScope()));
-        assertTrue(config.getScalingingPolicy().equals(configuration1.getScalingingPolicy()));
+        assertTrue(config.getName().equals(configuration.getName()));
+        assertTrue(config.getScope().equals(configuration.getScope()));
+        assertTrue(config.getScalingingPolicy().equals(configuration.getScalingingPolicy()));
+    }
+
+    @Test
+    public void parallelTaskSweeperTest() throws InterruptedException, ExecutionException {
+        final String deadHost = "deadHost";
+        final String deadThreadId1 = UUID.randomUUID().toString();
+        final String deadThreadId2 = UUID.randomUUID().toString();
+
+        final String scope = SCOPE;
+        final String stream1 = "parallelSweeper1";
+        final String stream2 = "parallelSweeper2";
+
+        final StreamConfiguration config1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+        final StreamConfiguration config2 = new StreamConfigurationImpl(SCOPE, stream2, policy1);
+
+        final TaskData taskData1 = new TaskData();
+        final Resource resource1 = new Resource(scope, stream1);
+        final long timestamp1 = System.currentTimeMillis();
+        taskData1.setMethodName("createStream");
+        taskData1.setMethodVersion("1.0");
+        taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1});
+
+        final TaskData taskData2 = new TaskData();
+        final Resource resource2 = new Resource(scope, stream2);
+        final long timestamp2 = System.currentTimeMillis();
+        taskData2.setMethodName("createStream");
+        taskData2.setMethodVersion("1.0");
+        taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2});
+
+        for (int i = 0; i < 5; i++) {
+            final TaggedResource taggedResource = new TaggedResource(UUID.randomUUID().toString(), resource1);
+            taskMetadataStore.putChild(deadHost, taggedResource).join();
+        }
+        final TaggedResource taggedResource1 = new TaggedResource(deadThreadId1, resource1);
+        taskMetadataStore.putChild(deadHost, taggedResource1).join();
+
+        final TaggedResource taggedResource2 = new TaggedResource(deadThreadId2, resource2);
+        taskMetadataStore.putChild(deadHost, taggedResource2).join();
+
+        taskMetadataStore.lock(resource1, taskData1, deadHost, deadThreadId1, null, null).join();
+        taskMetadataStore.lock(resource2, taskData2, deadHost, deadThreadId2, null, null).join();
+
+        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks, deadHost);
+        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks, deadHost);
+
+        sweeperThread1.start();
+        sweeperThread2.start();
+
+        sweeperThread1.getResult().join();
+        sweeperThread2.getResult().join();
+
+        Optional<TaskData> data = taskMetadataStore.getTask(resource1, deadHost, deadThreadId1).get();
+        assertFalse(data.isPresent());
+
+        data = taskMetadataStore.getTask(resource2, deadHost, deadThreadId2).get();
+        assertFalse(data.isPresent());
+
+        Optional<TaggedResource> child = taskMetadataStore.getRandomChild(deadHost).get();
+        assertFalse(child.isPresent());
+
+        // ensure that the stream streamSweeper is created
+        StreamConfiguration config = streamStore.getConfiguration(stream1).get();
+        assertTrue(config.getName().equals(stream1));
+
+        config = streamStore.getConfiguration(stream2).get();
+        assertTrue(config.getName().equals(stream2));
+
     }
 
     @Test
@@ -230,6 +298,33 @@ public class TaskTest {
                     this.result.complete(value);
                 }
             });
+        }
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = false)
+    class SweeperThread extends Thread {
+
+        private final CompletableFuture<Void> result;
+        private final String deadHostId;
+        private final TaskSweeper taskSweeper;
+
+        public SweeperThread(String hostId, TaskMetadataStore taskMetadataStore, StreamMetadataTasks streamMetadataTasks, String deadHostId) {
+            this.result = new CompletableFuture<>();
+            this.taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks);
+            this.deadHostId = deadHostId;
+        }
+
+        @Override
+        public void run() {
+            taskSweeper.sweepOrphanedTasks(this.deadHostId)
+                    .whenComplete((value, e) -> {
+                        if (e != null) {
+                            result.completeExceptionally(e);
+                        } else {
+                            result.complete(value);
+                        }
+                    });
         }
     }
 }

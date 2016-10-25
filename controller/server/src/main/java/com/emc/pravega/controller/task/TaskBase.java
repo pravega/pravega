@@ -108,7 +108,7 @@ public class TaskBase implements Cloneable {
         taskMetadataStore.putChild(context.hostId, resourceTag)
                 // After storing that fact, lock the resource, execute task and unlock the resource
                 .thenCompose(x -> executeTask(resource, taskData, threadId, operation))
-                        // finally delete the resource child created under the controller's HostId
+                // finally delete the resource child created under the controller's HostId
                 .whenComplete((value, e) ->
                     taskMetadataStore.removeChild(context.hostId, resourceTag, true)
                             .whenComplete((innerValue, innerE) -> {
@@ -191,7 +191,7 @@ public class TaskBase implements Cloneable {
     }
 
     private TaskData getTaskData(Serializable[] parameters) {
-        // Quirk of using stack tract shall be rendered redundant when Task Annotation's handler is coded up.
+        // Quirk of using stack trace shall be rendered redundant when Task Annotation's handler is coded up.
         TaskData taskData = new TaskData();
         StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
         StackTraceElement e = stacktrace[3];
