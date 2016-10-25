@@ -26,13 +26,16 @@ import java.io.FileNotFoundException;
 import java.nio.file.FileAlreadyExistsException;
 
 /**
- * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions
+ * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions.
  * */
 public class HDFSExceptionHelpers {
 
     /**
-     * API to translated HDFS specific IOExceptions to StreamSegmentExceptions
-     * */
+     * API to translated HDFS specific IOExceptions to StreamSegmentExceptions.
+     * @param streamSegmentName Name of the stream segment on which the exception occurs.
+     * @param e The exception to be translated
+     * @return
+     */
     public static Exception translateFromIOException(String streamSegmentName, Exception e) {
         if (e instanceof FileNotFoundException) {
             return new StreamSegmentNotExistsException(streamSegmentName);

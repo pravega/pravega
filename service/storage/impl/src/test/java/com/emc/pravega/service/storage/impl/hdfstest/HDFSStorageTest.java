@@ -40,7 +40,7 @@ import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
 
 /**
- * Unit tests for InMemoryStorage
+ * Unit tests for InMemoryStorage.
  */
 public class HDFSStorageTest {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -49,6 +49,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the write() method.
+     * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
     @Test
@@ -95,6 +96,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the read() method.
+     * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
     @Test
@@ -160,6 +162,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the seal() method.
+     * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
     @Test
@@ -196,6 +199,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the concat() method.
+     * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
     @Test
