@@ -122,7 +122,7 @@ public interface StreamSegmentStore {
     CompletableFuture<Long> mergeTransaction(String transactionName, Duration timeout);
 
     /**
-     * Seals a StreamSegment for modifications
+     * Seals a StreamSegment for modifications.
      *
      * @param streamSegmentName The name of the StreamSegment to seal.
      * @param timeout           Timeout for the operation

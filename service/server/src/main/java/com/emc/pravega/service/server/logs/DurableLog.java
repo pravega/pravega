@@ -86,6 +86,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
      * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
+     * @param executor            The Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
     public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, ScheduledExecutorService executor) {

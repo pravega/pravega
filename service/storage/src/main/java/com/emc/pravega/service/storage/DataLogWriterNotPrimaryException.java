@@ -29,12 +29,14 @@ package com.emc.pravega.service.storage;
  */
 public class DataLogWriterNotPrimaryException extends DurableDataLogException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the DataLogWriterNotPrimaryException class.
+     *
+     * @param message The message to set.
      */
     public DataLogWriterNotPrimaryException(String message) {
         super(message);
@@ -42,6 +44,9 @@ public class DataLogWriterNotPrimaryException extends DurableDataLogException {
 
     /**
      * Creates a new instance of the DataLogNotAvailable class.
+     *
+     * @param message The message to set.
+     * @param cause   The triggering cause of this exception.
      */
     public DataLogWriterNotPrimaryException(String message, Throwable cause) {
         super(message, cause);

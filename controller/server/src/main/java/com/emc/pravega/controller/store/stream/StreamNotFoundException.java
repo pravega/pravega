@@ -19,9 +19,9 @@
 package com.emc.pravega.controller.store.stream;
 
 /**
- * Exception thrown when a stream with a given name is not found in the metadata
+ * Exception thrown when a stream with a given name is not found in the metadata.
  */
-public class StreamNotFoundException  extends RuntimeException {
+public class StreamNotFoundException extends RuntimeException {
     /**
      *
      */
@@ -29,7 +29,8 @@ public class StreamNotFoundException  extends RuntimeException {
     private static final String FORMAT_STRING = "Stream %s not found.";
 
     /**
-     * Creates a new instance of StreamNotFoundException class
+     * Creates a new instance of StreamNotFoundException class.
+     *
      * @param name missing stream name
      */
     public StreamNotFoundException(String name) {
@@ -37,7 +38,8 @@ public class StreamNotFoundException  extends RuntimeException {
     }
 
     /**
-     * Creates a new instance of StreamNotFoundException class
+     * Creates a new instance of StreamNotFoundException class.
+     *
      * @param name  missing stream name
      * @param cause error cause
      */
