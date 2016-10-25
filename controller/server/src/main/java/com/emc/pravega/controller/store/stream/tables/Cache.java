@@ -1,0 +1,67 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.emc.pravega.controller.store.stream.tables;
+
+import com.emc.pravega.controller.store.stream.DataNotFoundException;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
+public class Cache<T> {
+
+    @FunctionalInterface
+    public interface Loader<U> {
+        CompletableFuture<Data<U>> get(String path);
+    }
+
+    private final LoadingCache<String, CompletableFuture<Data<T>>> cache;
+
+    public Cache(final Loader<T> loader) {
+        cache = CacheBuilder.newBuilder()
+                .maximumSize(1000)
+                .refreshAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .build(
+                        new CacheLoader<String, CompletableFuture<Data<T>>>() {
+                            @ParametersAreNonnullByDefault
+                            public CompletableFuture<Data<T>> load(String path) {
+                                try {
+                                    return loader.get(path);
+                                } catch (DataNotFoundException d) {
+                                    throw d;
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                        });
+    }
+
+    public CompletableFuture<Data<T>> getCachedData(String key) {
+        return cache.getUnchecked(key);
+    }
+
+    public Void invalidateCache(String key) {
+        cache.invalidate(key);
+        return null;
+    }
+
+}

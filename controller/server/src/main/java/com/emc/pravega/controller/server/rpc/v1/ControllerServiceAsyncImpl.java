@@ -49,7 +49,7 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     @Override
     public void createStream(StreamConfig streamConfig, AsyncMethodCallback resultHandler) throws TException {
-        log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
+        log.debug("checkStreamExists called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()),
                 resultHandler);
     }

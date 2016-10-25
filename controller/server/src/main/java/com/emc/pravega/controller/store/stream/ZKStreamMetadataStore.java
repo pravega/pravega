@@ -19,14 +19,10 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
-import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -42,12 +38,16 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long TIMEOUT = 60 * 60 * 1000;
     private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    private final LoadingCache<String, ZKStream> zkStreams;
+    public ZKStreamMetadataStore(final StoreConfiguration storeConfiguration) {
 
-    public ZKStreamMetadataStore(StoreConfiguration storeConfiguration) {
+        // TODO: get common curator client
+        CuratorFramework client = CuratorFrameworkFactory.newClient(storeConfiguration.getConnectionString(),
+                new ExponentialBackoffRetry(1000, 3));
+        client.start();
 
         // Garbage collector for completed transactions
-        ZKStream.initialize(storeConfiguration.getConnectionString());
+        ZKStream.initialize(client);
+
         EXEC_SERVICE.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
             try {
@@ -69,36 +69,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
             // find completed transactions to be gc'd
         }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
-
-        zkStreams = CacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .removalListener(new RemovalListener<String, ZKStream>() {
-                    @ParametersAreNonnullByDefault
-                    public void onRemoval(RemovalNotification<String, ZKStream> removal) {
-                        if (removal.getValue() != null)
-                            removal.getValue().tearDown();
-                    }
-                })
-                .build(
-                        new CacheLoader<String, ZKStream>() {
-                            @ParametersAreNonnullByDefault
-                            public ZKStream load(String key) {
-                                ZKStream zkStream = new ZKStream(key);
-                                zkStream.init();
-                                return zkStream;
-                            }
-                        });
     }
 
     @Override
     ZKStream getStream(String name) {
-        return zkStreams.getUnchecked(name);
-    }
-
-    @Override
-    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long createTimestamp) {
-        return CompletableFuture.supplyAsync(() -> zkStreams.getUnchecked(name)).thenCompose(x -> x.create(configuration, createTimestamp));
+        return new ZKStream(name);
     }
 
     @Override

@@ -47,6 +47,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Stream getStream(String name);
 
     @Override
+    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long createTimestamp) {
+        return getStream(name).create(configuration, createTimestamp);
+    }
+
+    @Override
     public CompletableFuture<Boolean> updateConfiguration(String name, StreamConfiguration configuration) {
         return getStream(name).updateConfiguration(configuration);
     }

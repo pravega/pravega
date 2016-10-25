@@ -105,7 +105,7 @@ public class TaskTest {
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
-        // region createStream
+        // region checkStreamExists
         streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
         streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion
@@ -158,7 +158,7 @@ public class TaskTest {
         final TaskData taskData = new TaskData();
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
-        taskData.setMethodName("createStream");
+        taskData.setMethodName("checkStreamExists");
         taskData.setMethodVersion("1.0");
         taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp});
 
@@ -203,14 +203,14 @@ public class TaskTest {
         final TaskData taskData1 = new TaskData();
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
-        taskData1.setMethodName("createStream");
+        taskData1.setMethodName("checkStreamExists");
         taskData1.setMethodVersion("1.0");
         taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1});
 
         final TaskData taskData2 = new TaskData();
         final Resource resource2 = new Resource(scope, stream2);
         final long timestamp2 = System.currentTimeMillis();
-        taskData2.setMethodName("createStream");
+        taskData2.setMethodName("checkStreamExists");
         taskData2.setMethodVersion("1.0");
         taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2});
 

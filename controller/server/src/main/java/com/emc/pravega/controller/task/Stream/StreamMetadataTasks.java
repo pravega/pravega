@@ -24,6 +24,7 @@ import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -33,7 +34,6 @@ import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -79,7 +79,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @param createTimestamp creation timestamp.
      * @return creation status.
      */
-    @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
+    @Task(name = "checkStreamExists", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 new Resource(scope, stream),

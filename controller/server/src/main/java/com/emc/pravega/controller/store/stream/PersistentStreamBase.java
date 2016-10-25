@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 public abstract class PersistentStreamBase<T> implements Stream {
     private final String name;
 
+
     protected PersistentStreamBase(final String name) {
         this.name = name;
     }
@@ -74,7 +75,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Boolean> create(final StreamConfiguration configuration, long createTimestamp) {
         final Create create = new Create(createTimestamp, configuration);
-        return createStream(create)
+        return checkStreamExists(create)
+                .thenCompose(x -> storeCreationTime(create))
                 .thenCompose(x -> createConfiguration(create))
                 .thenCompose(x -> createSegmentTable(create))
                 .thenCompose(x -> createSegmentFile(create))
@@ -170,8 +172,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return CompletableFuture.allOf(futures).thenCompose(x -> {
             try {
                 final Segment segment = (Segment) futures[0].get();
-                final Data indexTable = (Data) futures[1].get();
-                final Data historyTable = (Data) futures[2].get();
+                final Data<T> indexTable = (Data) futures[1].get();
+                final Data<T> historyTable = (Data) futures[2].get();
                 return FutureCollectionHelper.sequence(
                         TableHelper.findSegmentPredecessorCandidates(segment,
                                 indexTable.getData(),
@@ -208,7 +210,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final CompletableFuture<Data<T>> historyFuture = getHistoryTable();
 
         return indexFuture.thenCombine(historyFuture,
-                (Data indexTable, Data historyTable) -> TableHelper.getActiveSegments(timestamp,
+                (indexTable, historyTable) -> TableHelper.getActiveSegments(timestamp,
                         indexTable.getData(),
                         historyTable.getData()));
     }
@@ -406,7 +408,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final int remaining = Integer.max(scale.getNewRanges().size() - toCreate, 0);
 
                     if (remaining > 0) {
-                        final Data newChunk = createDataObj(TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
+                        final Data<T> newChunk = createDataObj(TableHelper.updateSegmentTable(chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE,
                                 new byte[0], // new chunk
                                 remaining,
                                 scale.getNewRanges(),
@@ -454,7 +456,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             startingSegmentNumber,
                             lastRecord);
 
-                    final Data updated = createDataObj(TableHelper.updateHistoryTable(historyTable.getData(),
+                    final Data<T> updated = createDataObj(TableHelper.updateHistoryTable(historyTable.getData(),
                             scale.getScaleTimestamp(),
                             newActiveSegments), historyTable.getVersion());
 
@@ -485,7 +487,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (lastRecord.isPresent() && lastRecord.get().getEventTime() >= scale.getScaleTimestamp())
                         return CompletableFuture.completedFuture(null);
 
-                    final Data updated = createDataObj(TableHelper.updateIndexTable(indexTable.getData(),
+                    final Data<T> updated = createDataObj(TableHelper.updateIndexTable(indexTable.getData(),
                             scale.getScaleTimestamp(),
                             historyOffset), indexTable.getVersion());
                     return updateIndexTable(updated);
@@ -501,7 +503,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenApply(segmentTableChunk -> new ImmutablePair<>(latestChunkNumber, segmentTableChunk));
     }
 
-    abstract CompletableFuture<Boolean> createStream(Create create) throws StreamAlreadyExistsException;
+    abstract CompletableFuture<Void> checkStreamExists(Create create) throws StreamAlreadyExistsException;
+
+    abstract CompletableFuture<Void> storeCreationTime(Create create);
 
     abstract CompletableFuture<Void> createConfiguration(Create create);
 
