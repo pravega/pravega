@@ -10,130 +10,125 @@ import lombok.Synchronized;
 
 public class SetSynchronizer<T> {
 
-    private static class UpdatableSet<T> implements Updatable<SetUpdate<T>>, Serializable {
-        private final Set<T> impl = new LinkedHashSet<>();
-        private Revision currentRevision;
-        
-        @Synchronized
-        private Set<T> getCurrentValues(){
+    @RequiredArgsConstructor
+    private static class UpdatableSet<T> implements Updatable<UpdatableSet<T>, SetUpdate<T>>, Serializable {
+        private final Set<T> impl;
+        private final Revision currentRevision;
+
+        private Set<T> getCurrentValues() {
             return Collections.unmodifiableSet(impl);
         }
-        
-        @Synchronized
+
         private int getCurrentSize() {
             return impl.size();
         }
-        
-        @Synchronized
-        private void add(T value) {
-            impl.add(value);
-        }
 
-        @Synchronized
-        private void remove(T value) {
-            impl.remove(value);
-        }
-
-        @Synchronized
-        private void clear() {
-            impl.clear();
-        }
-
-        @Synchronized
         @Override
-        public void applyUpdate(Revision newRevision, SetUpdate<T> update) {
-            update.process(this);
-            currentRevision = newRevision;
+        public UpdatableSet<T> applyUpdate(Revision newRevision, SetUpdate<T> update) {
+            LinkedHashSet<T> newImpl = new LinkedHashSet<>(impl);
+            update.process(newImpl);
+            return new UpdatableSet<T>(newImpl, newRevision);
         }
 
         @Override
-        @Synchronized
         public Revision getCurrentRevision() {
             return currentRevision;
         }
     }
-    
+
     private static abstract class SetUpdate<T> implements Serializable {
-        public abstract void process(UpdatableSet<T> updatableList);
+        public abstract void process(LinkedHashSet<T> updatableList);
     }
-    
+
     @RequiredArgsConstructor
     private static class AddToList<T> extends SetUpdate<T> {
         private final T value;
+
         @Override
-        public void process(UpdatableSet<T> updatableList) {
-            updatableList.add(value);
+        public void process(LinkedHashSet<T> impl) {
+            impl.add(value);
         }
     }
+
     @RequiredArgsConstructor
     private static class RemoveFromList<T> extends SetUpdate<T> {
         private final T value;
+
         @Override
-        public void process(UpdatableSet<T> updatableList) {
-            updatableList.remove(value);
+        public void process(LinkedHashSet<T> impl) {
+            impl.remove(value);
         }
     }
+
     @RequiredArgsConstructor
     private static class ClearList<T> extends SetUpdate<T> {
         @Override
-        public void process(UpdatableSet<T> updatableList) {
-            updatableList.clear();
+        public void process(LinkedHashSet<T> impl) {
+            impl.clear();
         }
     }
-    
+
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
-    
+
     private final StateSynchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer;
     private UpdatableSet<T> current;
     private int countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
-    
+
     private SetSynchronizer(StateSynchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer) {
         this.synchronizer = synchronizer;
-        getNewBaseVersion();
         update();
     }
 
-    private void getNewBaseVersion() {
-        current = synchronizer.getInitialState();
+    @Synchronized
+    public void update() {
+        current = synchronizer.getCurrentState(current);
     }
 
-    public void update() {
-        while(!synchronizer.synchronizeLocalState(current)) {
-            getNewBaseVersion();
-        }
-    }
-    
-    public Set<T> getCurrentValues(){
+    @Synchronized
+    public Set<T> getCurrentValues() {
         return current.getCurrentValues();
     }
-    
+
+    @Synchronized
     public int getCurrentSize() {
         return current.getCurrentSize();
     }
-    
+
+    @Synchronized
     public boolean attemptAdd(T value) {
-        return synchronizer.attemptUpdate(current, new AddToList<>(value));
-    }
-    
-    public boolean attemptRemove(T value) {
-        boolean result = synchronizer.attemptUpdate(current, new RemoveFromList<>(value));
-        if (result) {
-            countdownToCompaction--;
-            if (countdownToCompaction <= 0) {
-                synchronizer.compact(current);
-                countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
-            }
+        UpdatableSet<T> newSet = synchronizer.attemptUpdate(current, new AddToList<>(value));
+        if (newSet == null) {
+            return false;
         }
-        return result;
+        current = newSet;
+        return true;
     }
-    
-    public boolean attemptClear() {
-        boolean result = synchronizer.attemptUpdate(current, new ClearList<>());
-        if (result) {
+
+    @Synchronized
+    public boolean attemptRemove(T value) {
+        UpdatableSet<T> newSet = synchronizer.attemptUpdate(current, new RemoveFromList<>(value));
+        if (newSet == null) {
+            return false;
+        }
+        current = newSet;
+        countdownToCompaction--;
+        if (countdownToCompaction <= 0) {
             synchronizer.compact(current);
             countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
         }
-        return result;
+        return true;
     }
-    
+
+    @Synchronized
+    public boolean attemptClear() {
+        UpdatableSet<T> newSet = synchronizer.attemptUpdate(current, new ClearList<>());
+        if (newSet == null) {
+            return false;
+        }
+        current = newSet;
+        synchronizer.compact(current);
+        countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
+        return true;
+    }
+
 }
