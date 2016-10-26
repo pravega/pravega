@@ -25,6 +25,8 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.google.common.base.Preconditions;
 
@@ -65,6 +67,11 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         this.storage = new AtomicReference<>();
         this.serviceBuilder = ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
+                .withCacheFactory(setup -> {
+                    RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
+                    factory.initialize(true); // Always clear/reset the cache before every test.
+                    return factory;
+                })
                 .withStorageFactory(setup -> {
                     VerificationStorage.Factory factory = new VerificationStorage.Factory(new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
                     this.storage.set((VerificationStorage) factory.getStorageAdapter());

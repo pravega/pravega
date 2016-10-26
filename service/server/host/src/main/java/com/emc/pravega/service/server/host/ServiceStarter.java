@@ -28,6 +28,8 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
@@ -45,16 +47,23 @@ public final class ServiceStarter {
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
-        this.serviceBuilder = createServiceBuilder(this.serviceConfig, true);
+        Options opt = new Options();
+        opt.distributedLog = false;
+        opt.hdfs = false;
+        opt.rocksDb = true;
+        this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
     }
 
-    private ServiceBuilder createServiceBuilder(ServiceBuilderConfig config, boolean inMemory) {
-        if (inMemory) {
-            return ServiceBuilder.newInMemoryBuilder(config);
-        } else {
-            // Real (Distributed Log) Data Log.
-            return attachDistributedLog(ServiceBuilder.newInMemoryBuilder(config));
+    private ServiceBuilder createServiceBuilder(ServiceBuilderConfig config, Options options) {
+        ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(config);
+        if (options.distributedLog) {
+            attachDistributedLog(builder);
         }
+        if (options.rocksDb) {
+            attachRocksDB(builder);
+        }
+
+        return builder;
     }
 
     private void start() {
@@ -112,8 +121,8 @@ public final class ServiceStarter {
     /**
      * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
      */
-    static ServiceBuilder attachDistributedLog(ServiceBuilder builder) {
-        return builder.withDataLogFactory(setup -> {
+    static void attachDistributedLog(ServiceBuilder builder) {
+        builder.withDataLogFactory(setup -> {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
                 DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
@@ -123,5 +132,19 @@ public final class ServiceStarter {
                 throw new CompletionException(ex);
             }
         });
+    }
+
+    static void attachRocksDB(ServiceBuilder builder) {
+        builder.withCacheFactory(setup -> {
+            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
+            factory.initialize(true); // Always clear/reset the cache at startup.
+            return factory;
+        });
+    }
+
+    private static class Options {
+        boolean distributedLog;
+        boolean hdfs;
+        boolean rocksDb;
     }
 }
