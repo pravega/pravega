@@ -15,13 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.common.cluster;
 
-package com.emc.pravega.controller.store.host;
+/**
+ * Cluster listener.
+ */
+public interface ClusterListener {
 
-import com.emc.pravega.common.cluster.Host;
-
-public class HostNotFoundException extends HostControllerException {
-    public HostNotFoundException(Host host) {
-        super(String.format("Host %s not found.", host.getIpAddr()));
+    enum EventType {
+        HOST_ADDED,
+        HOST_REMOVED,
+        ERROR
     }
+
+    /**
+     * Method invoked on cluster Event.
+     * @param type - Event type.
+     * @param host - Host added/removed, in case of an ERROR a null host value is passed.
+     */
+    public void onEvent(final EventType type, final Host host);
+
 }

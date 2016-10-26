@@ -18,8 +18,8 @@
 
 package com.emc.pravega.controller.server.v1;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
-import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;

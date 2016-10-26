@@ -15,16 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.host;
+package com.emc.pravega.common.cluster;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.ToString;
 
+import java.io.Serializable;
+
 @AllArgsConstructor
 @Data
 @ToString(includeFieldNames = true)
-public class Host {
+public class Host implements Serializable {
     private final String ipAddr;
     private final int port;
 }
