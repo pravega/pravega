@@ -585,9 +585,8 @@ public class StorageWriterTests {
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, appendContext);
         op.setStreamSegmentOffset(offset);
         if (writeId % 2 == 0) {
-            CacheKey key = new CacheKey(segmentMetadata.getId(), offset);
-            context.cache.insert(key, data);
-            context.dataSource.add(new CachedStreamSegmentAppendOperation(op, key));
+            context.cache.insert(new CacheKey(segmentMetadata.getId(), offset), data);
+            context.dataSource.add(new CachedStreamSegmentAppendOperation(op));
         } else {
             context.dataSource.add(op);
         }

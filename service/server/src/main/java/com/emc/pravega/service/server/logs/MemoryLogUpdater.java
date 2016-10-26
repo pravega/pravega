@@ -101,8 +101,8 @@ class MemoryLogUpdater {
     void process(Operation operation) throws DataCorruptionException {
         // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the QueueProcessor,
         // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
-        CacheKey cacheKey = addToCache(operation);
-        addToMemoryOperationLog(operation, cacheKey);
+        addToCache(operation);
+        addToMemoryOperationLog(operation);
     }
 
     /**
@@ -116,25 +116,27 @@ class MemoryLogUpdater {
         }
     }
 
-    private CacheKey addToCache(Operation operation) {
+    private void addToCache(Operation operation) throws DataCorruptionException {
         if (operation instanceof StorageOperation) {
-            return this.cacheUpdater.addToReadIndex((StorageOperation) operation);
+            StorageOperation storageOperation = (StorageOperation) operation;
+            CacheKey key = this.cacheUpdater.addToReadIndex(storageOperation);
+            if (key.getOffset() != storageOperation.getStreamSegmentOffset()
+                    || key.getStreamSegmentId() != storageOperation.getStreamSegmentId()) {
+                throw new DataCorruptionException(String.format("CacheKey and Operation disagree. CacheKey = '%s', Operation = '%s'.", key, operation));
+            }
         }
-
-        return null;
     }
 
-    private void addToMemoryOperationLog(Operation operation, CacheKey key) throws DataCorruptionException {
-        if (key != null) {
+    private void addToMemoryOperationLog(Operation operation) throws DataCorruptionException {
+        if (operation instanceof StreamSegmentAppendOperation) {
             // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
-            assert operation instanceof StreamSegmentAppendOperation : "non-null CacheKey, but operation is not a StreamSegmentAppendOperation";
             try {
-                operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation, key);
+                operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation);
             } catch (Throwable ex) {
                 if (ExceptionHelpers.mustRethrow(ex)) {
                     throw ex;
                 } else {
-                    throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+                    throw new DataCorruptionException(String.format("Unable to create a CachedStreamSegmentAppendOperation from operation '%s'.", operation), ex);
                 }
             }
         }
