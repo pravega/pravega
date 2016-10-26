@@ -22,7 +22,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -210,12 +209,11 @@ public class MemoryStateUpdaterTests {
         }
 
         @Override
-        public CacheKey append(long segmentId, long offset, byte[] data) {
+        public void append(long segmentId, long offset, byte[] data) {
             invoke(new MethodInvocation(APPEND)
                     .withArg("streamSegmentId", segmentId)
                     .withArg("offset", offset)
                     .withArg("data", data));
-            return new CacheKey(segmentId, offset);
         }
 
         @Override
