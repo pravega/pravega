@@ -5,13 +5,17 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.impl.JavaSerializer;
+
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
-public class SetSynchronizer<T> {
+public class SetSynchronizer<T extends Serializable> {
 
     @RequiredArgsConstructor
-    private static class UpdatableSet<T> implements Updatable<UpdatableSet<T>, SetUpdate<T>>, Serializable {
+    private static class UpdatableSet<T> implements Revisioned, Serializable {
+        private final Stream stream;
         private final Set<T> impl;
         private final Revision currentRevision;
 
@@ -24,24 +28,29 @@ public class SetSynchronizer<T> {
         }
 
         @Override
-        public UpdatableSet<T> applyUpdate(Revision newRevision, SetUpdate<T> update) {
-            LinkedHashSet<T> newImpl = new LinkedHashSet<>(impl);
-            update.process(newImpl);
-            return new UpdatableSet<T>(newImpl, newRevision);
-        }
-
-        @Override
         public Revision getCurrentRevision() {
             return currentRevision;
         }
+
+        @Override
+        public String getQualifiedStreamName() {
+            return stream.getQualifiedName();
+        }
     }
 
-    private static abstract class SetUpdate<T> implements Serializable {
+    private static abstract class SetUpdate<T> implements Update<UpdatableSet<T>>, Serializable {
+        @Override
+        public UpdatableSet<T> applyTo(UpdatableSet<T> oldState, Revision newRevision) {
+            LinkedHashSet<T> impl = new LinkedHashSet<>(oldState.impl);
+            process(impl);
+            return new UpdatableSet<>(oldState.stream, impl, newRevision);
+        }
+
         public abstract void process(LinkedHashSet<T> updatableList);
     }
 
     @RequiredArgsConstructor
-    private static class AddToList<T> extends SetUpdate<T> {
+    private static class AddToSet<T> extends SetUpdate<T> {
         private final T value;
 
         @Override
@@ -51,7 +60,7 @@ public class SetSynchronizer<T> {
     }
 
     @RequiredArgsConstructor
-    private static class RemoveFromList<T> extends SetUpdate<T> {
+    private static class RemoveFromSet<T> extends SetUpdate<T> {
         private final T value;
 
         @Override
@@ -61,7 +70,7 @@ public class SetSynchronizer<T> {
     }
 
     @RequiredArgsConstructor
-    private static class ClearList<T> extends SetUpdate<T> {
+    private static class ClearSet<T> extends SetUpdate<T> {
         @Override
         public void process(LinkedHashSet<T> impl) {
             impl.clear();
@@ -70,18 +79,18 @@ public class SetSynchronizer<T> {
 
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
 
-    private final StateSynchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer;
+    private final Synchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer;
     private UpdatableSet<T> current;
     private int countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
 
-    private SetSynchronizer(StateSynchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer) {
+    private SetSynchronizer(Synchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer) {
         this.synchronizer = synchronizer;
         update();
     }
 
     @Synchronized
     public void update() {
-        current = synchronizer.getCurrentState(current);
+        current = synchronizer.getLatestState(current);
     }
 
     @Synchronized
@@ -96,7 +105,7 @@ public class SetSynchronizer<T> {
 
     @Synchronized
     public boolean attemptAdd(T value) {
-        UpdatableSet<T> newSet = synchronizer.attemptUpdate(current, new AddToList<>(value));
+        UpdatableSet<T> newSet = synchronizer.updateState(current, new AddToSet<>(value), true);
         if (newSet == null) {
             return false;
         }
@@ -106,7 +115,7 @@ public class SetSynchronizer<T> {
 
     @Synchronized
     public boolean attemptRemove(T value) {
-        UpdatableSet<T> newSet = synchronizer.attemptUpdate(current, new RemoveFromList<>(value));
+        UpdatableSet<T> newSet = synchronizer.updateState(current, new RemoveFromSet<>(value), true);
         if (newSet == null) {
             return false;
         }
@@ -121,7 +130,7 @@ public class SetSynchronizer<T> {
 
     @Synchronized
     public boolean attemptClear() {
-        UpdatableSet<T> newSet = synchronizer.attemptUpdate(current, new ClearList<>());
+        UpdatableSet<T> newSet = synchronizer.updateState(current, new ClearSet<>(), true);
         if (newSet == null) {
             return false;
         }
@@ -129,6 +138,10 @@ public class SetSynchronizer<T> {
         synchronizer.compact(current);
         countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
         return true;
+    }
+    
+    public static <T extends Serializable> SetSynchronizer<T> createNewSet(Stream stream) {
+        return new SetSynchronizer<>(stream.createSynchronizer(new JavaSerializer<UpdatableSet<T>>(), new JavaSerializer<SetUpdate<T>>(), null));
     }
 
 }

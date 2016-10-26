@@ -17,6 +17,10 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.state.Revisioned;
+import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.SynchronizerConfig;
+import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.impl.Orderer;
 
 /**
@@ -88,11 +92,23 @@ public interface Stream {
      * nothing about it until you do so manually. (Usually by getting its last {@link Position}) object and either
      * calling this method again or invoking: {@link RebalancerUtils#rebalance} and then invoking this method.
      *
-     * @param config           The consumer configuration.
      * @param s                The Serializer.
+     * @param config           The consumer configuration.
      * @param l                The RateChangeListener to use.
      * @param startingPosition The StartingPosition to use.
      * @param <T>              The consumer data type.
      */
     <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
+    
+    
+
+    /**
+     * Creates a new Synchronizer that will work on this stream.
+     * 
+     * @param stateSerializer   The serializer for the state object.
+     * @param updateSerializer  The serializer for updates.
+     * @param config            The Serializer configuration
+     */
+    <StateT extends Revisioned,UpdateT extends Update<StateT>> Synchronizer<StateT, UpdateT> createSynchronizer(Serializer<StateT> stateSerializer, Serializer<UpdateT> updateSerializer, SynchronizerConfig config );
+    
 }

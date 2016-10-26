@@ -17,18 +17,11 @@
  */
 package com.emc.pravega.state;
 
-/**
- * The configuration of a Consistent replicated state. 
- */
-public interface StateConfiguration {
-    
-    /**
-     * @return The scope of the stream
-     */
-    String getScope();
-    /**
-     * @return The name of the stream
-     */
-    String getName();
+import java.io.Serializable;
 
+/**
+ * The configuration for a Consistent replicated state synchronizer
+ */
+public class SynchronizerConfig implements Serializable {
+    
 }
