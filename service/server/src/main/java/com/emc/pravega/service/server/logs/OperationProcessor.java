@@ -377,7 +377,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
                     this.logUpdater.process(e.getOperation());
-                } catch (DataCorruptionException ex) {
+                } catch (Throwable ex) {
                     log.error("{}: OperationCommitFailure ({}). {}", this.traceObjectId, e.getOperation(), ex);
                     e.fail(ex);
                     throw ex;
