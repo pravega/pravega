@@ -50,14 +50,14 @@ public class TaskBase implements Cloneable {
         private final String oldTag;
         private final Resource oldResource;
 
-        public Context(String hostId) {
+        public Context(final String hostId) {
             this.hostId = hostId;
             this.oldHostId = null;
             this.oldTag = null;
             this.oldResource = null;
         }
 
-        public Context(String hostId, String oldHost, String oldTag, Resource oldResource) {
+        public Context(final String hostId, final String oldHost, final String oldTag, final Resource oldResource) {
             this.hostId = hostId;
             this.oldHostId = oldHost;
             this.oldTag = oldTag;
@@ -69,7 +69,7 @@ public class TaskBase implements Cloneable {
 
     private final TaskMetadataStore taskMetadataStore;
 
-    public TaskBase(TaskMetadataStore taskMetadataStore, String hostId) {
+    public TaskBase(final TaskMetadataStore taskMetadataStore, final String hostId) {
         this.taskMetadataStore = taskMetadataStore;
         context = new Context(hostId);
     }
@@ -79,7 +79,7 @@ public class TaskBase implements Cloneable {
         return (TaskBase) super.clone();
     }
 
-    public void setContext(Context context) {
+    public void setContext(final Context context) {
         this.context = context;
     }
 
@@ -96,7 +96,7 @@ public class TaskBase implements Cloneable {
      * @param <T> type parameter of return value of operation to be executed.
      * @return return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(Resource resource, Serializable[] parameters, FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
         final String tag = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);
         final CompletableFuture<T> result = new CompletableFuture<>();
@@ -127,7 +127,10 @@ public class TaskBase implements Cloneable {
         return result;
     }
 
-    private <T> CompletableFuture<T> executeTask(Resource resource, TaskData taskData, String tag, FutureOperation<T> operation) {
+    private <T> CompletableFuture<T> executeTask(final Resource resource,
+                                                 final TaskData taskData,
+                                                 final String tag,
+                                                 final FutureOperation<T> operation) {
         final CompletableFuture<T> result = new CompletableFuture<>();
 
         final CompletableFuture<Void> lockResult = new CompletableFuture<>();
@@ -186,7 +189,7 @@ public class TaskBase implements Cloneable {
         return result;
     }
 
-    private CompletableFuture<Void> removeOldHostChild(String tag) {
+    private CompletableFuture<Void> removeOldHostChild(final String tag) {
         if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
             log.debug("Host={}, Tag={} removing child <{}, {}> of {}",
                     context.hostId, tag, context.oldResource, context.oldTag, context.oldHostId);
@@ -199,7 +202,7 @@ public class TaskBase implements Cloneable {
         }
     }
 
-    private TaskData getTaskData(Serializable[] parameters) {
+    private TaskData getTaskData(final Serializable[] parameters) {
         // Quirk of using stack trace shall be rendered redundant when Task Annotation's handler is coded up.
         TaskData taskData = new TaskData();
         StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
@@ -211,7 +214,7 @@ public class TaskBase implements Cloneable {
         return taskData;
     }
 
-    private Task getTaskAnnotation(String method) {
+    private Task getTaskAnnotation(final String method) {
         for (Method m : this.getClass().getMethods()) {
             if (m.getName().equals(method)) {
                 for (Annotation annotation : m.getDeclaredAnnotations()) {

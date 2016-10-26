@@ -28,7 +28,7 @@ public class StreamStoreFactory {
         HDFS
     }
 
-    public static StreamMetadataStore createStore(StoreType type, StoreConfiguration config) {
+    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
         switch (type) {
             case InMemory:
                 return new InMemoryStreamMetadataStore();

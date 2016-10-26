@@ -15,24 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.task;
+package com.emc.pravega.controller.store;
+
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.commons.lang.NotImplementedException;
 
 /**
- * Static list of path prefixes
+ * Factory method for store clients.
  */
-public class Paths {
+public class StoreClientFactory {
 
-    public static final String STREAM_TASK_ROOT = "/tasks/stream";
+    public enum StoreType {
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3,
+        HDFS
+    }
 
-    // Task data per stream. A stream can have at most one task under execution at any given point of time.
-    public static final String STREAM_TASKS = STREAM_TASK_ROOT + "/%s_%s";
-
-    public static final String STREAM_LOCKS_ROOT = "/locks/streams";
-
-    // Locks held by hosts on streams
-    public static final String STREAM_LOCKS = STREAM_LOCKS_ROOT + "/%s_%s";
-
-    // List of tasks being executed by a host.
-    // This list is kind of an index for quick access to tasks being executed by a failed host.
-    //public static final String HOST_TASKS = "/hosts/%s";
+    public static StoreClient createStoreClient(final StoreType type, final StoreConfiguration config) {
+        switch (type) {
+            case Zookeeper:
+                return new ZKStoreClient(config);
+            case InMemory:
+            case ECS:
+            case S3:
+            case HDFS:
+            default:
+                throw new NotImplementedException();
+        }
+    }
 }

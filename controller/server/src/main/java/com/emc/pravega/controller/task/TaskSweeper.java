@@ -50,7 +50,7 @@ public class TaskSweeper {
         private final Throwable error;
     }
 
-    public TaskSweeper(TaskMetadataStore taskMetadataStore, String hostId, TaskBase... classes) {
+    public TaskSweeper(final TaskMetadataStore taskMetadataStore, final String hostId, final TaskBase... classes) {
         this.taskMetadataStore = taskMetadataStore;
         this.hostId = hostId;
         for (TaskBase object : classes) {
@@ -69,14 +69,14 @@ public class TaskSweeper {
      *
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
      */
-    public CompletableFuture<Void> sweepOrphanedTasks(String oldHostId) {
+    public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
         return FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
                 x -> x != null);
     }
 
-    public CompletableFuture<Result> executeHostTask(String oldHostId) {
+    public CompletableFuture<Result> executeHostTask(final String oldHostId) {
 
         // Get a random child TaggedResource of oldHostId node and attempt to execute corresponding task
         return taskMetadataStore.getRandomChild(oldHostId)
@@ -103,7 +103,7 @@ public class TaskSweeper {
                 });
     }
 
-    public CompletableFuture<Result> executeResourceTask(String oldHostId, TaggedResource taggedResource) {
+    public CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
         final CompletableFuture<Result> result = new CompletableFuture<>();
         // Get the task details associated with resource taggedResource.resource
         // that is owned by oldHostId and taggedResource.threadId
@@ -161,7 +161,7 @@ public class TaskSweeper {
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
-    public CompletableFuture<Object> execute(String oldHostId, TaskData taskData, TaggedResource taggedResource) {
+    public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
         log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
                 this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
@@ -220,7 +220,7 @@ public class TaskSweeper {
      * @param taskVersion method version.,
      * @return key
      */
-    private String getKey(String taskName, String taskVersion) {
+    private String getKey(final String taskName, final String taskVersion) {
         return taskName + "--" + taskVersion;
     }
 }

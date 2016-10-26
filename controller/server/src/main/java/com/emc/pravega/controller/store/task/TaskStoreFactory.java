@@ -17,25 +17,19 @@
  */
 package com.emc.pravega.controller.store.task;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.controller.store.StoreClient;
+import com.emc.pravega.controller.store.ZKStoreClient;
 import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Task store factory
  */
 public class TaskStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
 
-    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config) {
-        switch (type) {
+    public static TaskMetadataStore createStore(StoreClient storeClient) {
+        switch (storeClient.getType()) {
             case Zookeeper:
-                return new ZKTaskMetadataStore(config);
+                return new ZKTaskMetadataStore((ZKStoreClient) storeClient);
             case InMemory:
             case ECS:
             case S3:

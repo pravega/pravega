@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
@@ -77,7 +78,7 @@ public class ControllerServiceImplTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
+        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
         final HostControllerStore hostStore =
                 HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
                         new InMemoryHostControllerStoreConfig(hostContainerMap));

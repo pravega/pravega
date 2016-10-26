@@ -30,7 +30,7 @@ public class TaggedResource {
     private final String tag;
     private final Resource resource;
 
-    public TaggedResource(String tag, Resource resource) {
+    public TaggedResource(final String tag, final Resource resource) {
         this.tag = tag;
         this.resource = resource;
     }

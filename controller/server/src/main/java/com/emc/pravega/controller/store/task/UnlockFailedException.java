@@ -31,7 +31,7 @@ public class UnlockFailedException extends RuntimeException {
      * Creates a new instance of StreamAlreadyExistsException class
      * @param name duplicate stream name
      */
-    public UnlockFailedException(String name) {
+    public UnlockFailedException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
@@ -40,7 +40,7 @@ public class UnlockFailedException extends RuntimeException {
      * @param name duplicate stream name
      * @param cause   error cause
      */
-    public UnlockFailedException(String name, Throwable cause) {
+    public UnlockFailedException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

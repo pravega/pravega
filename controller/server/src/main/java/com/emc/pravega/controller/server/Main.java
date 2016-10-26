@@ -20,12 +20,13 @@ package com.emc.pravega.controller.server;
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.TASK_STORE_CONNECTION_STRING;
-import static com.emc.pravega.controller.util.Config.TASK_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.ZK_CONNECTION_STRING;
+import static com.emc.pravega.controller.util.Config.STORE_CONNECTION_STRING;
+import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.store.StoreClient;
+import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -40,9 +41,6 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -76,21 +74,26 @@ public class Main {
         }
 
         //1) LOAD configuration.
+
+        log.info("Creating store client");
+        StoreClient storeClient = StoreClientFactory.createStoreClient(
+                StoreClientFactory.StoreType.valueOf(STORE_TYPE),
+                new StoreConfiguration(STORE_CONNECTION_STRING));
+
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE),
                 new StoreConfiguration(STREAM_STORE_CONNECTION_STRING));
+
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));
+
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(
-                TaskStoreFactory.StoreType.valueOf(TASK_STORE_TYPE),
-                new StoreConfiguration(TASK_STORE_CONNECTION_STRING));
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient);
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        CuratorFramework client = CuratorFrameworkFactory.newClient(ZK_CONNECTION_STRING, new ExponentialBackoffRetry(1000, 3));
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
         RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
