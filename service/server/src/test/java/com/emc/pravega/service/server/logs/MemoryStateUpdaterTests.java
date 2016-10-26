@@ -52,9 +52,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Unit tests for MemoryLogUpdater class.
+ * Unit tests for MemoryStateUpdater class.
  */
-public class MemoryLogUpdaterTests {
+public class MemoryStateUpdaterTests {
     /**
      * Tests the functionality of the process() method.
      */
@@ -69,7 +69,7 @@ public class MemoryLogUpdaterTests {
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         @Cleanup
         InMemoryCache cache = new InMemoryCache("0");
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(cache, readIndex));
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(cache, readIndex));
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -105,13 +105,13 @@ public class MemoryLogUpdaterTests {
 
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
-                "MemoryLogUpdater accepted an operation that was out of order.",
+                "MemoryStateUpdater accepted an operation that was out of order.",
                 () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
     /**
-     * Tests the ability of the MemoryLogUpdater to delegate Enter/Exit recovery mode to the read index.
+     * Tests the ability of the MemoryStateUpdater to delegate Enter/Exit recovery mode to the read index.
      */
     @Test
     public void testRecoveryMode() throws Exception {
@@ -119,7 +119,7 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
 
         StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata(1);
         updater.enterRecoveryMode(metadata1);
@@ -148,7 +148,7 @@ public class MemoryLogUpdaterTests {
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         AtomicInteger flushCallbackCallCount = new AtomicInteger();
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
@@ -168,7 +168,7 @@ public class MemoryLogUpdaterTests {
         AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
     }
 
-    private ArrayList<Operation> populate(MemoryLogUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
+    private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
         ArrayList<Operation> operations = new ArrayList<>();
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {

@@ -30,7 +30,7 @@ import com.google.common.base.Preconditions;
 /**
  * Helper class that allows appending Log Operations to available InMemory Structures.
  */
-class MemoryLogUpdater {
+class MemoryStateUpdater {
     //region Private
 
     private final CacheUpdater cacheUpdater;
@@ -42,23 +42,23 @@ class MemoryLogUpdater {
     //region Constructor
 
     /**
-     * Creates a new instance of the MemoryLogUpdater class.
+     * Creates a new instance of the MemoryStateUpdater class.
      *
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param cacheUpdater         Cache Updater.
      */
-    MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater) {
+    MemoryStateUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater) {
         this(inMemoryOperationLog, cacheUpdater, null);
     }
 
     /**
-     * Creates a new instance of the MemoryLogUpdater class.
+     * Creates a new instance of the MemoryStateUpdater class.
      *
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param cacheUpdater         Cache Updater.
      * @param flushCallback        (Optional) A callback to be invoked whenever flush() is invoked.
      */
-    MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
+    MemoryStateUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
         Preconditions.checkNotNull(cacheUpdater, "cacheUpdater");
         Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
 
@@ -100,7 +100,7 @@ class MemoryLogUpdater {
     void process(Operation operation) throws DataCorruptionException {
         // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the QueueProcessor,
         // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
-        if(operation instanceof StorageOperation) {
+        if (operation instanceof StorageOperation) {
             this.cacheUpdater.addToReadIndex((StorageOperation) operation);
             if (operation instanceof StreamSegmentAppendOperation) {
                 // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
