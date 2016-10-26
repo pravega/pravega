@@ -15,30 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store;
 
-import org.apache.commons.lang.NotImplementedException;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
+/**
+ * ZK client.
+ */
+public class ZKStoreClient implements StoreClient {
+
+    private final CuratorFramework client;
+
+    public ZKStoreClient(StoreConfiguration configuration) {
+        this.client = CuratorFrameworkFactory.newClient(configuration.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
     }
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
-            case Zookeeper:
-                return new ZKStreamMetadataStore(config);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    @Override
+    public CuratorFramework getClient() {
+        return this.client;
+    }
+
+    @Override
+    public StoreClientFactory.StoreType getType() {
+        return StoreClientFactory.StoreType.Zookeeper;
     }
 }

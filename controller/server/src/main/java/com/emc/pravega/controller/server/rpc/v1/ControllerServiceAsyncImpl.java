@@ -24,12 +24,15 @@ import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.thrift.TException;
 import org.apache.thrift.async.AsyncMethodCallback;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -40,14 +43,14 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceAsyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore);
+    public ControllerServiceAsyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Override
     public void createStream(StreamConfig streamConfig, AsyncMethodCallback resultHandler) throws TException {
         log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
-        processResult(controllerService.createStream(ModelHelper.encode(streamConfig)), resultHandler);
+        processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()), resultHandler);
     }
 
     @Override
@@ -72,6 +75,12 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     public void updatePositions(String scope, String stream, List<Position> positions, AsyncMethodCallback resultHandler) throws TException {
         log.debug("updatePositions called for stream " + scope + "/" + stream);
         processResult(controllerService.updatePositions(scope, stream, positions), resultHandler);
+    }
+
+    @Override
+    public void scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp, AsyncMethodCallback resultHandler) throws TException {
+        log.debug("scale called for stream " + scope + "/" + stream);
+        processResult(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), resultHandler);
     }
 
     @Override

@@ -21,19 +21,25 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.stream.api.v1.TxState;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.thrift.TException;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Synchronous controller service implementation
@@ -42,8 +48,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore);
+    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     /**
@@ -52,12 +58,12 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
      * Asynchronously call createSegment on pravega hosts notifying them about new segments in the stream.
      */
     @Override
-    public Status createStream(StreamConfig streamConfig) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig)), RuntimeException::new);
+    public CreateStreamStatus createStream(StreamConfig streamConfig) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()), RuntimeException::new);
     }
 
     @Override
-    public Status alterStream(StreamConfig streamConfig) throws TException {
+    public UpdateStreamStatus alterStream(StreamConfig streamConfig) throws TException {
         throw new NotImplementedException();
     }
 
@@ -82,25 +88,30 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
+    public ScaleResponse scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), RuntimeException::new);
+    }
+
+    @Override
     public TxId createTransaction(String scope, String stream) throws TException {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public Status commitTransaction(String scope, String stream, TxId txid) throws TException {
+    public TransactionStatus commitTransaction(String scope, String stream, TxId txid) throws TException {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public Status dropTransaction(String scope, String stream, TxId txid) throws TException {
+    public TransactionStatus dropTransaction(String scope, String stream, TxId txid) throws TException {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public TxStatus checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
+    public TxState checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
         // TODO Auto-generated method stub
         return null;
     }

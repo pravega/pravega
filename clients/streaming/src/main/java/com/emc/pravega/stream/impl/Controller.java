@@ -23,7 +23,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.Segment;
@@ -45,14 +47,14 @@ public interface Controller {
          * @param streamConfig
          * @return
          */
-        CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
+        CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig);
 
         /**
          * Api to alter stream
          * @param streamConfig
          * @return
          */
-        CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
+        CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig);
     
      // Controller Apis called by pravega producers for getting stream specific information
      
@@ -71,12 +73,12 @@ public interface Controller {
          * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
          * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
          */
-        CompletableFuture<Status> commitTransaction(Stream stream, UUID txId);
+        CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId);
 
         /**
          * Drops a transaction. No events published to it may be read, and no further events may be published.
          */
-        CompletableFuture<Status> dropTransaction(Stream stream, UUID txId);
+        CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId);
 
         /**
          * Returns the status of the specified transaction.

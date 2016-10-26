@@ -15,30 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store.task;
 
-import org.apache.commons.lang.NotImplementedException;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.apache.commons.lang3.SerializationUtils;
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
+import java.io.Serializable;
+
+/**
+ * Lock row
+ */
+@Data
+@EqualsAndHashCode
+class LockData implements Serializable {
+    private final String hostId;
+    private final String threadId;
+    private final byte[] taskData;
+
+    public byte[] serialize() {
+        return SerializationUtils.serialize(this);
     }
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
-            case Zookeeper:
-                return new ZKStreamMetadataStore(config);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    public static LockData deserialize(final byte[] bytes) {
+        return (LockData) SerializationUtils.deserialize(bytes);
     }
 }

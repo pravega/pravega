@@ -15,30 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store.task;
 
-import org.apache.commons.lang.NotImplementedException;
+import com.google.common.base.Preconditions;
+import lombok.Data;
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
+/**
+ * Resources managed by controller.
+ * Currently there are two kinds of resources.
+ * 1. Stream resource: scope/streamName
+ * 2, Tx resource:     scope/streamName/txId
+ */
+@Data
+public class Resource {
+    private final String string;
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
-            case Zookeeper:
-                return new ZKStreamMetadataStore(config);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
+    public Resource(final String... parts) {
+        Preconditions.checkNotNull(parts);
+        Preconditions.checkArgument(parts.length > 0);
+        String representation = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            representation += "/" + parts[i];
         }
+        string = representation;
     }
 }

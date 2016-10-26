@@ -15,30 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store.task;
 
-import org.apache.commons.lang.NotImplementedException;
+import lombok.Data;
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
+/**
+ * Resource with a tag.
+ * Tag is a logical identifier intended to distinguish between multiple attempts by a single controller host to
+ * execute tasks on a resource.
+ */
+@Data
+public class TaggedResource {
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
-            case Zookeeper:
-                return new ZKStreamMetadataStore(config);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    private final String tag;
+    private final Resource resource;
+
+    public TaggedResource(final String tag, final Resource resource) {
+        this.tag = tag;
+        this.resource = resource;
     }
 }

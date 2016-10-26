@@ -18,8 +18,11 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
+import java.net.UnknownHostException;
 import java.util.concurrent.CompletableFuture;
 
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.commons.lang.NotImplementedException;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -77,4 +80,64 @@ public class SegmentHelper {
         }
         return FutureHelpers.getAndHandleExceptions(result, RuntimeException::new);
     }
+
+    /**
+     * This method sends segment sealed message for the specified segment.
+     * It owns up the responsibility of retrying the operation on failures until success.
+     * @param scope stream scope
+     * @param stream stream name
+     * @param segmentNumber number of segment to be sealed
+     * @return void
+     */
+    public static Boolean sealSegment(String scope, String stream, int segmentNumber, HostControllerStore hostControllerStore, ConnectionFactory clientCF) {
+        Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
+                .retryingOn(SealingFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .run(() -> {
+                    NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+                    return FutureHelpers.<Boolean, SealingFailedException>getAndHandleExceptions(
+                            SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), clientCF),
+                            SealingFailedException::new);
+                });
+        return true;
+    }
+
+    public static CompletableFuture<Boolean> sealSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new UnknownHostException());
+            }
+
+            @Override
+            public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
+                result.complete(true);
+            }
+
+            @Override
+            public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
+                result.complete(true);
+            }
+        };
+        return clientCF
+                .establishConnection(uri, replyProcessor)
+                .thenApply(connection -> {
+                    try {
+                        connection.send(new WireCommands.SealSegment(Segment.getQualifiedName(scope, stream, segmentNumber)));
+                    } catch (ConnectionFailedException ex) {
+                        throw new SealingFailedException(ex);
+                    }
+                    return null;
+                })
+                .thenCompose(x -> result);
+    }
+
 }

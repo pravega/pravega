@@ -33,9 +33,11 @@ import org.apache.thrift.transport.TNonblockingTransport;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.ControllerService;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.SegmentRange;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.util.ThriftAsyncCallback;
 import com.emc.pravega.controller.util.ThriftHelper;
 import com.emc.pravega.stream.PositionInternal;
@@ -73,7 +75,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         log.debug("Invoke AdminService.Client.createStream() with streamConfiguration: {}", streamConfig);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.createStream_call> callback = new ThriftAsyncCallback<>();
@@ -86,7 +88,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
         log.debug("Invoke AdminService.Client.alterStream() with streamConfiguration: {}", streamConfig);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.alterStream_call> callback = new ThriftAsyncCallback<>();
@@ -156,7 +158,7 @@ public class ControllerImpl implements Controller {
                 }
                 return rangeMap;
             })
-            .thenApply(map -> new StreamSegments(map));
+            .thenApply(StreamSegments::new);
     }
 
     @Override
@@ -187,7 +189,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Status> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
         log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new ThriftAsyncCallback<>();
@@ -200,7 +202,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Status> dropTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
         log.debug("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();

@@ -15,25 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store.task;
 
+import com.emc.pravega.controller.store.StoreClient;
+import com.emc.pravega.controller.store.ZKStoreClient;
 import org.apache.commons.lang.NotImplementedException;
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
+/**
+ * Task store factory
+ */
+public class TaskStoreFactory {
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
+    public static TaskMetadataStore createStore(StoreClient storeClient) {
+        switch (storeClient.getType()) {
             case Zookeeper:
-                return new ZKStreamMetadataStore(config);
+                return new ZKTaskMetadataStore((ZKStoreClient) storeClient);
+            case InMemory:
             case ECS:
             case S3:
             case HDFS:

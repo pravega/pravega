@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -269,5 +270,21 @@ public final class FutureHelpers {
         } else {
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    /**
+     * Executes a code fragment returning a CompletableFutures while a condition on the returned value is satisfied.
+     *
+     * @param condition Predicate that indicates whether to proceed with the loop or not.
+     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                  supplier is invoked every time the loopBody needs to execute.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     */
+    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition) {
+        return loopBody.get().thenCompose(result ->
+                condition.test(result)
+                        ? doWhileLoop(loopBody, condition)
+                        : CompletableFuture.completedFuture(null));
     }
 }

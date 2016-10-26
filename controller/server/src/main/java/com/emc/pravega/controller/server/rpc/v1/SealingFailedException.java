@@ -15,30 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.server.rpc.v1;
 
-import org.apache.commons.lang.NotImplementedException;
+/**
+ * Sealing failed exception
+ */
+public class SealingFailedException extends RuntimeException {
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
-
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
-            case Zookeeper:
-                return new ZKStreamMetadataStore(config);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    public SealingFailedException(Throwable cause) {
+        super(cause);
     }
 }

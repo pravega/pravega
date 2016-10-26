@@ -15,11 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store;
 
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
-public class StreamStoreFactory {
+/**
+ * Factory method for store clients.
+ */
+public class StoreClientFactory {
+
     public enum StoreType {
         InMemory,
         Zookeeper,
@@ -28,12 +33,11 @@ public class StreamStoreFactory {
         HDFS
     }
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
+    public static StoreClient createStoreClient(final StoreType type, final StoreConfiguration config) {
         switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
             case Zookeeper:
-                return new ZKStreamMetadataStore(config);
+                return new ZKStoreClient(config);
+            case InMemory:
             case ECS:
             case S3:
             case HDFS:

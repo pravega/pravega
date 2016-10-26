@@ -15,30 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store.task;
 
-import org.apache.commons.lang.NotImplementedException;
+/**
+ * Unlock failed exception.
+ */
+public class UnlockFailedException extends RuntimeException {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 1L;
+    private static final String FORMAT_STRING = "Failed unlocking resource %s.";
 
-public class StreamStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     */
+    public UnlockFailedException(final String name) {
+        super(String.format(FORMAT_STRING, name));
     }
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryStreamMetadataStore();
-            case Zookeeper:
-                return new ZKStreamMetadataStore(config);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    /**
+     * Creates a new instance of StreamAlreadyExistsException class
+     * @param name duplicate stream name
+     * @param cause   error cause
+     */
+    public UnlockFailedException(final String name, final Throwable cause) {
+        super(String.format(FORMAT_STRING, name), cause);
     }
 }
