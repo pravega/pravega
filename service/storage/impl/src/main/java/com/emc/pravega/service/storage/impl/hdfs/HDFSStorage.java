@@ -142,8 +142,9 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,()->acquireLockForSegmentSync(streamSegmentName),
-        executor);
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                () -> acquireLockForSegmentSync(streamSegmentName),
+                executor);
     }
 
     /**
@@ -237,7 +238,7 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                ()->this.setAllFilesReadOnlySync(streamSegmentName), executor);
+                () -> this.setAllFilesReadOnlySync(streamSegmentName), executor);
     }
 
 
@@ -262,7 +263,7 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                ()-> deleteSync(streamSegmentName, timeout),
+                () ->  deleteSync(streamSegmentName, timeout),
         this.executor);
     }
 

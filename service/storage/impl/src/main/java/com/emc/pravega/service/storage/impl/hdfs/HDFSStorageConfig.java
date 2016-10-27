@@ -50,6 +50,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     /**
+     * HDFS host URL. This is generally in host:port format
      * @return URL pointing to the HDFS host.
      */
     public String getHDFSHostURL() {
@@ -57,6 +58,8 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     /**
+     * Root of the Pravega owned HDFS path. All the directories/files under this path will be exclusively
+     * owned by Pravega.
      * @return path at which all the HDFS data is stored.
      */
     public String getHdfsRoot() {
@@ -68,7 +71,8 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     /**
-     *
+     * Decides the replication factor of the data stored on HDFS.
+     * This can be used to control availability of HDFS data.
      * @return Replication factor for HDFS storage
      */
     public short getReplication() {
@@ -76,6 +80,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     /**
+     * The default blocksize that will be used to exchange data with HDFS.
      * @return blocksize for HDFS
      */
     public long getBlockSize() {
