@@ -76,9 +76,11 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * @param containerRegistry        The SegmentContainerRegistry to manage.
      * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the cluster
      *                                 (i.e., number of containers).
+     * @param zkClient                 ZooKeeper client.
      * @throws NullPointerException If containerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      * @throws NullPointerException If logger is null.
+     * @throws Exception            Error while communicating with Zookeeper.
      */
     public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper,
                                      CuratorFramework zkClient) throws Exception {
@@ -198,14 +200,24 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         };
     }
 
-    private List<CompletableFuture<Void>> initializeFromZK(String hostName, Duration timeout) {
+    /**
+     * Initialize the segment containers from ZK. This function performs the following for a given host.
+     * a. Fetch the assigned segment containers from zookeeper.
+     * b. Get a list of segment containers that are currently running.
+     * c. Start and stop the appropriate containers.
+     *
+     * @param hostId  - Identifier of host
+     * @param timeout - timeout value to be passed to SegmentContainerRegistry.
+     * @return - List of CompletableFuture for the start and stop operations performed.
+     */
+    private List<CompletableFuture<Void>> initializeFromZK(String hostId, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        Map<Integer, Host> controlMapping = getSegmentContainerMapping();
+        Map<Host, Set<Integer>> controlMapping = getSegmentContainerMapping();
 
         Set<Integer> desiredContainerList = controlMapping.entrySet().stream()
-                .filter(ep -> ep.getValue().getIpAddr().equals(hostName))
-                .map(ep -> ep.getKey())
-                .collect(Collectors.toSet());
+                .filter(ep -> ep.getKey().getIpAddr().equals(hostId))
+                .map(Map.Entry::getValue)
+                .findFirst().orElse(Collections.EMPTY_SET);
 
         Collection<Integer> runningContainers = this.registry.getRegisteredContainerIds();
 
@@ -232,14 +244,12 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         return complement;
     }
 
-    private Map<Integer, Host> getSegmentContainerMapping() {
+    private Map<Host, Set<Integer>> getSegmentContainerMapping() {
         Optional<ChildData> containerToHostMapSer = Optional.of(segContainerHostMapping.getCurrentData());
-        Map<Integer, Host> mapping;
         if (containerToHostMapSer.isPresent()) {
-            mapping = (HashMap<Integer, Host>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
+            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
         } else {
-            mapping = new HashMap<>(); //create empty map
+            return Collections.EMPTY_MAP;
         }
-        return mapping;
     }
 }

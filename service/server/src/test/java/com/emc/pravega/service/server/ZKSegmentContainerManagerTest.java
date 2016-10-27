@@ -33,7 +33,10 @@ import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.Assert.assertEquals;
@@ -117,8 +120,8 @@ public class ZKSegmentContainerManagerTest {
         when(containerRegistry.startContainer(eq(2), any())).thenReturn(CompletableFuture.completedFuture(containerHandle2));
 
         //now modify the ZK entry
-        HashMap<Integer, Host> currentData = (HashMap<Integer, Host>) SerializationUtils.deserialize(zkClient.getData().forPath(path));
-        currentData.put(2, new Host(getHostAddress(), PORT));
+        HashMap<Host, Set<Integer>> currentData = (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(path));
+        currentData.put(new Host(getHostAddress(), PORT), new HashSet(Arrays.asList(2)));
         zkClient.setData().forPath(path, SerializationUtils.serialize(currentData));
 
         verify(containerHandle2, after(500).atMost(5)).getContainerId();
@@ -161,8 +164,8 @@ public class ZKSegmentContainerManagerTest {
     }
 
     private void initializeSegmentMapping(CuratorFramework zkClient) throws Exception {
-        HashMap<Integer, Host> mapping = new HashMap<>();
-        mapping.put(1, new Host(getHostAddress(), PORT));
+        HashMap<Host, Set<Integer>> mapping = new HashMap<>();
+        mapping.put(new Host(getHostAddress(), PORT), new HashSet<>(Arrays.asList(1)));
         zkClient.create().creatingParentsIfNeeded().forPath(path, SerializationUtils.serialize(mapping));
     }
 }
