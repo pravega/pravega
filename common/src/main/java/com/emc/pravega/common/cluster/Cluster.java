@@ -18,7 +18,8 @@
 package com.emc.pravega.common.cluster;
 
 
-import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * Cluster interface enables to register / de-register a Host to a cluster.
@@ -50,11 +51,20 @@ public interface Cluster extends AutoCloseable {
     public void addListener(final ClusterListener listener) throws Exception;
 
     /**
+     * Add Listeners with an executor to run the listener on.
+     *
+     * @param listener - Cluster event listener.
+     * @param executor -  Executor to run listener on.
+     * @throws Exception - Error while adding ClusterListener.
+     */
+    public void addListener(final ClusterListener listener, final Executor executor) throws Exception;
+
+    /**
      * Get the current cluster members.
      *
-     * @return List<Host> - List of cluster members.
+     * @return Set<Host> - List of cluster members.
      * @throws Exception - Error while getting Cluster members.
      */
-    public List<Host> getClusterMembers() throws Exception;
+    public Set<Host> getClusterMembers() throws Exception;
 
 }

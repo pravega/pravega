@@ -24,13 +24,14 @@ public interface ClusterListener {
 
     enum EventType {
         HOST_ADDED,
-        HOST_REMOVED
+        HOST_REMOVED,
+        ERROR
     }
 
     /**
      * Method invoked on cluster Event.
      * @param type - Event type.
-     * @param host - Host added/removed.
+     * @param host - Host added/removed, in case of an ERROR a null host value is passed.
      */
     public void onEvent(final EventType type, final Host host);
 

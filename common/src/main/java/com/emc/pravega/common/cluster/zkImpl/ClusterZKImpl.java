@@ -43,8 +43,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
+import static com.emc.pravega.common.cluster.ClusterListener.EventType.ERROR;
 import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_ADDED;
 import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_REMOVED;
 
@@ -131,27 +134,47 @@ public class ClusterZKImpl implements Cluster {
     }
 
     /**
-     * Get the current cluster members.
+     * Add Listener to the cluster.
      *
-     * @return List<Host> list of cluster members.
+     * @param listener - Cluster event Listener.
+     * @param executor - Executor to run the listener on.
+     * @throws Exception - Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
-    public List<Host> getClusterMembers() throws Exception {
+    public void addListener(final ClusterListener listener, final Executor executor) throws Exception {
+        Preconditions.checkNotNull(listener, "listener");
+        Preconditions.checkNotNull(executor, "executor");
+        if (!cache.isPresent()) {
+            initializeCache();
+        }
+        cache.get().getListenable().addListener(pathChildrenCacheListener(listener), executor);
+    }
+
+    /**
+     * Get the current cluster members.
+     *
+     * @return Set<Host> list of cluster members.
+     */
+    @Override
+    @Synchronized
+    public Set<Host> getClusterMembers() throws Exception {
         if (!cache.isPresent()) {
             initializeCache();
         }
         List<ChildData> data = cache.get().getCurrentData();
         return data.stream()
                 .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
     }
 
     @Override
     public void close() throws Exception {
-        CollectionHelpers.forEach(entryMap.values(), this::close);
-        if (cache.isPresent()) {
-            close(cache.get());
+        synchronized (entryMap) {
+            CollectionHelpers.forEach(entryMap.values(), this::close);
+            if (cache.isPresent()) {
+                close(cache.get());
+            }
         }
     }
 
@@ -186,6 +209,12 @@ public class ClusterZKImpl implements Cluster {
                 case CHILD_UPDATED:
                     log.warn("Invalid usage: Node {} updated externally for cluster:{}", getServerName(event), clusterName);
                     break;
+                case CONNECTION_LOST:
+                    log.error("Connection lost with Zookeeper");
+                    listener.onEvent(ERROR, null);
+                    break;
+                default:
+                    log.warn("Received the following event {}", event.getType());
             }
         };
     }
