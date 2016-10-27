@@ -49,10 +49,16 @@ public class HDFSStorageConfig extends ComponentConfig {
         this.blocksize   = getInt32Property(PROPERTY_BLOCKSIZE);
     }
 
+    /**
+     * @return URL pointing to the HDFS host.
+     */
     public String getHDFSHostURL() {
         return this.hdfsHostURL;
     }
 
+    /**
+     * @return path at which all the HDFS data is stored.
+     */
     public String getHdfsRoot() {
         return this.hdfsRoot;
     }

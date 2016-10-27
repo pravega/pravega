@@ -114,9 +114,7 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        CompletableFuture<Boolean> retVal = new CompletableFuture<>();
-        retVal.completeExceptionally(new NotImplementedException());
-        return retVal;
+        return FutureHelpers.failedFuture(new NotImplementedException());
     }
 
     @Override
@@ -405,7 +403,7 @@ public class InMemoryStorage implements Storage {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
                     synchronized (this.lock) {
                         if (offset != this.length) {
-                            throw new CompletionException(new BadOffsetException(this.name, offset, this.length));
+                            throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
                         }
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
@@ -447,7 +445,7 @@ public class InMemoryStorage implements Storage {
         private void writeInternal(long startOffset, InputStream data, int length) {
             Exceptions.checkArgument(length >= 0, "length", "bad length");
             if (startOffset != this.length) {
-                throw new CompletionException(new BadOffsetException(this.name, startOffset, this.length));
+                throw new CompletionException(new BadOffsetException(this.name, this.length, startOffset));
             }
 
             if (this.sealed) {

@@ -43,8 +43,8 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
 
     /**
-     * Acquires distributed lock for a stream segment.
-     * @param streamSegmentName Name of the stream segment to be acquired.
+     * Acquires distributed lock for a StreamSegment.
+     * @param streamSegmentName Name of the StreamSegment to be acquired.
      * @return true if the lock is acquired, false if not
      */
     CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName);

@@ -40,7 +40,7 @@ import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
 
 /**
- * Unit tests for InMemoryStorage.
+ * This file contains unit tests for InMemoryStorage.
  */
 public class HDFSStorageTest {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);

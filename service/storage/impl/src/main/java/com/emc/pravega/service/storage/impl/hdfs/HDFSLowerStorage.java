@@ -202,7 +202,7 @@ class HDFSLowerStorage implements Storage {
             try {
                 fs.close();
             } catch (IOException e) {
-                log.debug("Could not close the fs. The error is", e);
+                log.debug("Could not close the fs. The error is ", e);
             }
         }
     }
