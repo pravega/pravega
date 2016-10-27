@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class HDFSStorageFactory implements StorageFactory {
     private final HDFSStorage storage;
-    private AtomicBoolean closed;
+    private final AtomicBoolean closed;
 
 
     public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {

@@ -67,10 +67,17 @@ public class HDFSStorageConfig extends ComponentConfig {
         return this.pravegaID;
     }
 
+    /**
+     *
+     * @return Replication factor for HDFS storage
+     */
     public short getReplication() {
         return this.replication;
     }
 
+    /**
+     * @return blocksize for HDFS
+     */
     public long getBlockSize() {
         return this.blocksize;
     }

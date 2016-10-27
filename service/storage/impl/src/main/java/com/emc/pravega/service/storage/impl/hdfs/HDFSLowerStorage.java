@@ -54,16 +54,8 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-                    try {
-                        retVal.complete(createSync(streamSegmentName, timeout));
-                    } catch (IOException e) {
-                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-                    }
-                },
-                executor);
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()->createSync(streamSegmentName, timeout), this.executor);
     }
 
 
@@ -104,16 +96,9 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-        CompletableFuture<Void> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-                    try {
-                        retVal.complete(writeSync(streamSegmentName, offset, length, data, timeout));
-                    } catch (Exception e) {
-                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-                    }
-                },
-                executor);
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()-> writeSync(streamSegmentName, offset, length, data, timeout),
+                this.executor);
     }
 
 
@@ -133,16 +118,8 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-                    try {
-                        retVal.complete(sealSync(streamSegmentName, timeout));
-                    } catch (IOException e) {
-                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-                    }
-                },
-                executor);
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()->sealSync(streamSegmentName, timeout),executor);
     }
 
     SegmentProperties sealSync(String streamSegmentName, Duration timeout) throws IOException {
@@ -158,17 +135,10 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        CompletableFuture<Void> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                retVal.complete(concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
-            } catch (Exception e) {
-                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(sourceStreamSegmentName, e));
-            }
-        }, executor);
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(targetStreamSegmentName,
+                ()->concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout),
+                executor);
     }
-
 
     Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
         FileStatus status = getFS().globStatus(new Path(targetStreamSegmentName))[0];
@@ -185,15 +155,9 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        CompletableFuture<Void> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                retVal.complete(deleteSync(streamSegmentName, timeout));
-            } catch (IOException e) {
-                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-            }
-        }, executor);
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()->deleteSync(streamSegmentName, timeout),
+                executor);
     }
 
     @Override
@@ -209,15 +173,9 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        CompletableFuture<Integer> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                retVal.complete(readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
-            } catch (IOException e) {
-                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-            }
-        }, executor);
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()->readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout),
+                executor);
     }
 
     /**
@@ -232,29 +190,16 @@ class HDFSLowerStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        CompletableFuture<SegmentProperties> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                retVal.complete(this.getStreamSegmentInfoSync(streamSegmentName, timeout));
-            } catch (IOException e) {
-                retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-            }
-        });
-        return retVal;
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()-> this.getStreamSegmentInfoSync(streamSegmentName, timeout),
+                executor);
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        CompletableFuture<Boolean> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-                    try {
-                        retVal.complete(existsSync(streamSegmentName, timeout));
-                    } catch (IOException e) {
-                        retVal.completeExceptionally(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-                    }
-                },
+        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
+                ()->existsSync(streamSegmentName, timeout),
                 executor);
-        return retVal;
     }
 
     private Boolean existsSync(String streamSegmentName, Duration timeout) throws IOException {
