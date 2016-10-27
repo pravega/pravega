@@ -20,10 +20,11 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
+import org.apache.hadoop.fs.PathNotFoundException;
 import org.apache.hadoop.hdfs.protocol.AclException;
 
 import java.io.FileNotFoundException;
-import java.nio.file.FileAlreadyExistsException;
 
 /**
  * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions.
@@ -37,7 +38,7 @@ public class HDFSExceptionHelpers {
      * @return
      */
     public static Exception translateFromIOException(String streamSegmentName, Exception e) {
-        if (e instanceof FileNotFoundException) {
+        if (e instanceof PathNotFoundException) {
             return new StreamSegmentNotExistsException(streamSegmentName);
         }
 

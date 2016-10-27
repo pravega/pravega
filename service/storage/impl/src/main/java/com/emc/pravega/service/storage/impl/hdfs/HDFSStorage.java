@@ -18,31 +18,30 @@
 
 package com.emc.pravega.service.storage.impl.hdfs;
 
-import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.storage.Storage;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 /**
  * higher level HDFSStorage which does lock implementation based on file permissions.
- * Each segment is represented by a file with pattern <segment-name>_<startoffset>
- * Start offset represents the offset in the segment of the first byte of the given file.
+ * Each segment is represented by a file with pattern <segment-name>_<owner_host_id>
+ * Owner_host_id is optional and means that the segment is owned by the Pravega host of the given id.
  * <p>
- * When ever ownership change happens, the new node marks all the earlier files representing the segment
- * readonly. Creates a new file with the current offset as part of the name. This is done in the acquireLockForSegment code.
+ * When ever ownership change happens, the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
+ * This is done by the acquireLockForSegment call.
+ *
+ * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
 @Slf4j
 public class HDFSStorage implements Storage {
@@ -61,7 +60,7 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return storage.create(getFirstSegmentFullPath(streamSegmentName), timeout).
+        return storage.create(getOwnedSegmentFullPath(streamSegmentName), timeout).
                 thenApply(properties -> changeNameInSegmentProperties(properties, streamSegmentName));
     }
 
@@ -81,18 +80,11 @@ public class HDFSStorage implements Storage {
     }
 
     /**
-     * Utility function to get the full name of the first file representing the segment.
+     * Utility function to get the full name of the file representing the segment which is locked by the current
+     * Pravega host.
      */
-    private String getFirstSegmentFullPath(String streamSegmentName) {
-        return getSegmentFullPathStartingAtOffset(streamSegmentName, 0);
-    }
-
-    /**
-     * Utility function to get the full name of a file representing part of the segment. The
-     * data in the file starts at a given offset
-     */
-    private String getSegmentFullPathStartingAtOffset(String streamSegmentName, long currStart) {
-        return getCommonPartOfName(streamSegmentName) + "_" + currStart;
+    private String getOwnedSegmentFullPath(String streamSegmentName) {
+        return getCommonPartOfName(streamSegmentName) + "_" + this.serviceBuilderConfig.getPravegaID();
     }
 
     /**
@@ -102,48 +94,14 @@ public class HDFSStorage implements Storage {
     private FileStatus[] getStreamSegmentNameWildCard(String streamSegmentName) throws IOException {
         return storage.getFS().globStatus(new Path(getCommonPartOfName(streamSegmentName) + "_" + "[0-9]*"));
     }
-
     private String getCommonPartOfName(String streamSegmentName) {
         return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
     }
 
-    /**
-     * Utility function that returns full path name of the file which actually contains
-     * data at the given offset for the segment
-     */
-    private String getSegmentFullPathContainingOffset(String streamSegmentName, long offset) throws IOException {
-        String possibleValForAppend = null;
-        for (FileStatus status : getStreamSegmentNameWildCard(streamSegmentName)) {
-            long fileStartOffset = this.getStartOffsetInName(status.getPath().toString());
-            if (fileStartOffset <= offset && fileStartOffset + status.getLen() > offset) {
-                //The given offset is within the file
-                return status.getPath().toString();
-            }
-            if (fileStartOffset <= offset && fileStartOffset + status.getLen() == offset) {
-                //The given offset is at the end of this file. This is the append case.
-                possibleValForAppend = status.getPath().toString();
-            }
-        }
-        return possibleValForAppend;
-    }
-
-    /**
-     * Utility function that given name of a file representing a segment,
-     * returns the start offset of the data in the file
-     */
-    private long getStartOffsetInName(String currFilename) {
-        if (currFilename == null) {
-            return 0;
-        }
-        String sizeStr = currFilename.substring(currFilename.lastIndexOf('_') + 1);
-        return Long.valueOf(sizeStr);
-    }
-
-
     @Override
     public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                () -> acquireLockForSegmentSync(streamSegmentName),
+        return FutureHelpers.runAsyncTranslateException(() -> acquireLockForSegmentSync(streamSegmentName),
+                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
                 executor);
     }
 
@@ -156,133 +114,36 @@ public class HDFSStorage implements Storage {
      * Create a new file with the name equal to
      * the current offset of the stream which is biggest start offset + its size
      */
-    private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException {
+    private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
 
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
-        final long[] currStart = {0};
-        final SegmentProperties[] lastProp = {null};
-        Arrays.stream(statuses).map(status -> status.getPath().toString()).
-                map(name -> {
-                    SegmentProperties props;
-                    try {
-                        props = storage.sealSync(name, null);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    long currVal = this.getStartOffsetInName(name);
-                    if (currVal > currStart[0]) {
-                        currStart[0] = currVal;
-                        lastProp[0] = props;
-                    }
-                    return props;
-                }).count();
-
-        storage.createSync(getSegmentFullPathStartingAtOffset(streamSegmentName, currStart[0]), null);
+        if(statuses.length != 1) {
+            throw new StreamSegmentNotExistsException(streamSegmentName);
+        }
+        storage.getFS().rename(statuses[0].getPath(),new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
         return true;
     }
 
-    /**
-     * Sets all the file belonging to a segment readonly.
-     */
-    private SegmentProperties setAllFilesReadOnlySync(String streamSegmentName) throws IOException {
-        //List the files.
-        //Mark all the files readonly
-
-        FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
-
-        final long[] currStart = {0};
-        final SegmentProperties[] lastProp = {null};
-        Arrays.stream(statuses).map(status -> status.getPath().toString()).
-                map(name -> {
-                    SegmentProperties props;
-                    try {
-                        props = storage.sealSync(name, null);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    long currVal = this.getStartOffsetInName(name);
-                    if (currVal > currStart[0]) {
-                        currStart[0] = currVal;
-                        lastProp[0] = props;
-                    }
-                    return props;
-                }).count();
-
-        return new StreamSegmentInformation(streamSegmentName,
-                currStart[0] + lastProp[0].getLength(),
-                true,
-                false,
-                lastProp[0].getLastModified());
-    }
-
-
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return this.getSegmentFullPathContainingOffset(streamSegmentName, offset);
-            } catch (IOException e) {
-                throw new CompletionException(HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e));
-            }
-        }, executor).
-                thenComposeAsync(
-                        currFilename -> storage.write(currFilename,
-                                offset - this.getStartOffsetInName(currFilename),
-                                data, length, timeout)
-                );
+        return storage.write(this.getOwnedSegmentFullPath(streamSegmentName), offset, data, length, timeout);
     }
 
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                () -> this.setAllFilesReadOnlySync(streamSegmentName), executor);
+        return this.storage.seal(this.getOwnedSegmentFullPath(streamSegmentName), timeout);
     }
-
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(targetStreamSegmentName,
-                () -> concatSync(
-                        this.getSegmentFullPathContainingOffset(targetStreamSegmentName, offset),
-                        offset - this.getStartOffsetInName(
-                                this.getSegmentFullPathContainingOffset(targetStreamSegmentName, offset)),
-                        this.getFirstSegmentFullPath(sourceStreamSegmentName),
-                        timeout),
-        this.executor);
+        return storage.concat(this.getOwnedSegmentFullPath(targetStreamSegmentName), offset, this.getOwnedSegmentFullPath(sourceStreamSegmentName), timeout);
     }
-
-
-    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
-        return storage.concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
-    }
-
 
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                () ->  deleteSync(streamSegmentName, timeout),
-        this.executor);
-    }
-
-    /**
-     * Deletes all the files belonging to the given stream segment
-     */
-    private Void deleteSync(String streamSegmentName, Duration timeout) throws IOException {
-        FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
-        Arrays.stream(statuses).map(status -> status.getPath().toString()).
-                map(name -> {
-                    try {
-                        storage.deleteSync(name, null);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    return null;
-                }).count();
-
-        return null;
+        return storage.delete(this.getOwnedSegmentFullPath(streamSegmentName), timeout);
     }
 
     @Override
@@ -292,64 +153,18 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                () -> readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout), this.executor);
+        return storage.read(this.getOwnedSegmentFullPath(streamSegmentName), offset, buffer, bufferOffset, length, timeout);
     }
-
-    /**
-     * Finds the file containing the given offset for the given segment.
-     * Reads from that file.
-     */
-    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
-        String fileName = this.getSegmentFullPathContainingOffset(streamSegmentName, offset);
-        FSDataInputStream stream = storage.getFS().open(new Path(fileName));
-        return stream.read(offset - this.getStartOffsetInName(fileName),
-                buffer, bufferOffset, length);
-    }
-
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return HDFSFutureHelper.runGivenCodeInFutureAndHandleException(streamSegmentName,
-                () -> getStreamSegmentInfoSync(streamSegmentName, timeout), this.executor);
+        return storage.getStreamSegmentInfo(this.getOwnedSegmentFullPath(streamSegmentName), timeout).
+                thenApply(properties -> this.changeNameInSegmentProperties(properties, streamSegmentName));
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return storage.exists(this.getFirstSegmentFullPath(streamSegmentName), timeout);
-    }
-
-
-    /**
-     * Utility function that lists all the files and creates
-     * the segment info based on the status of the file containing the largest offset
-     */
-    private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
-        FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
-
-        long currStart = 0;
-        SegmentProperties lastProp = null;
-
-        for (FileStatus status : statuses) {
-            String name = status.getPath().toString();
-            SegmentProperties props;
-            try {
-                props = storage.getStreamSegmentInfoSync(name, null);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            long currVal = this.getStartOffsetInName(name);
-            if (currVal > currStart || lastProp == null) {
-                currStart = currVal;
-                lastProp = props;
-            }
-        }
-
-        return new StreamSegmentInformation(streamSegmentName,
-                currStart + lastProp.getLength(),
-                lastProp.isSealed(),
-                lastProp.isDeleted(),
-                lastProp.getLastModified());
+        return storage.exists(this.getOwnedSegmentFullPath(streamSegmentName), timeout);
     }
 
     public void initialize() throws IOException {
