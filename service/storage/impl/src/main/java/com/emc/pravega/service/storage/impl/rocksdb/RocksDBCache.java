@@ -82,7 +82,12 @@ class RocksDBCache implements Cache {
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
-            close();
+            try {
+                close();
+            } catch (Exception closeEx) {
+                ex.addSuppressed(closeEx);
+            }
+
             throw ex;
         }
 
