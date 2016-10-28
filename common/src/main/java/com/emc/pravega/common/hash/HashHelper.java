@@ -35,6 +35,10 @@ public class HashHelper {
         return new HashHelper(seed.hashCode());
     }
 
+    public int hash(long longNumber) {
+        return hash.hashLong(longNumber).asInt();
+    }
+
     public long hash(String str) {
         return hash.hashUnencodedChars(str).asLong();
     }
@@ -54,6 +58,7 @@ public class HashHelper {
 
     /**
      * Turns the leading 54 bits of a long into a double between 0 and 1.
+     *
      * @param value The input.
      */
     @VisibleForTesting

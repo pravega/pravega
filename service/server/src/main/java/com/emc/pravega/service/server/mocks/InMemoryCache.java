@@ -24,6 +24,7 @@ import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -32,29 +33,36 @@ import java.util.function.Consumer;
 public class InMemoryCache implements Cache {
     private final HashMap<Cache.Key, byte[]> map;
     private final String id;
-    private Consumer<String> closeCallback;
-    private boolean closed;
+    private final Consumer<String> closeCallback;
+    private final AtomicBoolean closed;
 
     /**
      * Creates a new instance of the InMemoryCache class.
+     *
      * @param id The cache Id.
      */
     public InMemoryCache(String id) {
-        this.id = id;
-        this.map = new HashMap<>();
+        this(id, null);
     }
 
-    void setCloseCallback(Consumer<String> callback) {
-        this.closeCallback = callback;
+    /**
+     * Creates a new instance of the InMemoryCache class.
+     *
+     * @param id            The cache Id.
+     * @param closeCallback A callback to invoke when the Cache is closed.
+     */
+    InMemoryCache(String id, Consumer<String> closeCallback) {
+        this.id = id;
+        this.map = new HashMap<>();
+        this.closeCallback = closeCallback;
+        this.closed = new AtomicBoolean();
     }
 
     //region AutoCloseable Implementation
 
     @Override
     public void close() {
-        if (!this.closed) {
-            this.closed = true;
-
+        if (this.closed.compareAndSet(false, true)) {
             // Clean up the map, just in case the caller still has a pointer to this object.
             synchronized (this.map) {
                 this.map.clear();
@@ -78,7 +86,7 @@ public class InMemoryCache implements Cache {
 
     @Override
     public void insert(Cache.Key key, byte[] payload) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         synchronized (this.map) {
             this.map.put(key, payload);
         }
@@ -86,34 +94,31 @@ public class InMemoryCache implements Cache {
 
     @Override
     public void insert(Cache.Key key, ByteArraySegment data) {
-        byte[] buffer = new byte[data.getLength()];
-        data.copyTo(buffer, 0, buffer.length);
-        insert(key, buffer);
+        insert(key, data.getCopy());
     }
 
     @Override
     public byte[] get(Cache.Key key) {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(this.closed.get(), this);
         synchronized (this.map) {
             return this.map.get(key);
         }
     }
 
     @Override
-    public boolean remove(Cache.Key key) {
-        Exceptions.checkNotClosed(this.closed, this);
+    public void remove(Cache.Key key) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         synchronized (this.map) {
-            return this.map.remove(key) != null;
-        }
-    }
-
-    @Override
-    public void reset() {
-        Exceptions.checkNotClosed(this.closed, this);
-        synchronized (this.map) {
-            this.map.clear();
+            this.map.remove(key);
         }
     }
 
     //endregion
+
+    public void clear() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        synchronized (this.map) {
+            this.map.clear();
+        }
+    }
 }

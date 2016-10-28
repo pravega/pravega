@@ -103,6 +103,7 @@ project('service:storage:impl') {
         compile('com.twitter:distributedlog-client:0.3.51-RC1') {
             exclude group: 'org.slf4j', module: 'slf4j-log4j12'
         }
+        compile group: 'org.rocksdb', name: 'rocksdbjni', version: '4.11.2'
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')

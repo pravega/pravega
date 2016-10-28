@@ -16,35 +16,34 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.storage;
+package com.emc.pravega.common.io;
 
-import com.emc.pravega.service.contracts.StreamingException;
+import java.io.File;
 
 /**
- * General exception thrown by the Durable Data Log.
+ * Extension methods to the java.io.File class.
  */
-public class DurableDataLogException extends StreamingException {
+public class FileHelpers {
     /**
+     * Deletes the given file or directory. If a directory, recursively deletes all sub-directories and files.
      *
+     * @param file The target to delete.
+     * @return True if the target was deleted, false otherwise.
      */
-    private static final long serialVersionUID = 1L;
+    public static boolean deleteFileOrDirectory(File file) {
+        if (file.exists()) {
+            File[] files = file.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.isDirectory()) {
+                        deleteFileOrDirectory(f);
+                    } else {
+                        f.delete();
+                    }
+                }
+            }
+        }
 
-    /**
-     * Creates a new instance of the DurableDataLogException class.
-     *
-     * @param message The message to set.
-     */
-    public DurableDataLogException(String message) {
-        super(message);
-    }
-
-    /**
-     * Creates a new instance of the DurableDataLogException class.
-     *
-     * @param message The message to set.
-     * @param cause   The triggering cause of this exception.
-     */
-    public DurableDataLogException(String message, Throwable cause) {
-        super(message, cause);
+        return file.delete();
     }
 }
