@@ -23,7 +23,6 @@ import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
-import com.emc.pravega.service.storage.CacheNotAvailableException;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
@@ -33,7 +32,6 @@ import org.rocksdb.WriteOptions;
 
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -49,7 +47,7 @@ class RocksDBCache implements Cache {
     private final RocksDBConfig config;
     private final Options databaseOptions;
     private final WriteOptions writeOptions;
-    private final AtomicReference<RocksDB> database;
+    private final RocksDB database;
     private final AtomicBoolean closed;
     private final String logId;
     private Consumer<String> closeCallback;
@@ -68,9 +66,8 @@ class RocksDBCache implements Cache {
         this.databaseOptions = databaseOptions;
         this.config = config;
         this.closed = new AtomicBoolean();
-        this.database = new AtomicReference<>();
         try {
-            this.database.set(openDatabase());
+            this.database = openDatabase();
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
@@ -97,9 +94,8 @@ class RocksDBCache implements Cache {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            RocksDB db = this.database.get();
-            if (db != null) {
-                db.close();
+            if (this.database != null) {
+                this.database.close();
             }
 
             if (this.writeOptions != null) {
@@ -129,7 +125,7 @@ class RocksDBCache implements Cache {
     public void insert(Key key, byte[] data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
-            getDatabase().put(this.writeOptions, key.getSerialization(), data);
+            this.database.put(this.writeOptions, key.getSerialization(), data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
@@ -146,7 +142,7 @@ class RocksDBCache implements Cache {
     public byte[] get(Key key) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
-            return getDatabase().get(key.getSerialization());
+            return this.database.get(key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
@@ -156,7 +152,7 @@ class RocksDBCache implements Cache {
     public boolean remove(Key key) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
-            getDatabase().remove(this.writeOptions, key.getSerialization());
+            this.database.remove(this.writeOptions, key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }
@@ -167,14 +163,7 @@ class RocksDBCache implements Cache {
 
     //endregion
 
-    private RocksDB getDatabase() {
-        RocksDB db = this.database.get();
-        if (db == null) {
-            throw new CacheNotAvailableException(String.format("Cache '%s' is unavailable.", this.id));
-        }
-
-        return db;
-    }
+    //region Helpers
 
     /**
      * Creates the RocksDB WriteOptions to use. Since we use RocksDB as an in-process cache with disk spillover,
@@ -208,4 +197,6 @@ class RocksDBCache implements Cache {
 
         throw new CacheException(exceptionMessage, exception);
     }
+
+    //endregion
 }
