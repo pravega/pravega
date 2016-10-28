@@ -21,6 +21,8 @@ package com.emc.pravega.service.server.reading;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
+import com.emc.pravega.common.util.RedBlackTreeIndex;
+import com.emc.pravega.common.util.SortedIndex;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -39,8 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -60,7 +60,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     //region Members
 
     private final String traceObjectId;
-    private final TreeMap<Long, ReadIndexEntry> indexEntries; // Key = Last Offset of Entry, Value = Entry.
+    private final SortedIndex<Long, ReadIndexEntry> indexEntries; // Key = Last Offset of Entry, Value = Entry.
     private final ReadIndexConfig config;
     private final Cache cache;
     private final FutureReadResultEntryCollection futureReads;
@@ -94,7 +94,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.metadata = metadata;
         this.cache = cache;
         this.recoveryMode = recoveryMode;
-        this.indexEntries = new TreeMap<>();
+        this.indexEntries = new RedBlackTreeIndex<>(Long::compare);
         this.futureReads = new FutureReadResultEntryCollection();
         this.mergeOffsets = new HashMap<>();
         this.lastAppendedOffset = -1;
@@ -141,7 +141,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         AtomicLong sizeRemoved = new AtomicLong();
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
-            this.indexEntries.values().forEach(entry -> {
+            this.indexEntries.forEach(entry -> {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
                 // 2. Every single byte in the entry has to exist in Storage.
@@ -340,7 +340,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             // Get the RedirectReadIndexEntry. These types of entries are sticky in the cache and DO NOT contribute to the
             // cache Stats. They are already accounted for in the other Segment's ReadIndex.
-            ReadIndexEntry treeEntry = this.indexEntries.getOrDefault(endOffset, null);
+            ReadIndexEntry treeEntry = this.indexEntries.get(endOffset, null);
             assert treeEntry != null && (treeEntry instanceof RedirectReadIndexEntry) : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceSegmentStreamId, endOffset, treeEntry);
             redirectEntry = (RedirectReadIndexEntry) treeEntry;
         }
@@ -396,7 +396,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
         // Insert the new entry and figure out if an old entry was overwritten.
-        ReadIndexEntry oldEntry = this.indexEntries.put(entry.getLastStreamSegmentOffset(), entry);
+        ReadIndexEntry oldEntry = this.indexEntries.put(entry);
 
         // Update the Stats with the entry's length, and set the entry's generation as well.
         int generation = this.summary.add(entry.getLength());
@@ -429,7 +429,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Get all eligible Future Reads which wait for data prior to the end offset.
         // Since we are not actually using this entry's data, there is no need to 'touch' it.
-        ReadIndexEntry lastEntry = this.indexEntries.lastEntry().getValue(); // NOTE: this is O(log(n)), not O(1)
+        ReadIndexEntry lastEntry = this.indexEntries.getLast(); // NOTE: this is O(log(n)), not O(1)
         Collection<FutureReadResultEntry> futureReads;
         boolean sealed = this.metadata.isSealed();
         if (sealed) {
@@ -515,7 +515,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             } else {
                 // We have at least one entry.
                 // Find the first entry that has an End offset beyond equal to at least ResultStartOffset.
-                Map.Entry<Long, ReadIndexEntry> treeEntry = this.indexEntries.ceilingEntry(resultStartOffset);
+                ReadIndexEntry treeEntry = this.indexEntries.getCeiling(resultStartOffset);
                 if (treeEntry == null) {
                     // The ResultStartOffset is beyond the End Offset of the last entry in the index.
                     // Use the metadata to figure out whether to return a Storage or Future Read, since we do not have
@@ -523,20 +523,18 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     result = createDataNotAvailableRead(resultStartOffset, maxLength);
                 } else {
                     // We have an entry. Let's see if it's valid or not.
-                    ReadIndexEntry currentEntry = treeEntry.getValue();
-
-                    if (resultStartOffset < currentEntry.getStreamSegmentOffset()) {
+                    if (resultStartOffset < treeEntry.getStreamSegmentOffset()) {
                         // ResultStartOffset is before the Start Offset of this entry. This means either:
                         // 1. This is the first entry and ResultStartOffset is before it. OR
                         // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
                         // We must issue a Storage Read to bring the data to us (with a readLength of up to the size of the gap).
-                        int readLength = (int) Math.min(maxLength, currentEntry.getStreamSegmentOffset() - resultStartOffset);
+                        int readLength = (int) Math.min(maxLength, treeEntry.getStreamSegmentOffset() - resultStartOffset);
                         result = createStorageRead(resultStartOffset, readLength);
-                    } else if (currentEntry instanceof RedirectReadIndexEntry) {
-                        result = getRedirectedReadResultEntry(resultStartOffset, maxLength, (RedirectReadIndexEntry) currentEntry);
+                    } else if (treeEntry instanceof RedirectReadIndexEntry) {
+                        result = getRedirectedReadResultEntry(resultStartOffset, maxLength, (RedirectReadIndexEntry) treeEntry);
                     } else {
                         // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
-                        result = createMemoryRead(currentEntry, resultStartOffset, maxLength);
+                        result = createMemoryRead(treeEntry, resultStartOffset, maxLength);
                     }
                 }
             }
@@ -685,12 +683,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         synchronized (this.lock) {
             ArrayList<ReadIndexEntry> result = new ArrayList<>(this.indexEntries.size());
-            for (ReadIndexEntry entry : this.indexEntries.values()) {
+            this.indexEntries.forEach(entry -> {
                 if (!(entry instanceof RedirectReadIndexEntry)) {
                     MergedReadIndexEntry me = new MergedReadIndexEntry(entry.getStreamSegmentOffset() + offsetAdjustment, entry.getLength(), this.metadata.getId(), entry.getStreamSegmentOffset());
                     result.add(me);
                 }
-            }
+            });
 
             return result;
         }
