@@ -911,13 +911,13 @@ public class ContainerReadIndexTests {
         }
 
         @Override
-        public boolean remove(Cache.Key key) {
+        public void remove(Cache.Key key) {
             Consumer<CacheKey> callback = this.removeCallback;
             if (callback != null) {
                 callback.accept((CacheKey) key);
             }
 
-            return super.remove(key);
+            super.remove(key);
         }
     }
 }

@@ -157,16 +157,17 @@ public class RocksDBCacheFactory implements CacheFactory {
         synchronized (this.caches) {
             RocksDBCache result = this.caches.get(id);
             if (result == null) {
-                result = new RocksDBCache(id, this.options, this.config);
-                result.setCloseCallback(idToRemove -> {
-                    synchronized (this.caches) {
-                        this.caches.remove(idToRemove);
-                    }
-                });
+                result = new RocksDBCache(id, this.options, this.config, this::cacheClosed);
                 this.caches.put(id, result);
             }
 
             return result;
+        }
+    }
+
+    private void cacheClosed(String cacheId) {
+        synchronized (this.caches) {
+            this.caches.remove(cacheId);
         }
     }
 
