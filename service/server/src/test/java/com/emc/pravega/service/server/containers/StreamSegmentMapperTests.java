@@ -555,7 +555,7 @@ public class StreamSegmentMapperTests {
 
         @Override
         public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-            throw new NotImplementedException();
+            return CompletableFuture.completedFuture(Boolean.TRUE);
         }
 
         @Override

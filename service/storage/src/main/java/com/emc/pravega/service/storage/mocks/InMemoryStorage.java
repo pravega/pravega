@@ -29,7 +29,6 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang.NotImplementedException;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
