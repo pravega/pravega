@@ -114,7 +114,7 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        return FutureHelpers.failedFuture(new NotImplementedException());
+        return CompletableFuture.completedFuture(Boolean.TRUE);
     }
 
     @Override
