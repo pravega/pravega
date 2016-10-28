@@ -25,7 +25,17 @@ import lombok.SneakyThrows;
 
 import java.time.Duration;
 import java.util.Collection;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+
+
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -298,7 +308,7 @@ public final class FutureHelpers {
      * @return The CompletableFuture which either holds the result or is completed exceptionally.
      */
     public static <T> CompletableFuture<T> runAsyncTranslateException(Callable<T> function,
-                                                                      Function<Exception,Exception> exceptionTranslator,
+                                                                      Function<Exception, Exception> exceptionTranslator,
                                                                       Executor executor) {
         CompletableFuture<T> retVal = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {

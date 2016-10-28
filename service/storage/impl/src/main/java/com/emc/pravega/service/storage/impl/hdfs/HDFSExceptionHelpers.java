@@ -24,8 +24,6 @@ import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.PathNotFoundException;
 import org.apache.hadoop.hdfs.protocol.AclException;
 
-import java.io.FileNotFoundException;
-
 /**
  * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions.
  * */

@@ -94,6 +94,7 @@ public class HDFSStorage implements Storage {
     private FileStatus[] getStreamSegmentNameWildCard(String streamSegmentName) throws IOException {
         return storage.getFS().globStatus(new Path(getCommonPartOfName(streamSegmentName) + "_" + "[0-9]*"));
     }
+
     private String getCommonPartOfName(String streamSegmentName) {
         return serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
     }
@@ -118,10 +119,10 @@ public class HDFSStorage implements Storage {
 
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
-        if(statuses.length != 1) {
+        if (statuses.length != 1) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         }
-        storage.getFS().rename(statuses[0].getPath(),new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
+        storage.getFS().rename(statuses[0].getPath(), new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
         return true;
     }
 
