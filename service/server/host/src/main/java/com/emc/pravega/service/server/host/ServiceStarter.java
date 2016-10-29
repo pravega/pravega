@@ -64,6 +64,9 @@ public final class ServiceStarter {
         if (options.rocksDb) {
             attachRocksDB(builder);
         }
+        if (options.hdfs) {
+            attachHDFS(builder);
+        }
 
         return builder;
     }
