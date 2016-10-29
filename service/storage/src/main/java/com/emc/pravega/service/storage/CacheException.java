@@ -18,33 +18,28 @@
 
 package com.emc.pravega.service.storage;
 
-import com.emc.pravega.service.contracts.StreamingException;
+import com.emc.pravega.service.contracts.RuntimeStreamingException;
 
 /**
- * General exception thrown by the Durable Data Log.
+ * Exception that is thrown whenever a Cache operation could not be completed.
  */
-public class DurableDataLogException extends StreamingException {
+public class CacheException extends RuntimeStreamingException {
     /**
+     * Creates a new instance of the CacheException class.
      *
+     * @param message The message to use.
      */
-    private static final long serialVersionUID = 1L;
-
-    /**
-     * Creates a new instance of the DurableDataLogException class.
-     *
-     * @param message The message to set.
-     */
-    public DurableDataLogException(String message) {
+    public CacheException(String message) {
         super(message);
     }
 
     /**
-     * Creates a new instance of the DurableDataLogException class.
+     * Creates a new instance of the CacheException class.
      *
-     * @param message The message to set.
-     * @param cause   The triggering cause of this exception.
+     * @param message The message to use.
+     * @param cause   The causing exception.
      */
-    public DurableDataLogException(String message, Throwable cause) {
+    public CacheException(String message, Throwable cause) {
         super(message, cause);
     }
 }

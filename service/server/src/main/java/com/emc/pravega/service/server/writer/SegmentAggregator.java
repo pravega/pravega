@@ -23,6 +23,7 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.RuntimeStreamingException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
@@ -39,7 +40,6 @@ import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
-import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -510,7 +510,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             if (op instanceof StreamSegmentAppendOperation) {
                 data = ((StreamSegmentAppendOperation) op).getData();
             } else if (op instanceof CachedStreamSegmentAppendOperation) {
-                CacheKey key = ((CachedStreamSegmentAppendOperation) op).getCacheKey();
+                CacheKey key = new CacheKey(op.getStreamSegmentId(), op.getStreamSegmentOffset());
                 data = this.dataSource.getAppendData(key);
                 if (data == null) {
                     throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for operation '%s', with key '%s'.", op, key));
@@ -826,7 +826,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         if (op instanceof StreamSegmentAppendOperation) {
             appendData.set(((StreamSegmentAppendOperation) op).getData());
         } else if (op instanceof CachedStreamSegmentAppendOperation) {
-            CacheKey key = ((CachedStreamSegmentAppendOperation) op).getCacheKey();
+            CacheKey key = new CacheKey(op.getStreamSegmentId(), op.getStreamSegmentOffset());
             appendData.set(this.dataSource.getAppendData(key));
         }
 

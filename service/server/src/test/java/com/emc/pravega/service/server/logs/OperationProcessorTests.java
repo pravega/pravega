@@ -101,7 +101,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -149,7 +149,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -232,7 +232,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -288,7 +288,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
@@ -332,9 +332,9 @@ public class OperationProcessorTests extends OperationLogTestBase {
         @Cleanup
         TestContext context = new TestContext();
 
-        // Create a different log updater and Memory log - and use these throughout this test.
+        // Create a different state updater and Memory log - and use these throughout this test.
         CorruptedMemoryOperationLog corruptedMemoryLog = new CorruptedMemoryOperationLog(failAtOperationIndex);
-        MemoryLogUpdater logUpdater = new MemoryLogUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
+        MemoryStateUpdater stateUpdater = new MemoryStateUpdater(corruptedMemoryLog, new CacheUpdater(context.cache, context.readIndex));
 
         // Generate some test data (no need to complicate ourselves with Transactions here; that is tested in the no-failure test).
         HashSet<Long> streamSegmentIds = LogTestHelpers.createStreamSegmentsInMetadata(streamSegmentCount, context.metadata);
@@ -345,7 +345,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE);
         dataLog.initialize(TIMEOUT);
         @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, logUpdater, dataLog, getNoOpCheckpointPolicy());
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, stateUpdater, dataLog, getNoOpCheckpointPolicy());
         operationProcessor.startAsync().awaitRunning();
 
         // Process all generated operations.
@@ -487,7 +487,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final Cache cache;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
-        final MemoryLogUpdater logUpdater;
+        final MemoryStateUpdater stateUpdater;
 
         TestContext() {
             this.executorService = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
@@ -502,7 +502,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), this.executorService.get());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
             this.memoryLog = new MemoryOperationLog();
-            this.logUpdater = new MemoryLogUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
+            this.stateUpdater = new MemoryStateUpdater(this.memoryLog, new CacheUpdater(this.cache, this.readIndex));
         }
 
         @Override

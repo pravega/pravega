@@ -20,7 +20,6 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.ReadResult;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -127,14 +126,14 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public CacheKey append(long streamSegmentId, long offset, byte[] data) {
+    public void append(long streamSegmentId, long offset, byte[] data) {
         Exceptions.checkNotClosed(this.closed, this);
         log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
-        return index.append(offset, data);
+        index.append(offset, data);
     }
 
     @Override

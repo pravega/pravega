@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
@@ -31,7 +30,7 @@ import com.google.common.base.Preconditions;
 /**
  * Helper class that allows appending Log Operations to available InMemory Structures.
  */
-class MemoryLogUpdater {
+class MemoryStateUpdater {
     //region Private
 
     private final CacheUpdater cacheUpdater;
@@ -43,23 +42,23 @@ class MemoryLogUpdater {
     //region Constructor
 
     /**
-     * Creates a new instance of the MemoryLogUpdater class.
+     * Creates a new instance of the MemoryStateUpdater class.
      *
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param cacheUpdater         Cache Updater.
      */
-    MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater) {
+    MemoryStateUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater) {
         this(inMemoryOperationLog, cacheUpdater, null);
     }
 
     /**
-     * Creates a new instance of the MemoryLogUpdater class.
+     * Creates a new instance of the MemoryStateUpdater class.
      *
      * @param inMemoryOperationLog InMemory Operation Log.
      * @param cacheUpdater         Cache Updater.
      * @param flushCallback        (Optional) A callback to be invoked whenever flush() is invoked.
      */
-    MemoryLogUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
+    MemoryStateUpdater(MemoryOperationLog inMemoryOperationLog, CacheUpdater cacheUpdater, Runnable flushCallback) {
         Preconditions.checkNotNull(cacheUpdater, "cacheUpdater");
         Preconditions.checkNotNull(inMemoryOperationLog, "inMemoryOperationLog");
 
@@ -101,51 +100,18 @@ class MemoryLogUpdater {
     void process(Operation operation) throws DataCorruptionException {
         // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the QueueProcessor,
         // which always acks items in order of Sequence Number - so the entries should be ordered (but always check).
-        CacheKey cacheKey = addToCache(operation);
-        addToMemoryOperationLog(operation, cacheKey);
-    }
-
-    /**
-     * Flushes recently appended items, if needed.
-     * For example, it may trigger Future Reads on the ReadIndex, if the readIndex supports that.
-     */
-    void flush() {
-        this.cacheUpdater.flush();
-        if (this.flushCallback != null) {
-            this.flushCallback.run();
-        }
-    }
-
-    /**
-     * Clears all in-memory structures of all data.
-     *
-     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system, such
-     *                               as metadata not being in Recovery mode.
-     */
-    void clear() {
-        this.cacheUpdater.clear();
-        this.inMemoryOperationLog.clear();
-    }
-
-    private CacheKey addToCache(Operation operation) {
         if (operation instanceof StorageOperation) {
-            return this.cacheUpdater.addToReadIndex((StorageOperation) operation);
-        }
-
-        return null;
-    }
-
-    private void addToMemoryOperationLog(Operation operation, CacheKey key) throws DataCorruptionException {
-        if (key != null) {
-            // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
-            assert operation instanceof StreamSegmentAppendOperation : "non-null CacheKey, but operation is not a StreamSegmentAppendOperation";
-            try {
-                operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation, key);
-            } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex)) {
-                    throw ex;
-                } else {
-                    throw new DataCorruptionException("Unable to create a CachedStreamSegmentAppendOperation.", ex);
+            this.cacheUpdater.addToReadIndex((StorageOperation) operation);
+            if (operation instanceof StreamSegmentAppendOperation) {
+                // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
+                try {
+                    operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation);
+                } catch (Throwable ex) {
+                    if (ExceptionHelpers.mustRethrow(ex)) {
+                        throw ex;
+                    } else {
+                        throw new DataCorruptionException(String.format("Unable to create a CachedStreamSegmentAppendOperation from operation '%s'.", operation), ex);
+                    }
                 }
             }
         }
@@ -158,6 +124,17 @@ class MemoryLogUpdater {
             // recorded the Operation in the wrong order (by sequence number). In either case, we will be inconsistent
             // while serving reads, so better stop now than later.
             throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
+        }
+    }
+
+    /**
+     * Flushes recently appended items, if needed.
+     * For example, it may trigger Future Reads on the ReadIndex, if the readIndex supports that.
+     */
+    void flush() {
+        this.cacheUpdater.flush();
+        if (this.flushCallback != null) {
+            this.flushCallback.run();
         }
     }
 
