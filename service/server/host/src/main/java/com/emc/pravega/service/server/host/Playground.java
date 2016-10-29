@@ -32,10 +32,10 @@ public class Playground {
         //        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         //        context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-        testAvl();
+        compareTrees();
     }
 
-    private static void testAvl() {
+    private static void compareTrees() {
         int count = 10000000;
         int retryCount = 5;
         for (int i = 0; i < retryCount; i++) {
@@ -92,7 +92,7 @@ public class Playground {
     private static void insert(SortedIndex<Integer, TestEntry> rbt, int start, int count) {
         int max = start + count;
         for (int i = start; i < max; i++) {
-            rbt.insert(new TestEntry(i));
+            rbt.put(new TestEntry(i));
         }
     }
 

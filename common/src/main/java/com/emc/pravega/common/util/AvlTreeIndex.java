@@ -22,11 +22,13 @@ import com.google.common.base.Preconditions;
 import lombok.val;
 
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.Stack;
 import java.util.function.Consumer;
 
 /**
  * SortedIndex backed by an AVL Tree.
+ *
  * @param <K> The type of the Key.
  * @param <V> The type of the IndexEntries.
  */
@@ -37,7 +39,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     private final Comparator<K> comparator;
     private Node<V> root;
     private int size;
-
+    private int modCount;
     //endregion
 
     //region Constructor
@@ -52,6 +54,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
         this.comparator = comparator;
         this.root = null;
         this.size = 0;
+        this.modCount = 0;
     }
 
     //endregion
@@ -62,6 +65,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     public void clear() {
         this.root = null;
         this.size = 0;
+        this.modCount++;
     }
 
     @Override
@@ -78,7 +82,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     public V remove(K key) {
         Preconditions.checkNotNull(key, "key");
 
-        val result = remove(key, this.root);
+        val result = delete(key, this.root);
         this.root = result.node;
         return result.updatedItem;
     }
@@ -116,45 +120,45 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
         // No need to check key != null, since we do not risk corrupting the tree with input is not valid.
         Node<V> node = this.root;
         Node<V> lastLeftChildParent = null;
-        while (node != null) {
+        V result = null;
+        while (node != null && result == null) {
             // Compare the key to the current node's item.
             int compareResult = this.comparator.compare(key, node.item.key());
             if (compareResult < 0) {
                 // Sought key is smaller than the current node's item.
                 if (node.left == null) {
                     // No more nodes to the left, so this is the smallest item with a key greater than the given one.
-                    return node.item;
+                    //return node.item;
+                    result = node.item;
+                } else {
+                    // The left child has a key smaller than this one; Search again there.
+                    lastLeftChildParent = node;
+                    node = node.left;
                 }
-
-                // The left child has a key smaller than this one; Search again there.
-                lastLeftChildParent = node;
-                node = node.left;
             } else if (compareResult > 0) {
                 // Sought key is greater than the current node's item.
                 if (node.right != null) {
                     // Search again to the right (where we'll have a larger key).
                     node = node.right;
-                } else {
+                } else if (lastLeftChildParent != null) {
                     // There are no more nodes to the right - this is the node with the largest item in the Tree.
                     // If we had a pointer back to the parent, we would have to walk up the tree path as long as we
                     // have a parent and the current node is a right child, then return the parent of that node.
                     // In other words, if there exists a result, it is the parent of the last node that was selected as a
                     // left child, which is conveniently stored in lastLeftChildParent.
-                    if (lastLeftChildParent != null) {
-                        return lastLeftChildParent.item;
-                    } else {
-                        // Nothing could be found.
-                        return null;
-                    }
+                    result = lastLeftChildParent.item;
+                } else {
+                    // Nothing could be found.
+                    return null;
                 }
             } else {
                 // Exact match; return it.
-                return node.item;
+                result = node.item;
             }
         }
 
         // Nothing could be found.
-        return null;
+        return result;
     }
 
     @Override
@@ -172,7 +176,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             return null;
         }
 
-        return getMax(this.root).item;
+        return findLargest(this.root).item;
     }
 
     @Override
@@ -180,7 +184,12 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
         Preconditions.checkNotNull(consumer, "consumer");
         Stack<Node<V>> stack = new Stack<>();
         Node<V> node = this.root;
+        final int originalModCount = this.modCount;
         while (!stack.empty() || node != null) {
+            if (originalModCount != this.modCount) {
+                throw new ConcurrentModificationException("AvlTreeIndex has been modified; forEach cannot continue.");
+            }
+
             // As long as there's a left child, follow it.
             if (node != null) {
                 stack.push(node);
@@ -205,14 +214,14 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
      * @return The new root of the subtree.
      */
     private UpdateResult<V> insert(V item, Node<V> node) {
-        UpdateResult<V> result = null;
+        UpdateResult<V> result;
         if (node == null) {
             // This is the right location for the item, but there's no node. Create one.
             result = new UpdateResult<>();
             result.node = new Node<>(item);
             this.size++;
+            this.modCount++;
         } else {
-            V existingItem = null;
             int compareResult = this.comparator.compare(item.key(), node.item.key());
             if (compareResult < 0) {
                 // New item is smaller than the current node's item; move to the left child.
@@ -224,13 +233,9 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
                 node.right = result.node;
             } else {
                 // Node already exists. Save the existing node's item and return it.
-                existingItem = node.item;
-            }
-
-            if (result == null) {
-                // Set the result on the current node.
                 result = new UpdateResult<>();
-                result.updatedItem = existingItem;
+                result.updatedItem = node.item;
+                node.item = item;
             }
 
             // Rebalance the sub-tree, if necessary.
@@ -247,7 +252,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
      * @param node The node at the root of the subtree.
      * @return The new root of the subtree.
      */
-    private UpdateResult<V> remove(K key, Node<V> node) {
+    private UpdateResult<V> delete(K key, Node<V> node) {
         UpdateResult<V> result;
         if (node == null) {
             // Item not found.
@@ -256,11 +261,11 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             int compareResult = this.comparator.compare(key, node.item.key());
             if (compareResult < 0) {
                 // Given key is smaller than the current node's item key; proceed to the node's left child.
-                result = remove(key, node.left);
+                result = delete(key, node.left);
                 node.left = result.node;
             } else if (compareResult > 0) {
                 // Given key is larger than the current node's item key; proceed to the node's right child.
-                result = remove(key, node.right);
+                result = delete(key, node.right);
                 node.right = result.node;
             } else {
                 // Found the node. Remember it's item.
@@ -270,11 +275,12 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
                     // The node has two children. Replace the node's item with its in-order successor, and then remove
                     // that successor's node.
                     node.item = findSmallest(node.right).item;
-                    node.right = remove(node.item.key(), node.right).node;
+                    node.right = delete(node.item.key(), node.right).node;
                 } else {
                     // The node has just one child. Replace it with that child.
                     node = (node.left != null) ? node.left : node.right;
                     this.size--;
+                    this.modCount++;
                 }
             }
 
@@ -366,7 +372,7 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
      *
      * @param node The root node of the subtree.
      */
-    private Node<V> getMax(Node<V> node) {
+    private Node<V> findLargest(Node<V> node) {
         if (node == null) {
             return null;
         }
