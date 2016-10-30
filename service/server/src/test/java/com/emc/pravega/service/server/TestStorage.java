@@ -82,6 +82,11 @@ public class TestStorage implements Storage {
     }
 
     @Override
+    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
