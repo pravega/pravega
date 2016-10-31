@@ -20,12 +20,21 @@ package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.google.common.base.Preconditions;
+import lombok.Getter;
 
 /**
  * A ReadIndexEntry that points to data that was merged from a different Segment.
  */
 class MergedReadIndexEntry extends ReadIndexEntry {
+    /**
+     * Gets a value representing the Id of the Segment that was merged.
+     */
+    @Getter
     private final long sourceSegmentId;
+    /**
+     * Gets a value representing the offset inside the SourceSegment where this data is located.
+     */
+    @Getter
     private final long sourceSegmentOffset;
 
     /**
@@ -45,19 +54,5 @@ class MergedReadIndexEntry extends ReadIndexEntry {
 
         this.sourceSegmentId = sourceSegmentId;
         this.sourceSegmentOffset = sourceSegmentOffset;
-    }
-
-    /**
-     * Gets a value representing the Id of the Segment that was merged.
-     */
-    long getSourceSegmentId() {
-        return this.sourceSegmentId;
-    }
-
-    /**
-     * Gets a value representing the offset inside the SourceSegment where this data is located.
-     */
-    long getSourceSegmentOffset() {
-        return this.sourceSegmentOffset;
     }
 }

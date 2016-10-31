@@ -57,9 +57,8 @@ public interface Cache extends AutoCloseable {
      * Removes any cache entry that is associated with the given key.
      *
      * @param key The key of the entry to remove.
-     * @return True if removed, false if no such entry exists.
      */
-    boolean remove(Key key);
+    void remove(Key key);
 
     /**
      * Closes this cache and releases all resources owned by it.

@@ -174,6 +174,17 @@ public class ByteArraySegment implements ArrayView {
     }
 
     /**
+     * Returns a copy of the contents of this ByteArraySegment.
+     *
+     * @return A byte array with the same length as this ByteArraySegment, containing a copy of the data within it.
+     */
+    public byte[] getCopy() {
+        byte[] buffer = new byte[this.length];
+        System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);
+        return buffer;
+    }
+
+    /**
      * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
      * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
      *

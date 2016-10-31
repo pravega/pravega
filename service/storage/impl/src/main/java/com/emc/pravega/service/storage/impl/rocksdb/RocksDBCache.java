@@ -23,8 +23,8 @@ import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.CacheException;
-import com.emc.pravega.service.storage.CacheNotAvailableException;
 import com.google.common.base.Preconditions;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -33,7 +33,6 @@ import org.rocksdb.WriteOptions;
 
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -45,20 +44,29 @@ class RocksDBCache implements Cache {
 
     private static final String FILE_PREFIX = "cache_";
 
+    @Getter
     private final String id;
     private final RocksDBConfig config;
     private final Options databaseOptions;
     private final WriteOptions writeOptions;
-    private final AtomicReference<RocksDB> database;
+    private final RocksDB database;
     private final AtomicBoolean closed;
     private final String logId;
-    private Consumer<String> closeCallback;
+    private final Consumer<String> closeCallback;
 
     //endregion
 
     //region Constructor
 
-    RocksDBCache(String id, Options databaseOptions, RocksDBConfig config) {
+    /**
+     * Creates a new instance of the RocksDBCache class.
+     *
+     * @param id              The Cache Id.
+     * @param databaseOptions RocksDB database options to use.
+     * @param config          RocksDB configuration.
+     * @param closeCallback   A callback to invoke when the cache is closed.
+     */
+    RocksDBCache(String id, Options databaseOptions, RocksDBConfig config, Consumer<String> closeCallback) {
         Exceptions.checkNotNullOrEmpty(id, "id");
         Preconditions.checkNotNull(databaseOptions, "databaseOptions");
         Preconditions.checkNotNull(config, "config");
@@ -67,27 +75,23 @@ class RocksDBCache implements Cache {
         this.logId = String.format("RocksDBCache[%s]", id);
         this.databaseOptions = databaseOptions;
         this.config = config;
+        this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
-        this.database = new AtomicReference<>();
         try {
-            this.database.set(openDatabase());
+            this.database = openDatabase();
             this.writeOptions = createWriteOptions();
         } catch (Exception ex) {
             // Make sure we cleanup anything we may have created in case of failure.
-            close();
+            try {
+                close();
+            } catch (Exception closeEx) {
+                ex.addSuppressed(closeEx);
+            }
+
             throw ex;
         }
 
         log.info("{}: Created.", this.logId);
-    }
-
-    /**
-     * Attaches a callback to be invoked when the Cache is closed.
-     *
-     * @param callback The callback to attach.
-     */
-    void setCloseCallback(Consumer<String> callback) {
-        this.closeCallback = callback;
     }
 
     //endregion
@@ -97,9 +101,8 @@ class RocksDBCache implements Cache {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            RocksDB db = this.database.get();
-            if (db != null) {
-                db.close();
+            if (this.database != null) {
+                this.database.close();
             }
 
             if (this.writeOptions != null) {
@@ -121,15 +124,10 @@ class RocksDBCache implements Cache {
     //region Cache Implementation
 
     @Override
-    public String getId() {
-        return this.id;
-    }
-
-    @Override
     public void insert(Key key, byte[] data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
-            getDatabase().put(this.writeOptions, key.getSerialization(), data);
+            this.database.put(this.writeOptions, key.getSerialization(), data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
@@ -137,44 +135,32 @@ class RocksDBCache implements Cache {
 
     @Override
     public void insert(Key key, ByteArraySegment data) {
-        byte[] buffer = new byte[data.getLength()];
-        data.copyTo(buffer, 0, buffer.length);
-        insert(key, buffer);
+        insert(key, data.getCopy());
     }
 
     @Override
     public byte[] get(Key key) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
-            return getDatabase().get(key.getSerialization());
+            return this.database.get(key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
     }
 
     @Override
-    public boolean remove(Key key) {
+    public void remove(Key key) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         try {
-            getDatabase().remove(this.writeOptions, key.getSerialization());
+            this.database.remove(this.writeOptions, key.getSerialization());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }
-
-        // RocksDB.remove does not have any special code when the key does not exist (nor is it treated as an error).
-        return true;
     }
 
     //endregion
 
-    private RocksDB getDatabase() {
-        RocksDB db = this.database.get();
-        if (db == null) {
-            throw new CacheNotAvailableException(String.format("Cache '%s' is unavailable.", this.id));
-        }
-
-        return db;
-    }
+    //region Helpers
 
     /**
      * Creates the RocksDB WriteOptions to use. Since we use RocksDB as an in-process cache with disk spillover,
@@ -208,4 +194,6 @@ class RocksDBCache implements Cache {
 
         throw new CacheException(exceptionMessage, exception);
     }
+
+    //endregion
 }

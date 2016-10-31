@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server;
 
+import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.service.storage.Cache;
 import com.google.common.base.Preconditions;
@@ -28,10 +29,10 @@ import com.google.common.base.Preconditions;
 public class CacheKey extends Cache.Key {
     //region Members
 
+    private static final HashHelper HASH = HashHelper.seededWith(CacheKey.class.getName());
     private static final int SERIALIZATION_LENGTH = Long.BYTES + Long.BYTES;
     private final long streamSegmentId;
     private final long offset;
-    private final int hash;
 
     //endregion
 
@@ -49,7 +50,6 @@ public class CacheKey extends Cache.Key {
 
         this.streamSegmentId = streamSegmentId;
         this.offset = offset;
-        this.hash = calculateHash();
     }
 
     /**
@@ -63,7 +63,6 @@ public class CacheKey extends Cache.Key {
 
         this.streamSegmentId = BitConverter.readLong(serialization, 0);
         this.offset = BitConverter.readLong(serialization, Long.BYTES);
-        this.hash = calculateHash();
     }
 
     //endregion
@@ -80,7 +79,7 @@ public class CacheKey extends Cache.Key {
 
     @Override
     public int hashCode() {
-        return this.hash;
+        return HASH.hash(this.offset);
     }
 
     @Override

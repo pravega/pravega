@@ -39,12 +39,7 @@ public class InMemoryCacheFactory implements CacheFactory {
             Exceptions.checkNotClosed(this.closed, this);
             result = this.caches.get(id);
             if (result == null) {
-                result = new InMemoryCache(id);
-                result.setCloseCallback(idToRemove -> {
-                    synchronized (this.caches) {
-                        this.caches.remove(idToRemove);
-                    }
-                });
+                result = new InMemoryCache(id, this::cacheClosed);
                 this.caches.put(id, result);
             }
         }
@@ -62,6 +57,12 @@ public class InMemoryCacheFactory implements CacheFactory {
             }
 
             toClose.forEach(InMemoryCache::close);
+        }
+    }
+
+    private void cacheClosed(String cacheId) {
+        synchronized (this.caches) {
+            this.caches.remove(cacheId);
         }
     }
 }

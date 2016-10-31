@@ -28,6 +28,8 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
@@ -61,6 +63,9 @@ public final class ServiceStarter {
         }
         if (options.rocksDb) {
             attachRocksDB(builder);
+        }
+        if (options.hdfs) {
+            attachHDFS(builder);
         }
 
         return builder;
@@ -146,5 +151,18 @@ public final class ServiceStarter {
         boolean distributedLog;
         boolean hdfs;
         boolean rocksDb;
+    }
+
+    static ServiceBuilder attachHDFS(ServiceBuilder builder) {
+        return builder.withStorageFactory(setup -> {
+            try {
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
     }
 }
