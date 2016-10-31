@@ -319,15 +319,18 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
             }
 
             node = rotateRight(node);
+        } else {
+            // No rotation needed, just update current node's height, as an update may have changed it.
+            node.height = Math.max(height(node.left), height(node.right)) + 1;
         }
 
-        // Update current node's height.
-        node.height = Math.max(height(node.left), height(node.right)) + 1;
         return node;
     }
 
     /**
-     * Rotates the given binary tree node with the left child.
+     * Rotates the given binary tree node with the left child. At the end of this operation:
+     * * The Left Child's right node is the Given Node
+     * * The Given Node's Left Child is the Left Child's original Right Child.
      */
     private Node<V> rotateLeft(Node<V> node) {
         Node<V> leftChild = node.left;
@@ -339,7 +342,9 @@ public class AvlTreeIndex<K, V extends IndexEntry<K>> implements SortedIndex<K, 
     }
 
     /**
-     * Rotates the given binary tree node with the right child.
+     * Rotates the given binary tree node with the right child. At the end of this operation:
+     * * The Right Child's left node is the Given Node
+     * * The Given Node's Right child is the Right Child's original Left Child.
      */
     private Node<V> rotateRight(Node<V> node) {
         Node<V> rightChild = node.right;

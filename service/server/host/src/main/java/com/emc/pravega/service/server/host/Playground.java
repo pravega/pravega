@@ -39,47 +39,15 @@ public class Playground {
         int count = 10000000;
         int retryCount = 5;
         for (int i = 0; i < retryCount; i++) {
-            System.out.println("RB");
+            System.out.print("RB: ");
             System.gc();
             testIndex(new RedBlackTreeIndex<>(Integer::compare), count);
-            System.out.println("AVL");
+            System.out.println();
+            System.out.print("AVL_r:");
             System.gc();
             testIndex(new AvlTreeIndex<>(Integer::compare), count);
+            System.out.println();
         }
-
-        //        int testCount = 100;
-        //        int skip = 1;
-        //        for (int i = 0; i < testCount; i += skip) {
-        //            tm.put(i, new TestEntry(i));
-        //            testTree.insert(new TestEntry(i));
-        //        }
-        //        for (int i = 0; i < testCount; i++) {
-        //            val en = tm.ceilingEntry(i);
-        //            val av = testTree.getCeiling(i);
-        //            if ((en != null && av == null)
-        //                    || (en == null && av != null)
-        //                    || (en != null && en.getKey() != av.key())) {
-        //                System.out.println(String.format("Key = %s, E = %s, A = %s", i, en, av));
-        //            }
-        //        }
-
-        //        for (int i = 0; i < testCount; i++) {
-        //            if (i % 2 == 0) {
-        //                testTree.remove(i);
-        //            }
-        //        }
-        //
-        //        for (int i = 0; i < testCount; i += skip) {
-        //            if (i % 2 == 0) {
-        //                testTree.remove(i);
-        //                System.out.print(i + ":");
-        //                testTree.forEach(e -> System.out.print(" " + e));
-        //                System.out.println();
-        //            }
-        //        }
-        //
-        //        //        testTree.forEach(e -> System.out.print(" " + e));
-        //        System.out.println();
     }
 
     private static void testIndex(SortedIndex<Integer, TestEntry> index, int count) {
