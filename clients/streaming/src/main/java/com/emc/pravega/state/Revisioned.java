@@ -15,5 +15,5 @@ public interface Revisioned {
     /**
      * @return The revision corresponding to this object.
      */
-    Revision getCurrentRevision();
+    Revision getRevision();
 }

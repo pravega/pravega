@@ -55,8 +55,11 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
      * This is more efficient than {@link #getLatestState()} and should be preferred if a state
      * object is available, because it only reads updates that occurred after the provided state.
      * 
-     * @param localState Optional. A base state which updates can be applied to to get the latest
-     *            state.
+     * Note: Even if {@link Update#applyTo(Revisioned, Revision)} updates the object in-place this
+     * method may return a different instance if there have been updates that occurred that were
+     * subsequently compacted away.
+     * 
+     * @param localState A base state which updates can be applied to to get the latest state.
      */
     StateT getLatestState(StateT localState);
 
@@ -67,23 +70,23 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
      * is up-to-date, if it is not nothing happens and null is returned instead.
      * 
      * If conditionalOnLatest is set to false and the localState is out-of-date updates will be
-     * applied first, as though {@link #getLatestState()} were called first.
+     * applied first, exactly as though {@link #getLatestState()} were called first.
      * 
      * @param localState The current revision of the state. The updates will be applied to this
      *            version and the result returned.
      * @param update The update that all other processes should receive, and that should be applied
      *            to the localState if it can be persisted.
-     * @return The new state if the update was persisted or null if localState was out of date and
-     *         conitionalOnLatest was true.
+     * @return An updated state if the update was persisted or null if localState was out of date
+     *         and conitionalOnLatest was true.
      */
     StateT updateState(StateT localState, UpdateT update, boolean conditionalOnLatest);
-    
+
     /**
      * Same as {@link #updateState(Revisioned, Update, boolean)}, except it persists and applies
      * multiple updates at the same time. (All updates are persisted at once so they will never be
      * interleaved with other updates).
      */
-    StateT updateState(StateT localState, List<UpdateT> update, boolean conditionalOnLatest);
+    StateT updateState(StateT localState, List<? extends UpdateT> update, boolean conditionalOnLatest);
 
     /**
      * Delete all history up through the provided revision and replace it with compactState. The
@@ -93,7 +96,7 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
      * Because no changes occur to the state, this operation does not enforce concurrency checks.
      * 
      * @param compactState The state that represents the state up as of the version obtained from
-     *            {@link Revisioned#getCurrentRevision()} (This need not be the current revision)
+     *            {@link Revisioned#getRevision()} (This need not be the current revision)
      */
     void compact(StateT compactState);
 }

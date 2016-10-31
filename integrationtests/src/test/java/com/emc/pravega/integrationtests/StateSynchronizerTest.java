@@ -12,7 +12,7 @@ import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.state.SetSynchronizer;
+import com.emc.pravega.state.examples.SetSynchronizer;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.mock.MockStreamManager;

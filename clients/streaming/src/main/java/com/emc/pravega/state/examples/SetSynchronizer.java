@@ -1,10 +1,14 @@
-package com.emc.pravega.state;
+package com.emc.pravega.state.examples;
 
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import com.emc.pravega.state.Revision;
+import com.emc.pravega.state.Revisioned;
+import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
 
@@ -28,7 +32,7 @@ public class SetSynchronizer<T extends Serializable> {
         }
 
         @Override
-        public Revision getCurrentRevision() {
+        public Revision getRevision() {
             return currentRevision;
         }
 
