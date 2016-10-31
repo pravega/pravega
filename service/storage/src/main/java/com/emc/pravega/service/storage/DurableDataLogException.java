@@ -18,10 +18,12 @@
 
 package com.emc.pravega.service.storage;
 
+import com.emc.pravega.service.contracts.StreamingException;
+
 /**
  * General exception thrown by the Durable Data Log.
  */
-public class DurableDataLogException extends Exception {
+public class DurableDataLogException extends StreamingException {
     /**
      *
      */

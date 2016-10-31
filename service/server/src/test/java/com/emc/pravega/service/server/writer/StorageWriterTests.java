@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server.writer;
 
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.server.CacheKey;
@@ -26,7 +27,6 @@ import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
@@ -42,7 +42,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
-import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
@@ -165,7 +164,7 @@ public class StorageWriterTests {
 
         // We clear up the cache after we have added the operations in the data source - this will cause the writer
         // to pick them up and end up failing when attempting to fetch the cache contents.
-        context.cache.reset();
+        context.cache.clear();
 
         context.writer.startAsync().awaitRunning();
 
@@ -586,9 +585,8 @@ public class StorageWriterTests {
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, appendContext);
         op.setStreamSegmentOffset(offset);
         if (writeId % 2 == 0) {
-            CacheKey key = new CacheKey(segmentMetadata.getId(), offset);
-            context.cache.insert(key, data);
-            context.dataSource.add(new CachedStreamSegmentAppendOperation(op, key));
+            context.cache.insert(new CacheKey(segmentMetadata.getId(), offset), data);
+            context.dataSource.add(new CachedStreamSegmentAppendOperation(op));
         } else {
             context.dataSource.add(op);
         }
@@ -677,7 +675,7 @@ public class StorageWriterTests {
         final UpdateableContainerMetadata metadata;
         final TestWriterDataSource dataSource;
         final TestStorage storage;
-        final Cache cache;
+        final InMemoryCache cache;
         final WriterConfig config;
         StorageWriter writer;
 

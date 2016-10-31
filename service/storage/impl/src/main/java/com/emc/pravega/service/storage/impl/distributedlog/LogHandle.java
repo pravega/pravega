@@ -246,7 +246,7 @@ class LogHandle implements AutoCloseable {
         }
 
         // Send the write to DistributedLog.
-        log.debug("{}: LogWriter.write (TransactionId = {}, Length = {}).", transactionId, buffer.length);
+        log.debug("{}: LogWriter.write (TransactionId = {}, Length = {}).", this.logName, transactionId, buffer.length);
         Future<DLSN> writeFuture = this.logWriter.write(new LogRecord(transactionId, buffer));
         return toCompletableFuture(writeFuture, dlsn -> new DLSNAddress(transactionId, dlsn));
     }

@@ -76,6 +76,13 @@ public class ServiceBuilderConfig {
         set(p, "dlog", "port", "2181");
         set(p, "dlog", "namespace", "messaging/distributedlog/mynamespace");
 
+        //HDFS params
+        set(p, "hdfs", "fs.default.name", "localhost:9000");
+        set(p, "hdfs", "hdfsroot", "");
+        set(p, "hdfs", "pravegaid", "0");
+        set(p, "hdfs", "replication", "1");
+        set(p, "hdfs", "blocksize", "1048576");
+
         // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);
     }

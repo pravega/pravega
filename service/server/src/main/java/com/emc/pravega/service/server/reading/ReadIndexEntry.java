@@ -18,12 +18,12 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.common.Exceptions;
+import com.google.common.base.Preconditions;
 
 /**
  * An entry in the Read Index with data at a particular offset.
  */
-abstract class ReadIndexEntry {
+class ReadIndexEntry {
     //region Members
 
     private final long streamSegmentOffset;
@@ -42,8 +42,8 @@ abstract class ReadIndexEntry {
      * @throws IllegalArgumentException if the length is a negative number.
      */
     ReadIndexEntry(long streamSegmentOffset, long length) {
-        Exceptions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset", "Offset must be a non-negative number.");
-        Exceptions.checkArgument(length >= 0, "length", "Length must be a non-negative number.");
+        Preconditions.checkArgument(streamSegmentOffset >= 0, "streamSegmentOffset must be a non-negative number.");
+        Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
 
         this.streamSegmentOffset = streamSegmentOffset;
         this.length = length;

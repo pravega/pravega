@@ -553,6 +553,11 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
+        public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+            return CompletableFuture.completedFuture(Boolean.TRUE);
+        }
+
+        @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             return this.getInfoHandler.apply(streamSegmentName);
         }

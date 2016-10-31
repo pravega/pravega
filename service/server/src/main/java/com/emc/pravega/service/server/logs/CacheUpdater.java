@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.logs;
 
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -67,14 +66,13 @@ public class CacheUpdater {
      *
      * @param operation The operation to register.
      */
-    CacheKey addToReadIndex(StorageOperation operation) {
-        CacheKey result = null;
+    void addToReadIndex(StorageOperation operation) {
         if (operation instanceof StreamSegmentAppendOperation) {
             // Record a StreamSegmentAppendOperation. Just in case, we also support this type of operation, but we need to
             // log a warning indicating so. This means we do not optimize memory properly, and we end up storing data
             // in two different places.
             StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) operation;
-            result = this.readIndex.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
+            this.readIndex.append(appendOperation.getStreamSegmentId(), appendOperation.getStreamSegmentOffset(), appendOperation.getData());
         } else if (operation instanceof MergeTransactionOperation) {
             // Record a MergeTransactionOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
             MergeTransactionOperation mergeOperation = (MergeTransactionOperation) operation;
@@ -89,8 +87,6 @@ public class CacheUpdater {
         synchronized (this.readIndex) {
             this.recentStreamSegmentIds.add(operation.getStreamSegmentId());
         }
-
-        return result;
     }
 
     /**
@@ -124,19 +120,5 @@ public class CacheUpdater {
         }
 
         this.readIndex.triggerFutureReads(elements);
-    }
-
-    /**
-     * Clears all in-memory structures of all data and resets the cache to empty.
-     *
-     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system, such
-     *                               as metadata not being in Recovery mode.
-     */
-    void clear() {
-        this.readIndex.clear();
-        this.cache.reset();
-        synchronized (this.readIndex) {
-            this.recentStreamSegmentIds = new HashSet<>();
-        }
     }
 }

@@ -67,7 +67,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
-    private final MemoryLogUpdater memoryLogUpdater;
+    private final MemoryStateUpdater memoryStateUpdater;
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
     private final Set<TailRead> tailReads;
@@ -105,9 +105,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.executor = executor;
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = new MemoryOperationLog();
-        this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
+        this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryLogUpdater, this.durableDataLog, checkpointPolicy);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
@@ -297,7 +297,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.metadata.reset();
 
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
+        this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
 
         boolean successfulRecovery = false;
         boolean anyItemsRecovered;
@@ -312,7 +312,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         } finally {
             // We must exit recovery mode when done, regardless of outcome.
             this.metadata.exitRecoveryMode();
-            this.memoryLogUpdater.exitRecoveryMode(successfulRecovery);
+            this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
@@ -392,8 +392,8 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
         }
 
-        // Add to InMemory Operation Log.
-        this.memoryLogUpdater.process(operation);
+        // Update in-memory structures.
+        this.memoryStateUpdater.process(operation);
     }
 
     private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {
