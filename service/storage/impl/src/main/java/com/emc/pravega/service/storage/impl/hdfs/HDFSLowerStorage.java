@@ -27,6 +27,7 @@ import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamingException;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageException;
 import com.google.common.base.Preconditions;
@@ -103,7 +104,7 @@ class HDFSLowerStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
         return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName);
     }
 
@@ -151,7 +152,7 @@ class HDFSLowerStorage implements Storage {
 
     //region Sync operations
 
-    private SegmentProperties createSync(String streamSegmentName) throws IOException {
+    private SegmentHandle createSync(String streamSegmentName) throws IOException {
         // Create an immediately close the returned stream - we do not need it.
         this.fs.create(new Path(streamSegmentName),
                 new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
@@ -161,7 +162,7 @@ class HDFSLowerStorage implements Storage {
                 this.serviceBuilderConfig.getBlockSize(),
                 null).close();
 
-        return new StreamSegmentInformation(streamSegmentName, 0, false, false, new Date());
+        return new HDFSSegmentHandle(null, streamSegmentName); // null -> real Segment Name
     }
 
     private SegmentProperties getStreamSegmentInfoSync(String streamSegmentName) throws IOException {

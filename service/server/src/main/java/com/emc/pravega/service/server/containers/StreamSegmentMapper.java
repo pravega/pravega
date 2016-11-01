@@ -24,6 +24,7 @@ import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.OperationLog;
@@ -37,6 +38,7 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -112,7 +114,7 @@ public class StreamSegmentMapper {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
                 .create(streamSegmentName, timer.getRemaining())
-                .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
+                .thenCompose(handle -> getOrAssignStreamSegmentId(handle.getSegmentName(), timer.getRemaining()))
                 .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName, id));
     }
 
@@ -163,7 +165,10 @@ public class StreamSegmentMapper {
 
         return parentPropertiesFuture
                 .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
-                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))
+                .thenCompose(transactionHandle -> {
+                    SegmentProperties transProp = new StreamSegmentInformation(transactionHandle.getSegmentName(), 0, false, false, new Date());
+                    return assignTransactionStreamSegmentId(transProp, parentStreamSegmentId, timer.getRemaining());
+                })
                 .thenApply(id -> {
                     LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId, parentStreamSegmentName, transactionName, id);
                     return transactionName;
