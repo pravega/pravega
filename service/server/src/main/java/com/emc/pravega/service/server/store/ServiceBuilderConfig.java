@@ -78,10 +78,10 @@ public class ServiceBuilderConfig {
 
         //HDFS params
         set(p, "hdfs", "fs.default.name", "localhost:9000");
-        set(p, "hdfs", "hdfsroot", "");
-        set(p, "hdfs", "pravegaid", "0");
+        set(p, "hdfs", "hdfsRoot", "");
+        set(p, "hdfs", "pravegaId", "0");
         set(p, "hdfs", "replication", "1");
-        set(p, "hdfs", "blocksize", "1048576");
+        set(p, "hdfs", "blockSize", "1048576");
 
         // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);

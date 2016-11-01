@@ -82,8 +82,8 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        return CompletableFuture.completedFuture(true);
+    public CompletableFuture<Void> acquireLockForSegment(String streamSegmentName) {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

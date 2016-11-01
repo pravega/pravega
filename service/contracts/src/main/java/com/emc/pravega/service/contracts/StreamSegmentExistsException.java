@@ -23,11 +23,26 @@ package com.emc.pravega.service.contracts;
  */
 public class StreamSegmentExistsException extends StreamSegmentException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * Creates a new instance of the StreamSegmentExistsException.
+     *
+     * @param streamSegmentName The name of the Segment.
+     */
     public StreamSegmentExistsException(String streamSegmentName) {
-        super(streamSegmentName, "The StreamSegment exists already.");
+        this(streamSegmentName, null);
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentExistsException.
+     *
+     * @param streamSegmentName The name of the Segment.
+     * @param cause             Actual cause of the exception.
+     */
+    public StreamSegmentExistsException(String streamSegmentName, Throwable cause) {
+        super(streamSegmentName, "The StreamSegment exists already.", cause);
     }
 }

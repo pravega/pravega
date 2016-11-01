@@ -44,10 +44,10 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
 
     /**
      * Acquires distributed lock for a StreamSegment.
-     * @param streamSegmentName Name of the StreamSegment to be acquired.
-     * @return true if the lock is acquired, false if not
+     *
+     * @param streamSegmentName Name of the StreamSegment whose lock is to be acquired.
      */
-    CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName);
+    CompletableFuture<Void> acquireLockForSegment(String streamSegmentName);
 
     /**
      * Writes the given data to the StreamSegment.
