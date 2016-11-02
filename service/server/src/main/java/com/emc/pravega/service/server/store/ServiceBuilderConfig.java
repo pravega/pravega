@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.google.common.base.Preconditions;
 
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -78,7 +77,10 @@ public class ServiceBuilderConfig {
     }
 
     /**
-     * Gets a set of configuration values from a given inputstreamreder.
+     * Gets a set of configuration values from a given InputStreamReader.
+     * @param reader the InputStreamReader which hold the configuration.
+     * @return A ServiceBuilderConfig object.
+     * @throws IOException exception during reading of the configuration.
      */
     public static ServiceBuilderConfig getConfigFromStream(InputStreamReader reader) throws IOException {
         Properties p = new Properties();
