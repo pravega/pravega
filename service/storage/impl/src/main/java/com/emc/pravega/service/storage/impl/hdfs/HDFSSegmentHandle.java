@@ -19,13 +19,14 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.storage.SegmentHandle;
+import org.apache.hadoop.fs.Path;
 
 /**
  * SegmentHandle to be used by HDFSStorage.
  */
 class HDFSSegmentHandle implements SegmentHandle {
     private final String segmentName;
-    private final String physicalSegmentName;
+    private final Path physicalSegmentPath;
 
     /**
      * Creates a new instance of the HDFSSegmentHandle class.
@@ -35,7 +36,7 @@ class HDFSSegmentHandle implements SegmentHandle {
      */
     HDFSSegmentHandle(String segmentName, String physicalSegmentName) {
         this.segmentName = segmentName;
-        this.physicalSegmentName = physicalSegmentName;
+        this.physicalSegmentPath = new Path(physicalSegmentName);
     }
 
     @Override
@@ -43,12 +44,15 @@ class HDFSSegmentHandle implements SegmentHandle {
         return this.segmentName;
     }
 
-    String getPhysicalSegmentName() {
-        return this.physicalSegmentName;
+    /**
+     * Gets a Path that represents the location of the segment in the HDFS instance.
+     */
+    Path getPhysicalSegmentPath() {
+        return this.physicalSegmentPath;
     }
 
     @Override
     public String toString() {
-        return this.segmentName;
+        return String.format("Name = %s, Path = %s", this.segmentName, this.physicalSegmentPath);
     }
 }
