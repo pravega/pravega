@@ -87,11 +87,6 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public boolean isTransactionOpen(final String scope, final String stream, final TxId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.isTransactionOpen(scope, stream, txid), RuntimeException::new);
-    }
-
-    @Override
     public List<Position> getPositions(final String scope, final String stream, final long timestamp, final int count) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getPositions(scope, stream, timestamp, count), RuntimeException::new);
     }

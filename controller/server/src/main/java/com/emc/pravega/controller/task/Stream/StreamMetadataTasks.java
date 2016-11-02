@@ -79,7 +79,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
      * @param createTimestamp creation timestamp.
      * @return creation status.
      */
-    @Task(name = "checkStreamExists", version = "1.0", resource = "{scope}/{stream}")
+    @Task(name = "createStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return execute(
                 new Resource(scope, stream),

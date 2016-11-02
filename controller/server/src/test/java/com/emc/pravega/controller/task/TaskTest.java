@@ -105,7 +105,7 @@ public class TaskTest {
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
-        // region checkStreamExists
+        // region createStream
         streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
         streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion

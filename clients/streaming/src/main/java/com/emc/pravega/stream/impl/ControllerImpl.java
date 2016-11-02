@@ -187,18 +187,6 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOpen(final String scope, final String stream, final UUID txid) {
-        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.isTransactionOpen(scope, stream, ModelHelper.decode(txid), callback);
-            return callback.getResult();
-        });
-
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
-    }
-
-    @Override
     public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
         log.debug("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 

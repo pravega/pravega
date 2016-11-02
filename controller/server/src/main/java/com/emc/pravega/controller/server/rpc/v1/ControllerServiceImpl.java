@@ -37,7 +37,6 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.TxStatus;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -142,11 +141,6 @@ public class ControllerServiceImpl {
                     } else
                         return SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore).getEndpoint().equals(caller);
                 });
-    }
-
-    public CompletableFuture<Boolean> isTransactionOpen(final String scope, final String stream, final TxId txid) throws TException {
-        return streamStore.transactionStatus(stream, scope, ModelHelper.encode(txid))
-                .thenApply(x -> x.equals(TxStatus.OPEN));
     }
 
     private SegmentRange convert(final String scope,
@@ -276,20 +270,20 @@ public class ControllerServiceImpl {
     public CompletableFuture<TransactionStatus> commitTransaction(final String scope, final String stream, final TxId txid) {
         return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txid))
                 .handle((ok, ex) -> {
-                    if (ex != null)
+                    if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TransactionStatus.FAILURE;
-                    else return TransactionStatus.SUCCESS;
+                    } else return TransactionStatus.SUCCESS;
                 });
     }
 
     public CompletableFuture<TransactionStatus> dropTransaction(final String scope, final String stream, final TxId txid) {
         return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txid))
                 .handle((ok, ex) -> {
-                    if (ex != null)
+                    if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TransactionStatus.FAILURE;
-                    else return TransactionStatus.SUCCESS;
+                    } else return TransactionStatus.SUCCESS;
                 });
     }
 

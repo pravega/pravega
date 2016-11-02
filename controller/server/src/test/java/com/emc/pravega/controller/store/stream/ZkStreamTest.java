@@ -155,7 +155,7 @@ public class ZkStreamTest {
     }
 
     @Ignore("run manually")
-    @Test
+//    @Test
     public void TestZkStreamChukning() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
