@@ -170,7 +170,11 @@ public class TaskSweeper {
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
 
             } else {
-                throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
+                CompletableFuture<Object> error = new CompletableFuture<>();
+                error.completeExceptionally(
+                        new RuntimeException(String.format("Task %s not found", taskData.getMethodName()))
+                );
+                return error;
             }
 
         } catch (Exception e) {

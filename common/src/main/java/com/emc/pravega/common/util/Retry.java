@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
 
@@ -150,7 +151,7 @@ public final class Retry {
             Exception last = null;
             for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 try {
-                    log.trace("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
+                    log.debug("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
                     return r.attempt();
                 } catch (Exception e) {
                     Class<? extends Exception> type = e.getClass();
@@ -212,7 +213,7 @@ public final class Retry {
                                                              final long delay,
                                                              final FutureRetryable<ReturnT> r,
                                                              final ScheduledExecutorService executorService) {
-            log.trace("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
+            log.debug("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
             r.attempt()
                     .whenComplete((y, e) -> {
@@ -237,13 +238,21 @@ public final class Retry {
         }
 
         private boolean canRetry(Throwable e) {
-            Preconditions.checkNotNull(e);
-            Preconditions.checkNotNull(e.getCause());
-            Class<? extends Throwable> type = e.getCause().getClass();
+            if (e == null) {
+                return false;
+            }
+            Class<? extends Throwable> type = getNestedErrorClass(e);
             if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
                 return false;
             }
             return retryType.isAssignableFrom(type);
+        }
+
+        private Class getNestedErrorClass(Throwable e) {
+            while (e != null && e.getClass().equals(CompletionException.class)) {
+                e = e.getCause();
+            }
+            return e != null ? e.getClass() : null;
         }
     }
 }
