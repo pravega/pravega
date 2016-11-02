@@ -30,6 +30,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
@@ -46,6 +48,7 @@ public class ZKTaskMetadataStoreTests {
     private final String threadId1 = UUID.randomUUID().toString();
     private final String threadId2 = UUID.randomUUID().toString();
     private final TaskData taskData = new TaskData();
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final TaskMetadataStore taskMetadataStore;
 
@@ -54,7 +57,7 @@ public class ZKTaskMetadataStoreTests {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config);
+        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config, executor);
         taskData.setMethodName("test");
         taskData.setMethodVersion("1.0");
         taskData.setParameters(new String[]{"string1"});

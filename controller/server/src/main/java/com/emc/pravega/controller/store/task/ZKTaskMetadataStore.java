@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Zookeeper based task store
@@ -42,12 +43,14 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     private final static String TAG_SEPARATOR = "_%%%_";
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     private final CuratorFramework client;
+    private final ScheduledExecutorService executor;
     private final String hostRoot = "/hostIndex";
     private final String taskRoot = "/taskIndex";
 
-    public ZKTaskMetadataStore(StoreConfiguration config) {
+    public ZKTaskMetadataStore(StoreConfiguration config, ScheduledExecutorService executor) {
         this.client = CuratorFrameworkFactory.newClient(config.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
         this.client.start();
+        this.executor = executor;
     }
 
     // todo: potentially merge this class with stream metadata store
@@ -107,7 +110,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } else {
                 throw new LockFailedException(resource.getString());
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -159,7 +162,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } catch (Exception e) {
                 throw new UnlockFailedException(resource.getString(), e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -192,7 +195,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -216,7 +219,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -249,7 +252,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
 //    @Override
@@ -307,7 +310,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
 //    @Override
@@ -352,7 +355,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private String getTaskPath(Resource resource) {

@@ -22,7 +22,20 @@ package com.emc.pravega.controller.server.rpc.v1;
  */
 public class SealingFailedException extends RuntimeException {
 
-    public SealingFailedException(Throwable cause) {
+    public enum Reason {
+        ConnectionDropped,
+        ConnectionFailed,
+        UnknownHost,
+    }
+
+    private final Reason reason;
+
+    public SealingFailedException(Throwable cause, Reason reason) {
         super(cause);
+        this.reason = reason;
+    }
+
+    public SealingFailedException(Reason reason) {
+        this.reason = reason;
     }
 }

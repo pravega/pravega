@@ -17,19 +17,39 @@
  */
 package com.emc.pravega.common.util;
 
-import org.junit.Assert;
 import org.junit.Test;
 
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 /**
  * Test methods for Retry utilities
  */
 public class RetryTests {
+
+    final int maxLoops = 10;
+    final int expectedResult = maxLoops * (maxLoops - 1) / 2;
+
+    final long maxDelay = 100000;
+    final long uniformDelay = 100;
+    final long expectedDurationUniform = (maxLoops - 1) * uniformDelay;
+
+    final long exponentialInitialDelay = 10;
+    final int multiplier = 2;
+    final long expectedDurationExponential = (long) (Math.pow(multiplier, maxLoops - 1) - 1) * exponentialInitialDelay;
+
+    final AtomicInteger loopCounter = new AtomicInteger();
+    final AtomicInteger accumulator = new AtomicInteger();
+
+    Instant begin, end;
+    long duration;
 
     private static class RetryableException extends RuntimeException {
 
@@ -41,98 +61,150 @@ public class RetryTests {
 
     @Test
     public void retryTests() {
-        final int maxLoops = 10;
-        final int expectedResult = maxLoops * (maxLoops - 1) / 2;
-        AtomicInteger loopCounter = new AtomicInteger();
-        AtomicInteger accumulator = new AtomicInteger();
 
         // 1. series of retryable exceptions followed by a failure
-        int result =
-        Retry.withExpBackoff(100, 1, maxLoops, 100000)
+        begin = Instant.now();
+        int result = retry(uniformDelay, 1, maxLoops, maxDelay, true);
+        end = Instant.now();
+        duration = end.toEpochMilli() - begin.toEpochMilli();
+        assertEquals(result, expectedResult);
+        assertTrue(duration >= expectedDurationUniform);
+
+        // 2. series of retryable exceptions followed by a non-retryable failure
+        begin = Instant.now();
+        try {
+            retry(uniformDelay, 1, maxLoops, maxDelay, false);
+        } catch (Exception e) {
+            end = Instant.now();
+            duration = end.toEpochMilli() - begin.toEpochMilli();
+            assertTrue(duration >= expectedDurationUniform);
+            assertTrue(e instanceof NonretryableException);
+            assertEquals(accumulator.get(), expectedResult);
+        }
+
+        // 3. exponential backoff
+        begin = Instant.now();
+        result = retry(exponentialInitialDelay, multiplier, maxLoops, maxDelay, true);
+        end = Instant.now();
+        duration = end.toEpochMilli() - begin.toEpochMilli();
+        assertEquals(result, expectedResult);
+        assertTrue(duration >= expectedDurationExponential);
+
+        // 4. exhaust retries
+        begin = Instant.now();
+        try {
+            retry(uniformDelay, 1, maxLoops, maxDelay - 1, true);
+        } catch (Exception e) {
+            end = Instant.now();
+            duration = end.toEpochMilli() - begin.toEpochMilli();
+            assertTrue(duration >= expectedDurationUniform);
+            assertTrue(e instanceof RetriesExaustedException);
+            assertTrue(e.getCause() instanceof RetryableException);
+            assertEquals(accumulator.get(), expectedResult);
+        }
+    }
+
+    @Test
+    public void retryFutureTests() {
+        ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(5);
+
+        // 1. series of retryable exceptions followed by a failure
+        begin = Instant.now();
+        CompletableFuture<Integer> result = retryFuture(uniformDelay, 1, maxLoops, maxDelay, true, executorService);
+
+        assertEquals(result.join().intValue(), expectedResult);
+        end = Instant.now();
+        duration = end.toEpochMilli() - begin.toEpochMilli();
+        assertTrue(duration >= expectedDurationUniform);
+
+        // 2, series of retryable exceptions followed by a non-retryable failure
+        begin = Instant.now();
+        result = retryFuture(uniformDelay, 1, maxLoops, maxDelay, false, executorService);
+        try {
+            result.join();
+        } catch (CompletionException ce) {
+            end = Instant.now();
+            duration = end.toEpochMilli() - begin.toEpochMilli();
+            assertTrue(duration >= expectedDurationUniform);
+            assertTrue(ce.getCause() instanceof NonretryableException);
+            assertEquals(accumulator.get(), expectedResult);
+        }
+
+        // 3. exponential backoff
+        begin = Instant.now();
+        result = retryFuture(exponentialInitialDelay, multiplier, maxLoops, maxDelay, true, executorService);
+        assertEquals(result.join().intValue(), expectedResult);
+        end = Instant.now();
+        duration = end.toEpochMilli() - begin.toEpochMilli();
+        assertTrue(duration >= expectedDurationExponential);
+
+        // 4. Exhaust retries
+        begin = Instant.now();
+        result = retryFuture(uniformDelay, 1, maxLoops - 1, maxDelay, true, executorService);
+        try {
+            result.join();
+        } catch (Exception e) {
+            end = Instant.now();
+            duration = end.toEpochMilli() - begin.toEpochMilli();
+            assertTrue(duration >= expectedDurationUniform - uniformDelay);
+            assertTrue(e instanceof CompletionException);
+            assertTrue(e.getCause() instanceof RetriesExaustedException);
+            assertTrue(e.getCause().getCause() instanceof CompletionException);
+            assertTrue(e.getCause().getCause().getCause() instanceof RetryableException);
+        }
+    }
+
+    private int retry(long delay,
+                      int multiplier,
+                      int attempts,
+                      long maxDelay,
+                      boolean success) {
+
+        loopCounter.set(0);
+        accumulator.set(0);
+        return Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
                 .retryingOn(RetryableException.class)
                 .throwingOn(NonretryableException.class)
                 .run(() -> {
                     accumulator.getAndAdd(loopCounter.getAndIncrement());
                     int i = loopCounter.get();
                     if (i % 10 == 0) {
-                        return accumulator.get();
+                        if (success) {
+                            return accumulator.get();
+                        } else {
+                            throw new NonretryableException();
+                        }
                     } else {
                         throw new RetryableException();
                     }
                 });
-
-        Assert.assertEquals(result, expectedResult);
-
-        // 2, series of retryable exceptions followed by a non-retryable failure
-        loopCounter.set(0);
-        accumulator.set(0);
-        try {
-            Retry.withExpBackoff(100, 1, maxLoops, 100000)
-                    .retryingOn(RetryableException.class)
-                    .throwingOn(NonretryableException.class)
-                    .run(() -> {
-                        accumulator.getAndAdd(loopCounter.getAndIncrement());
-                        int i = loopCounter.get();
-                        if (i % 10 == 0) {
-                            throw new NonretryableException();
-                        } else {
-                            throw new RetryableException();
-                        }
-                    });
-        } catch (Exception e) {
-            Assert.assertTrue(e instanceof NonretryableException);
-            Assert.assertEquals(accumulator.get(), expectedResult);
-        }
     }
 
-    @Test
-    public void retryFutureTests() {
-        final int maxLoops = 10;
-        final int expectedResult = maxLoops * (maxLoops - 1) / 2;
-        AtomicInteger loopCounter = new AtomicInteger();
-        AtomicInteger accumulator = new AtomicInteger();
-        ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(100);
+    private CompletableFuture<Integer> retryFuture(final long delay,
+                                                   final int multiplier,
+                                                   final int attempts,
+                                                   final long maxDelay,
+                                                   final boolean success,
+                                                   final ScheduledExecutorService executorService) {
 
-        // 1. series of retryable exceptions followed by a failure
-        CompletableFuture<Integer> result =
-                Retry.withExpBackoff(100, 1, maxLoops, 100000)
-                        .retryingOn(RetryableException.class)
-                        .throwingOn(NonretryableException.class)
-                        .runFuture(() ->
-                                        CompletableFuture.supplyAsync(() -> {
-                                            accumulator.getAndAdd(loopCounter.getAndIncrement());
-                                            int i = loopCounter.get();
-                                            if (i % 10 == 0) {
-                                                return accumulator.get();
-                                            } else {
-                                                throw new RetryableException();
-                                            }
-                                        }), executorService);
-
-        Assert.assertEquals(result.join().intValue(), expectedResult);
-
-        // 2, series of retryable exceptions followed by a non-retryable failure
         loopCounter.set(0);
         accumulator.set(0);
-        result =
-                Retry.withExpBackoff(100, 1, maxLoops, 100000)
-                        .retryingOn(RetryableException.class)
-                        .throwingOn(NonretryableException.class)
-                        .runFuture(() ->
-                                CompletableFuture.supplyAsync(() -> {
-                                    accumulator.getAndAdd(loopCounter.getAndIncrement());
-                                    int i = loopCounter.get();
-                                    if (i % 10 == 0) {
-                                        throw new NonretryableException();
-                                    } else {
-                                        throw new RetryableException();
-                                    }
-                                }), executorService);
-        try {
-            result.join();
-        } catch (CompletionException ce) {
-            Assert.assertTrue(ce.getCause() instanceof NonretryableException);
-            Assert.assertEquals(accumulator.get(), expectedResult);
-        }
+        return Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
+                .retryingOn(RetryableException.class)
+                .throwingOn(NonretryableException.class)
+                .runFuture(() ->
+                        CompletableFuture.supplyAsync(() -> {
+                            accumulator.getAndAdd(loopCounter.getAndIncrement());
+                            int i = loopCounter.get();
+                            if (i % 10 == 0) {
+                                if (success) {
+                                    return accumulator.get();
+                                } else {
+                                    throw new NonretryableException();
+                                }
+                            } else {
+                                throw new RetryableException();
+                            }
+                        }), executorService);
     }
 }

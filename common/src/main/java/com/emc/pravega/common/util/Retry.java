@@ -20,8 +20,10 @@ package com.emc.pravega.common.util;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
@@ -54,6 +56,7 @@ import java.util.concurrent.TimeoutException;
  * above example if FooException were to extend RuntimeException. Then the more specific exception
  * is given preference. (In the above case FooException would be retried).
  */
+@Slf4j
 public final class Retry {
 
     private Retry() {}
@@ -97,7 +100,7 @@ public final class Retry {
     
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
-     * Any subtype of this exception will be retried unless the subtype is passed to {@link #throwingOn()}.
+     * Any subtype of this exception will be retried unless the subtype is passed to {@link RetringOnException#throwingOn(Class)}.
      */
     public static final class RetringOnException<RetryT extends Exception> {
         private final Class<RetryT> retryType;
@@ -147,6 +150,7 @@ public final class Retry {
             Exception last = null;
             for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 try {
+                    log.trace("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
                     return r.attempt();
                 } catch (Exception e) {
                     Class<? extends Exception> type = e.getClass();
@@ -190,7 +194,7 @@ public final class Retry {
                 FutureHelpers.futureWithTimeout(Duration.ofMillis(delay), executorService)
                         .whenComplete((x, ex) -> {
                             if (ex != null && ex instanceof TimeoutException) {
-                                execute(attemptNumber, delay, r, executorService)
+                                execute(attemptNumber, Math.min(params.maxDelay, params.multiplier * delay), r, executorService)
                                         .whenComplete((y, e) -> {
                                             if (e != null) {
                                                 result.completeExceptionally(e);
@@ -208,12 +212,13 @@ public final class Retry {
                                                              final long delay,
                                                              final FutureRetryable<ReturnT> r,
                                                              final ScheduledExecutorService executorService) {
+            log.trace("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
             r.attempt()
                     .whenComplete((y, e) -> {
                         if (e != null) {
                             if (canRetry(e)) {
-                                loop(attemptNumber + 1, Math.min(params.maxDelay, params.multiplier * delay), e, r, executorService)
+                                loop(attemptNumber + 1, delay, e, r, executorService)
                                         .whenComplete((z, ie) -> {
                                             if (ie != null) {
                                                 result.completeExceptionally(ie);

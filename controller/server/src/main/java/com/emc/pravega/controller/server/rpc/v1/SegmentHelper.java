@@ -21,6 +21,7 @@ package com.emc.pravega.controller.server.rpc.v1;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.stream.impl.model.ModelHelper;
@@ -101,16 +102,15 @@ public class SegmentHelper {
                                       final String stream,
                                       final int segmentNumber,
                                       final HostControllerStore hostControllerStore,
-                                      final ConnectionFactory clientCF) {
+                                      final ConnectionFactory clientCF,
+                                      final ScheduledExecutorService executor) {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .run(() -> {
+                .runFuture(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-                    return FutureHelpers.<Boolean, SealingFailedException>getAndHandleExceptions(
-                            SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), clientCF),
-                            SealingFailedException::new);
-                });
+                    return SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), clientCF);
+                }, executor);
         return true;
     }
 
@@ -125,12 +125,12 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new ConnectionClosedException());
+                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new UnknownHostException());
+                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.UnknownHost));
             }
 
             @Override
@@ -149,7 +149,7 @@ public class SegmentHelper {
                     try {
                         connection.send(new WireCommands.SealSegment(Segment.getQualifiedName(scope, stream, segmentNumber)));
                     } catch (ConnectionFailedException ex) {
-                        throw new SealingFailedException(ex);
+                        throw new SealingFailedException(ex, SealingFailedException.Reason.ConnectionFailed);
                     }
                     return null;
                 })
@@ -205,16 +205,15 @@ public class SegmentHelper {
                                             final int segmentNumber,
                                             final UUID txId,
                                             final HostControllerStore hostControllerStore,
-                                            final ConnectionFactory clientCF) {
+                                            final ConnectionFactory clientCF,
+                                            final ScheduledExecutorService executor) {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .run(() -> {
+                .runFuture(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-                    return FutureHelpers.<Boolean, SealingFailedException>getAndHandleExceptions(
-                            SegmentHelper.commitTransaction(scope, stream, segmentNumber, txId, ModelHelper.encode(uri), clientCF),
-                            SealingFailedException::new);
-                });
+                    return SegmentHelper.commitTransaction(scope, stream, segmentNumber, txId, ModelHelper.encode(uri), clientCF);
+                }, executor);
         return true;
     }
 
@@ -230,12 +229,12 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new ConnectionClosedException());
+                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new UnknownHostException());
+                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.UnknownHost));
             }
 
             @Override
@@ -255,7 +254,7 @@ public class SegmentHelper {
                     try {
                         connection.send(new WireCommands.CommitTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId));
                     } catch (ConnectionFailedException ex) {
-                        throw new SealingFailedException(ex);
+                        throw new SealingFailedException(ex, SealingFailedException.Reason.ConnectionFailed);
                     }
                     return null;
                 })
@@ -267,16 +266,15 @@ public class SegmentHelper {
                                           final int segmentNumber,
                                           final UUID txId,
                                           final HostControllerStore hostControllerStore,
-                                          final ConnectionFactory clientCF) {
+                                          final ConnectionFactory clientCF,
+                                          final ScheduledExecutorService executor) {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .run(() -> {
+                .runFuture(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-                    return FutureHelpers.<Boolean, SealingFailedException>getAndHandleExceptions(
-                            SegmentHelper.dropTransaction(scope, stream, segmentNumber, txId, ModelHelper.encode(uri), clientCF),
-                            SealingFailedException::new);
-                });
+                    return SegmentHelper.dropTransaction(scope, stream, segmentNumber, txId, ModelHelper.encode(uri), clientCF);
+                }, executor);
         return true;
     }
 
@@ -292,12 +290,12 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new ConnectionClosedException());
+                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new UnknownHostException());
+                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.UnknownHost));
             }
 
             @Override
@@ -317,7 +315,7 @@ public class SegmentHelper {
                     try {
                         connection.send(new WireCommands.DropTransaction(Segment.getQualifiedName(scope, stream, segmentNumber), txId));
                     } catch (ConnectionFailedException ex) {
-                        throw new SealingFailedException(ex);
+                        throw new SealingFailedException(ex, SealingFailedException.Reason.ConnectionFailed);
                     }
                     return null;
                 })

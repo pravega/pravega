@@ -162,7 +162,7 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
         result.whenComplete(
                 (value, ex) -> {
-                    log.debug("result = " + value.toString());
+                    log.debug("result = " + (value == null ? "null" : value.toString()));
                     if (ex != null) {
                         resultHandler.onError(new RuntimeException(ex));
                     } else {

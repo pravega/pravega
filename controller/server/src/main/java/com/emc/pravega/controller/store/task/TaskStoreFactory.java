@@ -20,6 +20,8 @@ package com.emc.pravega.controller.store.task;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import org.apache.commons.lang.NotImplementedException;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 /**
  * Task store factory
  */
@@ -32,10 +34,10 @@ public class TaskStoreFactory {
         HDFS
     }
 
-    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config) {
+    public static TaskMetadataStore createStore(StoreType type, StoreConfiguration config, ScheduledExecutorService executor) {
         switch (type) {
             case Zookeeper:
-                return new ZKTaskMetadataStore(config);
+                return new ZKTaskMetadataStore(config, executor);
             case InMemory:
             case ECS:
             case S3:

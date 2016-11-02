@@ -35,7 +35,6 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -51,7 +50,6 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
-    private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -60,14 +58,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
+                                          final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, hostId);
+        super(taskMetadataStore, executor, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
 
         // drop timedout transactions periodically
-        EXEC_SERVICE.scheduleAtFixedRate(() -> {
+        executor.scheduleAtFixedRate(() -> {
             // find transactions to be dropped
             try {
                 final long currentTime = System.currentTimeMillis();
@@ -203,7 +202,8 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                     segmentNumber,
                     txId,
                     this.hostControllerStore,
-                    this.connectionFactory);
+                    this.connectionFactory,
+                    this.executor);
             return null;
         });
     }
@@ -215,7 +215,8 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                     segmentNumber,
                     txId,
                     this.hostControllerStore,
-                    this.connectionFactory);
+                    this.connectionFactory,
+                    this.executor);
             return null;
         });
     }

@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -57,10 +58,14 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private ConnectionFactoryImpl connectionFactory;
+    private final ConnectionFactoryImpl connectionFactory;
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore, String hostId) {
-        super(taskMetadataStore, hostId);
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               final HostControllerStore hostControllerStore,
+                               final TaskMetadataStore taskMetadataStore,
+                               final ScheduledExecutorService executor,
+                               final String hostId) {
+        super(taskMetadataStore, executor, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);
@@ -219,7 +224,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
         // async call, don't wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails?
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory));
+        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory), executor);
         return null;
     }
 
@@ -227,7 +232,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         sealedSegments
                 .stream()
                 .parallel()
-                .forEach(number -> SegmentHelper.sealSegment(scope, stream, number, this.hostControllerStore, this.connectionFactory));
+                .forEach(number -> SegmentHelper.sealSegment(scope, stream, number, this.hostControllerStore, this.connectionFactory, executor));
         return CompletableFuture.completedFuture(null);
     }
 }

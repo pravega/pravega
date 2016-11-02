@@ -50,7 +50,9 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             streams.put(name, stream);
             return CompletableFuture.completedFuture(true);
         } else {
-            throw new StreamAlreadyExistsException(name);
+            CompletableFuture<Boolean> result = new CompletableFuture<>();
+            result.completeExceptionally(new StreamAlreadyExistsException(name));
+            return result;
         }
     }
 
