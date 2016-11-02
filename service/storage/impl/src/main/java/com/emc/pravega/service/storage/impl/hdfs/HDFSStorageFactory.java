@@ -47,7 +47,7 @@ public class HDFSStorageFactory implements StorageFactory {
      * @param executor             The executor to use for async operations.
      */
     public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
-        this.storage = new HDFSStorage(serviceBuilderConfig, executor);
+        this.storage = null; //new HDFSStorage(serviceBuilderConfig, executor);
         this.closed = new AtomicBoolean();
     }
 
@@ -67,7 +67,8 @@ public class HDFSStorageFactory implements StorageFactory {
     @Override
     public Storage getStorageAdapter() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return storage;
+        //return storage;
+        return null;
     }
 
     @Override
@@ -79,9 +80,10 @@ public class HDFSStorageFactory implements StorageFactory {
 
     /**
      * Initializes the HDFSStorageFactory by attempting to establish a connection to the remote HDFS server.
+     *
      * @throws IOException If the initialization failed.
      */
     public void initialize() throws IOException {
-        this.storage.initialize();
+        //this.storage.initialize();
     }
 }

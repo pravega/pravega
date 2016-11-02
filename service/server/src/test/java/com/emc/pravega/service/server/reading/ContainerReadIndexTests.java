@@ -19,6 +19,7 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -28,7 +29,6 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
@@ -37,10 +37,12 @@ import com.emc.pravega.service.server.UpdateableSegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentContainerMetadata;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
 import com.emc.pravega.service.storage.Cache;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -361,7 +363,7 @@ public class ContainerReadIndexTests {
         // Pretty brutal, but will do the job for this test: delete all segments from the storage. This way, if something
         // wasn't cached properly in the last read, the ReadIndex would delegate to Storage, which would fail.
         for (long segmentId : segmentIds) {
-            context.storage.delete(context.metadata.getStreamSegmentMetadata(segmentId).getName(), TIMEOUT).join();
+            context.storage.delete(context.createHandle(context.metadata.getStreamSegmentMetadata(segmentId).getName()), TIMEOUT).join();
         }
 
         // Now do the read again - if everything was cached properly in the previous call to 'checkReadIndex', no Storage
@@ -400,7 +402,7 @@ public class ContainerReadIndexTests {
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Segment not exists (exists in metadata, but not in Storage)
-        context.storage.delete(sm.getName(), TIMEOUT).join();
+        context.storage.delete(context.createHandle(sm.getName()), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "Unexpected exception when attempting to from a segment that exists in Metadata, but not in Storage.",
                 () -> {
@@ -499,7 +501,7 @@ public class ContainerReadIndexTests {
         byte[] preStorageData = new byte[preStorageEntryCount * appendSize];
         for (long segmentId : segmentIds) {
             UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            context.storage.write(sm.getName(), 0, new ByteArrayInputStream(preStorageData), preStorageData.length, TIMEOUT).join();
+            context.storage.write(context.createHandle(sm.getName()), 0, new ByteArrayInputStream(preStorageData), preStorageData.length, TIMEOUT).join();
             sm.setStorageLength(preStorageData.length);
             sm.setDurableLogLength(preStorageData.length);
         }
@@ -671,8 +673,9 @@ public class ContainerReadIndexTests {
                 writeId++;
 
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
-                long offset = context.storage.getStreamSegmentInfo(sm.getName(), TIMEOUT).join().getLength();
-                context.storage.write(sm.getName(), offset, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+                val handle = context.createHandle(sm.getName());
+                long offset = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+                context.storage.write(handle, offset, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
 
                 // Update metadata appropriately.
                 sm.setStorageLength(offset + data.length);
@@ -847,6 +850,10 @@ public class ContainerReadIndexTests {
             this.storage = new InMemoryStorage();
             this.cacheManager = new TestCacheManager(cachePolicy, this.executorService.get());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this.cacheManager, this.executorService.get());
+        }
+
+        SegmentHandle createHandle(String segmentName) {
+            return this.storage.open(segmentName, TIMEOUT).join();
         }
 
         @Override
