@@ -21,6 +21,10 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.google.common.base.Preconditions;
 
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -61,9 +65,31 @@ public class ServiceBuilderConfig {
     //region Default Configuration
 
     /**
-     * Gets a default set of configuration values, in absence of any real configuration.
+     * Gets a set of configuration values from default config file.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
+        FileReader reader = null;
+        try {
+            reader = new FileReader("config/config.properties");
+            return getConfigFromStream(reader);
+        } catch (IOException e) {
+            return getDefaultConfigHardCoded();
+        }
+    }
+
+    /**
+     * Gets a set of configuration values from a given inputstreamreder.
+     */
+    public static ServiceBuilderConfig getConfigFromStream(InputStreamReader reader) throws IOException {
+        Properties p = new Properties();
+        p.load(reader);
+        return new ServiceBuilderConfig(p);
+    }
+
+    /**
+     * Gets a default set of configuration values, in absence of any real configuration.
+     */
+    private static ServiceBuilderConfig getDefaultConfigHardCoded() {
         Properties p = new Properties();
 
         // General params
