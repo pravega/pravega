@@ -31,7 +31,7 @@ public class LockFailedException extends RuntimeException {
      * Creates a new instance of LockFailedException class
      * @param name resource on which lock failed
      */
-    public LockFailedException(String name) {
+    public LockFailedException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
@@ -40,7 +40,7 @@ public class LockFailedException extends RuntimeException {
      * @param name  resource on which lock failed
      * @param cause error cause
      */
-    public LockFailedException(String name, Throwable cause) {
+    public LockFailedException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

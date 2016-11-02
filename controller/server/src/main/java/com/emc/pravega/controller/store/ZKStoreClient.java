@@ -15,28 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.task;
+package com.emc.pravega.controller.store;
 
-import com.google.common.base.Preconditions;
-import lombok.Data;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
- * Resources managed by controller.
- * Currently there are two kinds of resources.
- * 1. Stream resource: scope/streamName
- * 2, Tx resource:     scope/streamName/txId
+ * ZK client.
  */
-@Data
-public class Resource {
-    private final String string;
+public class ZKStoreClient implements StoreClient {
 
-    public Resource(final String... parts) {
-        Preconditions.checkNotNull(parts);
-        Preconditions.checkArgument(parts.length > 0);
-        String representation = parts[0];
-        for (int i = 1; i < parts.length; i++) {
-            representation += "/" + parts[i];
-        }
-        string = representation;
+    private final CuratorFramework client;
+
+    public ZKStoreClient(StoreConfiguration configuration) {
+        this.client = CuratorFrameworkFactory.newClient(configuration.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
+    }
+
+    @Override
+    public CuratorFramework getClient() {
+        return this.client;
+    }
+
+    @Override
+    public StoreClientFactory.StoreType getType() {
+        return StoreClientFactory.StoreType.Zookeeper;
     }
 }

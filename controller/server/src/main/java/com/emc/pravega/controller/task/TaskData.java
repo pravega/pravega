@@ -35,7 +35,7 @@ public class TaskData implements Serializable {
         return SerializationUtils.serialize(this);
     }
 
-    public static TaskData deserialize(byte[] bytes) {
+    public static TaskData deserialize(final byte[] bytes) {
         return (TaskData) SerializationUtils.deserialize(bytes);
     }
 }

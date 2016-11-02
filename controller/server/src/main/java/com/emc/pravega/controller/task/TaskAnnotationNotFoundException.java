@@ -31,7 +31,7 @@ public class TaskAnnotationNotFoundException extends RuntimeException {
      * Creates a new instance of TaskAnnotationNotFoundException class
      * @param method method name
      */
-    public TaskAnnotationNotFoundException(String method) {
+    public TaskAnnotationNotFoundException(final String method) {
         super(String.format(FORMAT_STRING, method));
     }
 
@@ -40,7 +40,7 @@ public class TaskAnnotationNotFoundException extends RuntimeException {
      * @param method method name
      * @param cause   error cause
      */
-    public TaskAnnotationNotFoundException(String method, Throwable cause) {
+    public TaskAnnotationNotFoundException(final String method, final Throwable cause) {
         super(String.format(FORMAT_STRING, method), cause);
     }
 }

@@ -32,7 +32,7 @@ public class DuplicateTaskAnnotationException extends RuntimeException {
      * @param method method name
      * @param version method version
      */
-    public DuplicateTaskAnnotationException(String method, String version) {
+    public DuplicateTaskAnnotationException(final String method, final String version) {
         super(String.format(FORMAT_STRING, method, version));
     }
 
@@ -42,7 +42,7 @@ public class DuplicateTaskAnnotationException extends RuntimeException {
      * @param version method version
      * @param cause   error cause
      */
-    public DuplicateTaskAnnotationException(String method, String version, Throwable cause) {
+    public DuplicateTaskAnnotationException(final String method, final String version, final Throwable cause) {
         super(String.format(FORMAT_STRING, method, version), cause);
     }
 
