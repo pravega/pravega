@@ -111,6 +111,8 @@ project('service:storage:impl') {
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.3'
 
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: '2.7.3'
+
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')
