@@ -18,7 +18,13 @@
 package com.emc.pravega.common.util;
 
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.google.common.base.Preconditions;
+
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 
 /**
  * A Utility class to support retrying something that can fail with exponential backoff.
@@ -112,7 +118,12 @@ public final class Retry {
     public interface Retryable<ReturnT, RetryableET extends Exception, NonRetryableET extends Exception> {
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
-    
+
+    @FunctionalInterface
+    public interface FutureRetryable<ReturnT> {
+        CompletableFuture<ReturnT> attempt();
+    }
+
     /**
      * Returned by {@link RetringOnException#throwingOn(Class)} to add the type of exception that should cause the
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
@@ -158,6 +169,76 @@ public final class Retry {
             }
             throw new RetriesExaustedException(last);
         }
+
+        public <ReturnT> CompletableFuture<ReturnT> runFuture(final FutureRetryable<ReturnT> r,
+                                                        final ScheduledExecutorService executorService) {
+            Preconditions.checkNotNull(r);
+            long delay = params.initialMillis;
+            int attemptNumber = 1;
+            return execute(attemptNumber, delay, r, executorService);
+        }
+
+        private <ReturnT> CompletableFuture<ReturnT> loop(final int attemptNumber,
+                                                          final long delay,
+                                                          final Throwable lastE,
+                                                          final FutureRetryable<ReturnT> r,
+                                                          final ScheduledExecutorService executorService) {
+            CompletableFuture<ReturnT> result = new CompletableFuture<>();
+            if (attemptNumber > params.attempts) {
+                result.completeExceptionally(new RetriesExaustedException((Exception) lastE));
+            } else {
+                FutureHelpers.futureWithTimeout(Duration.ofMillis(delay), executorService)
+                        .whenComplete((x, ex) -> {
+                            if (ex != null && ex instanceof TimeoutException) {
+                                execute(attemptNumber, delay, r, executorService)
+                                        .whenComplete((y, e) -> {
+                                            if (e != null) {
+                                                result.completeExceptionally(e);
+                                            } else {
+                                                result.complete(y);
+                                            }
+                                        });
+                            }
+                        });
+            }
+            return result;
+        }
+
+        private <ReturnT> CompletableFuture<ReturnT> execute(final int attemptNumber,
+                                                             final long delay,
+                                                             final FutureRetryable<ReturnT> r,
+                                                             final ScheduledExecutorService executorService) {
+            CompletableFuture<ReturnT> result = new CompletableFuture<>();
+            r.attempt()
+                    .whenComplete((y, e) -> {
+                        if (e != null) {
+                            if (canRetry(e)) {
+                                loop(attemptNumber + 1, Math.min(params.maxDelay, params.multiplier * delay), e, r, executorService)
+                                        .whenComplete((z, ie) -> {
+                                            if (ie != null) {
+                                                result.completeExceptionally(ie);
+                                            } else {
+                                                result.complete(z);
+                                            }
+                                        });
+                            } else {
+                                result.completeExceptionally(e);
+                            }
+                        } else {
+                            result.complete(y);
+                        }
+                    });
+            return result;
+        }
+
+        private boolean canRetry(Throwable e) {
+            Preconditions.checkNotNull(e);
+            Preconditions.checkNotNull(e.getCause());
+            Class<? extends Throwable> type = e.getCause().getClass();
+            if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
+                return false;
+            }
+            return retryType.isAssignableFrom(type);
+        }
     }
-    
 }
