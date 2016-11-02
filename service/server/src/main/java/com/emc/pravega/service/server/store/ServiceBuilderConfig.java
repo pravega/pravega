@@ -20,6 +20,7 @@ package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.util.function.Function;
 /**
  * Configuration for ServiceBuilder.
  */
+@Slf4j
 public class ServiceBuilderConfig {
     //region Members
 
@@ -72,15 +74,16 @@ public class ServiceBuilderConfig {
             reader = new FileReader("config/config.properties");
             return getConfigFromStream(reader);
         } catch (IOException e) {
+            log.warn("Unable to read configuration because of exception " + e.getMessage());
             return getDefaultConfigHardCoded();
         }
     }
 
     /**
      * Gets a set of configuration values from a given InputStreamReader.
-     * @param reader the InputStreamReader which hold the configuration.
+     * @param  reader the InputStreamReader from which to read the configuration.
      * @return A ServiceBuilderConfig object.
-     * @throws IOException exception during reading of the configuration.
+     * @throws IOException If an exception occurred during reading of the configuration.
      */
     public static ServiceBuilderConfig getConfigFromStream(InputStreamReader reader) throws IOException {
         Properties p = new Properties();
