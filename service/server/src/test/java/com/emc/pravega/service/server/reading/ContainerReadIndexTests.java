@@ -674,7 +674,7 @@ public class ContainerReadIndexTests {
 
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 val handle = context.createHandle(sm.getName());
-                long offset = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+                long offset = context.storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join().getLength();
                 context.storage.write(handle, offset, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
 
                 // Update metadata appropriately.

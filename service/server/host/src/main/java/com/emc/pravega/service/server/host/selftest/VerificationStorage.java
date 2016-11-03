@@ -24,6 +24,7 @@ import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
+import com.emc.pravega.service.storage.StorageSegmentInformation;
 import com.google.common.base.Preconditions;
 import lombok.val;
 
@@ -103,7 +104,7 @@ class VerificationStorage implements Storage {
     public CompletableFuture<Void> concat(SegmentHandle targetSegmentHandle, long offset, SegmentHandle sourceSegmentHandle, Duration timeout) {
         unregisterAllListeners(sourceSegmentHandle.getSegmentName());
         CompletableFuture<Void> result = this.baseStorage.concat(targetSegmentHandle, offset, sourceSegmentHandle, timeout);
-        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetSegmentHandle, timeout))
+        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetSegmentHandle.getSegmentName(), timeout))
               .thenAccept(sp -> triggerListeners(targetSegmentHandle, sp.getLength(), false));
         return result;
     }
@@ -120,13 +121,13 @@ class VerificationStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
-        return this.baseStorage.getStreamSegmentInfo(segmentHandle, timeout);
+    public CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout) {
+        return this.baseStorage.getStreamSegmentInfo(segmentName, timeout);
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
-        return this.baseStorage.exists(segmentHandle, timeout);
+    public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
+        return this.baseStorage.exists(segmentName, timeout);
     }
 
     //endregion

@@ -18,8 +18,6 @@
 
 package com.emc.pravega.service.storage;
 
-import com.emc.pravega.service.contracts.SegmentProperties;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
@@ -64,23 +62,23 @@ public interface ReadOnlyStorage {
     /**
      * Gets current information about a StreamSegment.
      *
-     * @param segmentHandle A SegmentHandle identifying the Segment to get info.
-     * @param timeout       Timeout for the operation.
+     * @param segmentName The name of the StreamSegment to get info for.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the information requested about the StreamSegment.
      * If the operation failed, it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout);
+    CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout);
 
     /**
      * Determines whether the given StreamSegment exists or not.
      *
-     * @param segmentHandle A SegmentHandle identifying the Segment to operate on.
-     * @param timeout       Timeout for the operation.
+     * @param segmentName The name of the StreamSegment to test.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the information requested. If the operation failed,
      * it will contain the cause of the failure.
      */
-    CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout);
+    CompletableFuture<Boolean> exists(String segmentName, Duration timeout);
 }
