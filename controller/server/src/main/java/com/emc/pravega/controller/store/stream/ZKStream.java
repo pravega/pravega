@@ -106,7 +106,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
                     if (x) {
                         return cache.getCachedData(creationPath)
                                 .thenApply(creationTime -> Utilities.toLong(creationTime.getData()) != create.getEventTime());
-                    } else return CompletableFuture.completedFuture(false);
+                    } else {
+                        return CompletableFuture.completedFuture(false);
+                    }
                 })
                 .thenApply(x -> {
                     if (x) {
