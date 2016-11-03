@@ -19,6 +19,7 @@ package com.emc.pravega.common.cluster;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.ToString;
 
 import java.io.Serializable;
@@ -27,6 +28,7 @@ import java.io.Serializable;
 @Data
 @ToString(includeFieldNames = true)
 public class Host implements Serializable {
+    @NonNull
     private final String ipAddr;
     private final int port;
 }

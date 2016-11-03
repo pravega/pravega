@@ -54,6 +54,7 @@ public class ZKSegmentContainerManagerTest {
     private final static int RETRY_SLEEP_MS = 100;
     private final static int MAX_RETRY = 5;
     private static final int PORT = 12345;
+    public static final Host PRAVEGA_SERVICE_ENDPOINT = new Host(getHostAddress(), PORT);
 
     private static TestingServer zkTestServer;
     private static String path = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
@@ -86,7 +87,7 @@ public class ZKSegmentContainerManagerTest {
         when(containerRegistry.startContainer(anyInt(), any())).thenReturn(CompletableFuture.completedFuture(containerHandle1));
         segmentToContainerMapper = new SegmentToContainerMapper(8);
 
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry, segmentToContainerMapper, zkClient);
+        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry, segmentToContainerMapper, zkClient, PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize(Duration.ofSeconds(5));
 
@@ -111,7 +112,7 @@ public class ZKSegmentContainerManagerTest {
         when(containerRegistry.startContainer(eq(1), any())).thenReturn(CompletableFuture.completedFuture(containerHandle1));
         segmentToContainerMapper = new SegmentToContainerMapper(8);
 
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry, segmentToContainerMapper, zkClient);
+        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry, segmentToContainerMapper, zkClient, PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize(Duration.ofSeconds(5));
 
@@ -121,7 +122,7 @@ public class ZKSegmentContainerManagerTest {
 
         //now modify the ZK entry
         HashMap<Host, Set<Integer>> currentData = (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(path));
-        currentData.put(new Host(getHostAddress(), PORT), new HashSet(Arrays.asList(2)));
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet(Arrays.asList(2)));
         zkClient.setData().forPath(path, SerializationUtils.serialize(currentData));
 
         verify(containerHandle2, after(500).atMost(5)).getContainerId();
@@ -147,7 +148,7 @@ public class ZKSegmentContainerManagerTest {
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
         segmentToContainerMapper = new SegmentToContainerMapper(8);
 
-        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry, segmentToContainerMapper, zkClient);
+        ZKSegmentContainerManager segManager = new ZKSegmentContainerManager(containerRegistry, segmentToContainerMapper, zkClient, PRAVEGA_SERVICE_ENDPOINT);
 
         CompletableFuture<Void> result = segManager.initialize(Duration.ofSeconds(5));
 
@@ -165,7 +166,7 @@ public class ZKSegmentContainerManagerTest {
 
     private void initializeSegmentMapping(CuratorFramework zkClient) throws Exception {
         HashMap<Host, Set<Integer>> mapping = new HashMap<>();
-        mapping.put(new Host(getHostAddress(), PORT), new HashSet<>(Arrays.asList(1)));
+        mapping.put(PRAVEGA_SERVICE_ENDPOINT, new HashSet<>(Arrays.asList(1)));
         zkClient.create().creatingParentsIfNeeded().forPath(path, SerializationUtils.serialize(mapping));
     }
 }

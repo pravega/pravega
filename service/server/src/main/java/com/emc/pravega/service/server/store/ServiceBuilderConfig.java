@@ -21,6 +21,8 @@ package com.emc.pravega.service.server.store;
 import com.emc.pravega.common.util.ComponentConfig;
 import com.google.common.base.Preconditions;
 
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
 import java.util.Properties;
 import java.util.function.Function;
 
@@ -70,6 +72,8 @@ public class ServiceBuilderConfig {
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CONTAINER_COUNT, "1");
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_THREAD_POOL_SIZE, "50");
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_IP_ADDRESS, getHostAddress());
+        //TODO: find a better way to find the host address.
 
         // DistributedLog params.
         set(p, "dlog", "hostname", "zk1");
@@ -92,6 +96,15 @@ public class ServiceBuilderConfig {
     public static void set(Properties p, String componentCode, String propertyName, String value) {
         String key = String.format("%s.%s", componentCode, propertyName);
         p.setProperty(key, value);
+    }
+
+    private static String getHostAddress() {
+        //TODO: Find a better way to compute the host address.
+        try {
+            return Inet4Address.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new RuntimeException("Unable to get the Host Address", e);
+        }
     }
 
     //endregion

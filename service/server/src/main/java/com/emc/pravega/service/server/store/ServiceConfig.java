@@ -33,9 +33,11 @@ public class ServiceConfig extends ComponentConfig {
     public static final String PROPERTY_CONTAINER_COUNT = "containerCount";
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";
+    public static final String PROPERTY_LISTENING_IP_ADDRESS = "listeningIPAddress";
     private int containerCount;
     private int threadPoolSize;
     private int listeningPort;
+    private String listeningIPAddress;
 
     //endregion
 
@@ -74,10 +76,17 @@ public class ServiceConfig extends ComponentConfig {
     }
 
     /**
-     * Gets a value indicating the TCP Port number to listed to.
+     * Gets a value indicating the TCP Port number to listen to.
      */
     public int getListeningPort() {
         return this.listeningPort;
+    }
+
+    /**
+     * Gets a value indicating the IP address to listen to.
+     */
+    public String getListeningIPAddress() {
+        return this.listeningIPAddress;
     }
 
     //endregion
@@ -89,6 +98,7 @@ public class ServiceConfig extends ComponentConfig {
         this.containerCount = getInt32Property(PROPERTY_CONTAINER_COUNT);
         this.threadPoolSize = getInt32Property(PROPERTY_THREAD_POOL_SIZE);
         this.listeningPort = getInt32Property(PROPERTY_LISTENING_PORT);
+        this.listeningIPAddress = getProperty(PROPERTY_LISTENING_IP_ADDRESS);
     }
 
     //endregion

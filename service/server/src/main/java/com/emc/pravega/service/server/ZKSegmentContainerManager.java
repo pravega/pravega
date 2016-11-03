@@ -35,8 +35,6 @@ import org.apache.curator.utils.ZKPaths;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,6 +62,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final HashMap<Integer, ContainerHandle> handles;
+    private final Host host;
     private boolean closed;
 
     private final NodeCache segContainerHostMapping;
@@ -77,16 +76,18 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the cluster
      *                                 (i.e., number of containers).
      * @param zkClient                 ZooKeeper client.
+     * @param pravegaServiceEndpoint   Pravega service endpoint details.
      * @throws NullPointerException If containerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      * @throws NullPointerException If logger is null.
      * @throws Exception            Error while communicating with Zookeeper.
      */
     public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper,
-                                     CuratorFramework zkClient) throws Exception {
+                                     CuratorFramework zkClient, Host pravegaServiceEndpoint) throws Exception {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zookeeperClient");
+        Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
@@ -95,6 +96,8 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.client = zkClient;
         segContainerHostMapping = new NodeCache(zkClient, path);
         segContainerHostMapping.start(true);
+
+        this.host = pravegaServiceEndpoint;
     }
 
     @Override
@@ -102,14 +105,12 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
 
-        String hostAddress = getHostAddress(); //TODO: find a better implementation to fetch the host address
-
-        List<CompletableFuture<Void>> futures = initializeFromZK(hostAddress, timeout);
+        List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
         CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
                 .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
 
         //Add the node cache listener which watches ZK for changes in segment container mapping.
-        addListenerSegContainerMapping(timeout, hostAddress);
+        addListenerSegContainerMapping(timeout, host);
 
         return initResult;
     }
@@ -175,26 +176,18 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         Exceptions.checkNotClosed(this.closed, this);
     }
 
-    private void addListenerSegContainerMapping(Duration timeout, String hostName) {
+    private void addListenerSegContainerMapping(Duration timeout, Host host) {
         try {
-            segContainerHostMapping.getListenable().addListener(getListenerNodeCache(timeout, hostName));
+            segContainerHostMapping.getListenable().addListener(getListenerNodeCache(timeout, host));
         } catch (Exception e) {
             throw new RuntimeException("Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
     }
 
-    private String getHostAddress() {
-        try {
-            return Inet4Address.getLocalHost().getHostAddress();
-        } catch (UnknownHostException e) {
-            throw new RuntimeException("Unable to get the Host Address", e);
-        }
-    }
-
-    private NodeCacheListener getListenerNodeCache(final Duration timeout, final String hostName) {
+    private NodeCacheListener getListenerNodeCache(final Duration timeout, final Host host) {
         return () -> {
             log.debug("Listener for SegmentContainer mapping invoked.");
-            List<CompletableFuture<Void>> futures = initializeFromZK(hostName, timeout);
+            List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
             FutureHelpers.allOf(futures).get();
             log.debug("Completed execution of SegmentContainer listener.");
         };
@@ -210,14 +203,14 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * @param timeout - timeout value to be passed to SegmentContainerRegistry.
      * @return - List of CompletableFuture for the start and stop operations performed.
      */
-    private List<CompletableFuture<Void>> initializeFromZK(String hostId, Duration timeout) {
+    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Map<Host, Set<Integer>> controlMapping = getSegmentContainerMapping();
 
         Set<Integer> desiredContainerList = controlMapping.entrySet().stream()
-                .filter(ep -> ep.getKey().getIpAddr().equals(hostId))
+                .filter(ep -> ep.getKey().equals(hostId))
                 .map(Map.Entry::getValue)
-                .findFirst().orElse(Collections.EMPTY_SET);
+                .findFirst().orElse(Collections.<Integer>emptySet());
 
         Collection<Integer> runningContainers = this.registry.getRegisteredContainerIds();
 
@@ -249,7 +242,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         if (containerToHostMapSer.isPresent()) {
             return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
         } else {
-            return Collections.EMPTY_MAP;
+            return Collections.<Host, Set<Integer>>emptyMap();
         }
     }
 }
