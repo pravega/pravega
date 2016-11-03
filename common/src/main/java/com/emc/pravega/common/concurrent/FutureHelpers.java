@@ -303,7 +303,12 @@ public final class FutureHelpers {
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(r -> {
-        });
+        return future.thenAccept(FutureHelpers::nothing);
+    }
+
+    /**
+     * This method does nothing. It is used to help toVoid so that it doesn't create a new lambda every time it's invoked.
+     */
+    private static <T> void nothing(T ignored) {
     }
 }

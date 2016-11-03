@@ -127,11 +127,13 @@ class HDFSStorage implements Storage {
      * @throws IOException If the initialization failed.
      */
     public void initialize() throws IOException {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
         Configuration conf = new Configuration();
         conf.set("fs.default.name", serviceBuilderConfig.getHDFSHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
         this.fileSystem = FileSystem.get(conf);
+        this.closed.set(false);
     }
 
     //endregion
@@ -222,8 +224,8 @@ class HDFSStorage implements Storage {
                 throw new BadOffsetException(handle.getSegmentName(), offset, stream.getPos());
             }
 
+            // Copy the bytes and close the stream. This will automatically call flush.
             IOUtils.copyBytes(data, stream, length);
-            stream.flush();
         }
     }
 
@@ -379,6 +381,8 @@ class HDFSStorage implements Storage {
 
     private <T> CompletableFuture<T> supplyAsync(Callable<T> syncCode, String streamSegmentName) {
         ensureInitializedAndNotClosed();
+
+        // TODO: both this method and runAsync are quite ugly. See if we can extract a pattern from both where we don't need to wrap the exception.
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return syncCode.call();
