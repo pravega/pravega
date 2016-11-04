@@ -18,27 +18,15 @@
 package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import org.apache.commons.lang.NotImplementedException;
+import lombok.Data;
+import org.apache.curator.framework.CuratorFramework;
 
-public class HostStoreFactory {
-    public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
-    }
+import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
 
-    public static HostControllerStore createStore(StoreType type, StoreConfiguration config) {
-        switch (type) {
-            case InMemory:
-                return new InMemoryHostStore(((InMemoryHostControllerStoreConfig) config).getHostContainerMap());
-            case Zookeeper:
-                return new ZKHostStore(((ZKHostStoreControllerStoreConfig) config).getClient());
-            case ECS:
-            case S3:
-            default:
-                throw new NotImplementedException();
-        }
-    }
+@Data
+public class ZKHostStoreControllerStoreConfig implements StoreConfiguration {
+    private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
+
+    private final CuratorFramework client;
+
 }
