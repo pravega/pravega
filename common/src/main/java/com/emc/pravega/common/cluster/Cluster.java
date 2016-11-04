@@ -18,7 +18,7 @@
 package com.emc.pravega.common.cluster;
 
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * Cluster interface enables to register / de-register a Host to a cluster
@@ -51,8 +51,8 @@ public interface Cluster extends AutoCloseable {
     /**
      * Get the current cluster members.
      *
-     * @return List<Host> - List of cluster members.
+     * @return Set<Host> - List of cluster members.
      */
-    public List<Host> getClusterMembers() throws Exception;
+    public Set<Host> getClusterMembers() throws Exception;
 
 }

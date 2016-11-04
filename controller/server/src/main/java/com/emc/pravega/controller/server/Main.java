@@ -26,6 +26,7 @@ import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.ZKHostStoreControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.util.Config;
 import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -67,13 +68,11 @@ public class Main {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
                 RETRY_SLEEP_MS, MAX_RETRY));
 
-        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(zkClient)) {
+        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(zkClient, Config.CLUSTER_NAME)) {
             log.info("Creating ZKBased host store");
 
             HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                     new ZKHostStoreControllerStoreConfig(zkClient));
-
-            monitor.startMonitor(); //start the monitor
 
             //2) start the Server implementations.
             //2.1) start RPC server with v1 implementation. Enable other versions if required.

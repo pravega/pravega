@@ -21,21 +21,20 @@ import java.util.Map;
 
 /**
  * Interface used to store the SegmentContainer and host mapping tables
- * TODO: Refactor interface
  */
-public interface SegContainerHostMapping<C, H> {
+public interface SegContainerHostMapping<H, C> {
 
     /**
      * Read Segment Container to Host Mapping from store
      *
      * @return
      */
-    Map<C, H> getSegmentContainerHostMapping();
+    Map<H, C> getSegmentContainerHostMapping();
 
     /**
      * Persist Segment Container to HostMapping to store
      *
      * @param map
      */
-    void persistSegmentContainerHostMapping(Map<C, H> map);
+    void updateSegmentContainerHostMapping(Map<H, C> map);
 }

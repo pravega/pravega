@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.emc.pravega.common.cluster.ClusterListener.EventType.HOST_ADDED;
@@ -137,14 +138,14 @@ public class ClusterZKImpl implements Cluster {
      */
     @Override
     @Synchronized
-    public List<Host> getClusterMembers() throws Exception {
+    public Set<Host> getClusterMembers() throws Exception {
         if (!cache.isPresent()) {
             initializeCache();
         }
         List<ChildData> data = cache.get().getCurrentData();
         return data.stream()
                 .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
     }
 
     @Override

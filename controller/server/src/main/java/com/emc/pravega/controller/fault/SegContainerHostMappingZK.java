@@ -28,6 +28,7 @@ import org.apache.curator.utils.ZKPaths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
 
@@ -35,17 +36,19 @@ import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
  * ZK based implementation for SegmentContainer to HostMapping.
  */
 @Slf4j
-public class SegContainerHostMappingZK implements SegContainerHostMapping<Integer, Host> {
+public class SegContainerHostMappingZK implements SegContainerHostMapping<Host, Set<Integer>> {
 
-    protected final NodeCache segContainerHostMapping;
+    private final NodeCache segContainerHostMapping;
+
+    private final String zkPath;
     private final CuratorFramework zkClient;
-    private final String path = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
 
-    public SegContainerHostMappingZK(CuratorFramework client) {
+    public SegContainerHostMappingZK(CuratorFramework client, String clusterName) {
         zkClient = client;
         try {
-            createPathIfNotExists(zkClient, path, SerializationUtils.serialize(new HashMap<Integer, Host>()));
-            segContainerHostMapping = new NodeCache(zkClient, path);
+            zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+            createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host, Set<Integer>>()));
+            segContainerHostMapping = new NodeCache(zkClient, zkPath);
             segContainerHostMapping.start(true);
         } catch (Exception e) {
             log.error("Error while fetching Segment container to Host mapping from container", e);
@@ -59,11 +62,11 @@ public class SegContainerHostMappingZK implements SegContainerHostMapping<Intege
      * @return
      */
     @Override
-    public Map<Integer, Host> getSegmentContainerHostMapping() {
-        Optional<ChildData> containerToHostMapSer = Optional.of(segContainerHostMapping.getCurrentData());
-        Map<Integer, Host> mapping;
+    public Map<Host, Set<Integer>> getSegmentContainerHostMapping() {
+        Optional<ChildData> containerToHostMapSer = Optional.ofNullable(segContainerHostMapping.getCurrentData());
+        Map<Host, Set<Integer>> mapping;
         if (containerToHostMapSer.isPresent()) {
-            mapping = (HashMap<Integer, Host>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
+            mapping = (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
         } else {
             mapping = new HashMap<>(); //create empty map
         }
@@ -76,9 +79,9 @@ public class SegContainerHostMappingZK implements SegContainerHostMapping<Intege
      * @param map - Map of SegmentContainer to Host.
      */
     @Override
-    public void persistSegmentContainerHostMapping(Map<Integer, Host> map) {
+    public void updateSegmentContainerHostMapping(Map<Host, Set<Integer>> map) {
         try {
-            zkClient.setData().forPath(path, SerializationUtils.serialize((HashMap) map));
+            zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) map));
         } catch (Exception e) {
             throw new RuntimeException("Error while persisting segment container to host mapping", e);
         }

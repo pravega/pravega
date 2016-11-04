@@ -17,16 +17,15 @@
  */
 package com.emc.pravega.controller.fault;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Container Balancers are used to fetch the new owners of a segment containers.
  * It is used to compute the owners of the new segment containers.
- * TODO: remove dependency of SegContainerHostMapping
  */
-public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
+public interface ContainerBalancer<H, C> {
     /**
      * Compute the new owners of the segment containers with the list of new hosts added and removed.
      *
@@ -34,6 +33,6 @@ public interface ContainerBalancer<C, H> extends SegContainerHostMapping<C, H> {
      * @param hostsRemoved hosts removed from cluster.
      * @return
      */
-    public Optional<Map<C, H>> rebalance(List<H> hostsPresent, List<H> hostsRemoved);
+    public Optional<Map<H, C>> rebalance(Map<H, C> previousMapping, Set<H> currentHosts);
 
 }
