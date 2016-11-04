@@ -107,7 +107,7 @@ public class SegmentHelper {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runFuture(() -> {
+                .runAsync(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
                     return SegmentHelper.sealSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), clientCF);
                 }, executor);
@@ -210,7 +210,7 @@ public class SegmentHelper {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runFuture(() -> {
+                .runAsync(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
                     return SegmentHelper.commitTransaction(scope, stream, segmentNumber, txId, ModelHelper.encode(uri), clientCF);
                 }, executor);
@@ -271,7 +271,7 @@ public class SegmentHelper {
         Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
                 .retryingOn(SealingFailedException.class)
                 .throwingOn(RuntimeException.class)
-                .runFuture(() -> {
+                .runAsync(() -> {
                     NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
                     return SegmentHelper.dropTransaction(scope, stream, segmentNumber, txId, ModelHelper.encode(uri), clientCF);
                 }, executor);

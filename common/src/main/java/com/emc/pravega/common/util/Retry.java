@@ -22,12 +22,11 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * A Utility class to support retrying something that can fail with exponential backoff.
@@ -123,11 +122,6 @@ public final class Retry {
         ReturnT attempt() throws RetryableET, NonRetryableET;
     }
 
-    @FunctionalInterface
-    public interface FutureRetryable<ReturnT> {
-        CompletableFuture<ReturnT> attempt();
-    }
-
     /**
      * Returned by {@link RetringOnException#throwingOn(Class)} to add the type of exception that should cause the
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
@@ -151,14 +145,10 @@ public final class Retry {
             Exception last = null;
             for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 try {
-                    log.debug("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
+                    log.debug("Executing retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
                     return r.attempt();
                 } catch (Exception e) {
-                    Class<? extends Exception> type = e.getClass();
-                    if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
-                        throw (ThrowsT) e;
-                    }
-                    if (retryType.isAssignableFrom(type)) {
+                    if (canRetry(e)) {
                         last = e;
                     } else if (e instanceof RuntimeException) {
                         throw (RuntimeException) e;
@@ -175,84 +165,57 @@ public final class Retry {
             throw new RetriesExaustedException(last);
         }
 
-        public <ReturnT> CompletableFuture<ReturnT> runFuture(final FutureRetryable<ReturnT> r,
+        public <ReturnT> CompletableFuture<ReturnT> runAsync(final Supplier<CompletableFuture<ReturnT>> r,
                                                         final ScheduledExecutorService executorService) {
             Preconditions.checkNotNull(r);
-            long delay = params.initialMillis;
             int attemptNumber = 1;
-            return execute(attemptNumber, delay, r, executorService);
-        }
-
-        private <ReturnT> CompletableFuture<ReturnT> loop(final int attemptNumber,
-                                                          final long delay,
-                                                          final Throwable lastE,
-                                                          final FutureRetryable<ReturnT> r,
-                                                          final ScheduledExecutorService executorService) {
-            CompletableFuture<ReturnT> result = new CompletableFuture<>();
-            if (attemptNumber > params.attempts) {
-                result.completeExceptionally(new RetriesExaustedException((Exception) lastE));
-            } else {
-                FutureHelpers.futureWithTimeout(Duration.ofMillis(delay), executorService)
-                        .whenComplete((x, ex) -> {
-                            if (ex != null && ex instanceof TimeoutException) {
-                                execute(attemptNumber, Math.min(params.maxDelay, params.multiplier * delay), r, executorService)
-                                        .whenComplete((y, e) -> {
-                                            if (e != null) {
-                                                result.completeExceptionally(e);
-                                            } else {
-                                                result.complete(y);
-                                            }
-                                        });
-                            }
-                        });
-            }
-            return result;
+            long initialDelay = 0;
+            return execute(attemptNumber, initialDelay, r, executorService);
         }
 
         private <ReturnT> CompletableFuture<ReturnT> execute(final int attemptNumber,
                                                              final long delay,
-                                                             final FutureRetryable<ReturnT> r,
+                                                             final Supplier<CompletableFuture<ReturnT>> r,
                                                              final ScheduledExecutorService executorService) {
-            log.debug("Execution retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
-            CompletableFuture<ReturnT> result = new CompletableFuture<>();
-            r.attempt()
-                    .whenComplete((y, e) -> {
-                        if (e != null) {
-                            if (canRetry(e)) {
-                                loop(attemptNumber + 1, delay, e, r, executorService)
-                                        .whenComplete((z, ie) -> {
-                                            if (ie != null) {
-                                                result.completeExceptionally(ie);
-                                            } else {
-                                                result.complete(z);
-                                            }
-                                        });
-                            } else {
-                                result.completeExceptionally(e);
-                            }
-                        } else {
-                            result.complete(y);
-                        }
-                    });
-            return result;
+            log.debug("Executing retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
+
+            CompletableFuture<ReturnT> result = FutureHelpers.delayedFuture(r, delay, executorService);
+
+            return FutureHelpers.flatExceptionally(result, (Throwable e) -> {
+                if (canRetry(e)) {
+                    if (attemptNumber + 1 > params.attempts) {
+                        return FutureHelpers.failedFuture(new RetriesExaustedException((Exception) e));
+                    } else {
+                        long newDelay =
+                                attemptNumber == 1 ?
+                                        params.initialMillis :
+                                        Math.min(params.maxDelay, params.multiplier * delay);
+                        return execute(attemptNumber + 1, newDelay, r, executorService);
+                    }
+                } else {
+                    return FutureHelpers.failedFuture(e);
+                }
+            });
         }
 
-        private boolean canRetry(Throwable e) {
-            if (e == null) {
-                return false;
-            }
-            Class<? extends Throwable> type = getNestedErrorClass(e);
+        private boolean canRetry(final Throwable e) {
+            Class<? extends Throwable> type = getErrorType(e);
             if (throwType.isAssignableFrom(type) && retryType.isAssignableFrom(throwType)) {
                 return false;
             }
             return retryType.isAssignableFrom(type);
         }
 
-        private Class getNestedErrorClass(Throwable e) {
-            while (e != null && e.getClass().equals(CompletionException.class)) {
-                e = e.getCause();
+        private Class getErrorType(final Throwable e) {
+            if (retryType.equals(CompletionException.class) || throwType.equals(CompletionException.class)) {
+                return e.getClass();
+            } else {
+                if (e instanceof CompletionException && e.getCause() != null) {
+                    return e.getCause().getClass();
+                } else {
+                    return e.getClass();
+                }
             }
-            return e != null ? e.getClass() : null;
         }
     }
 }

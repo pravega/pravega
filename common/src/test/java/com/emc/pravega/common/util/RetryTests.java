@@ -17,13 +17,15 @@
  */
 package com.emc.pravega.common.util;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -32,6 +34,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Test methods for Retry utilities
  */
+@Slf4j
 public class RetryTests {
 
     final int maxLoops = 10;
@@ -106,7 +109,8 @@ public class RetryTests {
 
     @Test
     public void retryFutureTests() {
-        ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(5);
+        ScheduledExecutorService executorService =
+                Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
 
         // 1. series of retryable exceptions followed by a failure
         begin = Instant.now();
@@ -115,6 +119,8 @@ public class RetryTests {
         assertEquals(result.join().intValue(), expectedResult);
         end = Instant.now();
         duration = end.toEpochMilli() - begin.toEpochMilli();
+        log.debug("Expected duration = {}", expectedDurationUniform);
+        log.debug("Actual duration   = {}", duration);
         assertTrue(duration >= expectedDurationUniform);
 
         // 2, series of retryable exceptions followed by a non-retryable failure
@@ -125,6 +131,8 @@ public class RetryTests {
         } catch (CompletionException ce) {
             end = Instant.now();
             duration = end.toEpochMilli() - begin.toEpochMilli();
+            log.debug("Expected duration = {}", expectedDurationUniform);
+            log.debug("Actual duration   = {}", duration);
             assertTrue(duration >= expectedDurationUniform);
             assertTrue(ce.getCause() instanceof NonretryableException);
             assertEquals(accumulator.get(), expectedResult);
@@ -136,6 +144,8 @@ public class RetryTests {
         assertEquals(result.join().intValue(), expectedResult);
         end = Instant.now();
         duration = end.toEpochMilli() - begin.toEpochMilli();
+        log.debug("Expected duration = {}", expectedDurationExponential);
+        log.debug("Actual duration   = {}", duration);
         assertTrue(duration >= expectedDurationExponential);
 
         // 4. Exhaust retries
@@ -146,6 +156,8 @@ public class RetryTests {
         } catch (Exception e) {
             end = Instant.now();
             duration = end.toEpochMilli() - begin.toEpochMilli();
+            log.debug("Expected duration = {}", expectedDurationUniform - uniformDelay);
+            log.debug("Actual duration   = {}", duration);
             assertTrue(duration >= expectedDurationUniform - uniformDelay);
             assertTrue(e instanceof CompletionException);
             assertTrue(e.getCause() instanceof RetriesExaustedException);
@@ -168,6 +180,7 @@ public class RetryTests {
                 .run(() -> {
                     accumulator.getAndAdd(loopCounter.getAndIncrement());
                     int i = loopCounter.get();
+                    log.debug("Loop counter = " + i);
                     if (i % 10 == 0) {
                         if (success) {
                             return accumulator.get();
@@ -192,19 +205,23 @@ public class RetryTests {
         return Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
                 .retryingOn(RetryableException.class)
                 .throwingOn(NonretryableException.class)
-                .runFuture(() ->
-                        CompletableFuture.supplyAsync(() -> {
-                            accumulator.getAndAdd(loopCounter.getAndIncrement());
-                            int i = loopCounter.get();
-                            if (i % 10 == 0) {
-                                if (success) {
-                                    return accumulator.get();
-                                } else {
-                                    throw new NonretryableException();
-                                }
-                            } else {
-                                throw new RetryableException();
-                            }
-                        }), executorService);
+                .runAsync(() -> futureComputation(success, executorService), executorService);
+    }
+
+    private CompletableFuture<Integer> futureComputation(boolean success, ScheduledExecutorService executorService) {
+        return CompletableFuture.supplyAsync(() -> {
+            accumulator.getAndAdd(loopCounter.getAndIncrement());
+            int i = loopCounter.get();
+            log.debug("Loop counter = {}, timestamp={}", i, Instant.now());
+            if (i % 10 == 0) {
+                if (success) {
+                    return accumulator.get();
+                } else {
+                    throw new NonretryableException();
+                }
+            } else {
+                throw new RetryableException();
+            }
+        }, executorService);
     }
 }
