@@ -74,6 +74,11 @@ public class ServiceBuilderConfig {
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_PORT, "12345");
         set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_LISTENING_IP_ADDRESS, getHostAddress());
         //TODO: find a better way to find the host address.
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_HOSTNAME, "zk1");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_PORT, "2181");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_RETRY_SLEEP_MS, "100");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_ZK_RETRY_COUNT, "5");
+        set(p, ServiceConfig.COMPONENT_CODE, ServiceConfig.PROPERTY_CLUSTER_NAME, "pravega-cluster");
 
         // DistributedLog params.
         set(p, "dlog", "hostname", "zk1");

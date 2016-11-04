@@ -15,9 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.service.server;
+package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.service.server.ContainerHandle;
+import com.emc.pravega.service.server.SegmentContainerRegistry;
+import com.emc.pravega.service.server.SegmentToContainerMapper;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;

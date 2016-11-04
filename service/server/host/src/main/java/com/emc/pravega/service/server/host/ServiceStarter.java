@@ -21,10 +21,11 @@ package com.emc.pravega.service.server.host;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.SegmentContainerManager;
-import com.emc.pravega.service.server.ZKSegmentContainerManager;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -44,8 +45,7 @@ import java.util.concurrent.CompletionException;
  */
 public final class ServiceStarter {
     private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
-    private static final int ZK_RETRY_SLEEP_MS = 100;
-    private static final int ZK_MAX_RETRY = 5;
+
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
@@ -61,7 +61,7 @@ public final class ServiceStarter {
             return ServiceBuilder.newInMemoryBuilder(config);
         } else {
             // Real (Distributed Log) Data Log with ZK based segment manager.
-            return attachDistributedLog(attachedZKSegmentManager(ServiceBuilder.newInMemoryBuilder(config)));
+            return attachDistributedLog(attachZKSegmentManager(ServiceBuilder.newInMemoryBuilder(config)));
         }
     }
 
@@ -136,23 +136,33 @@ public final class ServiceStarter {
     /**
      * Attaches a Zookeeper based segment manager
      */
-    static ServiceBuilder attachedZKSegmentManager(ServiceBuilder builder) {
+    static ServiceBuilder attachZKSegmentManager(ServiceBuilder builder) {
         return builder.withContainerManager(setup -> {
             try {
-                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
                 ServiceConfig config = setup.getConfig(ServiceConfig::new);
+                CuratorFramework zkClient = getZKClient(config);
+                joinCluster(config, zkClient);
                 return (SegmentContainerManager) new ZKSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper(),
-                        getZKClient(dlConfig.getDistributedLogHost(), dlConfig.getDistributedLogPort()), new Host(config.getListeningIPAddress(), config.getListeningPort()));
+                        zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()));
             } catch (Exception ex) {
-                throw new CompletionException(ex);
+                throw new RuntimeException(ex);
             }
         });
     }
 
-    private static CuratorFramework getZKClient(String zkHost, int zkPort) {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(zkHost + ":" + zkPort, new ExponentialBackoffRetry(
-                ZK_RETRY_SLEEP_MS, ZK_MAX_RETRY));
+    private static CuratorFramework getZKClient(ServiceConfig config) {
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(config.getZkHostName() + ":" + config.getZkPort(), new ExponentialBackoffRetry(
+                config.getZkRetrySleepMs(), config.getZkRetryCount()));
         zkClient.start();
         return zkClient;
+    }
+
+    private static void joinCluster(ServiceConfig config, CuratorFramework zkClient) {
+        try {
+            Cluster cluster = new ClusterZKImpl(zkClient, config.getClusterName());
+            cluster.registerHost(new Host(config.getListeningIPAddress(), config.getListeningPort()));
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

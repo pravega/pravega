@@ -118,7 +118,6 @@ project('service:server') {
         compile project(':service:contracts')
         compile project(':service:storage')
         testCompile project(':testcommon')
-        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
 }
 
@@ -130,6 +129,7 @@ project('service:server:host') {
         compile project(':service:storage:impl')
         compile project(':service:server')
         testCompile project(':testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
     }
 }
 
@@ -222,7 +222,6 @@ project('controller:server') {
         compile project(":controller:contract")
         compile project(":clients:streaming")
         compile group: 'com.typesafe', name: 'config', version: '1.3.0'
-
     }
 }
 
