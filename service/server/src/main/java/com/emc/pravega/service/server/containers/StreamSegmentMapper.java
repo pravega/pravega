@@ -272,7 +272,8 @@ public class StreamSegmentMapper {
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         this.storage
-                .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+                .acquireLockForSegment(streamSegmentName)
+                .thenCompose(() -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()))
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
                 .exceptionally(ex -> {
                     failAssignment(streamSegmentName, ex);
