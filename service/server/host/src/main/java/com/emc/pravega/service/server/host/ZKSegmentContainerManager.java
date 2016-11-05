@@ -16,13 +16,18 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server;
+package com.emc.pravega.service.server.host;
 
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.RuntimeStreamingException;
+import com.emc.pravega.service.server.ContainerHandle;
+import com.emc.pravega.service.server.SegmentContainerManager;
+import com.emc.pravega.service.server.SegmentContainerRegistry;
+import com.emc.pravega.service.server.SegmentToContainerMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -33,8 +38,7 @@ import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.utils.ZKPaths;
 
-import java.io.Closeable;
-import java.io.IOException;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,9 +60,11 @@ import java.util.stream.Collectors;
  * number of containers (result is in hex).
  */
 @Slf4j
+@NotThreadSafe //TODO: make it thread safe.
 public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30); //TODO: config?
+    private static final String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final HashMap<Integer, ContainerHandle> handles;
@@ -67,10 +73,9 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
-    private final String path = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
 
     /**
-     * Creates a new instance of the LocalSegmentContainerManager class.
+     * Creates a new instance of the ZKSegmentContainerManager class.
      *
      * @param containerRegistry        The SegmentContainerRegistry to manage.
      * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the cluster
@@ -86,7 +91,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                                      CuratorFramework zkClient, Host pravegaServiceEndpoint) throws Exception {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
-        Preconditions.checkNotNull(zkClient, "zookeeperClient");
+        Preconditions.checkNotNull(zkClient, "zkClient");
         Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
 
         this.registry = containerRegistry;
@@ -94,7 +99,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.handles = new HashMap<>();
 
         this.client = zkClient;
-        segContainerHostMapping = new NodeCache(zkClient, path);
+        segContainerHostMapping = new NodeCache(zkClient, PATH);
         segContainerHostMapping.start(true);
 
         this.host = pravegaServiceEndpoint;
@@ -109,7 +114,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
                 .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
 
-        //Add the node cache listener which watches ZK for changes in segment container mapping.
+        // Add the node cache listener which watches ZK for changes in segment container mapping.
         addListenerSegContainerMapping(timeout, host);
 
         return initResult;
@@ -117,30 +122,34 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     @Override
     public void close() {
-        this.closed = true;
-        //close Node cache and its listeners
-        close(segContainerHostMapping);
-        // Close all containers that are still open.
-        ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
-        synchronized (this.handles) {
-            ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
-            for (ContainerHandle handle : toClose) {
-                results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT)
-                        .thenAccept(v -> unregisterHandle(handle.getContainerId())));
+        if (this.closed) {
+            return;
+        } else {
+            // Close Node cache and its listeners
+            close(segContainerHostMapping);
+            // Close all containers that are still open.
+            ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
+            synchronized (this.handles) {
+                ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
+                for (ContainerHandle handle : toClose) {
+                    results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT)
+                            .thenAccept(v -> unregisterHandle(handle.getContainerId())));
+                }
             }
-        }
 
-        // Wait for all the containers to be closed.
-        FutureHelpers.allOf(results).join();
+            // Wait for all the containers to be closed.
+            FutureHelpers.allOf(results).join();
+            this.closed = true;
+        }
     }
 
-    private void close(Closeable c) {
+    private void close(final AutoCloseable c) {
         if (c == null) {
             return;
         }
         try {
             c.close();
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error while closing resource", e);
         }
     }
@@ -166,7 +175,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
             handle.setContainerStoppedListener(id -> {
                 unregisterHandle(handle.getContainerId());
-                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode, we rely on not auto-restarting containers.
+                //TODO: Handle container failures. This will be changed after design review.
             });
         }
         log.info("Container {} has been registered.", handle.getContainerId());
@@ -180,7 +189,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         try {
             segContainerHostMapping.getListenable().addListener(getListenerNodeCache(timeout, host));
         } catch (Exception e) {
-            throw new RuntimeException("Unable to start zk based cache which has the segContainer to Host mapping", e);
+            throw new RuntimeStreamingException("Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
     }
 
