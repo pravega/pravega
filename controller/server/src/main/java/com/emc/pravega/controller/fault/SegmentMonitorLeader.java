@@ -35,32 +35,34 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * This monitor leader which watches the pravega data node cluster and handles host level failures.
+ * This is the monitor leader which watches the pravega data node cluster and handles host level failures.
  * This ensures that all segment containers are owned by hosts which are alive. Containers on existing hosts are
  * also moved if neccessary for load balancing.
  */
 @Slf4j
 public class SegmentMonitorLeader implements LeaderSelectorListener {
 
-    //The containers to host balancer.
+    //The host to containers balancer.
     private final ContainerBalancer<Host, Set<Integer>> segBalancer;
 
     //The store for reading and writing the host to container mapping.
     private final HostControllerStore hostStore;
 
-    //The name of the cluster to be monitored.
+    //The name of the cluster which has to be monitored.
     private final String clusterName;
 
     //The pravega cluster which this host controller manages.
     private Cluster pravegaServiceCluster = null;
 
-    //The timer to ensure we maintainer a minimum interval between expensive rebalance operations.
+    //The timer to ensure we maintain a minimum interval between expensive rebalance operations.
     private TimeoutTimer timeoutTimer = null;
 
-    //The minimum interval between any two rebalance operations.
+    //The minimum interval between any two rebalance operations. The minimum duration is not guaranteed when leadership
+    //moves across controllers. Since this is uncommon and there are no significant side-effects to it, we don't
+    //handle this scenario.
     private Duration minRebalanceInterval = Duration.ofSeconds(Config.CLUSTER_MIN_REBALANCE_INTERVAL);
 
-    //Boolean to track if any rebalance operations are pending.
+    //Flag to track if any rebalance operations are pending.
     private AtomicBoolean hostsChanged = new AtomicBoolean(false);
 
     /**
@@ -98,7 +100,6 @@ public class SegmentMonitorLeader implements LeaderSelectorListener {
             switch (type) {
                 case HOST_ADDED:
                 case HOST_REMOVED:
-
                     //We don't keep track of the hosts and we always query for the entire set from the cluster
                     //when changes occur. This is to avoid any inconsistencies if we miss any notifications.
                     log.info("Received event: {} for host: {}. Wake up leader for rebalancing", type, host);
@@ -127,7 +128,7 @@ public class SegmentMonitorLeader implements LeaderSelectorListener {
 
                 log.debug("Received rebalance event");
 
-                //Wait here until the rebalance timer is zero so that we don't execute rebalancer often.
+                //Wait here until the rebalance timer is zero so that we honour the minimum rebalance interval.
                 if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
                     log.info("Waiting for {} seconds before attempting to rebalance",
                             timeoutTimer.getRemaining().getSeconds());
