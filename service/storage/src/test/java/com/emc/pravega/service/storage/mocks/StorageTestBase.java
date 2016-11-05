@@ -21,7 +21,6 @@ package com.emc.pravega.service.storage.mocks;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.val;
