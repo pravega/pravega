@@ -23,6 +23,9 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.PathNotFoundException;
 import org.apache.hadoop.hdfs.protocol.AclException;
+import org.apache.hadoop.ipc.RemoteException;
+
+import java.io.FileNotFoundException;
 
 /**
  * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions.
@@ -46,6 +49,14 @@ public class HDFSExceptionHelpers {
 
         if (e instanceof AclException) {
             return new StreamSegmentSealedException(streamSegmentName);
+        }
+
+        if(e instanceof FileNotFoundException) {
+            return new StreamSegmentNotExistsException(streamSegmentName);
+        }
+
+        if(e instanceof RemoteException) {
+            return translateFromIOException(streamSegmentName, ((RemoteException)e).unwrapRemoteException());
         }
         return e;
 

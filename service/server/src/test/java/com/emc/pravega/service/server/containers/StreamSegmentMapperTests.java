@@ -553,7 +553,7 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+        public CompletableFuture<Boolean> open(String streamSegmentName) {
             return CompletableFuture.completedFuture(Boolean.TRUE);
         }
 

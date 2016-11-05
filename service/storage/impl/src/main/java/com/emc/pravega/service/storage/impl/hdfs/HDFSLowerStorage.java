@@ -34,6 +34,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -89,7 +90,7 @@ class HDFSLowerStorage implements Storage {
 
 
     @Override
-    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+    public CompletableFuture<Boolean> open(String streamSegmentName) {
         //Acquirelock is not implemented at the lower level of HDFS
         return FutureHelpers.failedFuture(new IOException("Not implemented"));
     }
@@ -145,13 +146,15 @@ class HDFSLowerStorage implements Storage {
     }
 
     Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
-        FileStatus status = getFS().globStatus(new Path(targetStreamSegmentName))[0];
-        if ( status.getLen() != offset ) {
-            throw new BadOffsetException(targetStreamSegmentName, offset, status.getLen());
+        FileStatus[] status = getFS().globStatus(new Path(targetStreamSegmentName));
+        if(status == null) {
+            throw new FileNotFoundException(targetStreamSegmentName);
+        }
+        if ( status[0].getLen() != offset ) {
+            throw new BadOffsetException(targetStreamSegmentName, offset, status[0].getLen());
         }
         getFS().concat(new Path(targetStreamSegmentName),
                 new Path[]{
-                        new Path(targetStreamSegmentName),
                         new Path(sourceStreamSegmentName)
                 });
         return null;
@@ -189,6 +192,9 @@ class HDFSLowerStorage implements Storage {
      * Reads from that file.
      */
     private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
+        if(offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset+length) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
         FSDataInputStream stream = getFS().open(new Path(streamSegmentName));
         return stream.read(offset,
                 buffer, bufferOffset, length);
