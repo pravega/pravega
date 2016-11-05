@@ -17,26 +17,38 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.util.Config;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+@Slf4j
 public class HostStoreFactory {
     public enum StoreType {
         InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
+        Zookeeper
     }
 
-    public static HostControllerStore createStore(StoreType type, StoreConfiguration config) {
+    public static HostControllerStore createStore(StoreType type, ZKConfig config) {
         switch (type) {
             case InMemory:
-                return new InMemoryHostStore(((InMemoryHostControllerStoreConfig) config).getHostContainerMap());
+                log.info("Creating in-memory host store");
+                Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+                //TODO: Get the correct host and port number from config.
+                hostContainerMap.put(new Host("localhost", 12345),
+                        IntStream.range(0, Config.HOST_STORE_CONTAINER_COUNT).boxed().collect(Collectors.toSet()));
+                return new InMemoryHostStore(hostContainerMap);
+
             case Zookeeper:
-                return new ZKHostStore(((ZKHostStoreControllerStoreConfig) config).getClient());
-            case ECS:
-            case S3:
+                log.info("Creating Zookeeper based host store");
+                return new ZKHostStore(config.getClient(), config.getClusterName());
+
             default:
                 throw new NotImplementedException();
         }

@@ -17,25 +17,19 @@
  */
 package com.emc.pravega.controller.server;
 
-import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.ZKHostStoreControllerStoreConfig;
+import com.emc.pravega.controller.store.host.ZKConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.util.Config;
-import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
@@ -46,39 +40,33 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 @Slf4j
 public class Main {
 
-    private static final String ZK_URL = "localhost:2181"; //TODO read from Configuration.
-    private final static int RETRY_SLEEP_MS = 100;
-    private final static int MAX_RETRY = 5;
-
     public static void main(String[] args) {
-
-        // TODO: Will use hard-coded host to container mapping for this sprint
-        // Read from a config file. This same information will be present on pravega hosts
-        // TODO: remove temporary hard coding for the cluster and segment
-        Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-        hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
         //1) LOAD configuration.
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
 
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(ZK_URL, new ExponentialBackoffRetry(
-                RETRY_SLEEP_MS, MAX_RETRY));
+        //Create Zookeeper based configuration.
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(Config.ZK_URL, new ExponentialBackoffRetry(
+                Config.ZK_RETRY_SLEEP_MS, Config.ZK_MAX_RETRIES));
+        ZKConfig zkConfig = new ZKConfig(zkClient, Config.CLUSTER_NAME);
 
-        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(zkClient, Config.CLUSTER_NAME)) {
-            log.info("Creating ZKBased host store");
+        log.info("Creating the host store");
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
+                zkConfig);
 
-            HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
-                    new ZKHostStoreControllerStoreConfig(zkClient));
-
-            //2) start the Server implementations.
-            //2.1) start RPC server with v1 implementation. Enable other versions if required.
-            log.info("Starting RPC server");
-            RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
-
+        //Start the segment Container Monitor.
+        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, zkClient, Config.CLUSTER_NAME)) {
+            monitor.start();
         } catch (Exception e) {
             log.error("Error while starting SegmentContainerMonitor", e);
+            throw e;
         }
+
+        //2) Start the Server implementations.
+        //2.1) Start RPC server with v1 implementation. Enable other versions if required.
+        log.info("Starting RPC server");
+        RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
     }
 }

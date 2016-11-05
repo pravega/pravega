@@ -20,6 +20,7 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.util.Config;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.AbstractMap;
 import java.util.HashMap;
@@ -37,9 +38,13 @@ import java.util.stream.IntStream;
  * This is based only on the number of containers hosted on a given host and does not consider any other metric.
  *
  * The algorithm works as follows:
- *
- *
+ * - Sort the hosts based on the number of containers they own.
+ * - Repeat the following until the hosts are balanced.
+ *     -- Remove a container from the host containing max number of containers.
+ *     -- Add this to the host containing min number of containers.
+ * - The balanced condition happens when the difference between min and max containers is at most 1.
  */
+@Slf4j
 public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Integer>> {
 
     @Override
@@ -50,37 +55,52 @@ public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Int
         Preconditions.checkNotNull(currentHosts, "currentHosts");
 
         if (currentHosts.isEmpty()) {
+            log.info("No hosts present, returning empty");
             return Optional.empty();
         }
 
         if (prevSegContainerMap.keySet().equals(currentHosts)) {
+            //Assuming the input map is always balanced, since this balancer only depends on the host list.
+            log.info("No change in host list, returning previous map");
             return Optional.of(new HashMap<>(prevSegContainerMap));
         }
 
         if (prevSegContainerMap.size() == 0 || currentHosts.size() == 1) {
+            log.info("Creating new balanced map");
             return initializeMap(currentHosts);
         }
 
+        //Detect hosts not present in the existing Map.
         Set<Host> hostsAdded = currentHosts.stream().
             filter(h -> !prevSegContainerMap.containsKey(h)).collect(Collectors.toSet());
 
+        if (!hostsAdded.isEmpty()) {
+            log.debug("New hosts added: {}", hostsAdded);
+        }
+
+        //Detect all containers whose host has been removed. These need to be assigned to new hosts.
         Set<Integer> orphanedContainers = prevSegContainerMap.entrySet().stream().
             filter(h -> !currentHosts.contains(h.getKey())).flatMap(p -> p.getValue().stream())
             .collect(Collectors.toSet());
 
+        //Using a TreeSet sorted by number of containers to optimize add/remove operations.
         TreeSet<Map.Entry<Host, Set<Integer>>> mapElements =
             new TreeSet<>((o1, o2) -> o1.getValue().size() > o2.getValue().size() ? 1 : -1);
 
+        //Add the new hosts to the TreeSet.
         prevSegContainerMap.entrySet().stream().filter(h -> currentHosts.contains(h.getKey())).
             forEach(mapElements::add);
         hostsAdded.forEach(h -> mapElements.add(new AbstractMap.SimpleEntry<>(h, new HashSet<>())));
 
+        //Add the orphaned containers into the TreeSet, while balancing it.
         for (Integer container : orphanedContainers) {
             Map.Entry<Host, Set<Integer>> first = mapElements.pollFirst();
             first.getValue().add(container);
             mapElements.add(first);
         }
 
+        //Perform the rebalance, remove an element from host with max containers and add to host with min containers.
+        //The loop is guaranteed to complete since we stop as soon as the diff between max and min is 1.
         while ((mapElements.last().getValue().size()
                 - mapElements.first().getValue().size()) > 1) {
 
@@ -95,9 +115,11 @@ public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Int
             mapElements.add(last);
         }
 
+        //Create a Map from the TreeSet and return.
         Map<Host, Set<Integer>> newMap = new HashMap<>();
         mapElements.forEach(m -> newMap.put(m.getKey(), m.getValue()));
 
+        log.info("Completed segment container rebalancing using new hosts set");
         return Optional.of(newMap);
     }
 
@@ -105,6 +127,7 @@ public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Int
 
         final int containerCount = Config.HOST_STORE_CONTAINER_COUNT;
 
+        //Assigned containers from 0 to HOST_STORE_CONTAINER_COUNT - 1 uniformly to all the hosts.
         PrimitiveIterator.OfInt intIter = IntStream.range(0, currentHosts.size()).iterator();
         Map<Host, Set<Integer>> segContainerMap = currentHosts.stream().collect(Collectors.toMap(
             java.util.function.Function.identity(),

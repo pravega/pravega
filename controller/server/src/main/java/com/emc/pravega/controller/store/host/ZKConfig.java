@@ -17,29 +17,13 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import lombok.Data;
+import org.apache.curator.framework.CuratorFramework;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
+@Data
+public class ZKConfig implements StoreConfiguration {
+    private final CuratorFramework client;
+    private final String clusterName;
 
-import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
-
-public class InMemoryHostControllerStoreConfig implements StoreConfiguration {
-    private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
-
-    private final Map<Host, Set<Integer>> hostContainerMap;
-
-    public InMemoryHostControllerStoreConfig(Map<Host, Set<Integer>> hostContainerMap) {
-        this.hostContainerMap = hostContainerMap;
-    }
-
-    public Map<Host, Set<Integer>> getHostContainerMap() {
-        return Collections.unmodifiableMap(hostContainerMap);
-    }
-
-    public int getNumOfContainers() {
-        return numOfContainers;
-    }
 }

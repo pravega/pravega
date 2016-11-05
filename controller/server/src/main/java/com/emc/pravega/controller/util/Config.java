@@ -40,7 +40,14 @@ public final class Config {
     public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");
     public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
 
-    //Cluster Monitor configuration.
-    public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.monitor.cluster");
-    public static final int LOCK_TIMEOUT_SECS = CONFIG.getInt("config.controller.server.monitor.lockTimeoutSecs");
+    //Cluster configuration.
+    public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.cluster");
+    public static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
+
+    //Zookeeper configuration.
+    public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
+    public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
+    public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
+
+
 }

@@ -19,36 +19,30 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class InMemoryHostStore implements HostControllerStore {
-    private final Map<Host, Set<Integer>> hostContainerMap;
-
+    private Map<Host, Set<Integer>> hostContainerMap;
 
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
         this.hostContainerMap = hostContainerMap;
     }
 
     @Override
-    public Set<Host> getHosts() {
-        return Collections.unmodifiableSet(hostContainerMap.keySet());
+    public synchronized Map<Host, Set<Integer>> getHostContainersMap() {
+        return new HashMap<>(hostContainerMap);
     }
 
     @Override
-    public Set<Integer> getContainersForHost(Host host) {
-        if (hostContainerMap.containsKey(host)) {
-            return Collections.unmodifiableSet(hostContainerMap.get(host));
-        } else {
-            throw new HostNotFoundException(host);
-        }
+    public synchronized void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
+        hostContainerMap = new HashMap<>(newMapping);
     }
 
     @Override
-    public Host getHostForContainer(int containerId) {
+    public synchronized Host getHostForContainer(int containerId) {
         Optional<Host> hosts = hostContainerMap.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (hosts.isPresent()) {
@@ -59,7 +53,7 @@ public class InMemoryHostStore implements HostControllerStore {
     }
 
     @Override
-    public Integer getContainerCount() {
-        return hostContainerMap.values().stream().flatMap(f -> f.stream()).collect(Collectors.toList()).size();
+    public synchronized int getContainerCount() {
+        return (int) hostContainerMap.values().stream().flatMap(f -> f.stream()).count();
     }
 }

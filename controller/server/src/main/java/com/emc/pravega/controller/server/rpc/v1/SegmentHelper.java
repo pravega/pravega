@@ -40,7 +40,13 @@ public class SegmentHelper {
 
     public static NodeUri getSegmentUri(String scope, String stream, int segmentNumber, HostControllerStore hostStore) {
         int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore.getContainerCount());
-        Host host = hostStore.getHostForContainer(container);
+
+        Host host = null;
+        try {
+            host = hostStore.getHostForContainer(container);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
     

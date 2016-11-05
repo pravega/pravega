@@ -22,7 +22,6 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.Position;
@@ -60,8 +59,8 @@ public class ConsumerApiImplTest {
 
     private Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
-    private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-            new InMemoryHostControllerStoreConfig(hostContainerMap));
+    private final HostControllerStore hostStore = HostStoreFactory.createStore(
+            HostStoreFactory.StoreType.InMemory, null);
 
     private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore);
 

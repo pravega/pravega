@@ -19,14 +19,43 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 
+import java.util.Map;
 import java.util.Set;
 
+/**
+ * Store manager for the host to container mapping.
+ */
 public interface HostControllerStore {
-    Set<Host> getHosts();
+    /**
+     * Get the existing host to container map.
+     *
+     * @return              The latest host to container mapping.
+     * @throws Exception    On any error.
+     */
+    Map<Host, Set<Integer>> getHostContainersMap() throws Exception;
 
-    Set<Integer> getContainersForHost(Host host);
+    /**
+     * Update the existing host to container map with the new one. This operation has to be atomic.
+     *
+     * @param newMapping    The new host to container mapping which needs to be persisted.
+     * @throws Exception    On any error.
+     */
+    void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception;
 
-    Host getHostForContainer(int containerId);
+    /**
+     * Fetch the Host which owns the supplied container.
+     *
+     * @param containerId                   The container identifier.
+     * @return                              The host which owns the supplied container.
+     * @throws ContainerNotFoundException   If no host matches the given container.
+     * @throws Exception                    On any other error.
+     */
+    Host getHostForContainer(int containerId) throws Exception;
 
-    Integer getContainerCount();
+    /**
+     * Return the total number of segment containers present in the system.
+     *
+     * @return The total number of segment containers present in the cluster.
+     */
+    int getContainerCount();
 }

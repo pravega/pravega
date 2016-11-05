@@ -18,81 +18,83 @@
 package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.util.ZKUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
-import org.apache.curator.framework.recipes.cache.ChildData;
-import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
-import static com.emc.pravega.controller.util.ZKUtils.createPathIfNotExists;
-
+/**
+ * Zookeeper based implementation of the HostControllerStore.
+ */
 @Slf4j
 public class ZKHostStore implements HostControllerStore {
 
-    protected final NodeCache segContainerHostMapping;
-    private final CuratorFramework zkClient;
-    private final String path = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
+    //The path used to store the segment container mapping.
+    private final String zkPath;
 
-    public ZKHostStore(CuratorFramework client) {
+    //The supplied curator framework instance.
+    private final CuratorFramework zkClient;
+
+    public ZKHostStore(CuratorFramework client, String clusterName) {
         zkClient = client;
         if (zkClient.getState().equals(CuratorFrameworkState.LATENT)) {
             zkClient.start();
         }
+        zkPath = ZKPaths.makePath("cluster", clusterName, "data", "segmentContainerHostMapping");
 
-        createPathIfNotExists(zkClient, path, SerializationUtils.serialize(new HashMap<Integer, Host>()));
-        segContainerHostMapping = new NodeCache(zkClient, path);
+        //TODO: Failure here might prevent host controller startup. Do lazy init.
+        ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host, Set<Integer>>()));
+    }
+
+    @Override
+    public Map<Host, Set<Integer>> getHostContainersMap() throws Exception {
+        return getCurrentHostMap();
+    }
+
+    private Map<Host, Set<Integer>> getCurrentHostMap() throws Exception {
         try {
-            segContainerHostMapping.start(true);
+            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(zkPath));
         } catch (Exception e) {
-            log.error("Error while fetching Segment container to Host mapping from container", e);
-            throw new RuntimeException(e);
+            log.warn("Failed to fetch segment container map from zookeeper. Error: " + e.getMessage());
+            throw e;
         }
     }
 
     @Override
-    public Set<Host> getHosts() {
-        return getCurrentData().values().stream().collect(Collectors.toSet());
+    public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception {
+        try {
+            zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) newMapping));
+            log.debug("Successfully updated segment container map");
+        } catch (Exception e) {
+            log.warn("Failed to persist segment container map to zookeeper. Error: " + e.getMessage());
+            throw e;
+        }
     }
 
     @Override
-    public Set<Integer> getContainersForHost(Host host) {
-        Map<Integer, Host> containerHostMap = getCurrentData();
-        if (containerHostMap.containsValue(host)) {
-            return containerHostMap.entrySet().stream()
-                    .filter(ep -> ep.getValue().equals(host))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
+    public Host getHostForContainer(int containerId) throws Exception {
+        Map<Host, Set<Integer>> mapping = getCurrentHostMap();
+        Optional<Host> hosts = mapping.entrySet().stream()
+                .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
+        if (hosts.isPresent()) {
+            log.debug("Found owning host: {} for containerId: {}", hosts.get(), containerId);
+            return hosts.get();
         } else {
-            throw new HostNotFoundException(host);
+            log.warn("No owning host found for containerId: " + containerId);
+            throw new ContainerNotFoundException(containerId);
         }
     }
 
     @Override
-    public Host getHostForContainer(int containerId) {
-        Map<Integer, Host> mapping = getCurrentData();
-        return mapping.get(containerId);
-    }
-
-    private Map<Integer, Host> getCurrentData() {
-        Optional<ChildData> mappingSer = Optional.of(segContainerHostMapping.getCurrentData());
-        if (mappingSer.isPresent()) {
-            return (Map<Integer, Host>) SerializationUtils.deserialize(mappingSer.get().getData());
-        } else {
-            throw new HostControllerException("Error: Segment Container to HostMapping not initialized.");
-        }
-    }
-
-    @Override
-    public Integer getContainerCount() {
-        return HOST_STORE_CONTAINER_COUNT;
+    public int getContainerCount() {
+        return Config.HOST_STORE_CONTAINER_COUNT;
     }
 }
