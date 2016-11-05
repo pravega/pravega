@@ -147,7 +147,7 @@ class HDFSLowerStorage implements Storage {
 
     Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
         FileStatus[] status = getFS().globStatus(new Path(targetStreamSegmentName));
-        if(status == null) {
+        if (status == null) {
             throw new FileNotFoundException(targetStreamSegmentName);
         }
         if ( status[0].getLen() != offset ) {
@@ -192,7 +192,7 @@ class HDFSLowerStorage implements Storage {
      * Reads from that file.
      */
     private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
-        if(offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset+length) {
+        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset+length) {
             throw new ArrayIndexOutOfBoundsException();
         }
         FSDataInputStream stream = getFS().open(new Path(streamSegmentName));

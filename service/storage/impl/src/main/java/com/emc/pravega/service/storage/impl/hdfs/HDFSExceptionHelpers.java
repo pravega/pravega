@@ -39,7 +39,11 @@ public class HDFSExceptionHelpers {
      * @return
      */
     public static Exception translateFromIOException(String streamSegmentName, Exception e) {
-        if (e instanceof PathNotFoundException) {
+        if (e instanceof RemoteException) {
+            e = ((RemoteException) e).unwrapRemoteException();
+        }
+
+        if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
             return new StreamSegmentNotExistsException(streamSegmentName);
         }
 
@@ -51,13 +55,6 @@ public class HDFSExceptionHelpers {
             return new StreamSegmentSealedException(streamSegmentName);
         }
 
-        if(e instanceof FileNotFoundException) {
-            return new StreamSegmentNotExistsException(streamSegmentName);
-        }
-
-        if(e instanceof RemoteException) {
-            return translateFromIOException(streamSegmentName, ((RemoteException)e).unwrapRemoteException());
-        }
         return e;
 
     }
