@@ -8,6 +8,16 @@
  */
 
 // Apply the java plugin to add support for Java
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.bmuschko:gradle-docker-plugin:3.0.3'
+    }
+}
+
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 
 allprojects {
     apply plugin: 'java'
@@ -16,7 +26,8 @@ allprojects {
     apply plugin: 'maven'
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
-
+    apply plugin: 'com.bmuschko.docker-java-application'
+    
     checkstyle {
         toolVersion = "7.1"
     }
@@ -33,6 +44,10 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
+ 	    maven {
+            url "http://10.63.13.122:8080/repository/internal/"
+        }
+
     }
 
     checkstyle {
@@ -155,6 +170,12 @@ project('integrationtests') {
         standardInput = System.in
     }
 
+    task buildImagePravegaHost(type: DockerBuildImage) {
+        dockerFile = file(dockerFilePravegaHost)
+        inputDir = file(dockerDirPravega)
+        tag = 'pravega/host'
+    }
+
     task startServerInteractive(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
@@ -226,6 +247,12 @@ project('controller:server') {
         compile project(":controller:contract")
         compile project(":clients:streaming")
         compile group: 'com.typesafe', name: 'config', version: '1.3.0'
+    }
+
+    task buildImagePravegaController(type: DockerBuildImage) {
+        dockerFile = file(dockerFilePravegaController)
+        inputDir = file(dockerDirPravega)
+        tag = 'pravega/controller'
     }
 }
 
