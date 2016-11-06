@@ -19,7 +19,6 @@
 package com.emc.pravega.service.server;
 
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
@@ -77,7 +76,7 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector)
                             .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
     }

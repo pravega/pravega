@@ -27,7 +27,6 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 
@@ -95,7 +94,7 @@ public class InMemoryStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture
                 .supplyAsync(() -> {
@@ -106,9 +105,10 @@ public class InMemoryStorage implements Storage {
 
                         StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.executor);
                         this.streamSegments.put(streamSegmentName, data);
-                        return new InMemorySegmentHandle(data.name);
+                        return data;
                     }
-                }, this.executor);
+                }, this.executor)
+                .thenCompose(StreamSegmentData::getInfo);
     }
 
     @Override

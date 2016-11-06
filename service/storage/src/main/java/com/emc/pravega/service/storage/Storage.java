@@ -25,7 +25,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines an abstraction for Tier-2 Storage.
+ * Defines an abstraction for Permanent Storage.
  */
 public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
@@ -33,14 +33,14 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created and contain
-     * a SegmentHandle that can be used to operate on the Segment.. If the operation failed, it will be failed with the
-     * cause of the failure. Notable exceptions:
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
+     * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
+     * failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout);
+    CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
 
     /**
      * Acquires distributed lock for a StreamSegment.

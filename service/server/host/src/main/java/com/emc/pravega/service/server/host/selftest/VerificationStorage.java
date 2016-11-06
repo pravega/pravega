@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.host.selftest;
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.function.CallbackHelpers;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -76,7 +75,7 @@ class VerificationStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return this.baseStorage.create(streamSegmentName, timeout);
     }
 
