@@ -46,7 +46,7 @@ public abstract class StorageTestBase {
     //region General Test arguments
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final int SEGMENT_COUNT = 4;
+    private static final int SEGMENT_COUNT = 10;
     private static final int APPENDS_PER_SEGMENT = 10;
 
     //endregion
