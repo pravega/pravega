@@ -39,6 +39,7 @@ public interface ReadOnlyStorage {
      * If the operation failed, it will be failed with the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * <li> TODO: StorageWriterNotPrimaryException: Unable to acquire the lock.
      * </ul>
      */
     CompletableFuture<SegmentHandle> open(String streamSegmentName, Duration timeout);
@@ -56,6 +57,7 @@ public interface ReadOnlyStorage {
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for this Segment is no longer owned by this instance.
      * </ul>
      * @throws ArrayIndexOutOfBoundsException If bufferOffset or bufferOffset + length are invalid for the buffer.
      */
@@ -70,6 +72,7 @@ public interface ReadOnlyStorage {
      * If the operation failed, it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for this Segment is no longer owned by this instance.
      * </ul>
      */
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout);
@@ -80,7 +83,10 @@ public interface ReadOnlyStorage {
      * @param segmentHandle A SegmentHandle identifying the Segment to operate on.
      * @param timeout       Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the information requested. If the operation failed,
-     * it will contain the cause of the failure.
+     * it will contain the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for this Segment is no longer owned by this instance.
+     * </ul>
      */
     CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout);
 }
