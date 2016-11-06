@@ -25,7 +25,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines a Sequential Log that contains contiguous ranges of bytes (Tier-1 Storage).
+ * Defines a Sequential Log that contains contiguous ranges of bytes.
  */
 public interface DurableDataLog extends AutoCloseable {
     /**
