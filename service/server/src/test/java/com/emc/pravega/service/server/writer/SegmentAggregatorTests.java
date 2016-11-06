@@ -19,9 +19,7 @@
 package com.emc.pravega.service.server.writer;
 
 import com.emc.pravega.common.AutoStopwatch;
-import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
-import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
@@ -29,6 +27,7 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -41,8 +40,8 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Cache;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
@@ -106,24 +105,24 @@ public class SegmentAggregatorTests {
         Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", context.transactionAggregators[0].getMetadata().isDeleted());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
-        val handle1 = context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
-        context.storage.seal(handle1, TIMEOUT).join();
+        context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
+        context.storage.seal(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
                 () -> context.transactionAggregators[1].initialize(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
 
         // Check behavior for already-sealed segments (in storage, in metadata, but metadata does not reflect Sealed in storage.)
-        val handle2 = context.storage.create(context.transactionAggregators[2].getMetadata().getName(), TIMEOUT).join();
-        context.storage.seal(handle2, TIMEOUT).join();
+        context.storage.create(context.transactionAggregators[2].getMetadata().getName(), TIMEOUT).join();
+        context.storage.seal(context.transactionAggregators[2].getMetadata().getName(), TIMEOUT).join();
         ((UpdateableSegmentMetadata) context.transactionAggregators[2].getMetadata()).markSealed();
         context.transactionAggregators[2].initialize(TIMEOUT).join();
         Assert.assertTrue("isSealedInStorage() flag not set on metadata for storage-sealed segment.", context.transactionAggregators[2].getMetadata().isSealedInStorage());
 
         // Check the ability to update Metadata.StorageOffset if it is different.
         final int writeLength = 10;
-        val handle3 = context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.storage.write(handle3, 0, new ByteArrayInputStream(new byte[writeLength]), writeLength, TIMEOUT).join();
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.storage.write(context.segmentAggregator.getMetadata().getName(), 0, new ByteArrayInputStream(new byte[writeLength]), writeLength, TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         Assert.assertEquals("SegmentMetadata.StorageLength was not updated after call to initialize().", writeLength, context.segmentAggregator.getMetadata().getStorageLength());
     }
@@ -470,10 +469,9 @@ public class SegmentAggregatorTests {
         Assert.assertEquals("Not expecting leftover data not flushed.", 0, outstandingSize);
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        val handle = context.createHandle(context.segmentAggregator.getMetadata().getName());
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -543,10 +541,9 @@ public class SegmentAggregatorTests {
         // Verify data.
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        val handle = context.createHandle(context.segmentAggregator.getMetadata().getName());
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -608,12 +605,11 @@ public class SegmentAggregatorTests {
         // Verify data.
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        val handle = context.createHandle(context.segmentAggregator.getMetadata().getName());
-        SegmentProperties storageInfo = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+        SegmentProperties storageInfo = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageInfo.getLength());
         Assert.assertTrue("Segment is not sealed in storage post flush.", storageInfo.isSealed());
         Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentAggregator.getMetadata().isSealedInStorage());
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -638,8 +634,7 @@ public class SegmentAggregatorTests {
         context.segmentAggregator.add(sealOp);
 
         // Seal the segment in Storage, behind the scenes.
-        val handle = context.createHandle(context.segmentAggregator.getMetadata().getName());
-        context.storage.seal(handle, TIMEOUT).join();
+        context.storage.seal(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
 
         // Call flush and verify no exception is thrown.
         context.segmentAggregator.flush(TIMEOUT, context.executor.get()).join();
@@ -723,12 +718,11 @@ public class SegmentAggregatorTests {
         // Verify data.
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        val handle = context.createHandle(context.segmentAggregator.getMetadata().getName());
-        SegmentProperties storageInfo = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+        SegmentProperties storageInfo = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageInfo.getLength());
         Assert.assertTrue("Segment is not sealed in storage post flush.", storageInfo.isSealed());
         Assert.assertTrue("Segment is not marked in metadata as sealed in storage post flush.", context.segmentAggregator.getMetadata().isSealedInStorage());
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
@@ -745,6 +739,7 @@ public class SegmentAggregatorTests {
      * 8. Verify the Parent Segment has all the data (from itself and its Transactions), in the correct order.
      */
     @Test
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testMerge() throws Exception {
         final int appendCount = 100; // This is number of appends per Segment/Transaction - there will be a lot of appends here.
         final WriterConfig config = ConfigHelpers.createWriterConfig(
@@ -826,14 +821,10 @@ public class SegmentAggregatorTests {
 
             if (expectedMerged) {
                 Assert.assertTrue("Transaction to be merged was not marked as deleted in metadata.", transactionMetadata.isDeleted());
-                AssertExtensions.assertThrows(
-                        "Transaction to be merged still exists in storage.",
-                        () -> context.storage.open(transactionMetadata.getName(), TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                Assert.assertFalse("Transaction to be merged still exists in storage.", context.storage.exists(transactionMetadata.getName(), TIMEOUT).join());
             } else {
                 Assert.assertFalse("Transaction not to be merged was marked as deleted in metadata.", transactionMetadata.isDeleted());
-                val handle = context.createHandle(transactionMetadata.getName());
-                SegmentProperties sp = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+                SegmentProperties sp = context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT).join();
                 Assert.assertFalse("Transaction not to be merged is sealed in storage.", sp.isSealed());
             }
         }
@@ -855,10 +846,7 @@ public class SegmentAggregatorTests {
         for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
             SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
             Assert.assertTrue("Merged Transaction was not marked as deleted in metadata.", transactionMetadata.isDeleted());
-            AssertExtensions.assertThrows(
-                    "Merged Transaction still exists in storage.",
-                    () -> context.storage.open(transactionMetadata.getName(), TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            Assert.assertFalse("Merged Transaction still exists in storage.", context.storage.exists(transactionMetadata.getName(), TIMEOUT).join());
         }
 
         // Verify that in the end, the contents of the parents is as expected.
@@ -887,7 +875,7 @@ public class SegmentAggregatorTests {
         TestContext context = new TestContext(config, currentTime::get);
 
         // Create and initialize all segments.
-        val handle = context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         for (SegmentAggregator a : context.transactionAggregators) {
             context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
@@ -943,18 +931,15 @@ public class SegmentAggregatorTests {
         for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
             SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
             Assert.assertTrue("Merged Transaction was not marked as deleted in metadata.", transactionMetadata.isDeleted());
-            AssertExtensions.assertThrows(
-                    "Merged Transaction still exists in storage.",
-                    () -> context.storage.open(transactionMetadata.getName(), TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            Assert.assertFalse("Merged Transaction still exists in storage.", context.storage.exists(transactionMetadata.getName(), TIMEOUT).join());
         }
 
         // Verify that in the end, the contents of the parents is as expected.
         byte[] expectedData = parentData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
@@ -975,7 +960,7 @@ public class SegmentAggregatorTests {
         final AtomicLong currentTime = new AtomicLong();
         @Cleanup
         TestContext context = new TestContext(config, currentTime::get);
-        val handle = context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // The writes always succeed, but every few times we return some random error, indicating that they didn't.
@@ -984,7 +969,7 @@ public class SegmentAggregatorTests {
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failEvery == 0) {
                 // Time to wreak some havoc.
-                storage.write(context.createHandle(segmentName), offset, data, length, TIMEOUT).join();
+                storage.write(segmentName, offset, data, length, TIMEOUT).join();
                 IntentionalException ex = new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
                 setException.set(ex);
                 throw ex;
@@ -1034,9 +1019,9 @@ public class SegmentAggregatorTests {
         // Verify data.
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -1057,7 +1042,7 @@ public class SegmentAggregatorTests {
 
         // The seal succeeds, but we throw some random error, indicating that it didn't.
         context.storage.setSealInterceptor((segmentName, storage) -> {
-            storage.seal(context.createHandle(segmentName), TIMEOUT).join();
+            storage.seal(segmentName, TIMEOUT).join();
             throw new IntentionalException(String.format("S=%s", segmentName));
         });
 
@@ -1093,7 +1078,7 @@ public class SegmentAggregatorTests {
         TestContext context = new TestContext(config, currentTime::get);
 
         // Create a parent segment and one transaction segment.
-        val handle = context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
         context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
@@ -1117,9 +1102,7 @@ public class SegmentAggregatorTests {
 
         // The concat succeeds, but we throw some random error, indicating that it didn't.
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
-            SegmentHandle targetHandle = context.createHandle(targetSegment);
-            SegmentHandle sourceHandle = context.createHandle(sourceSegment);
-            storage.concat(targetHandle, offset, sourceHandle, TIMEOUT).join();
+            storage.concat(targetSegment, offset, sourceSegment, TIMEOUT).join();
             throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
         });
 
@@ -1149,9 +1132,9 @@ public class SegmentAggregatorTests {
 
         byte[] expectedData = transactionData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -1172,7 +1155,7 @@ public class SegmentAggregatorTests {
         final AtomicLong currentTime = new AtomicLong();
         @Cleanup
         TestContext context = new TestContext(config, currentTime::get);
-        val handle = context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         @Cleanup
@@ -1196,8 +1179,8 @@ public class SegmentAggregatorTests {
             if (i % failEvery == 0) {
                 // Corrupt the storage by adding the next failEvery-1 ops to Storage.
                 for (int j = i; j < i + failEvery - 1 && j < appendOperations.size(); j++) {
-                    long offset = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
-                    context.storage.write(handle, offset, new ByteArrayInputStream(appendData.get(j)), appendData.get(j).length, TIMEOUT).join();
+                    long offset = context.storage.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT).join().getLength();
+                    context.storage.write(SEGMENT_NAME, offset, new ByteArrayInputStream(appendData.get(j)), appendData.get(j).length, TIMEOUT).join();
                 }
             }
             currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
@@ -1222,9 +1205,9 @@ public class SegmentAggregatorTests {
         // Verify data.
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
 
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
@@ -1292,9 +1275,8 @@ public class SegmentAggregatorTests {
 
         // Populate the storage.
         for (Map.Entry<Long, ByteArrayOutputStream> e : dataBySegment.entrySet()) {
-            val handle = context.createHandle(context.containerMetadata.getStreamSegmentMetadata(e.getKey()).getName());
             context.storage.write(
-                    handle,
+                    context.containerMetadata.getStreamSegmentMetadata(e.getKey()).getName(),
                     0,
                     new ByteArrayInputStream(e.getValue().toByteArray()),
                     e.getValue().size(),
@@ -1302,13 +1284,12 @@ public class SegmentAggregatorTests {
         }
 
         for (SegmentAggregator a : context.transactionAggregators) {
-            val handle = context.createHandle(a.getMetadata().getName());
             if (a.getMetadata().isSealed()) {
-                context.storage.seal(handle, TIMEOUT).join();
+                context.storage.seal(a.getMetadata().getName(), TIMEOUT).join();
             }
 
             if (a.getMetadata().isMerged() || a.getMetadata().isDeleted()) {
-                context.storage.delete(handle, TIMEOUT).join();
+                context.storage.delete(a.getMetadata().getName(), TIMEOUT).join();
             }
         }
 
@@ -1494,10 +1475,9 @@ public class SegmentAggregatorTests {
     private void verifyParentSegmentData(ByteArrayOutputStream parentData, TestContext context) {
         byte[] expectedData = parentData.toByteArray();
         byte[] actualData = new byte[expectedData.length];
-        val handle = context.createHandle(context.segmentAggregator.getMetadata().getName());
-        long storageLength = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
         Assert.assertEquals("Unexpected number of bytes flushed/merged to Storage.", expectedData.length, storageLength);
-        context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+        context.storage.read(context.segmentAggregator.getMetadata().getName(), 0, actualData, 0, actualData.length, TIMEOUT).join();
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
@@ -1539,10 +1519,6 @@ public class SegmentAggregatorTests {
                 UpdateableSegmentMetadata transactionMetadata = initialize(this.containerMetadata.mapStreamSegmentId(name, TRANSACTION_ID_START + i, SEGMENT_ID));
                 this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource, this.storage, config, this.stopwatch);
             }
-        }
-
-        SegmentHandle createHandle(String segmentName) {
-            return this.storage.open(segmentName, TIMEOUT).join();
         }
 
         @Override

@@ -53,14 +53,12 @@ import com.emc.pravega.service.server.writer.StorageWriterFactory;
 import com.emc.pravega.service.server.writer.WriterConfig;
 import com.emc.pravega.service.storage.CacheFactory;
 import com.emc.pravega.service.storage.DurableDataLogFactory;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.StorageFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryDurableDataLogFactory;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorageFactory;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.Cleanup;
-import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -430,10 +428,7 @@ public class StreamSegmentContainerTests {
                             context.container.read(sn, 0, 1, TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentNotExistsException);
 
-                    AssertExtensions.assertThrows(
-                            "Segment not deleted in storage.",
-                            () -> context.storage.open(sn, TIMEOUT),
-                            ex -> ex instanceof StreamSegmentNotExistsException);
+                    Assert.assertFalse("Segment not deleted in storage.", context.storage.exists(sn, TIMEOUT).join());
                 }
             } else {
                 // Verify the segments and their Transactions are still there.
@@ -448,7 +443,7 @@ public class StreamSegmentContainerTests {
                     ReadResult rr = context.container.read(sn, 0, 1, TIMEOUT).join();
 
                     // Verify the segment still exists in storage.
-                    context.storage.getStreamSegmentInfo(context.getHandle(sn), TIMEOUT).join();
+                    context.storage.getStreamSegmentInfo(sn, TIMEOUT).join();
                 }
             }
         }
@@ -632,18 +627,16 @@ public class StreamSegmentContainerTests {
             }
 
             if (sp == null) {
-                AssertExtensions.assertThrows(
+                Assert.assertFalse(
                         "Segment is marked as deleted in metadata but was not deleted in Storage " + segmentName,
-                        () -> context.storage.open(segmentName, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                        context.storage.exists(segmentName, TIMEOUT).join());
 
                 // No need to do other checks.
                 continue;
             }
 
             // 2. Seal Status
-            val handle = context.getHandle(segmentName);
-            SegmentProperties storageProps = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+            SegmentProperties storageProps = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             Assert.assertEquals("Segment seal status disagree between Metadata and Storage for segment " + segmentName, sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.
@@ -652,7 +645,7 @@ public class StreamSegmentContainerTests {
 
             byte[] expectedData = segmentContents.get(segmentName).toByteArray();
             byte[] actualData = new byte[expectedData.length];
-            int actualLength = context.storage.read(handle, 0, actualData, 0, actualData.length, TIMEOUT).join();
+            int actualLength = context.storage.read(segmentName, 0, actualData, 0, actualData.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedLength, actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
         }
@@ -847,10 +840,6 @@ public class StreamSegmentContainerTests {
             StreamSegmentContainerFactory factory = new StreamSegmentContainerFactory(this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executorService.get());
             this.container = factory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = (InMemoryStorage) this.storageFactory.getStorageAdapter();
-        }
-
-        SegmentHandle getHandle(String segmentName) {
-            return this.storage.open(segmentName, TIMEOUT).join();
         }
 
         @Override

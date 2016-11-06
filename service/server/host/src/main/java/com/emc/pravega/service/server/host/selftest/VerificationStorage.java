@@ -76,57 +76,57 @@ class VerificationStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentHandle> create(String segmentName, Duration timeout) {
-        return this.baseStorage.create(segmentName, timeout);
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
+        return this.baseStorage.create(streamSegmentName, timeout);
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> open(String streamSegmentName, Duration timeout) {
-        return this.baseStorage.open(streamSegmentName, timeout);
+    public CompletableFuture<Void> acquireLockForSegment(String streamSegmentName) {
+        return this.baseStorage.acquireLockForSegment(streamSegmentName);
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle segmentHandle, long offset, InputStream data, int length, Duration timeout) {
-        CompletableFuture<Void> result = this.baseStorage.write(segmentHandle, offset, data, length, timeout);
-        result.thenRun(() -> triggerListeners(segmentHandle, offset + length, false));
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+        CompletableFuture<Void> result = this.baseStorage.write(streamSegmentName, offset, data, length, timeout);
+        result.thenRun(() -> triggerListeners(streamSegmentName, offset + length, false));
         return result;
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle segmentHandle, Duration timeout) {
-        CompletableFuture<SegmentProperties> result = this.baseStorage.seal(segmentHandle, timeout);
-        result.thenAccept(sp -> triggerListeners(segmentHandle, sp.getLength(), sp.isSealed()));
+    public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
+        CompletableFuture<SegmentProperties> result = this.baseStorage.seal(streamSegmentName, timeout);
+        result.thenAccept(sp -> triggerListeners(streamSegmentName, sp.getLength(), sp.isSealed()));
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetSegmentHandle, long offset, SegmentHandle sourceSegmentHandle, Duration timeout) {
-        unregisterAllListeners(sourceSegmentHandle.getSegmentName());
-        CompletableFuture<Void> result = this.baseStorage.concat(targetSegmentHandle, offset, sourceSegmentHandle, timeout);
-        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetSegmentHandle, timeout))
-              .thenAccept(sp -> triggerListeners(targetSegmentHandle, sp.getLength(), false));
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+        unregisterAllListeners(sourceStreamSegmentName);
+        CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
+        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout))
+              .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle segmentHandle, Duration timeout) {
-        unregisterAllListeners(segmentHandle.getSegmentName());
-        return this.baseStorage.delete(segmentHandle, timeout);
+    public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
+        unregisterAllListeners(streamSegmentName);
+        return this.baseStorage.delete(streamSegmentName, timeout);
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle segmentHandle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return this.baseStorage.read(segmentHandle, offset, buffer, bufferOffset, length, timeout);
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        return this.baseStorage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
-        return this.baseStorage.getStreamSegmentInfo(segmentHandle, timeout);
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+        return this.baseStorage.getStreamSegmentInfo(streamSegmentName, timeout);
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
-        return this.baseStorage.exists(segmentHandle, timeout);
+    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        return this.baseStorage.exists(streamSegmentName, timeout);
     }
 
     //endregion
@@ -156,13 +156,13 @@ class VerificationStorage implements Storage {
     /**
      * Triggers all registered SegmentUpdateListeners for the given segment.
      *
-     * @param segmentHandle The SegmentHandle for which to trigger for.
-     * @param length        The current length of the Segment.
+     * @param segmentName The name of the Segment to trigger for.
+     * @param length      The current length of the Segment.
      */
-    private void triggerListeners(SegmentHandle segmentHandle, long length, boolean sealed) {
+    private void triggerListeners(String segmentName, long length, boolean sealed) {
         ArrayList<SegmentUpdateListener> listeners = null;
         synchronized (this.listenerLock) {
-            val segmentListeners = this.updateListeners.getOrDefault(segmentHandle.getSegmentName(), null);
+            val segmentListeners = this.updateListeners.getOrDefault(segmentName, null);
             if (segmentListeners != null) {
                 listeners = new ArrayList<>(segmentListeners.values());
             }

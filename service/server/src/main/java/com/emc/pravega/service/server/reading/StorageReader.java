@@ -24,7 +24,6 @@ import com.emc.pravega.common.util.ByteArraySegment;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -45,13 +44,12 @@ import java.util.function.Consumer;
 class StorageReader implements AutoCloseable {
     //region Members
 
-    private static final Duration OPEN_HANDLE_TIMEOUT = Duration.ofSeconds(10); // TODO: put in some sort of config.
     private final String traceObjectId;
     private final ReadOnlyStorage storage;
     private final Executor executor;
     @GuardedBy("lock")
     private final TreeMap<Long, Request> pendingRequests;
-    private final CompletableFuture<SegmentHandle> segmentHandle;
+    private final String segmentName;
     private final Object lock = new Object();
     @GuardedBy("lock")
     private boolean closed;
@@ -71,7 +69,7 @@ class StorageReader implements AutoCloseable {
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata.getId());
-        this.segmentHandle = storage.open(segmentMetadata.getName(), OPEN_HANDLE_TIMEOUT); // Don't call join() or get() - we are under a lock here.
+        this.segmentName = segmentMetadata.getName();
         this.storage = storage;
         this.executor = executor;
         this.pendingRequests = new TreeMap<>();
@@ -138,8 +136,8 @@ class StorageReader implements AutoCloseable {
     private void executeStorageRead(Request request) {
         try {
             byte[] buffer = new byte[request.length];
-            CompletableFuture<Void> future = this.segmentHandle
-                    .thenCompose(handle -> this.storage.read(handle, request.offset, buffer, 0, buffer.length, request.getTimeout()))
+            CompletableFuture<Void> future = this.storage
+                    .read(this.segmentName, request.offset, buffer, 0, buffer.length, request.getTimeout())
                     .thenAcceptAsync(bytesRead -> {
                         ByteArraySegment segment = new ByteArraySegment(buffer, 0, bytesRead);
                         request.complete(segment);

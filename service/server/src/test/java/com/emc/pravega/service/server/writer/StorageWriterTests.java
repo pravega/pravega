@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
@@ -43,7 +42,6 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.ErrorInjector;
@@ -238,9 +236,9 @@ public class StorageWriterTests {
         Supplier<Exception> exceptionSupplier = () -> {
             // Corrupt data.
             for (long segmentId : segmentIds) {
-                SegmentHandle handle = context.createHandle(context.metadata.getStreamSegmentMetadata(segmentId).getName());
-                long length = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
-                context.storage.write(handle, length, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
+                String name = context.metadata.getStreamSegmentMetadata(segmentId).getName();
+                long length = context.storage.getStreamSegmentInfo(name, TIMEOUT).join().getLength();
+                context.storage.write(name, length, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
             }
 
             // Return some other kind of exception.
@@ -278,7 +276,7 @@ public class StorageWriterTests {
         AtomicInteger writeFailCount = new AtomicInteger();
         context.storage.setWriteInterceptor((segmentName, offset, data, length, storage) -> {
             if (writeCount.incrementAndGet() % failWriteEvery == 0) {
-                storage.write(context.createHandle(segmentName), offset, data, length, TIMEOUT).join();
+                storage.write(segmentName, offset, data, length, TIMEOUT).join();
                 writeFailCount.incrementAndGet();
                 throw new IntentionalException(String.format("S=%s,O=%d,L=%d", segmentName, offset, length));
             }
@@ -289,7 +287,7 @@ public class StorageWriterTests {
         AtomicInteger sealFailCount = new AtomicInteger();
         context.storage.setSealInterceptor((segmentName, storage) -> {
             if (sealCount.incrementAndGet() % failSealEvery == 0) {
-                storage.seal(context.createHandle(segmentName), TIMEOUT).join();
+                storage.seal(segmentName, TIMEOUT).join();
                 sealFailCount.incrementAndGet();
                 throw new IntentionalException(String.format("S=%s", segmentName));
             }
@@ -300,9 +298,7 @@ public class StorageWriterTests {
         AtomicInteger mergeFailCount = new AtomicInteger();
         context.storage.setConcatInterceptor((targetSegment, offset, sourceSegment, storage) -> {
             if (mergeCount.incrementAndGet() % failMergeEvery == 0) {
-                SegmentHandle targetHandle = context.createHandle(targetSegment);
-                SegmentHandle sourceHandle = context.createHandle(sourceSegment);
-                storage.concat(targetHandle, offset, sourceHandle, TIMEOUT).join();
+                storage.concat(targetSegment, offset, sourceSegment, TIMEOUT).join();
                 mergeFailCount.incrementAndGet();
                 throw new IntentionalException(String.format("T=%s,O=%d,S=%s", targetSegment, offset, sourceSegment));
             }
@@ -476,10 +472,7 @@ public class StorageWriterTests {
         for (long transactionId : transactionIds) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(transactionId);
             Assert.assertTrue("Transaction not marked as deleted in metadata: " + transactionId, metadata.isDeleted());
-            AssertExtensions.assertThrows(
-                    "Transaction was not deleted from storage after being merged: " + transactionId,
-                    () -> context.storage.open(metadata.getName(), TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            Assert.assertFalse("Transaction was not deleted from storage after being merged: " + transactionId, context.storage.exists(metadata.getName(), TIMEOUT).join());
         }
 
         for (long segmentId : segmentContents.keySet()) {
@@ -490,14 +483,13 @@ public class StorageWriterTests {
             Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
             Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
 
-            val handle = context.createHandle(metadata.getName());
-            SegmentProperties sp = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+            SegmentProperties sp = context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join();
             Assert.assertEquals("Metadata.StorageLength disagrees with Storage.Length for segment " + segmentId, metadata.getStorageLength(), sp.getLength());
             Assert.assertEquals("Metadata.Sealed/SealedInStorage disagrees with Storage.Sealed for segment " + segmentId, metadata.isSealedInStorage(), sp.isSealed());
 
             byte[] expected = segmentContents.get(segmentId).toByteArray();
             byte[] actual = new byte[expected.length];
-            int actualLength = context.storage.read(handle, 0, actual, 0, actual.length, TIMEOUT).join();
+            int actualLength = context.storage.read(metadata.getName(), 0, actual, 0, actual.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata.getStorageLength(), actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
         }
@@ -620,11 +612,11 @@ public class StorageWriterTests {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             String name = getSegmentName(i);
             context.metadata.mapStreamSegmentId(name, i);
-            val handle = initializeSegment(i, context);
+            initializeSegment(i, context);
             segmentIds.add((long) i);
 
             // Add the operation to the log.
-            StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(handle, TIMEOUT).join());
+            StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(name, TIMEOUT).join());
             mapOp.setStreamSegmentId((long) i);
             context.dataSource.add(mapOp);
         }
@@ -643,11 +635,11 @@ public class StorageWriterTests {
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
                 context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
-                val handle = initializeSegment(transactionId, context);
+                initializeSegment(transactionId, context);
                 segmentTransactions.add(transactionId);
 
                 // Add the operation to the log.
-                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(handle, TIMEOUT).join());
+                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
                 mapOp.setStreamSegmentId(transactionId);
                 context.dataSource.add(mapOp);
 
@@ -658,11 +650,11 @@ public class StorageWriterTests {
         return transactions;
     }
 
-    private SegmentHandle initializeSegment(long segmentId, TestContext context) {
+    private void initializeSegment(long segmentId, TestContext context) {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
         metadata.setDurableLogLength(0);
         metadata.setStorageLength(0);
-        return context.storage.create(metadata.getName(), TIMEOUT).join();
+        context.storage.create(metadata.getName(), TIMEOUT).join();
     }
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
@@ -698,10 +690,6 @@ public class StorageWriterTests {
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
             this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), dataSourceConfig);
             this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
-        }
-
-        SegmentHandle createHandle(String segmentName) {
-            return this.storage.open(segmentName, TIMEOUT).join();
         }
 
         void resetWriter() {

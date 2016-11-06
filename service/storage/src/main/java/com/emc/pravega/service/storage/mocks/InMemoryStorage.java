@@ -22,11 +22,11 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.InvalidSegmentHandleException;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
@@ -41,9 +41,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -51,7 +51,6 @@ import java.util.concurrent.ScheduledExecutorService;
 public class InMemoryStorage implements Storage {
     //region Members
 
-    private final int instanceId = Long.hashCode(System.nanoTime());
     private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> offsetTriggers;
     private final HashMap<String, CompletableFuture<Void>> sealTriggers;
     @GuardedBy("lock")
@@ -107,124 +106,95 @@ public class InMemoryStorage implements Storage {
 
                         StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.executor);
                         this.streamSegments.put(streamSegmentName, data);
-                        return createHandle(data.name);
+                        return new InMemorySegmentHandle(data.name);
                     }
                 }, this.executor);
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> open(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture
-                .supplyAsync(() -> {
-                    synchronized (this.lock) {
-                        if (!this.streamSegments.containsKey(streamSegmentName)) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                        }
-
-                        return createHandle(streamSegmentName);
-                    }
-                }, this.executor);
+    public CompletableFuture<Void> acquireLockForSegment(String streamSegmentName) {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle segmentHandle, long offset, InputStream data, int length, Duration timeout) {
-        verifyHandle(segmentHandle);
-        CompletableFuture<Void> result = getStreamSegmentData(segmentHandle)
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+        CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
                 .thenCompose(ssd -> ssd.write(offset, data, length));
-        result.thenRunAsync(() -> fireOffsetTriggers(segmentHandle.getSegmentName(), offset + length), this.executor);
+        result.thenRunAsync(() -> fireOffsetTriggers(streamSegmentName, offset + length), this.executor);
         return result;
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle segmentHandle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        verifyHandle(segmentHandle);
-        return getStreamSegmentData(segmentHandle)
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        return getStreamSegmentData(streamSegmentName)
                 .thenCompose(ssd -> ssd.read(offset, buffer, bufferOffset, length));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle segmentHandle, Duration timeout) {
-        verifyHandle(segmentHandle);
-        CompletableFuture<SegmentProperties> result = getStreamSegmentData(segmentHandle)
+    public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
+        CompletableFuture<SegmentProperties> result = getStreamSegmentData(streamSegmentName)
                 .thenCompose(StreamSegmentData::markSealed);
-        result.thenRunAsync(() -> fireSealTrigger(segmentHandle.getSegmentName()));
+        result.thenRunAsync(() -> fireSealTrigger(streamSegmentName));
         return result;
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
-        verifyHandle(segmentHandle);
-        return getStreamSegmentData(segmentHandle)
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+        return getStreamSegmentData(streamSegmentName)
                 .thenCompose(StreamSegmentData::getInfo);
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
-        verifyHandle(segmentHandle);
+    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         boolean exists;
         synchronized (this.lock) {
-            exists = this.streamSegments.containsKey(segmentHandle.getSegmentName());
+            exists = this.streamSegments.containsKey(streamSegmentName);
         }
-
         return CompletableFuture.completedFuture(exists);
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetSegmentHandle, long offset, SegmentHandle sourceSegmentHandle, Duration timeout) {
-        verifyHandle(targetSegmentHandle);
-        verifyHandle(sourceSegmentHandle);
-        CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceSegmentHandle);
-        CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetSegmentHandle);
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
+            Duration timeout) {
+        CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
+        CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
                                                           .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
-                                                          .thenCompose(v -> delete(sourceSegmentHandle, timeout));
+                                                          .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
         result.thenRunAsync(() -> {
-            fireOffsetTriggers(targetSegmentHandle.getSegmentName(), targetData.join().getInfo().join().getLength());
-            fireSealTrigger(sourceSegmentHandle.getSegmentName());
+            fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
+            fireSealTrigger(sourceStreamSegmentName);
         }, this.executor);
         return result;
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle segmentHandle, Duration timeout) {
-        verifyHandle(segmentHandle);
+    public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture
                 .runAsync(() -> {
                     synchronized (this.lock) {
-                        if (!this.streamSegments.containsKey(segmentHandle.getSegmentName())) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(segmentHandle.getSegmentName()));
+                        if (!this.streamSegments.containsKey(streamSegmentName)) {
+                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
                         }
-
-                        this.streamSegments.remove(segmentHandle.getSegmentName());
+                        this.streamSegments.remove(streamSegmentName);
                     }
                 }, this.executor);
     }
 
-    private CompletableFuture<StreamSegmentData> getStreamSegmentData(SegmentHandle segmentHandle) {
+    private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
         Exceptions.checkNotClosed(this.closed, this);
         return CompletableFuture
                 .supplyAsync(() -> {
                     synchronized (this.lock) {
-                        StreamSegmentData data = this.streamSegments.getOrDefault(segmentHandle.getSegmentName(), null);
+                        StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
                         if (data == null) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(segmentHandle.getSegmentName()));
+                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
                         }
 
                         return data;
                     }
                 }, this.executor);
-    }
-
-    private InMemorySegmentHandle createHandle(String segmentName) {
-        return new InMemorySegmentHandle(segmentName, this.instanceId);
-    }
-
-    private void verifyHandle(SegmentHandle handle) {
-        if (!(handle instanceof InMemorySegmentHandle) || ((InMemorySegmentHandle) handle).getInstanceId() != this.instanceId) {
-            throw new InvalidSegmentHandleException(handle);
-        }
     }
 
     //endregion
@@ -260,7 +230,7 @@ public class InMemoryStorage implements Storage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we already exceed the trigger threshold.
-            getStreamSegmentInfo(createHandle(segmentName), timeout)
+            getStreamSegmentInfo(segmentName, timeout)
                     .thenAccept(sp -> {
                         // We already exceeded this offset.
                         if (sp.getLength() >= offset) {
@@ -294,7 +264,7 @@ public class InMemoryStorage implements Storage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we are already sealed.
-            getStreamSegmentInfo(createHandle(segmentName), timeout)
+            getStreamSegmentInfo(segmentName, timeout)
                     .thenAccept(sp -> {
                         if (sp.isSealed()) {
                             fireSealTrigger(segmentName);
@@ -510,4 +480,5 @@ public class InMemoryStorage implements Storage {
     }
 
     //endregion
+
 }
