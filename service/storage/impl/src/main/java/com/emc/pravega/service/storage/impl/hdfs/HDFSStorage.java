@@ -31,9 +31,7 @@ import com.emc.pravega.service.storage.InvalidSegmentHandleException;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageException;
-import com.emc.pravega.service.storage.StorageSegmentInformation;
 import com.google.common.base.Preconditions;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -175,17 +173,13 @@ class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout) {
-        return supplyAsync(() -> {
-            HDFSSegmentHandle handle = openSync(segmentName);
-            SegmentProperties props = getStreamSegmentInfoSync(handle);
-            return new StorageSegmentInformation(handle, props.getLength(), props.isSealed(), props.isDeleted(), props.getLastModified());
-        }, segmentName);
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle handle, Duration timeout) {
+        return supplyAsync(() -> getStreamSegmentInfoSync(getHandle(handle)), handle.getSegmentName());
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
-        return supplyAsync(() -> existsSync(segmentName), segmentName);
+    public CompletableFuture<Boolean> exists(SegmentHandle handle, Duration timeout) {
+        return supplyAsync(() -> existsSync(getHandle(handle)), handle.getSegmentName());
     }
 
     //endregion
@@ -272,9 +266,8 @@ class HDFSStorage implements Storage {
         return bytesRead;
     }
 
-    private boolean existsSync(String segmentName) throws IOException {
-        FileStatus[] statuses = this.fileSystem.globStatus(new Path(getCommonPartOfName(segmentName) + "_[0-9]*"));
-        return statuses.length == 1;
+    private boolean existsSync(HDFSSegmentHandle handle) throws IOException {
+        return this.fileSystem.exists(handle.getPhysicalSegmentPath());
     }
 
     private void deleteSync(HDFSSegmentHandle handle) throws IOException {
@@ -330,8 +323,7 @@ class HDFSStorage implements Storage {
         return this.serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
     }
 
-    @SneakyThrows(Throwable.class)
-    private Exception toStreamingException(String streamSegmentName, Throwable e) {
+    private Throwable toStreamingException(String streamSegmentName, Throwable e) {
         if ((e instanceof PathNotFoundException) || (e instanceof FileNotFoundException)) {
             e = new StreamSegmentNotExistsException(streamSegmentName, e);
         } else if (e instanceof FileAlreadyExistsException) {
@@ -340,11 +332,9 @@ class HDFSStorage implements Storage {
             e = new StreamSegmentSealedException(streamSegmentName, e);
         } else if (!isPassThrough(e)) {
             e = new StorageException("General error while performing HDFS operation.", e);
-        } else if (!(e instanceof Exception)) {
-            throw e;
         }
 
-        return (Exception) e;
+        return e;
     }
 
     private boolean isPassThrough(Throwable ex) {
@@ -392,6 +382,5 @@ class HDFSStorage implements Storage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.fileSystem != null, "HDFSStorage is not initialized.");
     }
-
     //endregion
 }

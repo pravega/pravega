@@ -21,7 +21,6 @@ package com.emc.pravega.service.server;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.service.storage.StorageSegmentInformation;
 import com.emc.pravega.testcommon.ErrorInjector;
 import com.google.common.base.Preconditions;
 import lombok.Setter;
@@ -139,15 +138,15 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.getErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(segmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(segmentHandle, timeout));
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
+    public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.exists(segmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.exists(segmentHandle, timeout));
     }
 
     @FunctionalInterface

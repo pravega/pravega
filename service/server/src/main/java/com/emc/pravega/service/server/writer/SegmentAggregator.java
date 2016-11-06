@@ -233,7 +233,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
-                .getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining())
+                .open(this.metadata.getName(), timer.getRemaining())
+                .thenCompose(handle -> {
+                    this.segmentHandle.set(handle);
+                    return this.storage.getStreamSegmentInfo(handle, timer.getRemaining());
+                })
                 .thenAccept(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
                     if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
@@ -258,7 +262,6 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         }
                     }
 
-                    this.segmentHandle.set(segmentInfo.getHandle());
                     log.info("{}: Initialized. StorageLength = {}, Sealed = {}.", this.traceObjectId, segmentInfo.getLength(), segmentInfo.isSealed());
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
                     setState(AggregatorState.Writing);
@@ -617,7 +620,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         AtomicLong mergedLength = new AtomicLong();
         AtomicReference<SegmentHandle> transactionHandle = new AtomicReference<>();
         return this.storage
-                .getStreamSegmentInfo(transactionMetadata.getName(), timer.getRemaining())
+                .open(transactionMetadata.getName(), timer.getRemaining())
+                .thenCompose(transHandle -> {
+                    transactionHandle.set(transHandle);
+                    return this.storage.getStreamSegmentInfo(transHandle, timer.getRemaining());
+                })
                 .thenAccept(transProperties -> {
                     // One last verification before the actual merger:
                     // Check that the Storage agrees with our metadata (if not, we have a problem ...)
@@ -639,11 +646,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                                 transProperties.getLength())));
                     }
 
-                    transactionHandle.set(transProperties.getHandle());
                     mergedLength.set(transProperties.getLength());
                 })
                 .thenCompose(v1 -> storage.concat(this.segmentHandle.get(), mergeOp.getStreamSegmentOffset(), transactionHandle.get(), timer.getRemaining()))
-                .thenCompose(v2 -> storage.getStreamSegmentInfo(this.segmentHandle.get().getSegmentName(), timer.getRemaining()))
+                .thenCompose(v2 -> storage.getStreamSegmentInfo(this.segmentHandle.get(), timer.getRemaining()))
                 .thenApply(segmentProperties -> {
                     // We have processed a MergeTransactionOperation, pop the first operation off and decrement the counter.
                     StorageOperation processedOperation = this.operations.poll();
@@ -733,7 +739,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<Void> beginReconciliation(TimeoutTimer timer) {
         assert this.state.get() == AggregatorState.ReconciliationNeeded : "beginReconciliation cannot be called if state == " + this.state;
         return this.storage
-                .getStreamSegmentInfo(this.segmentHandle.get().getSegmentName(), timer.getRemaining())
+                .getStreamSegmentInfo(this.segmentHandle.get(), timer.getRemaining())
                 .thenAccept(sp -> {
                     if (sp.getLength() > this.metadata.getDurableLogLength()) {
                         // The length of the Segment in Storage is beyond what we have in our DurableLog. This is not
@@ -899,9 +905,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         // Verify that the transaction segment does not exist in Storage anymore.
         return this.storage
-                .exists(transactionMeta.getName(), timer.getRemaining())
-                .thenApply(exists -> {
-                    if (exists) {
+                .open(transactionMeta.getName(), timer.getRemaining())
+                .handle((handle, ex) -> {
+                    if (ex == null || !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
                         throw new CompletionException(new ReconciliationFailureException(
                                 String.format("Cannot reconcile operation '%s' because the transaction segment still exists in Storage.", op), this.metadata, storageInfo));
                     }
