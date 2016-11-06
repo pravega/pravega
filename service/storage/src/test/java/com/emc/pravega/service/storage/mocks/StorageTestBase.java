@@ -150,7 +150,7 @@ public abstract class StorageTestBase {
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with offset beyond Segment length.",
-                    () -> s.read(testHandle, s.getStreamSegmentInfo(testHandle.getSegmentName(), TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(testHandle, s.getStreamSegmentInfo(testHandle, TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with negative read buffer offset.",
@@ -198,7 +198,7 @@ public abstract class StorageTestBase {
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 assertThrows("write() did not throw for a sealed StreamSegment.",
-                        () -> s.write(handle, s.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
+                        () -> s.write(handle, s.getStreamSegmentInfo(handle, TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
@@ -223,7 +223,7 @@ public abstract class StorageTestBase {
 
             // Check invalid handle.
             val firstSegmentHandle = s.open(getSegmentName(0, context), TIMEOUT).join();
-            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle.getSegmentName(), TIMEOUT).join().getLength());
+            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join().getLength());
             assertThrows("concat() did not throw invalid target StreamSegment handle.",
                     () -> s.concat(createInvalidHandle("foo1"), 0, firstSegmentHandle, TIMEOUT),
                     ex -> ex instanceof InvalidSegmentHandleException);
@@ -247,13 +247,13 @@ public abstract class StorageTestBase {
 
                 // Seal the source segment and then re-try the concat
                 s.seal(sourceHandle, TIMEOUT).join();
-                SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle.getSegmentName(), TIMEOUT).join();
-                SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceHandle.getSegmentName(), TIMEOUT).join();
+                SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
+                SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceHandle, TIMEOUT).join();
 
                 s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceHandle, TIMEOUT).join();
                 concatOrder.add(sourceSegment);
-                SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle.getSegmentName(), TIMEOUT).join();
-                Assert.assertFalse("concat() did not delete source segment", s.exists(sourceHandle.getSegmentName(), TIMEOUT).join());
+                SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
+                Assert.assertFalse("concat() did not delete source segment", s.exists(sourceHandle, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
                 Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
@@ -261,7 +261,7 @@ public abstract class StorageTestBase {
             }
 
             // Check the contents of the first StreamSegment. We already validated that the length is correct.
-            SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentHandle.getSegmentName(), TIMEOUT).join();
+            SegmentProperties segmentProperties = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
             byte[] readBuffer = new byte[(int) segmentProperties.getLength()];
 
             // Read the entire StreamSegment.

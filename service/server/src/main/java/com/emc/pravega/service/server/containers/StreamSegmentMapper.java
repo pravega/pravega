@@ -248,7 +248,9 @@ public class StreamSegmentMapper {
                 .thenCompose(id -> {
                     // Get info about Transaction itself.
                     parentSegmentId.set(id);
-                    return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
+                    return this.storage
+                            .open(transactionSegmentName, timer.getRemaining())
+                            .thenCompose(handle -> this.storage.getStreamSegmentInfo(handle, timer.getRemaining()));
                 })
                 .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer.getRemaining()))
                 .exceptionally(ex -> {
@@ -278,7 +280,8 @@ public class StreamSegmentMapper {
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         try {
-            this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+            this.storage.open(streamSegmentName, timer.getRemaining())
+                        .thenCompose(handle -> this.storage.getStreamSegmentInfo(handle, timer.getRemaining()))
                         .thenCompose(segmentInfo -> persistInDurableLog(segmentInfo, timer.getRemaining()))
                         .exceptionally(ex -> {
                             failAssignment(streamSegmentName, ex);
