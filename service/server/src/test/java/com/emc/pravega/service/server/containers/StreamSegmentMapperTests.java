@@ -32,7 +32,9 @@ import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemorySegmentHandle;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
@@ -409,7 +411,7 @@ public class StreamSegmentMapperTests {
                     return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
                     storageSegments.add(segmentName);
-                    return CompletableFuture.completedFuture(new StreamSegmentInformation(segmentName, 0, false, false, new Date()));
+                    return CompletableFuture.completedFuture(new InMemorySegmentHandle(segmentName));
                 }
             }
         };
@@ -544,11 +546,11 @@ public class StreamSegmentMapperTests {
     //region TestStorage
 
     private static class TestStorage implements Storage {
-        public Function<String, CompletableFuture<SegmentProperties>> createHandler;
+        public Function<String, CompletableFuture<SegmentHandle>> createHandler;
         public Function<String, CompletableFuture<SegmentProperties>> getInfoHandler;
 
         @Override
-        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
             return this.createHandler.apply(streamSegmentName);
         }
 

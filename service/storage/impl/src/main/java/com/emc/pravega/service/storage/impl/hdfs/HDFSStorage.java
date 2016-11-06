@@ -21,6 +21,7 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -81,9 +82,9 @@ public class HDFSStorage implements Storage {
     //region Storage Implementation
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
         return this.storage.create(getOwnedSegmentFullPath(streamSegmentName), timeout)
-                           .thenApply(properties -> changeNameInSegmentProperties(properties, streamSegmentName));
+                           .thenApply(handle -> changeName((HDFSSegmentHandle) handle, streamSegmentName));
     }
 
     @Override
@@ -119,7 +120,7 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return this.storage.getStreamSegmentInfo(getOwnedSegmentFullPath(streamSegmentName), timeout)
-                           .thenApply(properties -> changeNameInSegmentProperties(properties, streamSegmentName));
+                           .thenApply(properties -> changeName(properties, streamSegmentName));
     }
 
     @Override
@@ -146,12 +147,16 @@ public class HDFSStorage implements Storage {
      * @param properties        Actual segment properties.
      * @param streamSegmentName The real name of the segment.
      */
-    private SegmentProperties changeNameInSegmentProperties(SegmentProperties properties, String streamSegmentName) {
+    private SegmentProperties changeName(SegmentProperties properties, String streamSegmentName) {
         return new StreamSegmentInformation(streamSegmentName,
                 properties.getLength(),
                 properties.isSealed(),
                 properties.isDeleted(),
                 properties.getLastModified());
+    }
+
+    private SegmentHandle changeName(HDFSSegmentHandle handle, String streamSegmentName) {
+        return new HDFSSegmentHandle(streamSegmentName, handle.getPhysicalSegmentName());
     }
 
     /**
