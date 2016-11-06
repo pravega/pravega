@@ -19,15 +19,26 @@
 package com.emc.pravega.service.storage.mocks;
 
 import com.emc.pravega.service.storage.SegmentHandle;
-import lombok.Data;
 
 /**
  * A handle that is used by InMemoryStorage.
  */
-@Data
-class InMemorySegmentHandle implements SegmentHandle {
+public class InMemorySegmentHandle implements SegmentHandle {
     private final String segmentName;
-    private final int instanceId;
+
+    /**
+     * Creates a new instance of the InMemorySegmentHandle.
+     *
+     * @param segmentName The name of the Segment to create the handle for.
+     */
+    public InMemorySegmentHandle(String segmentName) {
+        this.segmentName = segmentName;
+    }
+
+    @Override
+    public String getSegmentName() {
+        return this.segmentName;
+    }
 
     @Override
     public String toString() {

@@ -288,9 +288,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         CompletableFuture[] deletionFutures = new CompletableFuture[streamSegmentsToDelete.size()];
         int count = 0;
         for (String s : streamSegmentsToDelete) {
-            deletionFutures[count] = this.storage
-                    .open(s, timer.getRemaining())
-                    .thenCompose(handle -> this.storage.delete(handle, timer.getRemaining()));
+            deletionFutures[count] = this.storage.delete(s, timer.getRemaining());
             count++;
         }
 

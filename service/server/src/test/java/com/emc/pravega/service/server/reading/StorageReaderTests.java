@@ -24,13 +24,11 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import lombok.Cleanup;
-import lombok.Data;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -70,11 +68,10 @@ public class StorageReaderTests {
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executor.get());
-
-        byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
+        byte[] segmentData = populateSegment(storage);
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
         int readOffset = 0;
         while (readOffset < segmentData.length) {
@@ -110,9 +107,10 @@ public class StorageReaderTests {
         CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executor.get());
-        byte[] segmentData = populateSegment(storage);
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
+
+        byte[] segmentData = populateSegment(storage);
 
         // Segment does not exist.
         AssertExtensions.assertThrows(
@@ -231,8 +229,8 @@ public class StorageReaderTests {
         int length = MIN_SEGMENT_LENGTH + random.nextInt(MAX_SEGMENT_LENGTH - MIN_SEGMENT_LENGTH);
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);
-        val handle = storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
-        storage.write(handle, 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
+        storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
         return segmentData;
     }
 
@@ -240,30 +238,20 @@ public class StorageReaderTests {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override
-        public CompletableFuture<SegmentHandle> open(String streamSegmentName, Duration timeout) {
-            return CompletableFuture.completedFuture(new TestSegmentHandle(streamSegmentName));
-        }
-
-        @Override
-        public CompletableFuture<Integer> read(SegmentHandle segmentHandle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
             return this.readImplementation.get();
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             // This method is not needed.
             return null;
         }
 
         @Override
-        public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
+        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             // This method is not needed.
             return null;
-        }
-
-        @Data
-        private class TestSegmentHandle implements SegmentHandle {
-            private final String segmentName;
         }
     }
 }

@@ -24,22 +24,21 @@ import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.ContainerMetadata;
-import com.emc.pravega.service.server.OperationLog;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.StreamSegmentNameUtils;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
 import com.emc.pravega.service.server.UpdateableSegmentMetadata;
+import com.emc.pravega.service.server.OperationLog;
+import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.server.logs.operations.Operation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
-import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.InMemorySegmentHandle;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
-import lombok.Data;
-import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -360,7 +359,7 @@ public class StreamSegmentMapperTests {
     }
 
     private void assertStreamSegmentCreated(String segmentName, TestContext context) {
-        SegmentProperties sp = context.storage.getStreamSegmentInfo(new TestSegmentHandle(segmentName), TIMEOUT).join();
+        SegmentProperties sp = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
         Assert.assertNotNull("No segment has been created in the Storage for " + segmentName, sp);
         long segmentId = context.metadata.getStreamSegmentId(segmentName);
         Assert.assertNotEquals("Segment '" + segmentName + "' has not been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
@@ -412,7 +411,7 @@ public class StreamSegmentMapperTests {
                     return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
                     storageSegments.add(segmentName);
-                    return CompletableFuture.completedFuture(new TestSegmentHandle(segmentName));
+                    return CompletableFuture.completedFuture(new InMemorySegmentHandle(segmentName));
                 }
             }
         };
@@ -556,62 +555,53 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
-            return this.getInfoHandler.apply(segmentHandle.getSegmentName());
+        public CompletableFuture<Void> acquireLockForSegment(String streamSegmentName) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+            return this.getInfoHandler.apply(streamSegmentName);
         }
 
         //region Unimplemented methods
-
+        
         @Override
-        public CompletableFuture<SegmentHandle> open(String streamSegmentName, Duration timeout) {
-            return CompletableFuture.completedFuture(new TestSegmentHandle(streamSegmentName));
+        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+            return null;
+        }
+        
+        @Override
+        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+            return null;
         }
 
         @Override
-        public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
-            throw new NotImplementedException();
+        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+            return null;
         }
 
         @Override
-        public CompletableFuture<Void> write(SegmentHandle segmentHandle, long offset, InputStream data, int length, Duration timeout) {
-            throw new NotImplementedException();
+        public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
+            return null;
         }
 
         @Override
-        public CompletableFuture<Integer> read(SegmentHandle segmentHandle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-            throw new NotImplementedException();
+        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+            return null;
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> seal(SegmentHandle segmentHandle, Duration timeout) {
-            throw new NotImplementedException();
-        }
-
-        @Override
-        public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, SegmentHandle sourceHandle, Duration timeout) {
-            throw new NotImplementedException();
-        }
-
-        @Override
-        public CompletableFuture<Void> delete(SegmentHandle segmentHandle, Duration timeout) {
-            throw new NotImplementedException();
+        public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
+            return null;
         }
 
         @Override
         public void close() {
-            // Method intentionally left blank.
+
         }
 
         //endregion
-    }
-
-    //endregion
-
-    //region TestSegmentHandle
-
-    @Data
-    private static class TestSegmentHandle implements SegmentHandle {
-        private final String segmentName;
     }
 
     //endregion

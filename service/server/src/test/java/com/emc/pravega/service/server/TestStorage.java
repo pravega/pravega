@@ -83,70 +83,70 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> open(String streamSegmentName, Duration timeout) {
-        return this.wrappedStorage.open(streamSegmentName, timeout);
+    public CompletableFuture<Void> acquireLockForSegment(String streamSegmentName) {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle segmentHandle, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
                             .thenAccept(v -> {
                                 WriteInterceptor wi = this.writeInterceptor;
                                 if (wi != null) {
-                                    wi.accept(segmentHandle.getSegmentName(), offset, data, length, this.wrappedStorage);
+                                    wi.accept(streamSegmentName, offset, data, length, this.wrappedStorage);
                                 }
                             })
-                            .thenCompose(v -> this.wrappedStorage.write(segmentHandle, offset, data, length, timeout));
+                            .thenCompose(v -> this.wrappedStorage.write(streamSegmentName, offset, data, length, timeout));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> seal(SegmentHandle segmentHandle, Duration timeout) {
+    public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.sealSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector)
                             .thenAccept(v -> {
                                 SealInterceptor wi = this.sealInterceptor;
                                 if (wi != null) {
-                                    wi.accept(segmentHandle.getSegmentName(), this.wrappedStorage);
+                                    wi.accept(streamSegmentName, this.wrappedStorage);
                                 }
-                            }).thenCompose(v -> this.wrappedStorage.seal(segmentHandle, timeout));
+                            }).thenCompose(v -> this.wrappedStorage.seal(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetSegmentHandle, long offset, SegmentHandle sourceSegmentHandle, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
                             .thenAccept(v -> {
                                 ConcatInterceptor wi = this.concatInterceptor;
                                 if (wi != null) {
-                                    wi.accept(targetSegmentHandle.getSegmentName(), offset, sourceSegmentHandle.getSegmentName(), this.wrappedStorage);
+                                    wi.accept(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
                                 }
-                            }).thenCompose(v -> this.wrappedStorage.concat(targetSegmentHandle, offset, sourceSegmentHandle, timeout));
+                            }).thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle segmentHandle, Duration timeout) {
+    public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.deleteErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.delete(segmentHandle, timeout));
+                            .thenCompose(v -> this.wrappedStorage.delete(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle segmentHandle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.read(segmentHandle, offset, buffer, bufferOffset, length, timeout));
+                            .thenCompose(v -> this.wrappedStorage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.getErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(segmentHandle, timeout));
+                            .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
+    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.exists(segmentHandle, timeout));
+                            .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
     }
 
     @FunctionalInterface

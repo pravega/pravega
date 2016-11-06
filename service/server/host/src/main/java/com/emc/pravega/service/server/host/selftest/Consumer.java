@@ -30,7 +30,6 @@ import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.emc.pravega.service.server.reading.AsyncReadResultEntryHandler;
 import com.emc.pravega.service.server.reading.AsyncReadResultProcessor;
-import com.emc.pravega.service.storage.SegmentHandle;
 import com.google.common.base.Preconditions;
 import lombok.val;
 
@@ -56,11 +55,10 @@ public class Consumer extends Actor {
     private static final String SOURCE_CATCHUP_READ = "CatchupRead";
     private static final String SOURCE_STORAGE_READ = "StorageRead";
     private static final Duration READ_TIMEOUT = Duration.ofDays(100);
-    private final String segmentName;
     private final String logId;
+    private final String segmentName;
     private final AtomicBoolean canContinue;
     private final TruncateableArray readBuffer;
-    private final CompletableFuture<SegmentHandle> segmentHandle;
 
     /**
      * The offset in the Segment of the first byte that we have in readBuffer.
@@ -104,7 +102,6 @@ public class Consumer extends Actor {
         super(config, dataSource, store, executorService);
         this.logId = String.format("Consumer[%s]", segmentName);
         this.segmentName = segmentName;
-        this.segmentHandle = this.store.getStorageAdapter().open(segmentName, Duration.ofSeconds(10)); // No join() or get() - we are under a lock.
         this.canContinue = new AtomicBoolean();
         this.readBuffer = new TruncateableArray();
         this.readBufferSegmentOffset = -1;
@@ -232,29 +229,29 @@ public class Consumer extends Actor {
 
         // Execute a Storage Read, then validate that the read data matches what was in there.
         byte[] storageReadBuffer = new byte[length];
-        this.segmentHandle
-                .thenCompose(handle -> this.store.getStorageAdapter().read(handle, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout()))
-                .thenAccept(l -> {
-                    ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
-                    validationResult.setSource(SOURCE_STORAGE_READ);
-                    if (!validationResult.isSuccess()) {
-                        validationFailed(validationResult);
-                        return;
-                    }
+        this.store.getStorageAdapter()
+                  .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
+                  .thenAccept(l -> {
+                      ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
+                      validationResult.setSource(SOURCE_STORAGE_READ);
+                      if (!validationResult.isSuccess()) {
+                          validationFailed(validationResult);
+                          return;
+                      }
 
-                    // After a successful validation, update the state and truncate the buffer.
-                    synchronized (this.lock) {
-                        this.storageReadValidatedOffset = segmentLength;
-                        truncateBuffer();
-                    }
+                      // After a successful validation, update the state and truncate the buffer.
+                      synchronized (this.lock) {
+                          this.storageReadValidatedOffset = segmentLength;
+                          truncateBuffer();
+                      }
 
-                    logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
-                })
-                .whenComplete((r, ex) -> {
-                    if (ex != null) {
-                        processingFuture.completeExceptionally(ex);
-                    }
-                });
+                      logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
+                  })
+                  .whenComplete((r, ex) -> {
+                      if (ex != null) {
+                          processingFuture.completeExceptionally(ex);
+                      }
+                  });
     }
 
     private ValidationResult validateStorageRead(InputStream expectedData, byte[] storageReadBuffer, long segmentOffset) {
