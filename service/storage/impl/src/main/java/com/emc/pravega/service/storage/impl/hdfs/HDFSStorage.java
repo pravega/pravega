@@ -33,7 +33,6 @@ import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.StorageException;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -47,7 +46,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.io.IOUtils;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -209,8 +207,6 @@ public class HDFSStorage implements Storage {
     }
 
     private void writeSync(HDFSSegmentHandle handle, long offset, int length, InputStream data) throws Exception {
-        val status = getStatus(handle);
-        checkNotSealed(status, handle);
         try (FSDataOutputStream stream = this.fileSystem.append(handle.getPhysicalSegmentPath())) {
             if (stream.getPos() != offset) {
                 throw new BadOffsetException(handle.getSegmentName(), offset, stream.getPos());
@@ -221,49 +217,30 @@ public class HDFSStorage implements Storage {
         }
     }
 
-    private SegmentProperties sealSync(HDFSSegmentHandle handle) throws Exception {
-        val status = getStatus(handle);
-        checkNotSealed(status, handle);
+    private SegmentProperties sealSync(HDFSSegmentHandle handle) throws IOException {
         this.fileSystem.setPermission(handle.getPhysicalSegmentPath(), SEALED_PERMISSION);
         return getStreamSegmentInfoSync(handle);
     }
 
     private void concatSync(HDFSSegmentHandle targetSegmentHandle, long offset, HDFSSegmentHandle sourceSegmentHandle) throws Exception {
-        // Verify target segment seal status and current offset.
-        val targetStatus = getStatus(targetSegmentHandle);
-        checkNotSealed(targetStatus, targetSegmentHandle);
-        if (targetStatus.getLen() != offset) {
-            throw new BadOffsetException(targetSegmentHandle.getSegmentName(), offset, targetStatus.getLen());
-        }
-
-        // Verify source segment seal status.
-        val sourceStatus = getStatus(sourceSegmentHandle);
-        if (sourceStatus.getPermission().getUserAction().implies(FsAction.WRITE)) {
-            throw new IllegalStateException(String.format("Cannot concat segment '%s' into '%s' because the source segment is not sealed.", sourceSegmentHandle.getSegmentName(), targetSegmentHandle.getSegmentName()));
+        FileStatus status = this.fileSystem.globStatus(targetSegmentHandle.getPhysicalSegmentPath())[0];
+        if (status.getLen() != offset) {
+            throw new BadOffsetException(targetSegmentHandle.getSegmentName(), offset, status.getLen());
         }
 
         this.fileSystem.concat(
                 targetSegmentHandle.getPhysicalSegmentPath(),
-                new Path[]{sourceSegmentHandle.getPhysicalSegmentPath()});
+                new Path[]{targetSegmentHandle.getPhysicalSegmentPath(), sourceSegmentHandle.getPhysicalSegmentPath()});
     }
 
-    private int readSync(HDFSSegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws Exception {
-        Preconditions.checkArgument(offset >= 0, "offset", "offset must be a non-negative number.");
-        Exceptions.checkArrayRange(bufferOffset, length, buffer.length, "bufferOffset", "length");
-
-        int bytesRead;
+    /**
+     * Finds the file containing the given offset for the given segment.
+     * Reads from that file.
+     */
+    private int readSync(HDFSSegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
         try (FSDataInputStream stream = this.fileSystem.open(handle.getPhysicalSegmentPath())) {
-            bytesRead = stream.read(offset, buffer, bufferOffset, length);
+            return stream.read(offset, buffer, bufferOffset, length);
         }
-
-        if (bytesRead < 0) {
-            // -1 is usually a code for invalid args; check to see if we were supplied with an offset that exceeds the length of the segment.
-            val status = getStatus(handle);
-            if (offset >= status.getLen()) {
-                throw new IllegalArgumentException(String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, status.getLen()));
-            }
-        }
-        return bytesRead;
     }
 
     private boolean existsSync(HDFSSegmentHandle handle) throws IOException {
@@ -293,21 +270,6 @@ public class HDFSStorage implements Storage {
         return handle;
     }
 
-    private void checkNotSealed(FileStatus status, HDFSSegmentHandle handle) throws StreamSegmentSealedException {
-        if (!status.getPermission().getUserAction().implies(FsAction.WRITE)) {
-            throw new StreamSegmentSealedException(handle.getSegmentName());
-        }
-    }
-
-    private FileStatus getStatus(HDFSSegmentHandle handle) throws IOException, StreamSegmentNotExistsException {
-        val status = this.fileSystem.getFileStatus(handle.getPhysicalSegmentPath());
-        if (status == null) {
-            throw new StreamSegmentNotExistsException(handle.getSegmentName());
-        }
-
-        return status;
-    }
-
     //endregion
 
     //region Helpers
@@ -323,22 +285,18 @@ public class HDFSStorage implements Storage {
         return this.serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
     }
 
-    private Throwable toStreamingException(String streamSegmentName, Throwable e) {
-        if ((e instanceof PathNotFoundException) || (e instanceof FileNotFoundException)) {
+    private static Throwable toStreamingException(String streamSegmentName, Throwable e) {
+        if (e instanceof PathNotFoundException) {
             e = new StreamSegmentNotExistsException(streamSegmentName, e);
         } else if (e instanceof FileAlreadyExistsException) {
             e = new StreamSegmentExistsException(streamSegmentName, e);
         } else if (e instanceof AclException) {
             e = new StreamSegmentSealedException(streamSegmentName, e);
-        } else if (!isPassThrough(e)) {
+        } else if (!(e instanceof StreamingException)) {
             e = new StorageException("General error while performing HDFS operation.", e);
         }
 
         return e;
-    }
-
-    private boolean isPassThrough(Throwable ex) {
-        return ex instanceof StreamingException || ex instanceof RuntimeException;
     }
 
     private HDFSSegmentHandle getHandle(SegmentHandle handle) {

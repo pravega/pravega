@@ -58,7 +58,7 @@ public abstract class StorageTestBase {
      */
     @Test
     public void testOpen() {
-        String segmentName = "foo_open";
+        String segmentName = "foo";
         try (Storage s = createStorage()) {
             // Segment does not exist.
             assertThrows("open() did not throw for non-existent StreamSegment.",
@@ -74,7 +74,7 @@ public abstract class StorageTestBase {
      */
     @Test
     public void testWrite() throws Exception {
-        String segmentName = "foo_write";
+        String segmentName = "foo";
         int appendCount = 100;
 
         try (Storage s = createStorage()) {
@@ -119,14 +119,13 @@ public abstract class StorageTestBase {
      */
     @Test
     public void testRead() throws Exception {
-        final String context = "Read";
         try (Storage s = createStorage()) {
             // Check invalid handle.
             assertThrows("read() did not throw for invalid handle.",
-                    () -> s.read(createInvalidHandle("foo_read_1"), 0, new byte[1], 0, 1, TIMEOUT),
+                    () -> s.read(createInvalidHandle("foo"), 0, new byte[1], 0, 1, TIMEOUT),
                     ex -> ex instanceof InvalidSegmentHandleException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Do some reading.
             for (String segmentName : appendData.keySet()) {
@@ -143,7 +142,7 @@ public abstract class StorageTestBase {
             }
 
             // Test bad parameters.
-            val testHandle = s.open(getSegmentName(0, context), TIMEOUT).join();
+            val testHandle = s.open(getSegmentName(0), TIMEOUT).join();
             byte[] testReadBuffer = new byte[10];
             assertThrows("read() allowed reading with negative read offset.",
                     () -> s.read(testHandle, -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
@@ -180,19 +179,16 @@ public abstract class StorageTestBase {
      */
     @Test
     public void testSeal() throws Exception {
-        final String context = "Seal";
         try (Storage s = createStorage()) {
             // Check invalid handle.
             assertThrows("seal() did not throw for invalid handle.",
                     () -> s.seal(createInvalidHandle("foo"), TIMEOUT),
                     ex -> ex instanceof InvalidSegmentHandleException);
 
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
             for (String segmentName : appendData.keySet()) {
                 val handle = s.open(segmentName, TIMEOUT).join();
-                val segmentInfo = s.seal(handle, TIMEOUT).join();
-                Assert.assertTrue("seal() did not return a segmentInfo with isSealed == true", segmentInfo.isSealed());
-
+                s.seal(handle, TIMEOUT).join();
                 assertThrows("seal() did not throw for an already sealed StreamSegment.",
                         () -> s.seal(handle, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
@@ -217,12 +213,11 @@ public abstract class StorageTestBase {
      */
     @Test
     public void testConcat() throws Exception {
-        final String context = "Concat";
         try (Storage s = createStorage()) {
-            HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
+            HashMap<String, ByteArrayOutputStream> appendData = populate(s);
 
             // Check invalid handle.
-            val firstSegmentHandle = s.open(getSegmentName(0, context), TIMEOUT).join();
+            val firstSegmentHandle = s.open(getSegmentName(0), TIMEOUT).join();
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join().getLength());
             assertThrows("concat() did not throw invalid target StreamSegment handle.",
                     () -> s.concat(createInvalidHandle("foo1"), 0, firstSegmentHandle, TIMEOUT),
@@ -280,15 +275,15 @@ public abstract class StorageTestBase {
         }
     }
 
-    private String getSegmentName(int id, String context) {
-        return String.format("%s_%s", context, id);
+    private String getSegmentName(int id) {
+        return Integer.toString(id);
     }
 
-    private HashMap<String, ByteArrayOutputStream> populate(Storage s, String context) throws Exception {
+    private HashMap<String, ByteArrayOutputStream> populate(Storage s) throws Exception {
         HashMap<String, ByteArrayOutputStream> appendData = new HashMap<>();
 
         for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
-            String segmentName = getSegmentName(segmentId, context);
+            String segmentName = getSegmentName(segmentId);
 
             val handle = s.create(segmentName, TIMEOUT).join();
             ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
