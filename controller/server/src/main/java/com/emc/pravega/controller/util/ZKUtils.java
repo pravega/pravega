@@ -27,6 +27,12 @@ import org.apache.zookeeper.KeeperException;
 @Slf4j
 public class ZKUtils {
 
+    /**
+     * Creates the znode if is doesn't already exist in zookeeper.
+     *
+     * @param client    The curator client to access zookeeper.
+     * @param basePath  The znode path string.
+     */
     public static void createPathIfNotExists(final CuratorFramework client, final String basePath) {
         try {
             if (client.checkExists().forPath(basePath) == null) {
@@ -40,6 +46,13 @@ public class ZKUtils {
         }
     }
 
+    /**
+     * Creates the znode if is doesn't already exist in zookeeper.
+     *
+     * @param client    The curator client to access zookeeper.
+     * @param basePath  The znode path string.
+     * @param initData  Initialize the znode using the supplied data if not already created.
+     */
     public static void createPathIfNotExists(final CuratorFramework client, final String basePath, final byte[] initData) {
         try {
             if (client.checkExists().forPath(basePath) == null) {
