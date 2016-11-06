@@ -15,22 +15,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.service.storage.mocks;
+
+package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.mocks.StorageTestBase;
+import lombok.Data;
+import org.junit.Ignore;
+
+import java.util.Properties;
+import java.util.concurrent.ForkJoinPool;
 
 /**
- * Unit tests for InMemoryStorage
+ * Unit tests for HDFSStorage.
  */
-public class InMemoryStorageTests extends StorageTestBase {
+@Ignore
+public class HDFSStorageTest extends StorageTestBase {
     @Override
     protected Storage createStorage() {
-        return new InMemoryStorage();
+        Properties prop = new Properties();
+        prop.setProperty("hdfs.fs.default.name", "localhost:9000");
+        prop.setProperty("hdfs.hdfsRoot", "");
+        prop.setProperty("hdfs.pravegaId", "0");
+        prop.setProperty("hdfs.replication", "1");
+        prop.setProperty("hdfs.blockSize", "1048576");
+        HDFSStorageConfig config = new HDFSStorageConfig(prop);
+        return new HDFSStorage(config, ForkJoinPool.commonPool());
     }
 
     @Override
     protected SegmentHandle createInvalidHandle(String segmentName) {
-        return new InMemorySegmentHandle(segmentName, (int) System.nanoTime());
+        return new TestHandle(segmentName);
+    }
+
+    @Data
+    private class TestHandle implements SegmentHandle {
+        private final String segmentName;
     }
 }

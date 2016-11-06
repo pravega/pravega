@@ -47,7 +47,7 @@ public class HDFSStorageFactory implements StorageFactory {
      * @param executor             The executor to use for async operations.
      */
     public HDFSStorageFactory(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
-        this.storage = null; //new HDFSStorage(serviceBuilderConfig, executor);
+        this.storage = new HDFSStorage(serviceBuilderConfig, executor);
         this.closed = new AtomicBoolean();
     }
 
