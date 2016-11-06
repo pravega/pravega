@@ -18,7 +18,6 @@
 
 package com.emc.pravega.service.server.reading;
 
-import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.SegmentMetadata;
@@ -26,12 +25,14 @@ import com.emc.pravega.service.server.containers.StreamSegmentMetadata;
 import com.emc.pravega.service.storage.ReadOnlyStorage;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageSegmentInformation;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.val;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -250,15 +251,15 @@ public class StorageReaderTests {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
+        public CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout) {
             // This method is not needed.
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
+        public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
             // This method is not needed.
-            return null;
+            throw new NotImplementedException();
         }
 
         @Data

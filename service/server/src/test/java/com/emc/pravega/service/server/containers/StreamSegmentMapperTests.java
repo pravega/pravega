@@ -34,11 +34,13 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapOperation;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageSegmentInformation;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
 import lombok.Data;
+import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
@@ -360,7 +362,7 @@ public class StreamSegmentMapperTests {
     }
 
     private void assertStreamSegmentCreated(String segmentName, TestContext context) {
-        SegmentProperties sp = context.storage.getStreamSegmentInfo(new TestSegmentHandle(segmentName), TIMEOUT).join();
+        SegmentProperties sp = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
         Assert.assertNotNull("No segment has been created in the Storage for " + segmentName, sp);
         long segmentId = context.metadata.getStreamSegmentId(segmentName);
         Assert.assertNotEquals("Segment '" + segmentName + "' has not been registered in the metadata.", ContainerMetadata.NO_STREAM_SEGMENT_ID, segmentId);
@@ -556,8 +558,13 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
-            return this.getInfoHandler.apply(segmentHandle.getSegmentName());
+        public CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout) {
+            val result = this.getInfoHandler.apply(segmentName);
+            if (result == null) {
+                return null;
+            }
+
+            return result.thenApply(r -> new StorageSegmentInformation(new TestSegmentHandle(segmentName), r.getLength(), r.isSealed(), r.isDeleted(), r.getLastModified()));
         }
 
         //region Unimplemented methods
@@ -568,7 +575,7 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
+        public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
             throw new NotImplementedException();
         }
 

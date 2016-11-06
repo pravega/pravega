@@ -21,7 +21,6 @@ package com.emc.pravega.service.server.writer;
 import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
@@ -239,7 +238,7 @@ public class StorageWriterTests {
             // Corrupt data.
             for (long segmentId : segmentIds) {
                 SegmentHandle handle = context.createHandle(context.metadata.getStreamSegmentMetadata(segmentId).getName());
-                long length = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join().getLength();
+                long length = context.storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join().getLength();
                 context.storage.write(handle, length, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
             }
 
@@ -476,10 +475,7 @@ public class StorageWriterTests {
         for (long transactionId : transactionIds) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(transactionId);
             Assert.assertTrue("Transaction not marked as deleted in metadata: " + transactionId, metadata.isDeleted());
-            AssertExtensions.assertThrows(
-                    "Transaction was not deleted from storage after being merged: " + transactionId,
-                    () -> context.storage.open(metadata.getName(), TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+            Assert.assertFalse("Transaction was not deleted from storage after being merged: " + transactionId, context.storage.exists(metadata.getName(), TIMEOUT).join());
         }
 
         for (long segmentId : segmentContents.keySet()) {
@@ -491,7 +487,7 @@ public class StorageWriterTests {
             Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
 
             val handle = context.createHandle(metadata.getName());
-            SegmentProperties sp = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+            SegmentProperties sp = context.storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
             Assert.assertEquals("Metadata.StorageLength disagrees with Storage.Length for segment " + segmentId, metadata.getStorageLength(), sp.getLength());
             Assert.assertEquals("Metadata.Sealed/SealedInStorage disagrees with Storage.Sealed for segment " + segmentId, metadata.isSealedInStorage(), sp.isSealed());
 
@@ -624,7 +620,7 @@ public class StorageWriterTests {
             segmentIds.add((long) i);
 
             // Add the operation to the log.
-            StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(handle, TIMEOUT).join());
+            StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join());
             mapOp.setStreamSegmentId((long) i);
             context.dataSource.add(mapOp);
         }
@@ -647,7 +643,7 @@ public class StorageWriterTests {
                 segmentTransactions.add(transactionId);
 
                 // Add the operation to the log.
-                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(handle, TIMEOUT).join());
+                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join());
                 mapOp.setStreamSegmentId(transactionId);
                 context.dataSource.add(mapOp);
 

@@ -430,10 +430,7 @@ public class StreamSegmentContainerTests {
                             context.container.read(sn, 0, 1, TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentNotExistsException);
 
-                    AssertExtensions.assertThrows(
-                            "Segment not deleted in storage.",
-                            () -> context.storage.open(sn, TIMEOUT),
-                            ex -> ex instanceof StreamSegmentNotExistsException);
+                    Assert.assertFalse("Segment not deleted in storage.", context.storage.exists(sn, TIMEOUT).join());
                 }
             } else {
                 // Verify the segments and their Transactions are still there.
@@ -448,7 +445,7 @@ public class StreamSegmentContainerTests {
                     ReadResult rr = context.container.read(sn, 0, 1, TIMEOUT).join();
 
                     // Verify the segment still exists in storage.
-                    context.storage.getStreamSegmentInfo(context.getHandle(sn), TIMEOUT).join();
+                    context.storage.getStreamSegmentInfo(sn, TIMEOUT).join();
                 }
             }
         }
@@ -632,10 +629,9 @@ public class StreamSegmentContainerTests {
             }
 
             if (sp == null) {
-                AssertExtensions.assertThrows(
+                Assert.assertFalse(
                         "Segment is marked as deleted in metadata but was not deleted in Storage " + segmentName,
-                        () -> context.storage.open(segmentName, TIMEOUT),
-                        ex -> ex instanceof StreamSegmentNotExistsException);
+                        context.storage.exists(segmentName, TIMEOUT).join());
 
                 // No need to do other checks.
                 continue;
@@ -643,7 +639,7 @@ public class StreamSegmentContainerTests {
 
             // 2. Seal Status
             val handle = context.getHandle(segmentName);
-            SegmentProperties storageProps = context.storage.getStreamSegmentInfo(handle, TIMEOUT).join();
+            SegmentProperties storageProps = context.storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
             Assert.assertEquals("Segment seal status disagree between Metadata and Storage for segment " + segmentName, sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.

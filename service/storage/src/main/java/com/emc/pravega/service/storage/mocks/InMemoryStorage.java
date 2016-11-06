@@ -29,7 +29,9 @@ import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.InvalidSegmentHandleException;
 import com.emc.pravega.service.storage.SegmentHandle;
 import com.emc.pravega.service.storage.Storage;
+import com.emc.pravega.service.storage.StorageSegmentInformation;
 import com.google.common.base.Preconditions;
+import lombok.val;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
@@ -153,18 +155,17 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(SegmentHandle segmentHandle, Duration timeout) {
-        verifyHandle(segmentHandle);
+    public CompletableFuture<StorageSegmentInformation> getStreamSegmentInfo(String segmentName, Duration timeout) {
+        val segmentHandle = createHandle(segmentName);
         return getStreamSegmentData(segmentHandle)
-                .thenCompose(StreamSegmentData::getInfo);
+                .thenApply(sd -> sd.getInfo(segmentHandle));
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(SegmentHandle segmentHandle, Duration timeout) {
-        verifyHandle(segmentHandle);
+    public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
         boolean exists;
         synchronized (this.lock) {
-            exists = this.streamSegments.containsKey(segmentHandle.getSegmentName());
+            exists = this.streamSegments.containsKey(segmentName);
         }
 
         return CompletableFuture.completedFuture(exists);
@@ -180,7 +181,7 @@ public class InMemoryStorage implements Storage {
                                                           .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
                                                           .thenCompose(v -> delete(sourceSegmentHandle, timeout));
         result.thenRunAsync(() -> {
-            fireOffsetTriggers(targetSegmentHandle.getSegmentName(), targetData.join().getInfo().join().getLength());
+            fireOffsetTriggers(targetSegmentHandle.getSegmentName(), targetData.join().getLength());
             fireSealTrigger(sourceSegmentHandle.getSegmentName());
         }, this.executor);
         return result;
@@ -260,7 +261,7 @@ public class InMemoryStorage implements Storage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we already exceed the trigger threshold.
-            getStreamSegmentInfo(createHandle(segmentName), timeout)
+            getStreamSegmentInfo(segmentName, timeout)
                     .thenAccept(sp -> {
                         // We already exceeded this offset.
                         if (sp.getLength() >= offset) {
@@ -294,7 +295,7 @@ public class InMemoryStorage implements Storage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we are already sealed.
-            getStreamSegmentInfo(createHandle(segmentName), timeout)
+            getStreamSegmentInfo(segmentName, timeout)
                     .thenAccept(sp -> {
                         if (sp.isSealed()) {
                             fireSealTrigger(segmentName);
@@ -449,9 +450,15 @@ public class InMemoryStorage implements Storage {
             }, this.executor);
         }
 
-        CompletableFuture<SegmentProperties> getInfo() {
+        StorageSegmentInformation getInfo(SegmentHandle handle) {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date()));
+                return new StorageSegmentInformation(handle, this.length, this.sealed, false, new Date());
+            }
+        }
+
+        private long getLength() {
+            synchronized (this.lock) {
+                return this.length;
             }
         }
 
