@@ -23,26 +23,11 @@ package com.emc.pravega.service.contracts;
  */
 public class StreamSegmentNotExistsException extends StreamSegmentException {
     /**
-     *
+     * 
      */
     private static final long serialVersionUID = 1L;
 
-    /**
-     * Creates a new instance of the StreamSegmentNotExistsException.
-     *
-     * @param streamSegmentName The name of the Segment which does not exist.
-     */
-    public StreamSegmentNotExistsException(String streamSegmentName) {
-        this(streamSegmentName, null);
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentNotExistsException.
-     *
-     * @param streamSegmentName The name of the Segment which does not exist.
-     * @param cause             Actual cause of the exception.
-     */
-    public StreamSegmentNotExistsException(String streamSegmentName, Throwable cause) {
-        super(streamSegmentName, "The StreamSegment does not exist.", cause);
+    public StreamSegmentNotExistsException(String streamName) {
+        super(streamName, "The StreamSegment does not exist.");
     }
 }

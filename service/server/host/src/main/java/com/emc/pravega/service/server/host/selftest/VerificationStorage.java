@@ -80,7 +80,7 @@ class VerificationStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> acquireLockForSegment(String streamSegmentName) {
+    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
         return this.baseStorage.acquireLockForSegment(streamSegmentName);
     }
 
