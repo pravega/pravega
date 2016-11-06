@@ -31,7 +31,7 @@ import java.io.OutputStream;
 /**
  * Allows segmenting a byte array and operating only on that segment.
  */
-public class ByteArraySegment {
+public class ByteArraySegment implements ArrayView {
     //region Members
 
     private final byte[] array;
@@ -88,6 +88,48 @@ public class ByteArraySegment {
 
     //endregion
 
+    //region ArrayView Implementation
+
+    @Override
+    public byte get(int index) {
+        Preconditions.checkElementIndex(index, this.length, "index");
+        return this.array[index + this.startOffset];
+    }
+
+    @Override
+    public void set(int index, byte value) {
+        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
+        Preconditions.checkElementIndex(index, this.length, "index");
+        this.array[index + this.startOffset] = value;
+    }
+
+    @Override
+    public void setSequence(int index, byte... values) {
+        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
+        Exceptions.checkArrayRange(index, values.length, this.length, "index", "values.length");
+
+        int baseOffset = index + this.startOffset;
+        System.arraycopy(values, 0, this.array, baseOffset, values.length);
+    }
+
+    @Override
+    public int getLength() {
+        return this.length;
+    }
+
+    @Override
+    public InputStream getReader() {
+        return new ByteArrayInputStream(this.array, this.startOffset, this.length);
+    }
+
+    @Override
+    public InputStream getReader(int offset, int length) {
+        Exceptions.checkArrayRange(offset, length, this.length, "offset", "length");
+        return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
+    }
+
+    //endregion
+
     //region Operations
 
     /**
@@ -97,47 +139,6 @@ public class ByteArraySegment {
      */
     public boolean isReadOnly() {
         return this.readOnly;
-    }
-
-    /**
-     * Gets the value of the ByteArraySegment at the specified index.
-     *
-     * @param index The index to query.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     */
-    public byte get(int index) {
-        Preconditions.checkElementIndex(index, this.length, "index");
-        return this.array[index + this.startOffset];
-    }
-
-    /**
-     * Sets the value of the ByteArraySegment at the specified index.
-     *
-     * @param index The index to set the value at.
-     * @param value The value to set.
-     * @throws IllegalStateException          If the ByteArraySegment is readonly.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid.
-     */
-    public void set(int index, byte value) {
-        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
-        Preconditions.checkElementIndex(index, this.length, "index");
-        this.array[index + this.startOffset] = value;
-    }
-
-    /**
-     * Sets the value(s) of the ByteArraySegment starting at the specified index.
-     *
-     * @param index  The index to start setting the values at.
-     * @param values The values to set. Position n inside this array will correspond to position 'index + n' inside the ByteArraySegment.
-     * @throws IllegalStateException          If the ByteArraySegment is readonly.
-     * @throws ArrayIndexOutOfBoundsException If index is invalid or the items to be added cannot fit.
-     */
-    public void setSequence(int index, byte... values) {
-        Preconditions.checkState(!this.readOnly, "Cannot modify a read-only ByteArraySegment.");
-        Exceptions.checkArrayRange(index, values.length, this.length, "index", "values.length");
-
-        int baseOffset = index + this.startOffset;
-        System.arraycopy(values, 0, this.array, baseOffset, values.length);
     }
 
     /**
@@ -173,6 +174,17 @@ public class ByteArraySegment {
     }
 
     /**
+     * Returns a copy of the contents of this ByteArraySegment.
+     *
+     * @return A byte array with the same length as this ByteArraySegment, containing a copy of the data within it.
+     */
+    public byte[] getCopy() {
+        byte[] buffer = new byte[this.length];
+        System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);
+        return buffer;
+    }
+
+    /**
      * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
      * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
      *
@@ -196,38 +208,6 @@ public class ByteArraySegment {
      */
     public int readFrom(InputStream stream) throws IOException {
         return StreamHelpers.readAll(stream, this.array, this.startOffset, this.length);
-    }
-
-    /**
-     * Gets a value representing the length of this ByteArraySegment.
-     *
-     * @return The length.
-     */
-    public int getLength() {
-        return this.length;
-    }
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ByteArraySegment. The InputStream returned
-     * is a ByteArrayInputStream that spans the entire ByteArraySegment.
-     *
-     * @return The InputStream.
-     */
-    public InputStream getReader() {
-        return new ByteArrayInputStream(this.array, this.startOffset, this.length);
-    }
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ByteArraySegment. The InputStream returned
-     * is a ByteArrayInputStream that spans the given section of the ByteArraySegment.
-     *
-     * @param offset The starting offset of the section to read.
-     * @param length The length of the section to read.
-     * @return The InputStream.
-     */
-    public InputStream getReader(int offset, int length) {
-        Exceptions.checkArrayRange(offset, length, this.length, "offset", "length");
-        return new ByteArrayInputStream(this.array, this.startOffset + offset, length);
     }
 
     /**

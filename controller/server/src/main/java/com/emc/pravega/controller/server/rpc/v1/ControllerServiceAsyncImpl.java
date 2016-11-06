@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Asynchronous controller service implementation
+ * Asynchronous controller service implementation.
  */
 @Slf4j
 public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface {
@@ -109,10 +109,9 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     public void isSegmentValid(final String scope,
                                final String stream,
                                final int segmentNumber,
-                               final String caller,
                                final AsyncMethodCallback resultHandler) throws TException {
         log.debug("isSegmentValid called for stream " + scope + "/" + stream + " segment " + segmentNumber);
-        processResult(controllerService.isSegmentValid(scope, stream, segmentNumber, caller), resultHandler);
+        processResult(controllerService.isSegmentValid(scope, stream, segmentNumber), resultHandler);
     }
 
     @Override

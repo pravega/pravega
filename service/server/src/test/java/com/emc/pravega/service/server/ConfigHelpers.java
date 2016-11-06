@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server;
 
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.logs.DurableLogConfig;
 import com.emc.pravega.service.server.reading.ReadIndexConfig;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;

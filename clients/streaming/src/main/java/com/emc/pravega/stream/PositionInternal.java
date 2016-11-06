@@ -17,10 +17,10 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.stream.impl.FutureSegment;
+
 import java.util.Map;
 import java.util.Set;
-
-import com.emc.pravega.stream.impl.FutureSegment;
 
 /**
  * A position has two components
@@ -28,49 +28,43 @@ import com.emc.pravega.stream.impl.FutureSegment;
  * point until which events have been read from that segment. Completely read segments have offset of -1.
  * 2. futureOwnedSegments -- segments that can be read after one of the currently read segment is completely read. Each
  * segment in this set has exactly one previous segment that belongs to the set ownedSegments.
- *
+ * <p>
  * Well-formed position object. A position is called well-formed iff the following hold.
  * 1. for each segment s in futureOwnedSegment, s.previous belongs to ownedSegments and s.previous.offset != -1
  * 2. for each segment s in ownedSegment, s.previous does not belongs to ownedSegments
  */
 public interface PositionInternal extends Position {
     /**
-     *
-     * @return the set of segments currently being read, i.e., ownedSegments set
+     * Gets the set of segments currently being read, i.e., ownedSegments set.
      */
     Set<Segment> getOwnedSegments();
 
     /**
      * Completely read segments have offset of -1.
+     *
      * @return the read offset for each segment in the ownedSegments set
      */
     Map<Segment, Long> getOwnedSegmentsWithOffsets();
 
     /**
-     *
-     * @return the set of completely read segments.
+     * Gets the set of completely read segments.
      */
     Set<Segment> getCompletedSegments();
 
     /**
+     * Gets the offset for a specified the segment.
      *
      * @param segmentId input segment
-     * @return offset for a specified segment
      */
     Long getOffsetForOwnedSegment(Segment segmentId);
 
     /**
-     *
-     * futureOwnedSegments are those that can be read after one of the currently read segment is completely read.
-     * Each segment in this set has exactly one previous segment that belongs to the set ownedSegments.
-     *
-     * @return the futureOwnedSegments set
+     * Gets the future owned segments for this position.
      */
     Set<FutureSegment> getFutureOwnedSegments();
-    
+
     /**
      * Returns all future owned segments associated with the offset they should be read from once their preceding segment is complete.
      */
     Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets();
-
 }

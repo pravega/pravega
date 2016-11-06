@@ -32,7 +32,8 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Zookeeper based task store
+ * Zookeeper based task store.
+ * todo: potentially merge this class with stream metadata store
  */
 @Slf4j
 class ZKTaskMetadataStore implements TaskMetadataStore {
@@ -47,8 +48,6 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         this.client = storeClient.getClient();
         this.client.start();
     }
-
-    // todo: potentially merge this class with stream metadata store
 
     @Override
     public CompletableFuture<Void> lock(final Resource resource,
@@ -259,41 +258,41 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         });
     }
 
-//    @Override
-//    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
-//        Preconditions.checkNotNull(parent);
-//        Preconditions.checkNotNull(children);
-//
-//        return CompletableFuture.supplyAsync(() -> {
-//            try {
-//
-//                for (TaggedResource child : children) {
-//                    client.delete()
-//                            .forPath(getHostPath(parent, child));
-//                }
-//
-//                if (deleteEmptyParent) {
-//                    // if there are no children for the parent, remove parent znode
-//                    Stat stat = new Stat();
-//                    client.getData()
-//                            .storingStatIn(stat)
-//                            .forPath(getHostPath(parent));
-//
-//                    if (stat.getNumChildren() == 0) {
-//                        client.delete()
-//                                .withVersion(stat.getVersion())
-//                                .forPath(getHostPath(parent));
-//                    }
-//                }
-//                return null;
-//            } catch (KeeperException.NoNodeException e) {
-//                log.debug("Node does not exist.", e);
-//                return null;
-//            } catch (Exception e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-//    }
+    //    @Override
+    //    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
+    //        Preconditions.checkNotNull(parent);
+    //        Preconditions.checkNotNull(children);
+    //
+    //        return CompletableFuture.supplyAsync(() -> {
+    //            try {
+    //
+    //                for (TaggedResource child : children) {
+    //                    client.delete()
+    //                            .forPath(getHostPath(parent, child));
+    //                }
+    //
+    //                if (deleteEmptyParent) {
+    //                    // if there are no children for the parent, remove parent znode
+    //                    Stat stat = new Stat();
+    //                    client.getData()
+    //                            .storingStatIn(stat)
+    //                            .forPath(getHostPath(parent));
+    //
+    //                    if (stat.getNumChildren() == 0) {
+    //                        client.delete()
+    //                                .withVersion(stat.getVersion())
+    //                                .forPath(getHostPath(parent));
+    //                    }
+    //                }
+    //                return null;
+    //            } catch (KeeperException.NoNodeException e) {
+    //                log.debug("Node does not exist.", e);
+    //                return null;
+    //            } catch (Exception e) {
+    //                throw new RuntimeException(e);
+    //            }
+    //        });
+    //    }
 
     @Override
     public CompletableFuture<Void> removeNode(final String parent) {
@@ -317,26 +316,26 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         });
     }
 
-//    @Override
-//    public CompletableFuture<List<TaggedResource>> getChildren(String parent) {
-//        Preconditions.checkNotNull(parent);
-//
-//        return CompletableFuture.supplyAsync(() -> {
-//            try {
-//
-//                return client.getChildren().forPath(getHostPath(parent))
-//                        .stream()
-//                        .map(this::getTaggedResource)
-//                        .collect(Collectors.toList());
-//
-//            } catch (KeeperException.NoNodeException e) {
-//                log.debug("Node does not exist.", e);
-//                return Collections.emptyList();
-//            } catch (Exception e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-//    }
+    //    @Override
+    //    public CompletableFuture<List<TaggedResource>> getChildren(String parent) {
+    //        Preconditions.checkNotNull(parent);
+    //
+    //        return CompletableFuture.supplyAsync(() -> {
+    //            try {
+    //
+    //                return client.getChildren().forPath(getHostPath(parent))
+    //                        .stream()
+    //                        .map(this::getTaggedResource)
+    //                        .collect(Collectors.toList());
+    //
+    //            } catch (KeeperException.NoNodeException e) {
+    //                log.debug("Node does not exist.", e);
+    //                return Collections.emptyList();
+    //            } catch (Exception e) {
+    //                throw new RuntimeException(e);
+    //            }
+    //        });
+    //    }
 
     @Override
     public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {

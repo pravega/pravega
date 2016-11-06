@@ -20,15 +20,22 @@ package com.emc.pravega.service.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
+import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
-import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
+import com.emc.pravega.service.server.store.ServiceConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
+import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.concurrent.CompletionException;
 
 /**
  * Starts the Pravega Service.
@@ -42,8 +49,26 @@ public final class ServiceStarter {
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
-        this.serviceBuilder = new DistributedLogServiceBuilder(this.serviceConfig);
-//        this.serviceBuilder = new InMemoryServiceBuilder(this.serviceConfig);
+        Options opt = new Options();
+        opt.distributedLog = false;
+        opt.hdfs = false;
+        opt.rocksDb = true;
+        this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
+    }
+
+    private ServiceBuilder createServiceBuilder(ServiceBuilderConfig config, Options options) {
+        ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(config);
+        if (options.distributedLog) {
+            attachDistributedLog(builder);
+        }
+        if (options.rocksDb) {
+            attachRocksDB(builder);
+        }
+        if (options.hdfs) {
+            attachHDFS(builder);
+        }
+
+        return builder;
     }
 
     private void start() {
@@ -53,12 +78,12 @@ public final class ServiceStarter {
         context.getLoggerList().get(0).setLevel(Level.INFO);
 
         System.out.println("Initializing Container Manager ...");
-        this.serviceBuilder.getContainerManager().initialize(INITIALIZE_TIMEOUT).join();
+        this.serviceBuilder.initialize(INITIALIZE_TIMEOUT).join();
 
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getServiceConfig().getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
@@ -96,5 +121,48 @@ public final class ServiceStarter {
         } finally {
             serviceStarter.shutdown();
         }
+    }
+
+    /**
+     * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
+     */
+    static void attachDistributedLog(ServiceBuilder builder) {
+        builder.withDataLogFactory(setup -> {
+            try {
+                DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    static void attachRocksDB(ServiceBuilder builder) {
+        builder.withCacheFactory(setup -> {
+            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
+            factory.initialize(true); // Always clear/reset the cache at startup.
+            return factory;
+        });
+    }
+
+    private static class Options {
+        boolean distributedLog;
+        boolean hdfs;
+        boolean rocksDb;
+    }
+
+    static ServiceBuilder attachHDFS(ServiceBuilder builder) {
+        return builder.withStorageFactory(setup -> {
+            try {
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
     }
 }

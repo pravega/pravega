@@ -150,7 +150,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createHistoryTable(final Create create) {
-        final int numSegments = create.getConfiguration().getScalingingPolicy().getMinNumSegments();
+        final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
         final byte[] historyTable = TableHelper.updateHistoryTable(new byte[0],
                 create.getEventTime(),
                 IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
@@ -166,7 +166,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createSegmentFile(final Create create) {
-        final int numSegments = create.getConfiguration().getScalingingPolicy().getMinNumSegments();
+        final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
         final int chunkFileName = 0;
         final double keyRangeChunk = 1.0 / numSegments;
 
@@ -229,7 +229,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(x -> {
                     if (x) {
                         return deletePath(activePath, true);
-                    } else return CompletableFuture.completedFuture(null);
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
                 });
     }
 
@@ -360,7 +362,9 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
-                    } else throw new DataNotFoundException(path);
+                    } else {
+                        throw new DataNotFoundException(path);
+                    }
                 });
     }
 
@@ -406,9 +410,10 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         } catch (Exception e) {
                             throw new RuntimeException(e);
                         }
-                    } else throw new RuntimeException(String.format("path %s not Found", path));
-                })
-                        // load into cache after writing the data
+                    } else {
+                        throw new RuntimeException(String.format("path %s not Found", path));
+                    }
+                }) // load into cache after writing the data
                 .thenApply(x -> null);
     }
 

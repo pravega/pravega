@@ -231,7 +231,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber, String caller) {
+    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
         return CompletableFuture.completedFuture(true);
     }
 

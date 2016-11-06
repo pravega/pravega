@@ -23,7 +23,7 @@ import org.apache.commons.lang.SerializationUtils;
 import java.io.Serializable;
 
 /**
- * Task data: task name and its parameters
+ * Task data: task name and its parameters.
  */
 @Data
 public class TaskData implements Serializable {

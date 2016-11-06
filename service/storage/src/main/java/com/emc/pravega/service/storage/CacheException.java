@@ -16,30 +16,30 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.server.core;
+package com.emc.pravega.service.storage;
 
-import java.util.Random;
+import com.emc.pravega.service.contracts.RuntimeStreamingException;
 
 /**
- * Generates Magic Numbers, which can be used for sequencing elements.
+ * Exception that is thrown whenever a Cache operation could not be completed.
  */
-public class MagicGenerator {
+public class CacheException extends RuntimeStreamingException {
     /**
-     * Default value for a Magic Number. This indicates no Magic Number has been assigned.
+     * Creates a new instance of the CacheException class.
+     *
+     * @param message The message to use.
      */
-    public static final int NO_MAGIC = Integer.MIN_VALUE;
-    private static final Random GENERATOR = new Random();
+    public CacheException(String message) {
+        super(message);
+    }
 
     /**
-     * Generates a new number that is different from NO_MAGIC.
+     * Creates a new instance of the CacheException class.
      *
-     * @return The newly generated number.
+     * @param message The message to use.
+     * @param cause   The causing exception.
      */
-    public static int newMagic() {
-        int value;
-        do {
-            value = GENERATOR.nextInt();
-        } while (value == NO_MAGIC);
-        return value;
+    public CacheException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

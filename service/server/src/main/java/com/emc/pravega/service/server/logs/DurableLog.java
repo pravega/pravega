@@ -67,7 +67,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     private final LogItemFactory<Operation> operationFactory;
     private final MemoryOperationLog inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
-    private final MemoryLogUpdater memoryLogUpdater;
+    private final MemoryStateUpdater memoryStateUpdater;
     private final OperationProcessor operationProcessor;
     private final UpdateableContainerMetadata metadata;
     private final Set<TailRead> tailReads;
@@ -86,6 +86,7 @@ public class DurableLog extends AbstractService implements OperationLog {
      * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
      * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
+     * @param executor            The Executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
     public DurableLog(DurableLogConfig config, UpdateableContainerMetadata metadata, DurableDataLogFactory dataFrameLogFactory, CacheUpdater cacheUpdater, ScheduledExecutorService executor) {
@@ -104,9 +105,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.executor = executor;
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = new MemoryOperationLog();
-        this.memoryLogUpdater = new MemoryLogUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
+        this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, cacheUpdater, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
-        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryLogUpdater, this.durableDataLog, checkpointPolicy);
+        this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
@@ -124,6 +125,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             this.operationProcessor.close();
             this.durableDataLog.close();
+            log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
     }
@@ -135,6 +137,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStart() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStart");
+        log.info("{}: Starting.", this.traceObjectId);
 
         this.executor.execute(() -> {
             try {
@@ -155,6 +158,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             }
 
             // If we got here, all is good. We were able to start successfully.
+            log.info("{}: Started.", this.traceObjectId);
             notifyStarted();
             LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
         });
@@ -163,6 +167,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "doStop");
+        log.info("{}: Stopping.", this.traceObjectId);
         this.operationProcessor.stopAsync();
 
         this.executor.execute(() -> {
@@ -183,6 +188,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                 notifyFailed(cause);
             }
 
+            log.info("{}: Stopped.", this.traceObjectId);
             LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
         });
     }
@@ -291,7 +297,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.metadata.reset();
 
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
-        this.memoryLogUpdater.enterRecoveryMode(metadataUpdater);
+        this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
 
         boolean successfulRecovery = false;
         boolean anyItemsRecovered;
@@ -306,7 +312,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         } finally {
             // We must exit recovery mode when done, regardless of outcome.
             this.metadata.exitRecoveryMode();
-            this.memoryLogUpdater.exitRecoveryMode(successfulRecovery);
+            this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
@@ -378,7 +384,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Update the metadata with the information from the Operation.
         try {
-            //TODO: should we also check that StreamSegments still exist in Storage, and that their lengths are what we think they are? Or we leave that to the StorageWriter?
             log.debug("{} Recovering {}.", this.traceObjectId, operation);
             metadataUpdater.preProcessOperation(operation);
             metadataUpdater.acceptOperation(operation);
@@ -387,8 +392,8 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s", operation), ex);
         }
 
-        // Add to InMemory Operation Log.
-        this.memoryLogUpdater.process(operation);
+        // Update in-memory structures.
+        this.memoryStateUpdater.process(operation);
     }
 
     private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {

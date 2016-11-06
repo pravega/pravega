@@ -22,7 +22,7 @@ import com.emc.pravega.controller.store.ZKStoreClient;
 import org.apache.commons.lang.NotImplementedException;
 
 /**
- * Task store factory
+ * Task store factory.
  */
 public class TaskStoreFactory {
 

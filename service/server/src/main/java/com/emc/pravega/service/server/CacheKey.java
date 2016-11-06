@@ -18,6 +18,7 @@
 
 package com.emc.pravega.service.server;
 
+import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.common.util.BitConverter;
 import com.emc.pravega.service.storage.Cache;
 import com.google.common.base.Preconditions;
@@ -26,32 +27,45 @@ import com.google.common.base.Preconditions;
  * ReadIndex-specific implementation of Cache.Key.
  */
 public class CacheKey extends Cache.Key {
+    //region Members
+
+    private static final HashHelper HASH = HashHelper.seededWith(CacheKey.class.getName());
     private static final int SERIALIZATION_LENGTH = Long.BYTES + Long.BYTES;
     private final long streamSegmentId;
     private final long offset;
-    private final int hash;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the CacheKey class.
+     *
+     * @param streamSegmentId The StreamSegmentId that the key refers to.
+     * @param offset          The Offset within the StreamSegment that the key refers to.
+     */
     public CacheKey(long streamSegmentId, long offset) {
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(offset >= 0, "offset");
 
         this.streamSegmentId = streamSegmentId;
         this.offset = offset;
-        this.hash = calculateHash();
     }
 
+    /**
+     * Creates a new instance of the CacheKey class from the given serialization.
+     *
+     * @param serialization The serialization of the key.
+     */
     CacheKey(byte[] serialization) {
         Preconditions.checkNotNull(serialization, "serialization");
         Preconditions.checkArgument(serialization.length == SERIALIZATION_LENGTH, "Invalid serialization length.");
 
         this.streamSegmentId = BitConverter.readLong(serialization, 0);
         this.offset = BitConverter.readLong(serialization, Long.BYTES);
-        this.hash = calculateHash();
     }
 
-    private int calculateHash() {
-        return Long.hashCode(this.streamSegmentId) * 31 + Long.hashCode(this.offset);
-    }
+    //endregion
 
     //region Cache.Key Implementation
 
@@ -65,7 +79,7 @@ public class CacheKey extends Cache.Key {
 
     @Override
     public int hashCode() {
-        return this.hash;
+        return HASH.hash(this.offset);
     }
 
     @Override
@@ -100,6 +114,10 @@ public class CacheKey extends Cache.Key {
     @Override
     public String toString() {
         return String.format("SegmentId = %d, Offset = %d", this.streamSegmentId, this.offset);
+    }
+
+    private int calculateHash() {
+        return Long.hashCode(this.streamSegmentId) * 31 + Long.hashCode(this.offset);
     }
 
     //endregion

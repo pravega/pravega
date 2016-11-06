@@ -65,7 +65,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Task test cases
+ * Task test cases.
  */
 @Slf4j
 public class TaskTest {
@@ -185,10 +185,10 @@ public class TaskTest {
         StreamConfiguration config = streamStore.getConfiguration(stream).get();
         assertTrue(config.getName().equals(configuration.getName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
-        assertTrue(config.getScalingingPolicy().equals(configuration.getScalingingPolicy()));
+        assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
-//    @Test
+    @Test
     public void parallelTaskSweeperTest() throws InterruptedException, ExecutionException {
         final String deadHost = "deadHost";
         final String deadThreadId1 = UUID.randomUUID().toString();
@@ -255,7 +255,7 @@ public class TaskTest {
 
     }
 
-//    @Test
+    @Test
     public void testLocking() {
 
         TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);

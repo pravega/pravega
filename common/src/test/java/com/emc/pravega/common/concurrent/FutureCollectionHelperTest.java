@@ -32,14 +32,14 @@ import java.util.stream.Collectors;
 import static com.emc.pravega.common.concurrent.FutureCollectionHelper.*;
 
 /**
- * Test methods for FutureCollectionHelpers
+ * Test methods for FutureCollectionHelpers.
  */
 public class FutureCollectionHelperTest {
 
     /**
-     * Test method for FutureCollectionHelpers.filter
-     * @throws InterruptedException
-     * @throws ExecutionException
+     * Test method for FutureCollectionHelpers.filter.
+     * @throws InterruptedException when future is interrupted
+     * @throws ExecutionException when future is interrupted
      */
     @Test
     public void testFilter() throws ExecutionException, InterruptedException {
@@ -56,7 +56,7 @@ public class FutureCollectionHelperTest {
     }
 
     /**
-     * Test method for FutureCollectionHelpers.filter when the FuturePredicate completes exceptionally in future
+     * Test method for FutureCollectionHelpers.filter when the FuturePredicate completes exceptionally in future.
      */
     @Test(expected = CompletionException.class)
     public void testFilterException() {
@@ -74,9 +74,9 @@ public class FutureCollectionHelperTest {
     }
 
     /**
-     * Test method for FutureCollectionHelpers.sequence
-     * @throws ExecutionException
-     * @throws InterruptedException
+     * Test method for FutureCollectionHelpers.sequence.
+     * @throws ExecutionException when future is interrupted
+     * @throws InterruptedException when future is interrupted
      */
     @Test
     public void testSequence() throws ExecutionException, InterruptedException {
@@ -99,7 +99,7 @@ public class FutureCollectionHelperTest {
     }
 
     /**
-     * Test method for FutureCollectionHelpers.sequence when some elements in original list complete exceptionally in future
+     * Test method for FutureCollectionHelpers.sequence when some elements in original list complete exceptionally in future.
      */
     @Test(expected = CompletionException.class)
     public void testSequenceException() {

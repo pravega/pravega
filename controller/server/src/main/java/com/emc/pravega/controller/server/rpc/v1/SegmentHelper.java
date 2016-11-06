@@ -18,14 +18,6 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
-import java.net.UnknownHostException;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.commons.lang.NotImplementedException;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.common.netty.ClientConnection;
@@ -34,11 +26,18 @@ import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.util.Retry;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
+import com.emc.pravega.stream.impl.model.ModelHelper;
+import org.apache.commons.lang.NotImplementedException;
+
+import java.net.UnknownHostException;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class SegmentHelper {
 
@@ -50,7 +49,7 @@ public class SegmentHelper {
         final Host host = hostStore.getHostForContainer(container);
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
-    
+
     public static boolean createSegment(final String scope,
                                         final String stream,
                                         final int segmentNumber,
@@ -92,9 +91,12 @@ public class SegmentHelper {
     /**
      * This method sends segment sealed message for the specified segment.
      * It owns up the responsibility of retrying the operation on failures until success.
-     * @param scope stream scope
-     * @param stream stream name
+     *
+     * @param scope         stream scope
+     * @param stream        stream name
      * @param segmentNumber number of segment to be sealed
+     * @param hostControllerStore host controller store
+     * @param clientCF connection factory
      * @return void
      */
     public static Boolean sealSegment(final String scope,

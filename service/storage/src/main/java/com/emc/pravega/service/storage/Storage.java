@@ -35,9 +35,19 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
      * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
-     * failure.
+     * failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
+     * </ul>
      */
     CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
+
+    /**
+     * Acquires distributed lock for a StreamSegment.
+     * @param streamSegmentName Name of the StreamSegment to be acquired.
+     * @return true if the lock is acquired, false if not
+     */
+    CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName);
 
     /**
      * Writes the given data to the StreamSegment.
@@ -51,6 +61,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the segment in storage.
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * </ul>
      */
     CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout);
@@ -65,6 +76,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentSealedException: When the segment is already sealed in Storage.
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * </ul>
      */
     CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout);
@@ -85,6 +97,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
+     * <li> StreamSegmentNotExistsException: When the either the source Segment or the target Segment do not exist in Storage.
      * </ul>
      */
     CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout);
@@ -95,7 +108,10 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
-     * it will contain the cause of the failure.
+     * it will contain the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * </ul>
      */
     CompletableFuture<Void> delete(String streamSegmentName, Duration timeout);
 

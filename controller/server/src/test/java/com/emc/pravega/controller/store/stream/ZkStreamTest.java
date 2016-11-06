@@ -155,7 +155,7 @@ public class ZkStreamTest {
     }
 
     @Ignore("run manually")
-//    @Test
+    //    @Test
     public void TestZkStreamChukning() throws Exception {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
@@ -173,7 +173,6 @@ public class ZkStreamTest {
         long start = initial.get(0).getStart();
 
         assertEquals(store.getConfiguration(streamName).get(), streamConfig);
-
 
         IntStream.range(0, SegmentRecord.SEGMENT_CHUNK_SIZE + 2).forEach(x -> {
             List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Arrays.asList(
@@ -239,14 +238,18 @@ public class ZkStreamTest {
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
-                    } else throw new RuntimeException("assert failed");
+                    } else {
+                        throw new RuntimeException("assert failed");
+                    }
                 }).get();
 
         assert store.dropTransaction(streamName, streamName, UUID.randomUUID())
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof TransactionNotFoundException) {
                         return true;
-                    } else throw new RuntimeException("assert failed");
+                    } else {
+                        throw new RuntimeException("assert failed");
+                    }
                 }).get();
 
         assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxStatus.UNKNOWN);

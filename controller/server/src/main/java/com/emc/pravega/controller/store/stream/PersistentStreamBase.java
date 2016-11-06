@@ -86,7 +86,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * Update configuration in zk at configurationPath
+     * Update configuration in zk at configurationPath.
      *
      * @param configuration new stream configuration.
      * @return : future of boolean
@@ -98,7 +98,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * Fetch configuration from zk at configurationPath
+     * Fetch configuration from zk at configurationPath.
      *
      * @return : future of stream configuration
      */
@@ -121,7 +121,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     /**
      * Given segment number, find its successor candidates and then compute overlaps with its keyrange
-     * to find successors
+     * to find successors.
      *
      * @param number segment number.
      * @return : future of list of successor segment numbers
@@ -156,7 +156,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * Find predecessor candidates and find overlaps with given segment's key range
+     * Find predecessor candidates and find overlaps with given segment's key range.
      *
      * @param number segment number.
      * @return : future of list of predecessor segment numbers
@@ -194,7 +194,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * if timestamp is < create time of stream, we will return empty list
+     * if timestamp is < create time of stream, we will return empty list.
      * 1. perform binary searchIndex on index table to find timestamp
      * 2. fetch the record from history table for the pointer in index.
      * Note: index may be stale so we may need to fall through
@@ -291,8 +291,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         return CompletedTxRecord.parse(ok.getData()).getCompletionStatus();
                                     }
                                 });
-                    } else
+                    } else {
                         return CompletableFuture.completedFuture(x);
+                    }
                 });
     }
 
@@ -333,9 +334,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     }
                 })
                 .thenCompose(x -> {
-                    if (x.equals(TxStatus.SEALED))
+                    if (x.equals(TxStatus.SEALED)) {
                         return createCompletedTxEntry(txId, TxStatus.COMMITTED, System.currentTimeMillis());
-                    else return CompletableFuture.completedFuture(null); // already committed, do nothing
+                    } else {
+                        return CompletableFuture.completedFuture(null); // already committed, do nothing
+                    }
                 })
                 .thenCompose(x -> removeActiveTxEntry(txId))
                 .thenApply(x -> TxStatus.COMMITTED);
@@ -373,8 +376,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * @param scale
-     * @param currentSegmentData
+     * Add new segments, return the starting segment number.
+     *
+     * @param scale              scale
+     * @param currentSegmentData current segment data
      * @return : return starting segment number
      */
     private CompletableFuture<Integer> addNewSegments(
@@ -490,8 +495,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(indexTable -> {
                     final Optional<IndexRecord> lastRecord = IndexRecord.readLatestRecord(indexTable.getData());
                     // check idempotent
-                    if (lastRecord.isPresent() && lastRecord.get().getEventTime() >= scale.getScaleTimestamp())
+                    if (lastRecord.isPresent() && lastRecord.get().getEventTime() >= scale.getScaleTimestamp()) {
                         return CompletableFuture.completedFuture(null);
+                    }
 
                     final byte[] updatedTable = TableHelper.updateIndexTable(indexTable.getData(),
                             scale.getScaleTimestamp(),

@@ -19,7 +19,6 @@ package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.SegmentFutures;
-import com.emc.pravega.controller.store.stream.SegmentNotFoundException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.FutureSegment;
@@ -52,7 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
- * Stream controller RPC server implementation
+ * Stream controller RPC server implementation.
  */
 public class ControllerServiceImpl {
 
@@ -131,23 +130,18 @@ public class ControllerServiceImpl {
         );
     }
 
-    public CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber, final String caller) throws TException {
-        return streamStore.getSegment(stream, segmentNumber)
-                .handle((ok, ex) -> {
-                    if (ex != null) {
-                        if (ex instanceof SegmentNotFoundException)
-                            return false;
-                        else throw new RuntimeException(ex);
-                    } else
-                        return SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore).getEndpoint().equals(caller);
-                });
-    }
-
     private SegmentRange convert(final String scope,
                                  final String stream,
                                  final com.emc.pravega.controller.store.stream.Segment segment) {
         return new SegmentRange(
                 new SegmentId(scope, stream, segment.getNumber()), segment.getKeyStart(), segment.getKeyEnd());
+    }
+
+    public CompletableFuture<Boolean> isSegmentValid(final String scope,
+                                                     final String stream,
+                                                     final int segmentNumber) throws TException {
+        return streamStore.getActiveSegments(stream)
+                .thenApply(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber));
     }
 
     /**
@@ -273,7 +267,9 @@ public class ControllerServiceImpl {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TransactionStatus.FAILURE;
-                    } else return TransactionStatus.SUCCESS;
+                    } else {
+                        return TransactionStatus.SUCCESS;
+                    }
                 });
     }
 
@@ -283,7 +279,9 @@ public class ControllerServiceImpl {
                     if (ex != null) {
                         // TODO: return appropriate failures to user
                         return TransactionStatus.FAILURE;
-                    } else return TransactionStatus.SUCCESS;
+                    } else {
+                        return TransactionStatus.SUCCESS;
+                    }
                 });
     }
 

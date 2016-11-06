@@ -53,8 +53,9 @@ public abstract class ComponentConfig {
      *
      * @param properties    The java.util.Properties object to read Properties from.
      * @param componentCode The configuration code for the component.
-     * @throws MissingPropertyException Whenever a required Property is missing from the given properties collection.
-     * @throws NumberFormatException    Whenever a Property has a value that is invalid for it.
+     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
+     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
@@ -244,6 +245,7 @@ public abstract class ComponentConfig {
 
     /**
      * Refreshes the configuration based on the latest Property values.
+     * @throws ConfigurationException When a configuration issue has been detected.
      */
     protected abstract void refresh() throws ConfigurationException;
 

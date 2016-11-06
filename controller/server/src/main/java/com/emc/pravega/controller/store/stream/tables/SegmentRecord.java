@@ -26,7 +26,7 @@ import java.util.Optional;
 
 @Data
 /**
- * Class represents one row/record in SegmentTable
+ * Class represents one row/record in SegmentTable.
  * Segment table is chunked into multiple files, each containing #SEGMENT_CHUNK_SIZE records.
  * New segment chunk-name is highest-chunk-name + 1
  * Row: [segment-number, segment-creation-time, routing-key-floor-inclusive, routing-key-ceiling-exclusive]
@@ -43,7 +43,9 @@ public class SegmentRecord {
     public static Optional<SegmentRecord> readRecord(final byte[] segmentTable, final int number) {
         int offset = (number % SegmentRecord.SEGMENT_CHUNK_SIZE) * SegmentRecord.SEGMENT_RECORD_SIZE;
 
-        if (offset >= segmentTable.length) return Optional.empty();
+        if (offset >= segmentTable.length) {
+            return Optional.empty();
+        }
         return Optional.of(parse(ArrayUtils.subarray(segmentTable, offset, offset + SEGMENT_RECORD_SIZE)));
     }
 
