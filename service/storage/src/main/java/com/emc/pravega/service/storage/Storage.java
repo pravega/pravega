@@ -47,7 +47,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @param streamSegmentName Name of the StreamSegment to be acquired.
      * @return true if the lock is acquired, false if not
      */
-    CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName);
+    CompletableFuture<Boolean> open(String streamSegmentName);
 
     /**
      * Writes the given data to the StreamSegment.

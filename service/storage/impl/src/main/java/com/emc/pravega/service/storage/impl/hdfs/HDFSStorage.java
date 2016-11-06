@@ -39,7 +39,7 @@ import java.util.concurrent.Executor;
  * Owner_host_id is optional and means that the segment is owned by the Pravega host of the given id.
  * <p>
  * When ever ownership change happens, the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
- * This is done by the acquireLockForSegment call.
+ * This is done by the open call.
  *
  * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
@@ -100,7 +100,7 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
+    public CompletableFuture<Boolean> open(String streamSegmentName) {
         return FutureHelpers.runAsyncTranslateException(() -> acquireLockForSegmentSync(streamSegmentName),
                 e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
                 executor);

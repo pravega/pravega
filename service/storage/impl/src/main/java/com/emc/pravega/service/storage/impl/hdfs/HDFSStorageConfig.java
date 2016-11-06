@@ -26,10 +26,10 @@ public class HDFSStorageConfig extends ComponentConfig {
 
     public static final String COMPONENT_CODE = "hdfs";
     private static final String PROPERTY_HDFSURL = "fs.default.name";
-    private static final String PROPERTY_HDFSROOT = "hdfsroot";
-    private static final String PROPERTY_PRAVEGAID = "pravegaid";
+    private static final String PROPERTY_HDFSROOT = "hdfsRoot";
+    private static final String PROPERTY_PRAVEGAID = "pravegaId";
     private static final String PROPERTY_REPLICATION = "replication";
-    private static final String PROPERTY_BLOCKSIZE = "blocksize";
+    private static final String PROPERTY_BLOCKSIZE = "blockSize";
     private String hdfsHostURL;
     private String hdfsRoot;
     private int pravegaID;
