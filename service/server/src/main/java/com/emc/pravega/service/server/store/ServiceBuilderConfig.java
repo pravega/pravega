@@ -66,7 +66,7 @@ public class ServiceBuilderConfig {
     //region Default Configuration
 
     /**
-     * Gets a set of configuration values from default config file.
+     * Gets a set of configuration values from the default config file.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
         FileReader reader = null;
