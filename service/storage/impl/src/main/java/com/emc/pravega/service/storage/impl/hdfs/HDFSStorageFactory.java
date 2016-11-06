@@ -67,8 +67,7 @@ public class HDFSStorageFactory implements StorageFactory {
     @Override
     public Storage getStorageAdapter() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        //return storage;
-        return null;
+        return storage;
     }
 
     @Override
@@ -84,6 +83,6 @@ public class HDFSStorageFactory implements StorageFactory {
      * @throws IOException If the initialization failed.
      */
     public void initialize() throws IOException {
-        //this.storage.initialize();
+        this.storage.initialize();
     }
 }

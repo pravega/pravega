@@ -69,7 +69,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
 @Slf4j
-public class HDFSStorage implements Storage {
+class HDFSStorage implements Storage {
     //region Members
 
     private static final FsPermission NORMAL_PERMISSION = new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE);
@@ -89,7 +89,7 @@ public class HDFSStorage implements Storage {
      * @param serviceBuilderConfig The configuration to use.
      * @param executor             The Executor to use.
      */
-    public HDFSStorage(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
+    HDFSStorage(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
         Preconditions.checkNotNull(serviceBuilderConfig, "serviceBuilderConfig");
         Preconditions.checkNotNull(executor, "executor");
         this.serviceBuilderConfig = serviceBuilderConfig;
@@ -342,6 +342,7 @@ public class HDFSStorage implements Storage {
     }
 
     private HDFSSegmentHandle getHandle(SegmentHandle handle) {
+        // TODO: generalize this as a checked cast in the 'common' package.
         Preconditions.checkNotNull(handle, "handle");
         if (!(handle instanceof HDFSSegmentHandle)) {
             throw new InvalidSegmentHandleException(handle);

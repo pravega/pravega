@@ -55,7 +55,6 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the segment in storage.
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for this Segment is no longer owned by this instance.
      * </ul>
      */
     CompletableFuture<Void> write(SegmentHandle segmentHandle, long offset, InputStream data, int length, Duration timeout);
@@ -71,7 +70,6 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <ul>
      * <li> StreamSegmentSealedException: When the segment is already sealed in Storage.
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for this Segment is no longer owned by this instance.
      * </ul>
      */
     CompletableFuture<SegmentProperties> seal(SegmentHandle segmentHandle, Duration timeout);
@@ -93,7 +91,6 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <ul>
      * <li> BadOffsetException: When the given offset does not match the actual length of the target segment in storage.
      * <li> StreamSegmentNotExistsException: When the either the source Segment or the target Segment do not exist in Storage.
-     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for either the source or target Segment is no longer owned by this instance.
      * </ul>
      */
     CompletableFuture<Void> concat(SegmentHandle targetSegmentHandle, long offset, SegmentHandle sourceSegmentHandle, Duration timeout);
@@ -107,7 +104,6 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * <li> TODO: StorageWriterNotPrimaryException: Exclusive lock for this Segment is no longer owned by this instance.
      * </ul>
      */
     CompletableFuture<Void> delete(SegmentHandle segmentHandle, Duration timeout);
