@@ -39,23 +39,25 @@ public class HDFSExceptionHelpers {
      * @return
      */
     public static Exception translateFromIOException(String streamSegmentName, Exception e) {
+        Exception retVal = e;
+
         if (e instanceof RemoteException) {
-            e = ((RemoteException) e).unwrapRemoteException();
+            retVal = e = ((RemoteException) e).unwrapRemoteException();
         }
 
         if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
-            return new StreamSegmentNotExistsException(streamSegmentName);
+            retVal = new StreamSegmentNotExistsException(streamSegmentName);
         }
 
         if (e instanceof FileAlreadyExistsException) {
-            return new StreamSegmentExistsException(streamSegmentName);
+            retVal = new StreamSegmentExistsException(streamSegmentName);
         }
 
         if (e instanceof AclException) {
-            return new StreamSegmentSealedException(streamSegmentName);
+            retVal = new StreamSegmentSealedException(streamSegmentName);
         }
 
-        return e;
+        return retVal;
 
     }
 }
