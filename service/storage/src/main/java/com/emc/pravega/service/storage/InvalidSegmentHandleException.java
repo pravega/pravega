@@ -16,21 +16,18 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.storage.mocks;
-
-import com.emc.pravega.service.storage.SegmentHandle;
-import lombok.Data;
+package com.emc.pravega.service.storage;
 
 /**
- * A handle that is used by InMemoryStorage.
+ * Exception that is thrown whenever an invalid handle is detected.
  */
-@Data
-class InMemorySegmentHandle implements SegmentHandle {
-    private final String segmentName;
-    private final int instanceId;
-
-    @Override
-    public String toString() {
-        return this.segmentName;
+public class InvalidSegmentHandleException extends IllegalArgumentException {
+    /**
+     * Creates a new instance of the InvalidSegmentHandleException class.
+     *
+     * @param handle The handle that is invalid.
+     */
+    public InvalidSegmentHandleException(SegmentHandle handle) {
+        super(String.format("Invalid handle: %s.", handle));
     }
 }
