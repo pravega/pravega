@@ -44,9 +44,6 @@ allprojects {
         maven {
             url "http://maven.twttr.com"
         }
- 	    maven {
-            url "http://10.63.13.122:8080/repository/internal/"
-        }
 
     }
 
