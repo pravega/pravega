@@ -23,6 +23,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.util.Config;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
@@ -72,6 +73,9 @@ public class SegmentMonitorLeader implements LeaderSelectorListener {
      * @param hostStore     The store for reading and writing the host to container mapping.
      */
     public SegmentMonitorLeader(String clusterName, HostControllerStore hostStore) {
+        Preconditions.checkNotNull(clusterName, "clusterName");
+        Preconditions.checkNotNull(hostStore, "hostStore");
+
         this.clusterName = clusterName;
         this.hostStore = hostStore;
         segBalancer = new UniformContainerBalancer();
