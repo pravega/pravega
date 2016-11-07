@@ -33,7 +33,6 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.utils.ZKPaths;
@@ -71,6 +70,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
+    private final String clusterName;
 
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
@@ -98,6 +98,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.handles = new HashMap<>();
 
         this.client = zkClient;
+        this.clusterName = clusterName;
         segContainerHostMapping = new NodeCache(zkClient, ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping"));
         segContainerHostMapping.start(true);
 
@@ -106,17 +107,22 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
+
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
+        try {
 
-        List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
-        CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
-                .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+            List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
+            CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
+                    .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
 
-        // Add the node cache listener which watches ZK for changes in segment container mapping.
-        addListenerSegContainerMapping(timeout, host);
+            // Add the node cache listener which watches ZK for changes in segment container mapping.
+            addListenerSegContainerMapping(timeout, host);
 
-        return initResult;
+            return initResult;
+        } catch (Exception ex) {
+            throw new RuntimeStreamingException("Unable to initialize from Zookeeper", ex);
+        }
     }
 
     @Override
@@ -193,10 +199,14 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private NodeCacheListener getListenerNodeCache(final Duration timeout, final Host host) {
         return () -> {
-            log.debug("Listener for SegmentContainer mapping invoked.");
-            List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
-            FutureHelpers.allOf(futures).get();
-            log.debug("Completed execution of SegmentContainer listener.");
+            try {
+                log.debug("Listener for SegmentContainer mapping invoked.");
+                List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
+                FutureHelpers.allOf(futures).get();
+                log.debug("Completed execution of SegmentContainer listener.");
+            } catch (Exception ex) {
+                log.error("Unable to fetch the mapping information from Zookeeper", ex);
+            }
         };
     }
 
@@ -210,7 +220,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * @param timeout - timeout value to be passed to SegmentContainerRegistry.
      * @return - List of CompletableFuture for the start and stop operations performed.
      */
-    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) {
+    private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) throws Exception {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         Map<Host, Set<Integer>> controlMapping = getSegmentContainerMapping();
 
@@ -245,10 +255,11 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Host, Set<Integer>> getSegmentContainerMapping() {
-        Optional<ChildData> containerToHostMapSer = Optional.of(segContainerHostMapping.getCurrentData());
+    private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
+        String path = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        Optional<byte[]> containerToHostMapSer = Optional.of(client.getData().forPath(path));
         if (containerToHostMapSer.isPresent()) {
-            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get().getData());
+            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get());
         } else {
             return Collections.<Host, Set<Integer>>emptyMap();
         }
