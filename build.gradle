@@ -167,7 +167,7 @@ project('integrationtests') {
         standardInput = System.in
     }
 
-    task buildImagePravegaHost(type: DockerBuildImage) {
+    task buildPravegaHostImage(type: DockerBuildImage) {
         dockerFile = file(dockerFilePravegaHost)
         inputDir = file(dockerDirPravega)
         tag = 'pravega/host'
@@ -246,7 +246,7 @@ project('controller:server') {
         compile group: 'com.typesafe', name: 'config', version: '1.3.0'
     }
 
-    task buildImagePravegaController(type: DockerBuildImage) {
+    task buildPravegaControllerImage(type: DockerBuildImage) {
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravega)
         tag = 'pravega/controller'
