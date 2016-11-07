@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.host;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -44,6 +45,9 @@ public class ZKHostStore implements HostControllerStore {
     private final CuratorFramework zkClient;
 
     public ZKHostStore(CuratorFramework client, String clusterName) {
+        Preconditions.checkNotNull(client, "Curator Client");
+        Preconditions.checkNotNull(clusterName, "clusterName");
+
         zkClient = client;
         if (zkClient.getState().equals(CuratorFrameworkState.LATENT)) {
             zkClient.start();
@@ -70,6 +74,8 @@ public class ZKHostStore implements HostControllerStore {
 
     @Override
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception {
+        Preconditions.checkNotNull(newMapping, "newMapping");
+
         try {
             zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) newMapping));
             log.debug("Successfully updated segment container map");

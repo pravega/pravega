@@ -19,6 +19,7 @@ package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
@@ -47,6 +48,9 @@ public class SegmentContainerMonitor implements AutoCloseable {
      * @param clusterName   The unique name for this cluster
      */
     public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, String clusterName) {
+        Preconditions.checkNotNull(hostStore, "hostStore");
+        Preconditions.checkNotNull(client, "Curator Client");
+        Preconditions.checkNotNull(clusterName, "clusterName");
 
         //The ZK path which is monitored for leader selection
         final String leaderZKPath = ZKPaths.makePath("cluster", clusterName, "data", "faulthandlerleader");

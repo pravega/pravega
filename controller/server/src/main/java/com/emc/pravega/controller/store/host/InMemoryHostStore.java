@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
+import com.google.common.base.Preconditions;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +39,8 @@ public class InMemoryHostStore implements HostControllerStore {
 
     @Override
     public synchronized void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
+        Preconditions.checkNotNull(newMapping, "newMapping");
+
         hostContainerMap = new HashMap<>(newMapping);
     }
 
