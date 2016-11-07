@@ -52,7 +52,7 @@ public class ZKHostStore implements HostControllerStore {
         if (zkClient.getState().equals(CuratorFrameworkState.LATENT)) {
             zkClient.start();
         }
-        zkPath = ZKPaths.makePath("cluster", clusterName, "data", "segmentContainerHostMapping");
+        zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
 
         //TODO: Failure here might prevent host controller startup. Do lazy init.
         ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host, Set<Integer>>()));
