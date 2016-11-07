@@ -93,7 +93,7 @@ public class ClusterZKImpl implements Cluster {
 
         String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS);
         createPathIfNotExists(basePath);
-        String hostPath = ZKPaths.makePath(basePath, host.getIpAddr());
+        String hostPath = ZKPaths.makePath(basePath, host.getIpAddr() + ":" + host.getPort());
 
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath, SerializationUtils.serialize(host));
 

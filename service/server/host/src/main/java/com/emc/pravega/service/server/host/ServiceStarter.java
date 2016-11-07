@@ -143,7 +143,7 @@ public final class ServiceStarter {
                 CuratorFramework zkClient = getZKClient(config);
                 joinCluster(config, zkClient);
                 return (SegmentContainerManager) new ZKSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper(),
-                        zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()));
+                        zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()), config.getClusterName());
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }

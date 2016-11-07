@@ -38,7 +38,6 @@ import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.utils.ZKPaths;
 
-import javax.annotation.concurrent.NotThreadSafe;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,15 +59,14 @@ import java.util.stream.Collectors;
  * number of containers (result is in hex).
  */
 @Slf4j
-@NotThreadSafe //TODO: make it thread safe.
 public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30); //TODO: config?
-    private static final String PATH = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final HashMap<Integer, ContainerHandle> handles;
     private final Host host;
+
     private boolean closed;
 
     private final NodeCache segContainerHostMapping;
@@ -82,13 +80,14 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      *                                 (i.e., number of containers).
      * @param zkClient                 ZooKeeper client.
      * @param pravegaServiceEndpoint   Pravega service endpoint details.
+     * @param clusterName              Cluster Name.
      * @throws NullPointerException If containerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      * @throws NullPointerException If logger is null.
      * @throws Exception            Error while communicating with Zookeeper.
      */
     public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper,
-                                     CuratorFramework zkClient, Host pravegaServiceEndpoint) throws Exception {
+                                     CuratorFramework zkClient, Host pravegaServiceEndpoint, String clusterName) throws Exception {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
@@ -99,7 +98,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.handles = new HashMap<>();
 
         this.client = zkClient;
-        segContainerHostMapping = new NodeCache(zkClient, PATH);
+        segContainerHostMapping = new NodeCache(zkClient, ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping"));
         segContainerHostMapping.start(true);
 
         this.host = pravegaServiceEndpoint;
@@ -125,11 +124,10 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         if (this.closed) {
             return;
         } else {
-            // Close Node cache and its listeners
-            close(segContainerHostMapping);
             // Close all containers that are still open.
             ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
             synchronized (this.handles) {
+                close(segContainerHostMapping); // Close Node cache and its listeners.
                 ArrayList<ContainerHandle> toClose = new ArrayList<>(this.handles.values());
                 for (ContainerHandle handle : toClose) {
                     results.add(this.registry.stopContainer(handle, CLOSE_TIMEOUT)
@@ -231,7 +229,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                 .collect(Collectors.toList());
 
         futures.addAll(containersToBeStopped.stream()
-                .map(containerId -> handles.get(containerId))
+                .map(handles::get)
                 .map(containerHandle -> registry.stopContainer(containerHandle, timer.getRemaining())
                         .thenAccept(v -> unregisterHandle(containerHandle.getContainerId())))
                 .collect(Collectors.toList()));
@@ -246,6 +244,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         return complement;
     }
 
+    @SuppressWarnings("unchecked")
     private Map<Host, Set<Integer>> getSegmentContainerMapping() {
         Optional<ChildData> containerToHostMapSer = Optional.of(segContainerHostMapping.getCurrentData());
         if (containerToHostMapSer.isPresent()) {
