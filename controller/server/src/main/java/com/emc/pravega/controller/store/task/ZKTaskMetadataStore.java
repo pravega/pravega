@@ -57,17 +57,17 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> lock(Resource resource, TaskData taskData, String owner, String threadId, String oldOwner, String oldThreadId) {
-        Preconditions.checkNotNull(resource);
-        Preconditions.checkNotNull(taskData);
-        Preconditions.checkNotNull(owner);
-        Preconditions.checkArgument(!owner.isEmpty());
-        Preconditions.checkNotNull(threadId);
-        Preconditions.checkArgument(!threadId.isEmpty());
-        Preconditions.checkArgument((oldOwner == null && oldThreadId == null) || (oldOwner != null && oldThreadId != null));
-        Preconditions.checkArgument(oldOwner == null || !oldOwner.isEmpty());
-        Preconditions.checkArgument(oldThreadId == null || !oldThreadId.isEmpty());
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(resource);
+            Preconditions.checkNotNull(taskData);
+            Preconditions.checkNotNull(owner);
+            Preconditions.checkArgument(!owner.isEmpty());
+            Preconditions.checkNotNull(threadId);
+            Preconditions.checkArgument(!threadId.isEmpty());
+            Preconditions.checkArgument((oldOwner == null && oldThreadId == null) || (oldOwner != null && oldThreadId != null));
+            Preconditions.checkArgument(oldOwner == null || !oldOwner.isEmpty());
+            Preconditions.checkArgument(oldThreadId == null || !oldThreadId.isEmpty());
+
             boolean lockAcquired = false;
             // test and set implementation
 
@@ -115,11 +115,11 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> unlock(Resource resource, String owner, String threadId) {
-        Preconditions.checkNotNull(resource);
-        Preconditions.checkNotNull(owner);
-        Preconditions.checkNotNull(threadId);
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(resource);
+            Preconditions.checkNotNull(owner);
+            Preconditions.checkNotNull(threadId);
+
             try {
                 // test and set implementation
                 Stat stat = new Stat();
@@ -167,11 +167,11 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Optional<TaskData>> getTask(Resource resource, String owner, String threadId) {
-        Preconditions.checkNotNull(resource);
-        Preconditions.checkNotNull(owner);
-        Preconditions.checkNotNull(threadId);
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(resource);
+            Preconditions.checkNotNull(owner);
+            Preconditions.checkNotNull(threadId);
+
             try {
 
                 byte[] data = client.getData().forPath(getTaskPath(resource));
@@ -200,10 +200,10 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> putChild(String parent, TaggedResource child) {
-        Preconditions.checkNotNull(parent);
-        Preconditions.checkNotNull(child);
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(parent);
+            Preconditions.checkNotNull(child);
+
             try {
 
                 client.create()
@@ -224,10 +224,10 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> removeChild(String parent, TaggedResource child, boolean deleteEmptyParent) {
-        Preconditions.checkNotNull(parent);
-        Preconditions.checkNotNull(child);
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(parent);
+            Preconditions.checkNotNull(child);
+
             try {
                 client.delete()
                         .forPath(getHostPath(parent, child));
@@ -293,9 +293,9 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Void> removeNode(String parent) {
-        Preconditions.checkNotNull(parent);
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(parent);
+
             try {
 
                 client.delete().forPath(getHostPath(parent));
@@ -336,9 +336,9 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
     @Override
     public CompletableFuture<Optional<TaggedResource>> getRandomChild(String parent) {
-        Preconditions.checkNotNull(parent);
-
         return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(parent);
+
             try {
 
                 List<String> children = client.getChildren().forPath(getHostPath(parent));

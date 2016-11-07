@@ -145,7 +145,6 @@ public final class Retry {
             Exception last = null;
             for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
                 try {
-                    log.debug("Executing retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
                     return r.attempt();
                 } catch (Exception e) {
                     if (canRetry(e)) {
@@ -161,6 +160,7 @@ public final class Retry {
                 Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
  
                 delay = Math.min(params.maxDelay, params.multiplier * delay);
+                log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
             }
             throw new RetriesExaustedException(last);
         }
@@ -177,7 +177,6 @@ public final class Retry {
                                                              final long delay,
                                                              final Supplier<CompletableFuture<ReturnT>> r,
                                                              final ScheduledExecutorService executorService) {
-            log.debug("Executing retryable command. Attempt #{}, timestamp={}", attemptNumber, Instant.now());
 
             CompletableFuture<ReturnT> result = FutureHelpers.delayedFuture(r, delay, executorService);
 
@@ -186,10 +185,10 @@ public final class Retry {
                     if (attemptNumber + 1 > params.attempts) {
                         return FutureHelpers.failedFuture(new RetriesExaustedException((Exception) e));
                     } else {
-                        long newDelay =
-                                attemptNumber == 1 ?
-                                        params.initialMillis :
-                                        Math.min(params.maxDelay, params.multiplier * delay);
+                        long newDelay = attemptNumber == 1 ?
+                                params.initialMillis :
+                                Math.min(params.maxDelay, params.multiplier * delay);
+                        log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
                         return execute(attemptNumber + 1, newDelay, r, executorService);
                     }
                 } else {
@@ -206,7 +205,7 @@ public final class Retry {
             return retryType.isAssignableFrom(type);
         }
 
-        private Class getErrorType(final Throwable e) {
+        private Class<? extends Throwable> getErrorType(final Throwable e) {
             if (retryType.equals(CompletionException.class) || throwType.equals(CompletionException.class)) {
                 return e.getClass();
             } else {
