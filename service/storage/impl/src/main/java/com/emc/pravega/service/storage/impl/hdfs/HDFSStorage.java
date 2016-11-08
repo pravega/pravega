@@ -76,7 +76,7 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(() -> createSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 this.executor);
     }
 
@@ -138,7 +138,7 @@ public class HDFSStorage implements Storage {
                     acquireLockForSegmentSync(streamSegmentName);
                     return null;
                 },
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 executor);
     }
 
@@ -165,7 +165,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () ->  writeSync(streamSegmentName, offset, length, data, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 this.executor);
     }
 
@@ -189,7 +189,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> sealSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 executor);
     }
 
@@ -218,7 +218,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(targetStreamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(targetStreamSegmentName, e),
                 executor);
     }
 
@@ -242,7 +242,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> deleteSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 executor);
     }
 
@@ -275,7 +275,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 executor);
     }
 
@@ -297,7 +297,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () ->  this.getStreamSegmentInfoSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 executor);
     }
 
@@ -308,7 +308,7 @@ public class HDFSStorage implements Storage {
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> existsSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
                 executor);
     }
 

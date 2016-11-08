@@ -38,7 +38,7 @@ public class HDFSExceptionHelpers {
      * @param e The exception to be translated
      * @return
      */
-    public static Exception translateFromIOException(String streamSegmentName, Exception e) {
+    public static Exception translateFromException(String streamSegmentName, Exception e) {
         Exception retVal = e;
 
         if (e instanceof RemoteException) {
