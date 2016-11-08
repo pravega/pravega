@@ -18,10 +18,6 @@
 
 package com.emc.pravega.stream.impl;
 
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.controller.stream.api.v1.Status;
 import com.emc.pravega.stream.PositionInternal;
@@ -33,6 +29,9 @@ import com.emc.pravega.stream.StreamSegments;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.TxFailedException;
 
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Stream Controller APIs.
@@ -40,79 +39,94 @@ import com.emc.pravega.stream.TxFailedException;
 public interface Controller {
 
     // Controller Apis for administrative action for streams
-        /**
-         * Api to create stream
-         * @param streamConfig
-         * @return
-         */
-        CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
 
-        /**
-         * Api to alter stream
-         * @param streamConfig
-         * @return
-         */
-        CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
-    
-     // Controller Apis called by pravega producers for getting stream specific information
-     
-        /**
-         * Api to get list of current segments for the stream to produce to.
-         */
-        CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
-        
-        /**
-         * Api to create a new transaction. 
-         * The transaction timeout is relative to the creation time.
-         */
-        CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
+    /**
+     * Api to create stream.
+     *
+     * @param streamConfig The StreamConfiguration to use.
+     */
+    CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
 
-        /**
-         * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
-         * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
-         */
-        CompletableFuture<Status> commitTransaction(Stream stream, UUID txId);
+    /**
+     * Api to alter stream.
+     *
+     * @param streamConfig The StreamConfiguration to use.
+     */
+    CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
 
-        /**
-         * Drops a transaction. No events published to it may be read, and no further events may be published.
-         */
-        CompletableFuture<Status> dropTransaction(Stream stream, UUID txId);
+    // Controller Apis called by pravega producers for getting stream specific information
 
-        /**
-         * Returns the status of the specified transaction.
-         */
-        CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId);
+    /**
+     * Api to get list of current segments for the stream to produce to.
+     *
+     * @param scope      The segment scope.
+     * @param streamName The name of the stream.
+     */
+    CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
+
+    /**
+     * Api to create a new transaction.
+     * The transaction timeout is relative to the creation time.
+     *
+     * @param stream  The stream to create a transaction for.
+     * @param timeout The timeout for the operation, in milliseconds.
+     */
+    CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
+
+    /**
+     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
+     * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+     *
+     * @param stream The stream to commit the transaction for.
+     * @param txId   The transaction id.
+     */
+    CompletableFuture<Status> commitTransaction(Stream stream, UUID txId);
+
+    /**
+     * Drops a transaction. No events published to it may be read, and no further events may be published.
+     *
+     * @param stream The stream to drop the transaction for.
+     * @param txId   The transaction id.
+     */
+    CompletableFuture<Status> dropTransaction(Stream stream, UUID txId);
+
+    /**
+     * Returns the status of the specified transaction.
+     *
+     * @param stream The stream to check the transaction for.
+     * @param txId   The transaction id.
+     */
+    CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId);
 
     // Controller Apis that are called by consumers
 
-        /**
-         * Returns list of position objects by distributing available segments at the
-         * given timestamp into requested number of position objects
-         * @param stream
-         * @param timestamp
-         * @param count
-         * @return
-         */
-        CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count);
+    /**
+     * Returns list of position objects by distributing available segments at the
+     * given timestamp into requested number of position objects.
+     *
+     * @param stream    The stream.
+     * @param timestamp The current timestamp.
+     * @param count     THe number of positions to retrieve.
+     */
+    CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count);
 
-        /**
-         * Called by consumer upon reaching end of segment on some segment in its position obejct
-         * @param stream
-         * @param positions
-         * @return
-         */
-        CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions);
+    /**
+     * Called by consumer upon reaching end of segment on some segment in its position object.
+     *
+     * @param stream    The stream.
+     * @param positions The position within the stream.
+     */
+    CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions);
 
     //Controller Apis that are called by producers and consumers
-        
-        /**
-         * Given a segment return the endpoint that currently is the owner of that segment.
-         * 
-         * The result of this function can be cached until the endpoint is unreachable or indicates it
-         * is no longer the owner.
-         * 
-         * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
-         */
-        CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName);
-   
+
+    /**
+     * Given a segment return the endpoint that currently is the owner of that segment.
+     * <p>
+     * The result of this function can be cached until the endpoint is unreachable or indicates it
+     * is no longer the owner.
+     *
+     * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
+     */
+    CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName);
 }

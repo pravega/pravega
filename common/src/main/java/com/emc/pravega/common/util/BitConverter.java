@@ -23,14 +23,14 @@ package com.emc.pravega.common.util;
  */
 public final class BitConverter {
     /**
-     * Writes the given 32-bit Integer to the given ByteArraySegment at the given offset.
+     * Writes the given 32-bit Integer to the given ArrayView at the given offset.
      *
-     * @param target The ByteArraySegment to write to.
-     * @param offset The offset within the ByteArraySegment to write at.
+     * @param target The ArrayView to write to.
+     * @param offset The offset within the ArrayView to write at.
      * @param value  The value to write.
      * @return The number of bytes written.
      */
-    public static int writeInt(ByteArraySegment target, int offset, int value) {
+    public static int writeInt(ArrayView target, int offset, int value) {
         target.setSequence(
                 offset,
                 (byte) (value >>> 24),
@@ -71,13 +71,13 @@ public final class BitConverter {
     }
 
     /**
-     * Reads a 32-bit integer from the given ByteArraySegment starting at the given position.
+     * Reads a 32-bit integer from the given ArrayView starting at the given position.
      *
-     * @param source   The ByteArraySegment to read from.
-     * @param position The position in the ByteArraySegment to start reading at.
+     * @param source   The ArrayView to read from.
+     * @param position The position in the ArrayView to start reading at.
      * @return The read number.
      */
-    public static int readInt(ByteArraySegment source, int position) {
+    public static int readInt(ArrayView source, int position) {
         return (source.get(position) & 0xFF) << 24
                 | (source.get(position + 1) & 0xFF) << 16
                 | (source.get(position + 2) & 0xFF) << 8
@@ -85,14 +85,14 @@ public final class BitConverter {
     }
 
     /**
-     * Writes the given 64-bit Long to the given ByteArraySegment at the given offset.
+     * Writes the given 64-bit Long to the given ArrayView at the given offset.
      *
-     * @param target The ByteArraySegment to write to.
-     * @param offset The offset within the ByteArraySegment to write at.
+     * @param target The ArrayView to write to.
+     * @param offset The offset within the ArrayView to write at.
      * @param value  The value to write.
      * @return The number of bytes written.
      */
-    public static int writeLong(ByteArraySegment target, int offset, long value) {
+    public static int writeLong(ArrayView target, int offset, long value) {
         target.setSequence(
                 offset,
                 (byte) (value >>> 56),
@@ -127,13 +127,13 @@ public final class BitConverter {
     }
 
     /**
-     * Reads a 64-bit long from the given ByteArraySegment starting at the given position.
+     * Reads a 64-bit long from the given ArrayView starting at the given position.
      *
-     * @param source   The ByteArraySegment to read from.
-     * @param position The position in the ByteArraySegment to start reading at.
+     * @param source   The ArrayView to read from.
+     * @param position The position in the ArrayView to start reading at.
      * @return The read number.
      */
-    public static long readLong(ByteArraySegment source, int position) {
+    public static long readLong(ArrayView source, int position) {
         return (long) (source.get(position) & 0xFF) << 56
                 | (long) (source.get(position + 1) & 0xFF) << 48
                 | (long) (source.get(position + 2) & 0xFF) << 40

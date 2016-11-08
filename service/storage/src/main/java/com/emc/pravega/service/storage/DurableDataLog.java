@@ -32,9 +32,12 @@ public interface DurableDataLog extends AutoCloseable {
      * Initializes the DurableDataLog and performs any recovery steps that may be required.
      *
      * @param timeout Timeout for the operation.
-     * @throws DataLogNotAvailableException     When it is not possible to reach the DataLog at the current time.
-     * @throws DataLogWriterNotPrimaryException When the DurableDataLog could not acquire the exclusive write lock for its log.
-     * @throws DataLogInitializationException   When a general initialization failure occurred.
+     * @throws DurableDataLogException When an exception occurred. This can be one of the following:
+     *                                 DataLogNotAvailableException: it is not possible to reach the DataLog at
+     *                                 the current time;
+     *                                 DataLogWriterNotPrimaryException: the DurableDataLog could not acquire
+     *                                 the exclusive write lock for its log;
+     *                                 DataLogInitializationException: a general initialization failure occurred.
      */
     void initialize(Duration timeout) throws DurableDataLogException;
 
@@ -80,8 +83,9 @@ public interface DurableDataLog extends AutoCloseable {
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return A CloseableIterator with the result.
-     * @throws DataLogNotAvailableException If it is not possible to reach the DataLog at the current time.
-     * @throws DurableDataLogException      If the operation was unable to open a reader.
+     * @throws DurableDataLogException If an exception occurred:
+     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
+     *                                 DurableDataLogException: the operation was unable to open a reader.
      */
     CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;
 

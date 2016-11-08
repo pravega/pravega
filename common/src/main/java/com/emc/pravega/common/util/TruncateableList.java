@@ -63,12 +63,11 @@ public class TruncateableList<T> {
         synchronized (this.lock) {
             if (this.tail == null) {
                 this.head = node;
-                this.tail = node;
             } else {
                 this.tail.next = node;
-                this.tail = node;
             }
 
+            this.tail = node;
             this.size++;
         }
     }
@@ -87,7 +86,6 @@ public class TruncateableList<T> {
             if (this.tail == null) {
                 // List is currently empty.
                 this.head = node;
-                this.tail = node;
             } else {
                 if (!lastItemChecker.test(this.tail.item)) {
                     // Test failed
@@ -95,9 +93,9 @@ public class TruncateableList<T> {
                 }
 
                 this.tail.next = node;
-                this.tail = node;
             }
 
+            this.tail = node;
             this.size++;
         }
 

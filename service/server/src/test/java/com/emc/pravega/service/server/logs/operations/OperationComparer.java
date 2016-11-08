@@ -130,15 +130,13 @@ public class OperationComparer {
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation cachedActual) {
         Assert.assertNotNull("Cannot compare StreamSegmentAppendOperation with a CachedStreamSegmentAppendOperation without a Cache.", this.cache);
-        Assert.assertEquals(message + " Unexpected StreamSegmentId (CacheKey).", expected.getStreamSegmentId(), cachedActual.getCacheKey().getStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), cachedActual.getCacheKey().getOffset());
+        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), cachedActual.getStreamSegmentOffset());
         Assert.assertEquals(message + " Unexpected Length.", expected.getData().length, cachedActual.getLength());
-        byte[] actualData = cache.get(cachedActual.getCacheKey());
+        byte[] actualData = cache.get(cachedActual.createCacheKey());
         Assert.assertArrayEquals(message + " Unexpected Data. ", expected.getData(), actualData);
     }
 
     private void assertSame(String message, CachedStreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation actual) {
-        Assert.assertEquals(message + " Unexpected CacheKey.", expected.getCacheKey(), actual.getCacheKey());
         Assert.assertEquals(message + " Unexpected Length.", expected.getLength(), actual.getLength());
     }
 

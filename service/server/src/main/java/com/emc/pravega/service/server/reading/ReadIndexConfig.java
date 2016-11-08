@@ -19,8 +19,8 @@
 package com.emc.pravega.service.server.reading;
 
 import com.emc.pravega.common.util.ComponentConfig;
+import com.emc.pravega.common.util.ConfigurationException;
 import com.emc.pravega.common.util.InvalidPropertyValueException;
-import com.emc.pravega.common.util.MissingPropertyException;
 
 import java.time.Duration;
 import java.util.Properties;
@@ -55,12 +55,13 @@ public class ReadIndexConfig extends ComponentConfig {
      * Creates a new instance of the DurableLogConfig class.
      *
      * @param properties The java.util.Properties object to read Properties from.
-     * @throws MissingPropertyException Whenever a required Property is missing from the given properties collection.
-     * @throws NumberFormatException    Whenever a Property has a value that is invalid for it.
+     * @throws ConfigurationException   When a configuration issue has been detected. This can be:
+     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
-    public ReadIndexConfig(Properties properties) throws MissingPropertyException, InvalidPropertyValueException {
+    public ReadIndexConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
     }
 
@@ -96,7 +97,7 @@ public class ReadIndexConfig extends ComponentConfig {
     }
 
     @Override
-    protected void refresh() throws MissingPropertyException, InvalidPropertyValueException {
+    protected void refresh() throws ConfigurationException {
         this.storageReadMinLength = getInt32Property(PROPERTY_STORAGE_READ_MIN_LENGTH, DEFAULT_STORAGE_READ_MIN_LENGTH);
         this.storageReadMaxLength = getInt32Property(PROPERTY_STORAGE_READ_MAX_LENGTH, DEFAULT_STORAGE_READ_MAX_LENGTH);
         if (this.storageReadMinLength > this.storageReadMaxLength) {

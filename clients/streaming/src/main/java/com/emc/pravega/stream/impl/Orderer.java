@@ -31,7 +31,8 @@ public interface Orderer<Type> {
      * should be read from next. This is done in a consistent way. IE: Calling this method with the
      * same consumers at the same positions, should yield the same result. (The passed collection is
      * not modified)
+     *
+     * @param logs The logs to get the next consumer for.
      */
     SegmentConsumer<Type> nextConsumer(Collection<SegmentConsumer<Type>> logs);
-
 }

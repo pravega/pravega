@@ -66,6 +66,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     /**
      * Creates a new instance of the StreamSegmentContainerMetadata.
+     *
+     * @param streamSegmentContainerId The Id of the StreamSegmentContainer.
      */
     public StreamSegmentContainerMetadata(int streamSegmentContainerId) {
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);

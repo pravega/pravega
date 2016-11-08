@@ -27,7 +27,7 @@ import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ExceptionHelpers;
-import com.emc.pravega.service.server.PropertyBag;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.server.SegmentMetadata;
 import com.emc.pravega.service.server.TestStorage;
 import com.emc.pravega.service.server.UpdateableContainerMetadata;
@@ -40,7 +40,7 @@ import com.emc.pravega.service.server.logs.operations.StorageOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentAppendOperation;
 import com.emc.pravega.service.server.logs.operations.StreamSegmentSealOperation;
 import com.emc.pravega.service.server.mocks.InMemoryCache;
-import com.emc.pravega.service.storage.BadOffsetException;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Cache;
 import com.emc.pravega.service.storage.mocks.InMemoryStorage;
 import com.emc.pravega.testcommon.AssertExtensions;
@@ -1336,7 +1336,7 @@ public class SegmentAggregatorTests {
         if (operation instanceof StreamSegmentAppendOperation) {
             result = ((StreamSegmentAppendOperation) operation).getData();
         } else if (operation instanceof CachedStreamSegmentAppendOperation) {
-            result = context.cache.get(((CachedStreamSegmentAppendOperation) operation).getCacheKey());
+            result = context.cache.get(((CachedStreamSegmentAppendOperation) operation).createCacheKey());
         } else {
             Assert.fail("Not an append operation: " + operation);
         }
@@ -1399,9 +1399,8 @@ public class SegmentAggregatorTests {
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, APPEND_CONTEXT);
         op.setStreamSegmentOffset(offset);
         if (appendId % 2 == 0) {
-            CacheKey key = new CacheKey(segmentId, offset);
-            context.cache.insert(key, data);
-            return new CachedStreamSegmentAppendOperation(op, key);
+            context.cache.insert(new CacheKey(segmentId, offset), data);
+            return new CachedStreamSegmentAppendOperation(op);
         } else {
             return op;
         }

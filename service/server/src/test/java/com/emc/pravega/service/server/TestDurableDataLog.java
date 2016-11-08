@@ -119,6 +119,8 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Sets the Truncation callback, which will be called if a truncation actually happened.
+     *
+     * @param callback The callback to set.
      */
     public void setTruncateCallback(Consumer<LogAddress> callback) {
         this.truncateCallback = callback;
@@ -151,6 +153,8 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Sets the Read Interceptor that will be called with every getNext() invocation from the iterator returned by getReader.
+     *
+     * @param interceptor The read interceptor to set.
      */
     public void setReadInterceptor(Consumer<ReadItem> interceptor) {
         this.readInterceptor = interceptor;
@@ -158,6 +162,10 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Retrieves all the entries from the DurableDataLog and converts them to the desired type.
+     *
+     * @param converter The converter to apply to each entry.
+     * @param <T>       The resulting type of each entry's conversion.
+     * @throws Exception If a general exception occurred.
      */
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();
@@ -195,6 +203,8 @@ public class TestDurableDataLog implements DurableDataLog {
 
     /**
      * Creates a new TestDurableDataLog wrapping the given one.
+     *
+     * @param wrappedLog The DurableDataLog to wrap.
      */
     public static TestDurableDataLog create(DurableDataLog wrappedLog) {
         return new TestDurableDataLog(wrappedLog);

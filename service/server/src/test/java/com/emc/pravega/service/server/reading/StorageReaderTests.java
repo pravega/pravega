@@ -96,7 +96,7 @@ public class StorageReaderTests {
     }
 
     /**
-     * Tests the execute method with invalid Requests:
+     * Tests the execute method with invalid Requests.
      * * StreamSegment does not exist
      * * Invalid read offset
      * * Too long of a read (offset+length is beyond the Segment's length)

@@ -18,18 +18,8 @@
 
 package com.emc.pravega.integrationtests;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.Serializable;
-import java.time.Duration;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
-import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.Consumer;
@@ -43,12 +33,19 @@ import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.TestUtils;
-
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.Serializable;
+import java.time.Duration;
+
+import static org.junit.Assert.assertEquals;
 
 public class TransactionTest {
     private Level originalLevel;
@@ -59,8 +56,8 @@ public class TransactionTest {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
-        this.serviceBuilder = new InMemoryServiceBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
     }
 
     @After

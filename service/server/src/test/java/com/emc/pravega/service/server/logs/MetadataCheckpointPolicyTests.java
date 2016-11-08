@@ -20,7 +20,7 @@ package com.emc.pravega.service.server.logs;
 
 import com.emc.pravega.service.server.CloseableExecutorService;
 import com.emc.pravega.service.server.ConfigHelpers;
-import com.emc.pravega.service.server.PropertyBag;
+import com.emc.pravega.common.util.PropertyBag;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
