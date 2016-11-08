@@ -22,6 +22,10 @@ import com.emc.pravega.common.util.ConfigurationException;
 
 import java.util.Properties;
 
+
+/**
+ * Configuration for the HDFS Storage component.
+ */
 public class HDFSStorageConfig extends ComponentConfig {
 
     public static final String COMPONENT_CODE = "hdfs";
@@ -32,10 +36,16 @@ public class HDFSStorageConfig extends ComponentConfig {
     private static final String PROPERTY_BLOCKSIZE = "blockSize";
     private String hdfsHostURL;
     private String hdfsRoot;
-    private int pravegaID;
+    private int pravegaId;
     private short replication;
     private long blocksize;
 
+    /**
+     * Creates a new instance of the HDFSStorageConfig class.
+     *
+     * @param properties Properties to wrap.
+     * @throws ConfigurationException If a required configuration item is missing or invalid.
+     */
     public HDFSStorageConfig(Properties properties) throws ConfigurationException {
         super(properties, COMPONENT_CODE);
     }
@@ -44,7 +54,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     protected void refresh() throws ConfigurationException {
         this.hdfsHostURL = getProperty(PROPERTY_HDFSURL);
         this.hdfsRoot    = getProperty(PROPERTY_HDFSROOT);
-        this.pravegaID   = getInt32Property(PROPERTY_PRAVEGAID);
+        this.pravegaId   = getInt32Property(PROPERTY_PRAVEGAID);
         this.replication = (short) getInt32Property(PROPERTY_REPLICATION);
         this.blocksize   = getInt32Property(PROPERTY_BLOCKSIZE);
     }
@@ -67,7 +77,7 @@ public class HDFSStorageConfig extends ComponentConfig {
     }
 
     public int getPravegaID() {
-        return this.pravegaID;
+        return this.pravegaId;
     }
 
     /**

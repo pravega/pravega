@@ -16,14 +16,12 @@
  * limitations under the License.
  */
 
-package com.emc.pravega.service.storage.impl.hdfstest;
+package com.emc.pravega.service.storage.impl.hdfs;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.io.FileHelpers;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.service.storage.impl.hdfs.HDFSStorage;
-import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
 import com.emc.pravega.service.storage.mocks.StorageTestBase;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;

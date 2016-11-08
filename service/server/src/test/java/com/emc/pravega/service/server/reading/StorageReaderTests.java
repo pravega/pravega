@@ -239,6 +239,12 @@ public class StorageReaderTests {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override
+        public CompletableFuture<Void> open(String streamSegmentName) {
+            // This method is not needed.
+            throw new NotImplementedException();
+        }
+
+        @Override
         public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
             return this.readImplementation.get();
         }
