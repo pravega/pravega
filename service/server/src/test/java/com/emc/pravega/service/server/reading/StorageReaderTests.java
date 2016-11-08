@@ -30,6 +30,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import lombok.Cleanup;
 import lombok.val;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -245,13 +246,13 @@ public class StorageReaderTests {
         @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             // This method is not needed.
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             // This method is not needed.
-            return null;
+            throw new NotImplementedException();
         }
     }
 }

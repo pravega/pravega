@@ -90,7 +90,7 @@ class HDFSLowerStorage implements Storage {
 
 
     @Override
-    public CompletableFuture<Boolean> open(String streamSegmentName) {
+    public CompletableFuture<Void> open(String streamSegmentName) {
         //Acquirelock is not implemented at the lower level of HDFS
         return FutureHelpers.failedFuture(new IOException("Not implemented"));
     }

@@ -80,7 +80,7 @@ class VerificationStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Boolean> open(String streamSegmentName) {
+    public CompletableFuture<Void> open(String streamSegmentName) {
         return this.baseStorage.open(streamSegmentName);
     }
 

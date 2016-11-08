@@ -112,8 +112,8 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Boolean> open(String streamSegmentName) {
-        return CompletableFuture.completedFuture(Boolean.TRUE);
+    public CompletableFuture<Void> open(String streamSegmentName) {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

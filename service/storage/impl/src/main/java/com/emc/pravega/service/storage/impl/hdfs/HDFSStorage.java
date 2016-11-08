@@ -100,8 +100,11 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Boolean> open(String streamSegmentName) {
-        return FutureHelpers.runAsyncTranslateException(() -> acquireLockForSegmentSync(streamSegmentName),
+    public CompletableFuture<Void> open(String streamSegmentName) {
+        return FutureHelpers.runAsyncTranslateException(() -> {
+                    acquireLockForSegmentSync(streamSegmentName);
+                    return null;
+                },
                 e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
                 executor);
     }
@@ -115,7 +118,7 @@ public class HDFSStorage implements Storage {
      * Create a new file with the name equal to
      * the current offset of the stream which is biggest start offset + its size
      */
-    private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
+    private void acquireLockForSegmentSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
 
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
@@ -123,7 +126,6 @@ public class HDFSStorage implements Storage {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         }
         storage.getFS().rename(statuses[0].getPath(), new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
-        return true;
     }
 
     @Override
