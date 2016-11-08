@@ -147,10 +147,10 @@ public abstract class StorageTestBase {
                     () -> s.read(getSegmentName(0, context), -1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
-            /*assertThrows("read() allowed reading with offset beyond Segment length.",
+            assertThrows("read() allowed reading with offset beyond Segment length.",
                     () -> s.read(testSegment, s.getStreamSegmentInfo(testSegment, TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
-            */
+
             assertThrows("read() allowed reading with negative read buffer offset.",
                     () -> s.read(testSegment, 0, testReadBuffer, -1, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);

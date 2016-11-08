@@ -288,8 +288,12 @@ public class HDFSStorage implements Storage {
             throw new ArrayIndexOutOfBoundsException();
         }
         FSDataInputStream stream = fileSystem.open(new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
-        return stream.read(offset,
+        int retVal = stream.read(offset,
                 buffer, bufferOffset, length);
+        if (retVal == -1) {
+            throw new ArrayIndexOutOfBoundsException();
+        }
+        return retVal;
     }
 
 
