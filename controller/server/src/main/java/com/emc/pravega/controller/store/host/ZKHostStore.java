@@ -44,6 +44,9 @@ public class ZKHostStore implements HostControllerStore {
     //The supplied curator framework instance.
     private final CuratorFramework zkClient;
 
+    //To bootstrap zookeeper on first use.
+    private volatile boolean zkInit = false;
+
     public ZKHostStore(CuratorFramework client, String clusterName) {
         Preconditions.checkNotNull(client, "Curator Client");
         Preconditions.checkNotNull(clusterName, "clusterName");
@@ -53,13 +56,21 @@ public class ZKHostStore implements HostControllerStore {
             zkClient.start();
         }
         zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+    }
 
-        //TODO: Failure here might prevent host controller startup. Do lazy init.
-        ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host, Set<Integer>>()));
+    //Ensure required zk node is present in zookeeper.
+    private synchronized void tryInit() throws Exception {
+        if (!zkInit) {
+            ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host,
+                    Set<Integer>>()));
+            zkInit = true;
+        }
     }
 
     @Override
     public Map<Host, Set<Integer>> getHostContainersMap() throws Exception {
+        tryInit();
+
         return getCurrentHostMap();
     }
 
@@ -75,6 +86,7 @@ public class ZKHostStore implements HostControllerStore {
     @Override
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception {
         Preconditions.checkNotNull(newMapping, "newMapping");
+        tryInit();
 
         try {
             zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) newMapping));
@@ -87,6 +99,8 @@ public class ZKHostStore implements HostControllerStore {
 
     @Override
     public Host getHostForContainer(int containerId) throws Exception {
+        tryInit();
+
         Map<Host, Set<Integer>> mapping = getCurrentHostMap();
         Optional<Host> hosts = mapping.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();

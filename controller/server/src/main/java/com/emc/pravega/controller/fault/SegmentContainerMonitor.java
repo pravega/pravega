@@ -25,6 +25,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.utils.ZKPaths;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Class used to monitor the Data nodes for failures and ensure the segment containers owned by them is assigned
  * to the other Data nodes.
@@ -40,23 +42,36 @@ public class SegmentContainerMonitor implements AutoCloseable {
     //during load balancing.
     private final LeaderSelector leaderSelector;
 
+    //Flag to ensure zk is bootstrapped properly.
+    private boolean zkInit = false;
+
+    //The ZK path which is monitored for leader selection.
+    private final String leaderZKPath;
+
+    //To prevent invalid start and close operations.
+    private final AtomicBoolean started = new AtomicBoolean(false);
+
     /**
      * Monitor to manage data node addition and removal in the cluster.
      *
-     * @param hostStore     The store to read and write the host container mapping data
-     * @param client        The curator client for coordination
-     * @param clusterName   The unique name for this cluster
+     * @param hostStore     The store to read and write the host container mapping data.
+     * @param client        The curator client for coordination.
+     * @param clusterName   The unique name for this cluster.
      */
     public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, String clusterName) {
         Preconditions.checkNotNull(hostStore, "hostStore");
         Preconditions.checkNotNull(client, "Curator Client");
         Preconditions.checkNotNull(clusterName, "clusterName");
 
-        //The ZK path which is monitored for leader selection
-        final String leaderZKPath = ZKPaths.makePath("cluster", clusterName, "data", "faulthandlerleader");
+        leaderZKPath = ZKPaths.makePath("cluster", clusterName, "faulthandlerleader");
 
-        //TODO: Do this lazily to avoid controller startup failures.
-        ZKUtils.createPathIfNotExists(client, leaderZKPath);
+        try {
+            ZKUtils.createPathIfNotExists(client, leaderZKPath);
+            zkInit = true;
+        } catch (Exception e) {
+            //We will not fail startup due to this, we will perform the initialization lazily.
+            log.debug("Couldn't init zookeeper path. Will retry lazily");
+        }
 
         segmentMonitorLeader = new SegmentMonitorLeader(clusterName, hostStore);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
@@ -64,6 +79,11 @@ public class SegmentContainerMonitor implements AutoCloseable {
         //Listen for any zookeeper connectivity error and relinquish leadership.
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
+                    if (!zkInit && newState.isConnected()) {
+                        ZKUtils.createPathIfNotExists(client, leaderZKPath);
+                        zkInit = true;
+                    }
+
                     if (!newState.isConnected()) {
                         log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
                         leaderSelector.interruptLeadership();
@@ -76,6 +96,8 @@ public class SegmentContainerMonitor implements AutoCloseable {
      * Start the leader selection process.
      */
     public void start() {
+        Preconditions.checkState(started.compareAndSet(false, true), "Attempt to start multiple times");
+
         //Ensure this process always competes for leadership.
         leaderSelector.autoRequeue();
         leaderSelector.start();
@@ -86,6 +108,8 @@ public class SegmentContainerMonitor implements AutoCloseable {
      */
     @Override
     public void close() {
+        Preconditions.checkState(started.compareAndSet(true, false), "Attempt to close before starting");
+
         leaderSelector.interruptLeadership();
         leaderSelector.close();
     }
