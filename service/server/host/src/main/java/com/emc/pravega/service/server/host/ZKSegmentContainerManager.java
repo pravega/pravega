@@ -100,7 +100,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         this.client = zkClient;
         this.clusterName = clusterName;
         segContainerHostMapping = new NodeCache(zkClient, ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping"));
-        segContainerHostMapping.start(true);
+        segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
 
         this.host = pravegaServiceEndpoint;
     }

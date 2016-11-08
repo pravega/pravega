@@ -91,10 +91,7 @@ public class ClusterZKImpl implements Cluster {
         Preconditions.checkNotNull(host, "host");
         Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
-        String basePath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS);
-        createPathIfNotExists(basePath);
-        String hostPath = ZKPaths.makePath(basePath, host.getIpAddr() + ":" + host.getPort());
-
+        String hostPath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS, host.getIpAddr() + ":" + host.getPort());
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath, SerializationUtils.serialize(host));
 
         node.start(); //start creation of ephemeral node in background.
