@@ -18,6 +18,8 @@ buildscript {
 }
 
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+
 
 allprojects {
     apply plugin: 'java'
@@ -27,7 +29,7 @@ allprojects {
     apply plugin: 'signing'
     apply plugin: 'checkstyle'
     apply plugin: 'com.bmuschko.docker-java-application'
-    
+
     checkstyle {
         toolVersion = "7.1"
     }
@@ -170,7 +172,20 @@ project('integrationtests') {
     task buildPravegaHostImage(type: DockerBuildImage) {
         dockerFile = file(dockerFilePravegaHost)
         inputDir = file(dockerDirPravega)
-        tag = 'pravega/host'
+        tag = 'abhijeet78/pravega:host'
+    }
+
+    task pushPravegaHostImage(type: DockerPushImage) {
+        dependsOn buildPravegaHostImage
+        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
+        docker {
+            registryCredentials {
+                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
+                username = 'abhijeet78'
+                password = 'pravega@123'
+                email = 'abhi.j24@gmail.com'
+            }
+        }
     }
 
     task startServerInteractive(type: JavaExec) {
@@ -249,7 +264,20 @@ project('controller:server') {
     task buildPravegaControllerImage(type: DockerBuildImage) {
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravega)
-        tag = 'pravega/controller'
+        tag = 'abhijeet78/pravega:controller'
+    }
+
+    task pushPravegaControllerImage(type: DockerPushImage) {
+        dependsOn buildPravegaControllerImage
+        conventionMapping.imageName = { buildPravegaControllerImage.getTag() }
+        docker {
+            registryCredentials {
+                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
+                username = 'abhijeet78'
+                password = 'pravega@123'
+                email = 'abhi.j24@gmail.com'
+            }
+        }
     }
 }
 
