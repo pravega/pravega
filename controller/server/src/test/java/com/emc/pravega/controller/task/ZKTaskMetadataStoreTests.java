@@ -23,6 +23,7 @@ import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaggedResource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.store.task.UnlockFailedException;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
@@ -48,12 +49,12 @@ public class ZKTaskMetadataStoreTests {
     private final String threadId1 = UUID.randomUUID().toString();
     private final String threadId2 = UUID.randomUUID().toString();
     private final TaskData taskData = new TaskData();
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final TaskMetadataStore taskMetadataStore;
 
     public ZKTaskMetadataStoreTests() throws Exception {
         final TestingServer zkServer;
+        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
@@ -137,8 +138,28 @@ public class ZKTaskMetadataStoreTests {
 
         try {
             taskMetadataStore.lock(resource, taskData, host2, threadId2, null, null).join();
-        } catch (CompletionException e) {
+        } catch (Exception e) {
+            assertTrue(e instanceof CompletionException);
             assertTrue(e.getCause() instanceof LockFailedException);
         }
+
+        try {
+            taskMetadataStore.lock(resource, taskData, host2, threadId2, "junk", "junk").join();
+        } catch (Exception e) {
+            assertTrue(e instanceof CompletionException);
+            assertTrue(e.getCause() instanceof LockFailedException);
+        }
+
+        try {
+            taskMetadataStore.unlock(resource, host2, threadId2).join();
+        } catch (Exception e) {
+            assertTrue(e instanceof CompletionException);
+            assertTrue(e.getCause() instanceof UnlockFailedException);
+        }
+
+        taskMetadataStore.unlock(resource, host1, threadId1).join();
+
+        data = taskMetadataStore.getTask(resource, host1, threadId1).get();
+        assertFalse(data.isPresent());
     }
 }

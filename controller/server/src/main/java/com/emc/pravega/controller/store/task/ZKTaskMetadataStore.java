@@ -53,8 +53,6 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         this.executor = executor;
     }
 
-    // todo: potentially merge this class with stream metadata store
-
     @Override
     public CompletableFuture<Void> lock(Resource resource, TaskData taskData, String owner, String threadId, String oldOwner, String oldThreadId) {
         return CompletableFuture.supplyAsync(() -> {
@@ -68,49 +66,59 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             Preconditions.checkArgument(oldOwner == null || !oldOwner.isEmpty());
             Preconditions.checkArgument(oldThreadId == null || !oldThreadId.isEmpty());
 
-            boolean lockAcquired = false;
-            // test and set implementation
-
             if (oldOwner == null) {
-                try {
-                    // for fresh lock, create the node and write its data.
-                    // if the node successfully got created, locking has succeeded,
-                    // else locking has failed.
-                    LockData lockData = new LockData(owner, threadId, taskData.serialize());
-                    client.create()
-                            .creatingParentsIfNeeded()
-                            .withMode(CreateMode.PERSISTENT)
-                            .forPath(getTaskPath(resource), lockData.serialize());
-                    lockAcquired = true;
-                } catch (Exception e) {
-                    throw new LockFailedException(resource.getString(), e);
-                }
+                return acquireLock(resource, taskData, owner, threadId);
             } else {
-                try {
-                    // Read the existing data along with its version.
-                    // Update data if version hasn't changed from the previously read value.
-                    // If update is successful, lock acquired else lock failed.
-                    Stat stat = new Stat();
-                    byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
-                    LockData lockData = LockData.deserialize(data);
-                    if (lockData.getHostId().equals(oldOwner) && lockData.getThreadId().equals(oldThreadId)) {
-                        lockData = new LockData(owner, threadId, lockData.getTaskData());
-
-                        client.setData().withVersion(stat.getVersion())
-                                .forPath(getTaskPath(resource), lockData.serialize());
-                        lockAcquired = true;
-                    }
-                } catch (Exception e) {
-                    throw new LockFailedException(resource.getString(), e);
-                }
+                return transferLock(resource, owner, threadId, oldOwner, oldThreadId);
             }
 
-            if (lockAcquired) {
-                return null;
-            } else {
-                throw new LockFailedException(resource.getString());
-            }
         }, executor);
+    }
+
+    private Void acquireLock(Resource resource, TaskData taskData, String owner, String threadId) {
+        // test and set implementation
+        try {
+            // for fresh lock, create the node and write its data.
+            // if the node successfully got created, locking has succeeded,
+            // else locking has failed.
+            LockData lockData = new LockData(owner, threadId, taskData.serialize());
+            client.create()
+                    .creatingParentsIfNeeded()
+                    .withMode(CreateMode.PERSISTENT)
+                    .forPath(getTaskPath(resource), lockData.serialize());
+            return null;
+        } catch (Exception e) {
+            throw new LockFailedException(resource.getString(), e);
+        }
+    }
+
+    private Void transferLock(Resource resource, String owner, String threadId, String oldOwner, String oldThreadId) {
+        boolean lockAcquired = false;
+
+        // test and set implementation
+        try {
+            // Read the existing data along with its version.
+            // Update data if version hasn't changed from the previously read value.
+            // If update is successful, lock acquired else lock failed.
+            Stat stat = new Stat();
+            byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
+            LockData lockData = LockData.deserialize(data);
+            if (lockData.getHostId().equals(oldOwner) && lockData.getThreadId().equals(oldThreadId)) {
+                lockData = new LockData(owner, threadId, lockData.getTaskData());
+
+                client.setData().withVersion(stat.getVersion())
+                        .forPath(getTaskPath(resource), lockData.serialize());
+                lockAcquired = true;
+            }
+        } catch (Exception e) {
+            throw new LockFailedException(resource.getString(), e);
+        }
+
+        if (lockAcquired) {
+            return null;
+        } else {
+            throw new LockFailedException(resource.getString());
+        }
     }
 
     @Override
