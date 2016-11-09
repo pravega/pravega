@@ -144,6 +144,8 @@ project('integrationtests') {
         compile project(':clients:streaming')
         compile project(':service:server')
         compile project(':service:server:host')
+        compile project(':controller:server')
+        compile group: 'org.apache.curator', name: 'curator-test', version: '2.11.0'
         testCompile project(':testcommon')
         testCompile files(project(':common').sourceSets.test.output)
         compile files(project(':clients:streaming').sourceSets.test.output)

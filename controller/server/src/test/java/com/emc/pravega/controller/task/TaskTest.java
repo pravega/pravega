@@ -145,7 +145,8 @@ public class TaskTest {
         }
 
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis()).join();
-        assertEquals(result, CreateStreamStatus.SUCCESS);
+        // failure because the task will not be able to contact pravega host as we have not started one
+        assertEquals(result, CreateStreamStatus.FAILURE);
     }
 
     @Test

@@ -19,6 +19,7 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -128,7 +129,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     /**
      * Commit transaction.
      *
-     * @param scope  stream scope.
+t     * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
      * @return true/false.
@@ -144,7 +145,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
                 .thenApply(txId -> {
-                    notifyTxCreationAsync(scope, stream, txId);
+                    notifyTxCreation(scope, stream, txId);
                     return txId;
                 });
     }
@@ -174,26 +175,27 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
                 .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
     }
 
-    private void notifyTxCreationAsync(final String scope, final String stream, final UUID txid) {
-        streamMetadataStore.getActiveSegments(stream)
+    private void notifyTxCreation(final String scope, final String stream, final UUID txid) {
+        FutureHelpers.getAndHandleExceptions(streamMetadataStore.getActiveSegments(stream)
                 .thenApply(activeSegments -> {
                     activeSegments
                             .stream()
+                            .parallel()
                             .forEach(segment -> {
                                 NodeUri uri = SegmentHelper.getSegmentUri(scope,
                                         stream,
                                         segment.getNumber(),
                                         this.hostControllerStore);
-                                CompletableFuture.runAsync(() ->
-                                        SegmentHelper.createTransaction(scope,
-                                                stream,
-                                                segment.getNumber(),
-                                                txid,
-                                                ModelHelper.encode(uri),
-                                                this.connectionFactory));
+
+                                SegmentHelper.createTransaction(scope,
+                                        stream,
+                                        segment.getNumber(),
+                                        txid,
+                                        ModelHelper.encode(uri),
+                                        this.connectionFactory);
                             });
                     return null;
-                });
+                }), RuntimeException::new);
     }
 
     private CompletableFuture<Void> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {

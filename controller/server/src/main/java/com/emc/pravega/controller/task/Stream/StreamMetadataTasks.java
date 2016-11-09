@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
- *
+ * <p>
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
@@ -73,9 +73,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Create stream.
-     * @param scope scope.
-     * @param stream stream name.
-     * @param config stream configuration.
+     *
+     * @param scope           scope.
+     * @param stream          stream name.
+     * @param config          stream configuration.
      * @param createTimestamp creation timestamp.
      * @return creation status.
      */
@@ -89,7 +90,8 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Update stream's configuration.
-     * @param scope scope.
+     *
+     * @param scope  scope.
      * @param stream stream name.
      * @param config modified stream configuration.
      * @return update status.
@@ -104,10 +106,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Scales stream segments.
-     * @param scope scope.
-     * @param stream stream name.
+     *
+     * @param scope          scope.
+     * @param stream         stream name.
      * @param sealedSegments segments to be sealed.
-     * @param newRanges key ranges for new segments.
+     * @param newRanges      key ranges for new segments.
      * @param scaleTimestamp scaling time stamp.
      * @return returns the newly created segments.
      */
@@ -121,6 +124,16 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         return this.streamMetadataStore.createStream(stream, config, timestamp)
+                .thenCompose(x -> {
+                    if (x) {
+                        return this.streamMetadataStore.getActiveSegments(stream)
+                                .thenApply(activeSegments ->
+                                        notifyNewSegments(config.getScope(), stream, activeSegments))
+                                .thenApply(y -> CreateStreamStatus.SUCCESS);
+                    } else {
+                        return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+                    }
+                })
                 .handle((result, ex) -> {
                     if (ex != null) {
                         if (ex instanceof StreamAlreadyExistsException) {
@@ -129,18 +142,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                             return CreateStreamStatus.FAILURE;
                         }
                     } else {
-                        // result is non-null
-                        if (result) {
-                            // successful stream creation implies the stream was completely created from scratch
-                            // or its creation was completed from a previous incomplete state resulting from host failure
-                            this.streamMetadataStore.getActiveSegments(stream)
-                                    .thenApply(activeSegments ->
-                                            notifyNewSegments(config.getScope(), stream, activeSegments));
-                            return CreateStreamStatus.SUCCESS;
-                        } else {
-                            // failure indicates that the stream creation failed due to some internal error, or
-                            return CreateStreamStatus.FAILURE;
-                        }
+                        return result;
                     }
                 });
     }
@@ -210,16 +212,14 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         segmentNumbers
                 .stream()
                 .parallel()
-                .forEach(segment -> asyncNotifyNewSegment(scope, stream, segment.getNumber()));
+                .forEach(segment -> notifyNewSegment(scope, stream, segment.getNumber()));
         return null;
     }
 
-    private Void asyncNotifyNewSegment(String scope, String stream, int segmentNumber) {
+    private Void notifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, this.hostControllerStore);
 
-        // async call, don't wait for its completion or success. Host will contact controller if it does not know
-        // about some segment even if this call fails?
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory));
+        SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory);
         return null;
     }
 

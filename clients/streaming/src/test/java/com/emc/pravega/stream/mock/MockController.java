@@ -235,7 +235,7 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(true);
     }
 
-    public PositionImpl getInitialPosition(String scope, String stream) {
+    private PositionImpl getInitialPosition(String scope, String stream) {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
     
