@@ -23,6 +23,7 @@ import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -222,10 +223,17 @@ public class HDFSStorage implements Storage {
                 executor);
     }
 
-    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
+    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException, StreamSegmentSealedException {
         FileStatus[] status = fileSystem.globStatus(new Path(this.getOwnedSegmentFullPath(targetStreamSegmentName)));
         if (status == null) {
             throw new FileNotFoundException(targetStreamSegmentName);
+        }
+        FileStatus[] sourceStatus = fileSystem.globStatus(new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName)));
+        if (sourceStatus == null) {
+            throw new FileNotFoundException(sourceStreamSegmentName);
+        }
+        if (sourceStatus[0].getPermission().getUserAction() != FsAction.READ) {
+            throw new IllegalStateException(sourceStreamSegmentName);
         }
         if ( status[0].getLen() != offset ) {
             throw new BadOffsetException(targetStreamSegmentName, offset, status[0].getLen());

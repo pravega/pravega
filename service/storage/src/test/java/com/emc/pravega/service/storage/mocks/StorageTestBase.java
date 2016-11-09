@@ -244,11 +244,9 @@ public abstract class StorageTestBase {
 
                 val sourceHandle = sourceSegment;
                 s.open(sourceSegment).join();
-                /* Sealing is a higher level construct. HDFS allows concat where the source can be written to as well.
                 assertThrows("Concat allowed when source segment is not sealed.",
                         () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceHandle, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
-                */
                 // Seal the source segment and then re-try the concat
                 s.seal(sourceHandle, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
