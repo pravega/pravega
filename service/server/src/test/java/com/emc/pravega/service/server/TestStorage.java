@@ -73,7 +73,7 @@ public class TestStorage implements Storage {
     }
 
     private void checkOpened() {
-        if(opened == false) {
+        if (!opened) {
             throw new IllegalStateException();
         }
     }
