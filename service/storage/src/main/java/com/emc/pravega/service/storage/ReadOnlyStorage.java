@@ -28,11 +28,17 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface ReadOnlyStorage {
     /**
-     * Attempts to acquire an exclusive lock for this Segment. If successful, a SegmentHandle will be returned, which
-     * will have to be used for all operations that access this segment. This lock is owned by this instance of the
-     * Storage adapter and cannot be used by another one, whether in the same process or externally.
+     * Attempts to acquire an exclusive lock for this Segment.
+     * will have to be used for all operations that access this segment.
+     * This lock is owned by this Pravega instance
+     * and cannot be used by another one.
      * @param streamSegmentName Name of the StreamSegment to be acquired.
-     * @return true if the lock is acquired, false if not
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been locked,
+     * an exclusive lock acquired for it.
+     * If the operation failed, it will be failed with the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * </ul>
      */
     CompletableFuture<Void> open(String streamSegmentName);
 

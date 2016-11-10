@@ -136,7 +136,7 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
         return FutureHelpers.runAsyncTranslateException(() -> {
-                    acquireLockForSegmentSync(streamSegmentName);
+                    openSync(streamSegmentName);
                     return null;
                 },
                 e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
@@ -146,13 +146,11 @@ public class HDFSStorage implements Storage {
     /**
      * Algorithm to take over the ownership of a segment.
      * <p>
-     * List the files.
-     * Mark all the files readonly
-     * Find the file with the biggest start offset
-     * Create a new file with the name equal to
-     * the current offset of the stream which is biggest start offset + its size
+     * List the file that represents the segment. This may be owned by some other node.
+     * Rename the file to the current node.
+     *
      */
-    private void acquireLockForSegmentSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
+    private void openSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
 
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
@@ -235,7 +233,7 @@ public class HDFSStorage implements Storage {
         if (sourceStatus[0].getPermission().getUserAction() != FsAction.READ) {
             throw new IllegalStateException(sourceStreamSegmentName);
         }
-        if ( status[0].getLen() != offset ) {
+        if (status[0].getLen() != offset) {
             throw new BadOffsetException(targetStreamSegmentName, offset, status[0].getLen());
         }
         fileSystem.concat(new Path(this.getOwnedSegmentFullPath(targetStreamSegmentName)),
@@ -298,8 +296,12 @@ public class HDFSStorage implements Storage {
         FSDataInputStream stream = fileSystem.open(new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
         int retVal = stream.read(offset,
                 buffer, bufferOffset, length);
-        if (retVal == -1) {
-            throw new ArrayIndexOutOfBoundsException();
+        if (retVal < 0) {
+            // -1 is usually a code for invalid args; check to see if we were supplied with an offset that exceeds the length of the segment.
+            long segLen = getStreamSegmentInfoSync(streamSegmentName, null).getLength();
+            if (offset >= segLen) {
+                throw new IllegalArgumentException(String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, segLen));
+            }
         }
         return retVal;
     }
