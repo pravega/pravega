@@ -132,7 +132,7 @@ public class TurbineHeatSensor {
                         try {
                             transaction.publish(city, payload);
                             transaction.flush();
-                        } catch (TxFailedException e) {}
+                        } catch (TxFailedException e) { }
                     } else {
                         producer.publish(city, payload);
                         producer.flush();
