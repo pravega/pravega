@@ -26,12 +26,14 @@ import com.emc.pravega.service.storage.mocks.StorageTestBase;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.security.PrivilegedExceptionAction;
 import java.util.Properties;
 import java.util.concurrent.ForkJoinPool;
 
@@ -52,8 +54,17 @@ public class HDFSStorageTest extends StorageTestBase {
         Configuration conf = new Configuration();
         conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
         conf.setBoolean("dfs.permissions.enabled", true);
-        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-        hdfsCluster = builder.build();
+        UserGroupInformation ugi;
+        ugi = UserGroupInformation.createRemoteUser("hdfs");
+        ugi.doAs(new PrivilegedExceptionAction<Void>() {
+            @Override
+            public Void run() throws Exception {
+                MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
+                hdfsCluster = builder.build();
+                return null;
+            }
+        });
+
     }
 
     @org.junit.AfterClass
