@@ -1,6 +1,10 @@
 package com.emc.pravega.demo;
 
-import com.emc.pravega.stream.*;
+import com.emc.pravega.stream.Stream;
+import com.emc.pravega.stream.Producer;
+import com.emc.pravega.stream.Transaction;
+import com.emc.pravega.stream.ProducerConfig;
+import com.emc.pravega.stream.TxFailedException;
 import lombok.Cleanup;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.mock.MockStreamManager;
@@ -31,10 +35,10 @@ public class TurbineHeatSensor {
         boolean isTransaction = false;
 
         // Since it is command line sample producer, user inputs will be accepted from console
-         if (args.length != 4 || args[0].equals("help")) {
-             System.out.println("TurbineHeatSensor producerCount eventsPerSec runtimeSec isTransaction");
-             System.out.println("TurbineHeatSensor 10 100 20 1");
-         } else {
+        if (args.length != 4 || args[0].equals("help")) {
+            System.out.println("TurbineHeatSensor producerCount eventsPerSec runtimeSec isTransaction");
+            System.out.println("TurbineHeatSensor 10 100 20 1");
+        } else {
 
              try {
                  // Parse the string argument into an integer value.
@@ -42,14 +46,12 @@ public class TurbineHeatSensor {
                  eventsPerSec = Integer.parseInt(args[1]);
                  runtimeSec = Integer.parseInt(args[2]);
                  isTransaction = Boolean.parseBoolean(args[3]);
-             }
-             catch (Exception nfe) {
+             } catch (Exception nfe) {
                  // The first argument isn't a valid integer.  Print
                  // an error message, then exit with an error code.
                  System.out.println("Arguments must be valid.");
-
              }
-         }
+        }
 
         System.out.println("\nTurbineHeatSensor is running "+producerCount+" simulators each ingesting "+eventsPerSec+" temperature data per second for "+runtimeSec+" seconds " + ((isTransaction) ? "via transactional mode" : " via non-transactional mode"));
 
@@ -108,12 +110,12 @@ public class TurbineHeatSensor {
                 transaction = producer.startTransaction(60000);
             }
 
-            for (int i=0; i < secondsToRun; i++) {
-                int current_eventsPerSec = 0;
+            for (int i = 0; i < secondsToRun; i++) {
+                int currentEventsPerSec = 0;
 
-                long one_second_timer = System.currentTimeMillis() + 1000;
-                while(System.currentTimeMillis() < one_second_timer && current_eventsPerSec <= eventsPerSec) {
-                    current_eventsPerSec++;
+                long oneSecondTimer = System.currentTimeMillis() + 1000;
+                while (System.currentTimeMillis() < oneSecondTimer && currentEventsPerSec <= eventsPerSec) {
+                    currentEventsPerSec++;
 
                     // wait for next event
                     try {
@@ -139,9 +141,9 @@ public class TurbineHeatSensor {
             }
 
             if (isTransaction) {
-                try{
+                try {
                     transaction.commit();
-                } catch (TxFailedException e) {}
+                } catch (TxFailedException e) { }
             }
 
         }
