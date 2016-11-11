@@ -70,7 +70,7 @@ public class TurbineHeatSensor {
              }
         }
 
-        System.out.println("\nTurbineHeatSensor is running "+producerCount+" simulators each ingesting "+eventsPerSec+" temperature data per second for "+runtimeSec+" seconds " + ((isTransaction) ? "via transactional mode" : " via non-transactional mode"));
+        System.out.println("\nTurbineHeatSensor is running "+producerCount+" simulators each ingesting "+eventsPerSec+" temperature data per second for "+runtimeSec+" seconds " + (isTransaction ? "via transactional mode" : " via non-transactional mode"));
 
         // Initialize executor
         ExecutorService executor = Executors.newFixedThreadPool(producerCount);
