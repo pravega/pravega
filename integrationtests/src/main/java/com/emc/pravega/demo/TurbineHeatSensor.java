@@ -10,7 +10,7 @@ import java.util.concurrent.Executors;
 /**
  * Created by bayar on 11/3/2016.
  * Sample app will simulate sensors that measure temperatures of Wind Turbines Gearbox
- * Data format is in CSV format as following Sensor Id, Turbine Id, Location, Timestamp, TempValue }
+ * Data format is in comma separated format as following TimeStamp, Sensor Id, Location, TempValue }
  *
  */
 public class TurbineHeatSensor {
@@ -19,27 +19,29 @@ public class TurbineHeatSensor {
     public static void main(String[] args) throws Exception {
 
         // Place names where wind farms are located
-        String[] LOCATIONS = {"Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming",
-        "Montgomery","Juneau","Phoenix","Little Rock","Sacramento","Denver","Hartford","Dover","Tallahassee","Atlanta","Honolulu","Boise","Springfield","Indianapolis","Des Moines","Topeka","Frankfort","Baton Rouge","Augusta","Annapolis","Boston","Lansing","St. Paul","Jackson","Jefferson City","Helena","Lincoln","Carson City","Concord","Trenton","Santa Fe","Albany","Raleigh","Bismarck","Columbus","Oklahoma City","Salem","Harrisburg","Providence","Columbia","Pierre","Nashville","Austin","Salt Lake City","Montpelier","Richmond","Olympia","Charleston","Madison","Cheyenne"};
+        String[] locations = {"Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming", "Montgomery", "Juneau", "Phoenix", "Little Rock", "Sacramento", "Denver", "Hartford", "Dover", "Tallahassee", "Atlanta", "Honolulu", "Boise", "Springfield", "Indianapolis", "Des Moines", "Topeka", "Frankfort", "Baton Rouge", "Augusta", "Annapolis", "Boston", "Lansing", "St. Paul", "Jackson", "Jefferson City", "Helena", "Lincoln", "Carson City", "Concord", "Trenton", "Santa Fe", "Albany", "Raleigh", "Bismarck", "Columbus", "Oklahoma City", "Salem", "Harrisburg", "Providence", "Columbia", "Pierre", "Nashville", "Austin", "Salt Lake City", "Montpelier", "Richmond", "Olympia", "Charleston", "Madison", "Cheyenne"};
 
-        // default parameters
-        int PRODUCER_COUNT = 20;
-        int EVENTS_PER_SEC = 1000;
-        int RUNTIME_SEC = 20;
-        boolean IS_TRANSACTION = false;
+        // How many producers should we run concurrently
+        int producerCount = 20;
+        // How many events each producer has to produce per seconds
+        int eventsPerSec = 1000;
+        // How long it needs to run
+        int runtimeSec = 20;
+        // Should producers use Transaction or not
+        boolean isTransaction = false;
 
         // Since it is command line sample producer, user inputs will be accepted from console
-         if(args.length != 4 || args[0] == "help"){
-             System.out.println("TurbineHeatSensor PRODUCER_COUNT EVENTS_PER_SEC RUNTIME_SEC IS_TRANSACTION");
+         if (args.length != 4 || args[0].equals("help")) {
+             System.out.println("TurbineHeatSensor producerCount eventsPerSec runtimeSec isTransaction");
              System.out.println("TurbineHeatSensor 10 100 20 1");
-         }else {
+         } else {
 
              try {
                  // Parse the string argument into an integer value.
-                 PRODUCER_COUNT = Integer.parseInt(args[0]);
-                 EVENTS_PER_SEC = Integer.parseInt(args[1]);
-                 RUNTIME_SEC = Integer.parseInt(args[2]);
-                 IS_TRANSACTION = Boolean.parseBoolean(args[3]);
+                 producerCount = Integer.parseInt(args[0]);
+                 eventsPerSec = Integer.parseInt(args[1]);
+                 runtimeSec = Integer.parseInt(args[2]);
+                 isTransaction = Boolean.parseBoolean(args[3]);
              }
              catch (Exception nfe) {
                  // The first argument isn't a valid integer.  Print
@@ -49,19 +51,20 @@ public class TurbineHeatSensor {
              }
          }
 
-        System.out.println("\nTurbineHeatSensor is running "+PRODUCER_COUNT+" simulators each ingesting "+EVENTS_PER_SEC+" temperature data per second for "+RUNTIME_SEC+" seconds " + ((IS_TRANSACTION)?"via transactional mode":" via non-transactional mode"));
+        System.out.println("\nTurbineHeatSensor is running "+producerCount+" simulators each ingesting "+eventsPerSec+" temperature data per second for "+runtimeSec+" seconds " + ((isTransaction) ? "via transactional mode" : " via non-transactional mode"));
 
         // Initialize executor
-        ExecutorService executor = Executors.newFixedThreadPool(PRODUCER_COUNT);
+        ExecutorService executor = Executors.newFixedThreadPool(producerCount);
 
-        // create PRODUCER_COUNT number of threads to simulate sensors
-        for (int i = 0; i < PRODUCER_COUNT; i++) {
-            TemperatureSensors worker = new TemperatureSensors(i, LOCATIONS[i%LOCATIONS.length], EVENTS_PER_SEC, RUNTIME_SEC, IS_TRANSACTION);
+        // create producerCount number of threads to simulate sensors
+        for (int i = 0; i < producerCount; i++) {
+            TemperatureSensors worker = new TemperatureSensors(i, locations[i % locations.length], eventsPerSec, runtimeSec, isTransaction);
             executor.execute(worker);
         }
         executor.shutdown();
         // Wait until all threads are finish
         while (!executor.isTerminated()) {
+            // wait
         }
 
         System.out.println("\nFinished all producers");
@@ -72,20 +75,20 @@ public class TurbineHeatSensor {
      * A Sensor simulator thread that generates dummy value as temperature measurement and ingests to specified stream
      */
 
-    public static class TemperatureSensors implements Runnable {
+    private static class TemperatureSensors implements Runnable {
 
-        private int producer_id = 0;
+        private int producerId = 0;
         private String city = "";
-        private int events_per_sec = 0;
-        private int seconds_to_run = 0;
-        private boolean is_transaction = false;
+        private int eventsPerSec = 0;
+        private int secondsToRun = 0;
+        private boolean isTransaction = false;
 
-        TemperatureSensors(int sensor_id, String city, int events_per_sec, int seconds_to_run, boolean is_transaction) {
-            this.producer_id = sensor_id;
+        TemperatureSensors(int sensorId, String city, int eventsPerSec, int secondsToRun, boolean isTransaction) {
+            this.producerId = sensorId;
             this.city = city;
-            this.events_per_sec = events_per_sec;
-            this.seconds_to_run = seconds_to_run;
-            this.is_transaction = is_transaction;
+            this.eventsPerSec = eventsPerSec;
+            this.secondsToRun = secondsToRun;
+            this.isTransaction = isTransaction;
         }
 
         @Override
@@ -101,30 +104,32 @@ public class TurbineHeatSensor {
             Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
             Transaction<String> transaction = null;
 
-            if(is_transaction){
+            if (isTransaction) {
                 transaction = producer.startTransaction(60000);
             }
 
-            for(int i=0; i < seconds_to_run; i++) {
-                int current_events_per_sec = 0;
+            for (int i=0; i < secondsToRun; i++) {
+                int current_eventsPerSec = 0;
 
                 long one_second_timer = System.currentTimeMillis() + 1000;
-                while(System.currentTimeMillis() < one_second_timer && current_events_per_sec <= events_per_sec) {
-                    current_events_per_sec++;
+                while(System.currentTimeMillis() < one_second_timer && current_eventsPerSec <= eventsPerSec) {
+                    current_eventsPerSec++;
 
                     // wait for next event
                     try {
-                        Thread.sleep(1000/events_per_sec);
-                    }catch(InterruptedException e){}
+                        Thread.sleep(1000 / eventsPerSec);
+                    } catch (InterruptedException e) {
+                        // log exception
+                    }
 
                     // Construct event payload
-                    String payload = System.currentTimeMillis() + "," + producer_id + "," + city + "," +  (int) (Math.random() * 200);
+                    String payload = System.currentTimeMillis() + ", " + producerId + ", " + city + ", " +  (int) (Math.random() * 200);
 
                     // event ingestion
-                    if (is_transaction) {
+                    if (isTransaction) {
                         try {
                             transaction.publish(city, payload);
-                            transaction.flush();   
+                            transaction.flush();
                         } catch (TxFailedException e) {}
                     } else {
                         producer.publish(city, payload);
@@ -133,10 +138,10 @@ public class TurbineHeatSensor {
                 }
             }
 
-            if(is_transaction){
+            if (isTransaction) {
                 try{
                     transaction.commit();
-                }catch(TxFailedException e){}
+                } catch (TxFailedException e) {}
             }
 
         }
