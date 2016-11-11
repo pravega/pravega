@@ -195,9 +195,10 @@ public class HDFSStorage implements Storage {
     SegmentProperties sealSync(String streamSegmentName, Duration timeout) throws IOException {
         fileSystem.setPermission(
                 new Path(this.getOwnedSegmentFullPath(streamSegmentName)),
-                new FsPermission(FsAction.READ,
-                        FsAction.NONE,
-                        FsAction.NONE
+                new FsPermission(
+                        FsAction.READ,
+                        FsAction.READ,
+                        FsAction.READ
                 )
         );
         return this.getStreamSegmentInfoSync(streamSegmentName, timeout);
@@ -341,5 +342,6 @@ public class HDFSStorage implements Storage {
         conf.set("fs.default.name", serviceBuilderConfig.getHDFSHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
         this.fileSystem = FileSystem.get(conf);
+        closed.set(false);
     }
 }

@@ -21,6 +21,7 @@ package com.emc.pravega.service.storage.mocks;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.testcommon.AssertExtensions;
 import lombok.val;
@@ -195,12 +196,9 @@ public abstract class StorageTestBase {
                 val segmentInfo1 = s.seal(segmentName, TIMEOUT).join();
                 Assert.assertTrue("seal() is reentrant returns with isSealed == true", segmentInfo1.isSealed());
 
-                /*This works with actual HDFS but does not work with the simulation. Will uncomment it when
-                // we fix mini hdfs
                 assertThrows("write() did not throw for a sealed StreamSegment.",
                         () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
-                 */
 
                 // Check post-delete seal.
                 s.delete(segmentName, TIMEOUT).join();
@@ -242,20 +240,19 @@ public abstract class StorageTestBase {
                     continue;
                 }
 
-                val sourceHandle = sourceSegment;
                 s.open(sourceSegment).join();
                 assertThrows("Concat allowed when source segment is not sealed.",
-                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceHandle, TIMEOUT),
+                        () -> s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT),
                         ex -> ex instanceof IllegalStateException);
                 // Seal the source segment and then re-try the concat
-                s.seal(sourceHandle, TIMEOUT).join();
+                s.seal(sourceSegment, TIMEOUT).join();
                 SegmentProperties preConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
-                SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceHandle, TIMEOUT).join();
+                SegmentProperties sourceProps = s.getStreamSegmentInfo(sourceSegment, TIMEOUT).join();
 
-                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceHandle, TIMEOUT).join();
+                s.concat(firstSegmentHandle, firstSegmentLength.get(), sourceSegment, TIMEOUT).join();
                 concatOrder.add(sourceSegment);
                 SegmentProperties postConcatTargetProps = s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join();
-                Assert.assertFalse("concat() did not delete source segment", s.exists(sourceHandle, TIMEOUT).join());
+                Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
                 Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
