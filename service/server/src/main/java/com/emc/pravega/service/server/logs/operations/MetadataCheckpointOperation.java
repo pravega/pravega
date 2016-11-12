@@ -47,7 +47,8 @@ public class MetadataCheckpointOperation extends MetadataOperation {
         super();
     }
 
-    protected MetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected MetadataCheckpointOperation(OperationHeader header, DataInputStream source) throws
+            SerializationException {
         super(header, source);
     }
 

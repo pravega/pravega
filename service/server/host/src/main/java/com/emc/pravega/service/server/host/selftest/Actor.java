@@ -59,7 +59,8 @@ abstract class Actor extends AbstractService implements AutoCloseable {
      * @param store           A StoreAdapter to execute operations on.
      * @param executorService The Executor Service to use for async tasks.
      */
-    Actor(TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executorService) {
+    Actor(TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService
+            executorService) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(dataSource, "dataSource");
         Preconditions.checkNotNull(store, "store");

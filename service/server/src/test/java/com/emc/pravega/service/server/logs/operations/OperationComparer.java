@@ -65,9 +65,11 @@ public class OperationComparer {
      */
     public void assertEquals(String message, Operation expected, Operation actual) {
         if (this.enforceReferenceEquality) {
-            if (expected instanceof StreamSegmentAppendOperation && actual instanceof CachedStreamSegmentAppendOperation) {
+            if (expected instanceof StreamSegmentAppendOperation && actual instanceof
+                    CachedStreamSegmentAppendOperation) {
                 // StreamSegmentAppendOperation and CachedStreamSegmentAppendOperation have a special relationship.
-                assertSame(message, (StreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation) actual);
+                assertSame(message, (StreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation)
+                        actual);
             } else {
                 Assert.assertEquals(message + " Unexpected Operation.", expected, actual);
             }
@@ -79,7 +81,8 @@ public class OperationComparer {
     private void assertSame(String message, Operation expected, Operation actual) {
         if (expected instanceof StreamSegmentAppendOperation) {
             // StreamSegmentAppendOperation and CachedStreamSegmentAppendOperation have a special relationship.
-            Assert.assertTrue(message + " Unexpected Java class.", actual instanceof StreamSegmentAppendOperation || actual instanceof CachedStreamSegmentAppendOperation);
+            Assert.assertTrue(message + " Unexpected Java class.", actual instanceof StreamSegmentAppendOperation ||
+                    actual instanceof CachedStreamSegmentAppendOperation);
         } else {
             Assert.assertEquals(message + " Unexpected Java class.", expected.getClass(), actual.getClass());
         }
@@ -96,7 +99,8 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, StorageOperation expected, StorageOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual
+                .getStreamSegmentId());
         if (expected instanceof StreamSegmentSealOperation) {
             assertSame(message, (StreamSegmentSealOperation) expected, (StreamSegmentSealOperation) actual);
         } else if (expected instanceof StreamSegmentAppendOperation) {
@@ -104,12 +108,14 @@ public class OperationComparer {
                 assertSame(message, (StreamSegmentAppendOperation) expected, (StreamSegmentAppendOperation) actual);
             } else if (actual instanceof CachedStreamSegmentAppendOperation) {
                 // StreamSegmentAppendOperation and CachedStreamSegmentAppendOperation have a special relationship.
-                assertSame(message, (StreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation) actual);
+                assertSame(message, (StreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation)
+                        actual);
             } else {
                 Assert.fail(message + " No comparison implemented for operations " + expected + " and " + actual);
             }
         } else if (expected instanceof CachedStreamSegmentAppendOperation) {
-            assertSame(message, (CachedStreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation) actual);
+            assertSame(message, (CachedStreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation)
+                    actual);
         } else if (expected instanceof MergeTransactionOperation) {
             assertSame(message, (MergeTransactionOperation) expected, (MergeTransactionOperation) actual);
         } else {
@@ -118,32 +124,45 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, StreamSegmentSealOperation expected, StreamSegmentSealOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
+        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentOffset(), actual
+                .getStreamSegmentOffset());
     }
 
-    private void assertSame(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
-        Assert.assertEquals(message + " Unexpected AppendContext.ClientId", expected.getAppendContext().getClientId(), actual.getAppendContext().getClientId());
-        Assert.assertEquals(message + " Unexpected AppendContext.EventNumber", expected.getAppendContext().getEventNumber(), actual.getAppendContext().getEventNumber());
+    private void assertSame(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation
+            actual) {
+        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), actual
+                .getStreamSegmentOffset());
+        Assert.assertEquals(message + " Unexpected AppendContext.ClientId",
+                expected.getAppendContext().getClientId(), actual.getAppendContext().getClientId());
+
+        Assert.assertEquals(message + " Unexpected AppendContext.EventNumber", expected.getAppendContext()
+                .getEventNumber(), actual.getAppendContext().getEventNumber());
         Assert.assertArrayEquals(message + " Unexpected Data. ", expected.getData(), actual.getData());
     }
 
-    private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation cachedActual) {
-        Assert.assertNotNull("Cannot compare StreamSegmentAppendOperation with a CachedStreamSegmentAppendOperation without a Cache.", this.cache);
-        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), cachedActual.getStreamSegmentOffset());
+    private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation
+            cachedActual) {
+        Assert.assertNotNull("Cannot compare StreamSegmentAppendOperation with a CachedStreamSegmentAppendOperation " +
+                "without a Cache.", this.cache);
+        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(),
+                cachedActual.getStreamSegmentOffset());
         Assert.assertEquals(message + " Unexpected Length.", expected.getData().length, cachedActual.getLength());
         byte[] actualData = cache.get(cachedActual.createCacheKey());
         Assert.assertArrayEquals(message + " Unexpected Data. ", expected.getData(), actualData);
     }
 
-    private void assertSame(String message, CachedStreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation actual) {
+    private void assertSame(String message, CachedStreamSegmentAppendOperation expected,
+                            CachedStreamSegmentAppendOperation actual) {
         Assert.assertEquals(message + " Unexpected Length.", expected.getLength(), actual.getLength());
     }
 
     private void assertSame(String message, MergeTransactionOperation expected, MergeTransactionOperation actual) {
-        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getTransactionSegmentId(), actual.getTransactionSegmentId());
-        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentLength.", expected.getLength(), actual.getLength());
-        Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getTransactionSegmentId(),
+                actual.getTransactionSegmentId());
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentLength.", expected.getLength(), actual
+                .getLength());
+        Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(),
+                actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, MetadataOperation expected, MetadataOperation actual) {
@@ -159,19 +178,25 @@ public class OperationComparer {
     }
 
     private void assertSame(String message, StreamSegmentMapOperation expected, StreamSegmentMapOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual
+                .getStreamSegmentId());
         Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getLength(), actual.getLength());
-        Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
+        Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual
+                .getStreamSegmentName());
     }
 
     private void assertSame(String message, TransactionMapOperation expected, TransactionMapOperation actual) {
-        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
-        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
-        Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(), actual.getParentStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getStreamSegmentId(),
+                actual.getStreamSegmentId());
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentName.", expected.getStreamSegmentName(),
+                actual.getStreamSegmentName());
+        Assert.assertEquals(message + " Unexpected ParentStreamSegmentId.", expected.getParentStreamSegmentId(),
+                actual.getParentStreamSegmentId());
     }
 
     private void assertSame(String message, MetadataCheckpointOperation expected, MetadataCheckpointOperation actual) {
-        Assert.assertEquals(message + " Lengths mismatch.", expected.getContents().getLength(), actual.getContents().getLength());
+        Assert.assertEquals(message + " Lengths mismatch.", expected.getContents().getLength(), actual.getContents()
+                .getLength());
         for (int j = 0; j < expected.getContents().getLength(); j++) {
             if (expected.getContents().get(j) != actual.getContents().get(j)) {
                 Assert.fail(String.format("%s Contents differ at index %d.", message, j));

@@ -23,7 +23,8 @@ import java.util.Collection;
 /**
  * Defines an updateable StreamSegment Metadata.
  */
-public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata, TruncationMarkerRepository {
+public interface UpdateableContainerMetadata extends ContainerMetadata, RecoverableMetadata,
+        TruncationMarkerRepository {
     /**
      * Maps a new StreamSegment Name to its assigned Id.
      *
@@ -43,7 +44,8 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
      * @return An UpdateableSegmentMetadata that represents the metadata for the newly mapped StreamSegment.
      * @throws IllegalArgumentException If the parentStreamSegmentId refers to an unknown StreamSegment.
      */
-    UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId);
+    UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long
+            parentStreamSegmentId);
 
     /**
      * Gets a collection containing all StreamSegmentIds currently mapped.

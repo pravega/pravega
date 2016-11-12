@@ -62,7 +62,7 @@ public class FailingRequestProcessor implements RequestProcessor {
     public void getTransactionInfo(GetTransactionInfo getTransactionInfo) {
         throw new IllegalStateException("Unexpected operation");
     }
-    
+
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         throw new IllegalStateException("Unexpected operation");
@@ -77,12 +77,12 @@ public class FailingRequestProcessor implements RequestProcessor {
     public void commitTransaction(CommitTransaction commitTransaction) {
         throw new IllegalStateException("Unexpected operation");
     }
-    
+
     @Override
     public void dropTransaction(DropTransaction dropTransaction) {
         throw new IllegalStateException("Unexpected operation");
     }
-    
+
     @Override
     public void sealSegment(SealSegment sealSegment) {
         throw new IllegalStateException("Unexpected operation");

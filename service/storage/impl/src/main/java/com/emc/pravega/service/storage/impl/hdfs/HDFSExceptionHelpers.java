@@ -26,13 +26,14 @@ import org.apache.hadoop.hdfs.protocol.AclException;
 
 /**
  * Helps to translated HDFS specific IOExceptions to StreamSegmentExceptions.
- * */
+ */
 public class HDFSExceptionHelpers {
 
     /**
      * API to translated HDFS specific IOExceptions to StreamSegmentExceptions.
+     *
      * @param streamSegmentName Name of the stream segment on which the exception occurs.
-     * @param e The exception to be translated
+     * @param e                 The exception to be translated
      * @return
      */
     public static Exception translateFromIOException(String streamSegmentName, Exception e) {

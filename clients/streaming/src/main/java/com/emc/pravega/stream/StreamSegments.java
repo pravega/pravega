@@ -35,7 +35,8 @@ public class StreamSegments {
      * Creates a new instance of the StreamSegments class.
      *
      * @param segments Segments of a stream, keyed by the largest key in their key range.
-     *                 IE: If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0.
+     *                 IE: If there are two segments split evenly, the first should have a value of 0.5 and the
+     *                 second 1.0.
      */
     public StreamSegments(NavigableMap<Double, Segment> segments) {
         this.segments = Collections.unmodifiableNavigableMap(segments);

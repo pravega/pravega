@@ -54,7 +54,8 @@ public class OperationFactory implements LogItemFactory<Operation> {
         OperationConstructors() {
             constructors = new HashMap<>();
             try {
-                // We purposefully do not create CachedStreamSegmentAppendOperations. Those are in-memory only and need not be serialized.
+                // We purposefully do not create CachedStreamSegmentAppendOperations. Those are in-memory only and
+                // need not be serialized.
                 map(StreamSegmentAppendOperation.OPERATION_TYPE, StreamSegmentAppendOperation::new);
                 map(StreamSegmentSealOperation.OPERATION_TYPE, StreamSegmentSealOperation::new);
                 map(MergeTransactionOperation.OPERATION_TYPE, MergeTransactionOperation::new);
@@ -76,10 +77,12 @@ public class OperationFactory implements LogItemFactory<Operation> {
             }
         }
 
-        public Operation create(Operation.OperationHeader header, DataInputStream source) throws SerializationException {
+        public Operation create(Operation.OperationHeader header, DataInputStream source) throws
+                SerializationException {
             OperationConstructor constructor = constructors.get(header.operationType);
             if (constructor == null) {
-                throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type %d.", header.operationType));
+                throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type %d.",
+                        header.operationType));
             }
 
             return constructor.apply(header, source);

@@ -73,7 +73,8 @@ public class MemoryStateUpdaterTests {
 
         // Verify they were properly processed.
         Assert.assertEquals("Unexpected size for MemoryOperationLog.", operations.size(), opLog.size());
-        Assert.assertEquals("Unexpected number of items added to ReadIndex.", operations.size() - segmentCount * operationCountPerType, methodInvocations.size());
+        Assert.assertEquals("Unexpected number of items added to ReadIndex.", operations.size() - segmentCount *
+                operationCountPerType, methodInvocations.size());
 
         Iterator<Operation> logIterator = opLog.read(op -> true, opLog.size());
         int currentIndex = -1;
@@ -86,18 +87,33 @@ public class MemoryStateUpdaterTests {
                 currentReadIndex++;
                 TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
                 if (expected instanceof StreamSegmentAppendOperation) {
-                    Assert.assertTrue("StreamSegmentAppendOperation was not added as a CachedStreamSegmentAppendOperation to the Memory Log.", actual instanceof CachedStreamSegmentAppendOperation);
+                    Assert.assertTrue("StreamSegmentAppendOperation was not added as a " +
+                            "CachedStreamSegmentAppendOperation to the Memory Log.", actual instanceof
+                            CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was not added to the " +
+                            "ReadIndex.", TestReadIndex.APPEND, invokedMethod.methodName);
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the " +
+                            "ReadIndex with wrong arguments.", appendOp.getStreamSegmentId(),
+                            invokedMethod.args.get("streamSegmentId"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the " +
+                            "ReadIndex with wrong arguments.", appendOp.getStreamSegmentOffset(), invokedMethod.args
+                            .get("offset"));
+                    Assert.assertEquals("Append with SeqNo " + expected.getSequenceNumber() + " was added to the " +
+                            "ReadIndex with wrong arguments.", appendOp.getData(), invokedMethod.args.get("data"));
                 } else if (expected instanceof MergeTransactionOperation) {
                     MergeTransactionOperation mergeOp = (MergeTransactionOperation) expected;
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
-                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the ReadIndex with wrong arguments.", mergeOp.getTransactionSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was not added to the " +
+                            "ReadIndex.", TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " +
+                            "ReadIndex with wrong arguments.", mergeOp.getStreamSegmentId(),
+                            invokedMethod.args.get("targetStreamSegmentId"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " +
+                            "ReadIndex with wrong arguments.", mergeOp.getStreamSegmentOffset(), invokedMethod.args
+                            .get("offset"));
+                    Assert.assertEquals("Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " +
+                            "ReadIndex with wrong arguments.", mergeOp.getTransactionSegmentId(), invokedMethod.args
+                            .get("sourceStreamSegmentId"));
                 }
             }
         }
@@ -105,7 +121,8 @@ public class MemoryStateUpdaterTests {
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
                 "MemoryStateUpdater accepted an operation that was out of order.",
-                () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
+                () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber
+                // set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
@@ -126,12 +143,16 @@ public class MemoryStateUpdaterTests {
 
         Assert.assertEquals("Unexpected number of method invocations.", 2, methodInvocations.size());
         TestReadIndex.MethodInvocation enterRecovery = methodInvocations.get(0);
-        Assert.assertEquals("ReadIndex.enterRecoveryMode was not called when expected.", TestReadIndex.ENTER_RECOVERY_MODE, enterRecovery.methodName);
-        Assert.assertEquals("ReadIndex.enterRecoveryMode was called with the wrong arguments.", metadata1, enterRecovery.args.get("recoveryMetadataSource"));
+        Assert.assertEquals("ReadIndex.enterRecoveryMode was not called when expected.", TestReadIndex
+                .ENTER_RECOVERY_MODE, enterRecovery.methodName);
+        Assert.assertEquals("ReadIndex.enterRecoveryMode was called with the wrong arguments.", metadata1,
+                enterRecovery.args.get("recoveryMetadataSource"));
 
         TestReadIndex.MethodInvocation exitRecovery = methodInvocations.get(1);
-        Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex.EXIT_RECOVERY_MODE, exitRecovery.methodName);
-        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery.args.get("successfulRecovery"));
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was not called when expected.", TestReadIndex
+                .EXIT_RECOVERY_MODE, exitRecovery.methodName);
+        Assert.assertEquals("ReadIndex.exitRecoveryMode was called with the wrong arguments.", true, exitRecovery
+                .args.get("successfulRecovery"));
     }
 
     /**
@@ -147,15 +168,19 @@ public class MemoryStateUpdaterTests {
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         AtomicInteger flushCallbackCallCount = new AtomicInteger();
-        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"),
+                readIndex), flushCallbackCallCount::incrementAndGet);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
         updater.flush();
-        Assert.assertEquals("Unexpected number of calls to the ReadIndex triggerFutureReads method.", 1, methodInvocations.size());
-        Assert.assertEquals("Unexpected number of calls to the flushCallback provided in the constructor.", 1, flushCallbackCallCount.get());
+        Assert.assertEquals("Unexpected number of calls to the ReadIndex triggerFutureReads method.", 1,
+                methodInvocations.size());
+        Assert.assertEquals("Unexpected number of calls to the flushCallback provided in the constructor.", 1,
+                flushCallbackCallCount.get());
         TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
-        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
+        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex
+                .TRIGGER_FUTURE_READS, mi.methodName);
         Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");
         HashSet<Long> expectedSegmentIds = new HashSet<>();
         for (Operation op : operations) {
@@ -164,18 +189,22 @@ public class MemoryStateUpdaterTests {
             }
         }
 
-        AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
+        AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of " +
+                "StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
     }
 
-    private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
+    private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType)
+            throws DataCorruptionException {
         ArrayList<Operation> operations = new ArrayList<>();
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
-                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i * j, false, false, new Date()));
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(new StreamSegmentInformation("a", i *
+                        j, false, false, new Date()));
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
-                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), new AppendContext(UUID.randomUUID(), i * j));
+                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i)
+                        .getBytes(), new AppendContext(UUID.randomUUID(), i * j));
                 appendOp.setStreamSegmentOffset(offset);
                 offset += appendOp.getData().length;
                 operations.add(appendOp);

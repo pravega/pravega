@@ -60,11 +60,13 @@ public class FutureReadResultEntryCollectionTests {
             });
 
             Collection<FutureReadResultEntry> actualResult = c.poll(offset);
-            AssertExtensions.assertContainsSameElements(String.format("Unexpected result from poll(%d).", offset), expectedResult, actualResult, FutureReadResultEntryCollection::entryComparator);
+            AssertExtensions.assertContainsSameElements(String.format("Unexpected result from poll(%d).", offset),
+                    expectedResult, actualResult, FutureReadResultEntryCollection::entryComparator);
 
             // Check again, now that we have already removed these entries.
             actualResult = c.poll(offset);
-            Assert.assertEquals(String.format("poll(%d) did not remove the entries from the collection.", offset), 0, actualResult.size());
+            Assert.assertEquals(String.format("poll(%d) did not remove the entries from the collection.", offset), 0,
+                    actualResult.size());
             previousOffset = offset;
         }
     }

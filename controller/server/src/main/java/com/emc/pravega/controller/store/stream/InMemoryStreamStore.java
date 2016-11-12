@@ -88,13 +88,15 @@ public class InMemoryStreamStore implements StreamMetadataStore {
     }
 
     @Override
-    public List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments) {
+    public List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures>
+            currentSegments) {
         Stream stream = getStream(name);
         return stream.getNextSegments(completedSegments, currentSegments);
     }
 
     @Override
-    public List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
+    public List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>>
+            newRanges, long scaleTimestamp) {
         Stream stream = getStream(name);
         return stream.scale(sealedSegments, newRanges, scaleTimestamp);
     }

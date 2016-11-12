@@ -61,7 +61,8 @@ public class StreamSegmentService implements StreamSegmentStore {
      * @throws NullPointerException If segmentContainerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      */
-    public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
+    public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper
+            segmentToContainerMapper) {
         Preconditions.checkNotNull(segmentContainerRegistry, "segmentContainerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
 
@@ -74,18 +75,23 @@ public class StreamSegmentService implements StreamSegmentStore {
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext,
+                                          Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "append", streamSegmentName, data.length, appendContext, timeout);
         return withCompletion(
-                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, data, appendContext, timeout)),
+                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName,
+                        data, appendContext, timeout)),
                 r -> traceLeave(log, "append", traceId, r));
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "appendWithOffset", streamSegmentName, offset, data.length, appendContext, timeout);
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext
+            appendContext, Duration timeout) {
+        long traceId = LoggerHelpers.traceEnter(log, "appendWithOffset", streamSegmentName, offset, data.length,
+                appendContext, timeout);
         return withCompletion(
-                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, offset, data, appendContext, timeout)),
+                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName,
+                        offset, data, appendContext, timeout)),
                 r -> traceLeave(log, "appendWithOffset", traceId, r));
     }
 
@@ -117,11 +123,13 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Duration
+            timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "createTransaction", parentStreamSegmentName, timeout);
         return withCompletion(
                 () -> getContainer(parentStreamSegmentName)
-                        .thenCompose(container -> container.createTransaction(parentStreamSegmentName, transactionId, timeout)),
+                        .thenCompose(container -> container.createTransaction(parentStreamSegmentName, transactionId,
+                                timeout)),
                 r -> traceLeave(log, "createTransaction", traceId, r));
     }
 
@@ -153,7 +161,8 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
+    public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration
+            timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "getLastAppendContext", streamSegmentName, clientId);
         return withCompletion(
                 () -> getContainer(streamSegmentName)
@@ -161,7 +170,8 @@ public class StreamSegmentService implements StreamSegmentStore {
                 r -> traceLeave(log, "getLastAppendContext", traceId, r));
     }
 
-    private <T> CompletableFuture<T> withCompletion(Supplier<CompletableFuture<T>> supplier, Consumer<T> leaveCallback) {
+    private <T> CompletableFuture<T> withCompletion(Supplier<CompletableFuture<T>> supplier, Consumer<T>
+            leaveCallback) {
         CompletableFuture<T> resultFuture = supplier.get();
         resultFuture.thenAccept(r -> CallbackHelpers.invokeSafely(leaveCallback, r, null));
         return resultFuture;

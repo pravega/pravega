@@ -112,7 +112,8 @@ public class RocksDBCacheFactory implements CacheFactory {
         // Create (or recreate the database dir).
         createDatabaseDir();
 
-        // Load the RocksDB C++ library. Doing this more than once has no effect, so it's safe to put in the constructor.
+        // Load the RocksDB C++ library. Doing this more than once has no effect, so it's safe to put in the
+        // constructor.
         RocksDB.loadLibrary();
         this.options = createOptions();
 

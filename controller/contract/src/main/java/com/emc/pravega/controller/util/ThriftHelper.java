@@ -26,7 +26,7 @@ import org.apache.thrift.TException;
 public final class ThriftHelper {
 
     @FunctionalInterface
-    public static interface ThriftCall<ResultT> {
+    public interface ThriftCall<ResultT> {
         ResultT call() throws TException;
     }
 

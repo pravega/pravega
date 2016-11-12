@@ -67,7 +67,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
      * @param entryHandler A handler for every ReadResultEntry that is extracted out of the ReadResult.
      * @param executor     An Executor to use for asynchronous callbacks.
      */
-    public AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultEntryHandler entryHandler, Executor executor) {
+    public AsyncReadResultProcessor(ReadResult readResult, AsyncReadResultEntryHandler entryHandler, Executor
+            executor) {
         Preconditions.checkNotNull(readResult, "readResult");
         Preconditions.checkNotNull(entryHandler, "entryHandler");
         Preconditions.checkNotNull(executor, "executor");
@@ -130,7 +131,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
         // Get the next item. Both next() and getContent() may throw exceptions at us, so we must make sure we handle
         // them appropriately.
         try {
-            // We don't really rely on hasNext; we just use the fact that next() returns null if there is nothing else to read.
+            // We don't really rely on hasNext; we just use the fact that next() returns null if there is nothing
+            // else to read.
             this.currentEntry = this.readResult.next();
             if (this.currentEntry == null || this.currentEntry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 close();
@@ -141,7 +143,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
             CompletableFuture<ReadResultEntryContents> entryContentsFuture = this.currentEntry.getContent();
             if (!entryContentsFuture.isDone()) {
                 // We have received a ReadResultEntry that does not have data readily available.
-                if (this.entryHandler.shouldRequestContents(this.currentEntry.getType(), this.currentEntry.getStreamSegmentOffset())) {
+                if (this.entryHandler.shouldRequestContents(this.currentEntry.getType(), this.currentEntry
+                        .getStreamSegmentOffset())) {
                     // We were instructed to request the content.
                     this.currentEntry.requestContent(this.entryHandler.getRequestContentTimeout());
                 } else {
@@ -155,7 +158,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
             FutureHelpers.exceptionListener(entryContentsFuture, this::fail);
             entryContentsFuture.thenRunAsync(this::handleEntryFetched, this.executor);
         } catch (Exception | AssertionError ex) {
-            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
+            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps
+            // running forever.
             fail(ex);
         }
     }
@@ -169,7 +173,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
         boolean shouldContinue;
         try {
             if (this.currentEntry.getContent().isCompletedExceptionally()) {
-                fail(new AssertionError("handleEntryFetched: About to have processed a ReadResultEntry that was not properly fetched."));
+                fail(new AssertionError("handleEntryFetched: About to have processed a ReadResultEntry that was not " +
+                        "properly fetched."));
                 return;
             }
 
@@ -177,7 +182,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
             shouldContinue = this.entryHandler.processEntry(this.currentEntry);
             this.currentEntry = null;
         } catch (Exception | AssertionError ex) {
-            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps running forever.
+            // Any processing exception must be dealt with. Otherwise we are stuck with a Processor that keeps
+            // running forever.
             fail(ex);
             return;
         }

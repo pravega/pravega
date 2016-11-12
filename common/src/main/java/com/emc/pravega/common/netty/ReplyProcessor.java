@@ -56,7 +56,7 @@ public interface ReplyProcessor {
     void segmentRead(SegmentRead segmentRead);
 
     void streamSegmentInfo(StreamSegmentInfo streamInfo);
-    
+
     void transactionInfo(TransactionInfo transactionInfo);
 
     void segmentCreated(SegmentCreated segmentCreated);
@@ -64,7 +64,7 @@ public interface ReplyProcessor {
     void transactionCreated(TransactionCreated transactionCreated);
 
     void transactionCommitted(TransactionCommitted transactionCommitted);
-    
+
     void transactionDropped(TransactionDropped transactionDropped);
 
     void segmentSealed(SegmentSealed segmentSealed);
@@ -72,6 +72,6 @@ public interface ReplyProcessor {
     void segmentDeleted(SegmentDeleted segmentDeleted);
 
     void keepAlive(KeepAlive keepAlive);
-    
+
     void connectionDropped();
 }

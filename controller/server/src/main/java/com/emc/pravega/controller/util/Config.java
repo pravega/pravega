@@ -21,7 +21,8 @@ import com.typesafe.config.ConfigFactory;
 
 /**
  * This is a utility used to read configuration. It can be configured to read custom configuration
- * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=< Resource Name>. By default
+ * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=< Resource Name>. By
+ * default
  * it reads application.conf if no system property is set. Reference: {@link ConfigFactory#defaultApplication()}
  */
 public final class Config {
@@ -29,7 +30,8 @@ public final class Config {
 
     //RPC Server configuration
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
-    public static final int SERVER_SELECTOR_THREAD_COUNT = CONFIG.getInt("config.controller.server.selectorThreadCount");
+    public static final int SERVER_SELECTOR_THREAD_COUNT = CONFIG.getInt("config.controller.server" +
+            ".selectorThreadCount");
     public static final int SERVER_WORKER_THREAD_COUNT = CONFIG.getInt("config.controller.server.workerThreadCount");
 
     //Store configuration.
@@ -38,5 +40,6 @@ public final class Config {
 
     //HostStore configuration.
     public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");
-    public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
+    public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host" +
+            ".containerCount");
 }

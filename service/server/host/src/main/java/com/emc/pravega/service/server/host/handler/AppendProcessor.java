@@ -158,7 +158,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
         CompletableFuture<Long> future = store
-            .append(toWrite.getSegment(), bytes, new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber()), TIMEOUT);
+                .append(toWrite.getSegment(), bytes, new AppendContext(toWrite.getConnectionId(), toWrite
+                        .getEventNumber()), TIMEOUT);
         future.handle(new BiFunction<Long, Throwable, Void>() {
             @Override
             public Void apply(Long t, Throwable u) {
@@ -224,10 +225,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         int bytesWaiting;
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
-                .stream()
-                .flatMap(List::stream)
-                .mapToInt(a -> a.getData().readableBytes())
-                .sum();
+                    .stream()
+                    .flatMap(List::stream)
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
         }
         if (bytesWaiting > HIGH_WATER_MARK) {
             connection.pauseReading();

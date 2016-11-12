@@ -50,7 +50,8 @@ public abstract class OperationTestsBase<T extends Operation> {
         int iteration = 0;
         while (iteration < MAX_CONFIG_ITERATIONS && isPreSerializationConfigRequired(baseOp)) {
             iteration++;
-            trySerialize(baseOp, "Serialization was possible without completing all necessary pre-serialization steps.");
+            trySerialize(baseOp, "Serialization was possible without completing all necessary pre-serialization steps" +
+                    ".");
             configurePreSerialization(baseOp, random);
         }
 
@@ -79,7 +80,8 @@ public abstract class OperationTestsBase<T extends Operation> {
     }
 
     /**
-     * Performs any necessary pre-serialization configuration (one step at a time - as long as isPreSerializationConfigRequired returns true).
+     * Performs any necessary pre-serialization configuration (one step at a time - as long as
+     * isPreSerializationConfigRequired returns true).
      */
     protected void configurePreSerialization(T operation, Random random) {
         // Base method intentionally left blank.

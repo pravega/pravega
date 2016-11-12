@@ -68,7 +68,8 @@ class StorageReader implements AutoCloseable {
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata.getId());
+        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata
+                .getId());
         this.segmentName = segmentMetadata.getName();
         this.storage = storage;
         this.executor = executor;
@@ -99,10 +100,14 @@ class StorageReader implements AutoCloseable {
     //region Request Processing
 
     /**
-     * Queues the given request. The Request will be checked against existing pending Requests. If necessary, this request
-     * will be adjusted to take advantage of an existing request (i.e., if it overlaps with an existing request, no actual
-     * Storage read will happen for this one, yet the result of the previous one will be used instead). The callbacks passed
-     * to the request will be invoked with either the result of the read or with the exception that caused the read to fail.
+     * Queues the given request. The Request will be checked against existing pending Requests. If necessary, this
+     * request
+     * will be adjusted to take advantage of an existing request (i.e., if it overlaps with an existing request, no
+     * actual
+     * Storage read will happen for this one, yet the result of the previous one will be used instead). The callbacks
+     * passed
+     * to the request will be invoked with either the result of the read or with the exception that caused the read
+     * to fail.
      *
      * @param request The request to queue.
      */
@@ -159,12 +164,14 @@ class StorageReader implements AutoCloseable {
     }
 
     /**
-     * Ensures that the given request has been finalized (if not, it is failed), and unregisters it from the pending reads.
+     * Ensures that the given request has been finalized (if not, it is failed), and unregisters it from the pending
+     * reads.
      *
      * @param request The request.
      */
     private void finalizeRequest(Request request) {
-        // Check, one last time, if the request was finalized. Better fail it with an AssertionError rather than leave it
+        // Check, one last time, if the request was finalized. Better fail it with an AssertionError rather than
+        // leave it
         // hanging forever.
         if (!request.isDone()) {
             request.fail(new AssertionError("Request finalized but not yet completed."));
@@ -175,7 +182,8 @@ class StorageReader implements AutoCloseable {
             this.pendingRequests.remove(request.getOffset());
         }
 
-        log.debug("{}: StorageRead.Finalize {}, Success = {}", this.traceObjectId, request, !request.resultFuture.isCompletedExceptionally());
+        log.debug("{}: StorageRead.Finalize {}, Success = {}", this.traceObjectId, request, !request.resultFuture
+                .isCompletedExceptionally());
     }
 
     /**
@@ -259,7 +267,8 @@ class StorageReader implements AutoCloseable {
          * @param failureCallback A Consumer that will be invoked in case this request failed to process.
          * @param timeout         Timeout for the request.
          */
-        Request(long offset, int length, Consumer<Result> successCallback, Consumer<Throwable> failureCallback, Duration timeout) {
+        Request(long offset, int length, Consumer<Result> successCallback, Consumer<Throwable> failureCallback,
+                Duration timeout) {
             Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
             Preconditions.checkArgument(length > 0, "length must be a positive integer.");
 
@@ -312,12 +321,14 @@ class StorageReader implements AutoCloseable {
 
         /**
          * Registers the given request as a dependent of this request. If this Request succeeds, the given Request will
-         * be completed as well (with the appropriate result). If this Request fails, the given Request will fail as well.
+         * be completed as well (with the appropriate result). If this Request fails, the given Request will fail as
+         * well.
          *
          * @param request The request to add as a dependent.
          */
         void addDependent(Request request) {
-            Preconditions.checkArgument(isSubRequest(this, request), "Given Request does is not a sub-request of this one.");
+            Preconditions.checkArgument(isSubRequest(this, request), "Given Request does is not a sub-request of this" +
+                    " one.");
             this.resultFuture.thenRun(() -> request.complete(this));
             FutureHelpers.exceptionListener(this.resultFuture, request::fail);
         }
@@ -329,7 +340,8 @@ class StorageReader implements AutoCloseable {
          * @throws IllegalArgumentException If the new interval is outside of the original request interval.
          */
         private void adjustLength(int newLength) {
-            Preconditions.checkArgument(newLength >= 0 && newLength <= this.length, "length is outside of the original request bounds.");
+            Preconditions.checkArgument(newLength >= 0 && newLength <= this.length, "length is outside of the " +
+                    "original request bounds.");
             this.length = newLength;
         }
 
@@ -350,14 +362,16 @@ class StorageReader implements AutoCloseable {
         }
 
         /**
-         * Completes this Request with the given request as a source (this Request is a sub-interval of the given request).
+         * Completes this Request with the given request as a source (this Request is a sub-interval of the given
+         * request).
          *
          * @param source The source Request to complete with.
          */
         private void complete(Request source) {
             Preconditions.checkState(!isDone(), "This Request is already completed.");
             Preconditions.checkArgument(source.isDone(), "Given request is not completed.");
-            Preconditions.checkArgument(isSubRequest(source, this), "This Request is not a sub-request of the given one.");
+            Preconditions.checkArgument(isSubRequest(source, this), "This Request is not a sub-request of the given " +
+                    "one.");
 
             try {
                 // Get the source Request's result, slice it and return the sub-segment that this request maps to.

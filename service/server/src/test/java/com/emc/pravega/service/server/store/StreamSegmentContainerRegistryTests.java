@@ -58,7 +58,8 @@ public class StreamSegmentContainerRegistryTests {
     public void testGetContainer() throws Exception {
         final int containerCount = 1000;
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
         @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
@@ -80,7 +81,8 @@ public class StreamSegmentContainerRegistryTests {
             container.close();
         }
 
-        AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds, actualHandleIds);
+        AssertExtensions.assertContainsSameElements("Unexpected container ids registered.", expectedContainerIds,
+                actualHandleIds);
 
         AssertExtensions.assertThrows(
                 "getContainer did not throw when passed an invalid container id.",
@@ -95,7 +97,9 @@ public class StreamSegmentContainerRegistryTests {
     public void testStopContainer() throws Exception {
         final int containerId = 123;
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+
         TestContainerFactory factory = new TestContainerFactory();
         @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
@@ -111,7 +115,8 @@ public class StreamSegmentContainerRegistryTests {
         registry.stopContainer(handle, TIMEOUT).join();
         Thread.sleep(10);
         Assert.assertTrue("Container is not closed after being shut down.", container.isClosed());
-        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
+        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.",
+                containerId, stopListenerCallback.get());
         AssertExtensions.assertThrows(
                 "Container is still registered after being shut down.",
                 () -> registry.getContainer(handle.getContainerId()),
@@ -119,13 +124,15 @@ public class StreamSegmentContainerRegistryTests {
     }
 
     /**
-     * Tests the ability to detect a container failure and unregister the container in case the container fails on startup.
+     * Tests the ability to detect a container failure and unregister the container in case the container fails on
+     * startup.
      */
     @Test
     public void testContainerFailureOnStartup() throws Exception {
         final int containerId = 123;
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
         @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
@@ -133,7 +140,8 @@ public class StreamSegmentContainerRegistryTests {
         AssertExtensions.assertThrows(
                 "Unexpected exception thrown upon failed container startup.",
                 registry.startContainer(containerId, TIMEOUT)::join,
-                ex -> ex instanceof IntentionalException || (ex instanceof IllegalStateException && ex.getCause() instanceof IntentionalException));
+                ex -> ex instanceof IntentionalException || (ex instanceof IllegalStateException && ex.getCause()
+                        instanceof IntentionalException));
 
         AssertExtensions.assertThrows(
                 "Container is registered even if it failed to start.",
@@ -142,13 +150,15 @@ public class StreamSegmentContainerRegistryTests {
     }
 
     /**
-     * Tests the ability to detect a container failure and unregister the container in case the container fails while running.
+     * Tests the ability to detect a container failure and unregister the container in case the container fails while
+     * running.
      */
     @Test
     public void testContainerFailureWhileRunning() throws Exception {
         final int containerId = 123;
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestContainerFactory factory = new TestContainerFactory();
         @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executor.get());
@@ -165,7 +175,8 @@ public class StreamSegmentContainerRegistryTests {
         container.fail(new IntentionalException());
         ServiceShutdownListener.awaitShutdown(container, false);
         Thread.sleep(20);
-        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
+        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.",
+                containerId, stopListenerCallback.get());
         AssertExtensions.assertThrows(
                 "Container is still registered after failure.",
                 () -> registry.getContainer(containerId),
@@ -250,17 +261,20 @@ public class StreamSegmentContainerRegistryTests {
         //region Unimplemented methods
 
         @Override
-        public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext,
+                                              Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+        public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext
+                appendContext, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
+        public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration
+                timeout) {
             return null;
         }
 
@@ -275,7 +289,8 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID batchId, Duration timeout) {
+        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID batchId, Duration
+                timeout) {
             return null;
         }
 
@@ -295,7 +310,8 @@ public class StreamSegmentContainerRegistryTests {
         }
 
         @Override
-        public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout) {
+        public CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId,
+                                                                     Duration timeout) {
             return null;
         }
 

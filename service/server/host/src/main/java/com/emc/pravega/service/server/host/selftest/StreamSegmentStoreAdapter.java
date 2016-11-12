@@ -73,7 +73,8 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                     return factory;
                 })
                 .withStorageFactory(setup -> {
-                    VerificationStorage.Factory factory = new VerificationStorage.Factory(new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
+                    VerificationStorage.Factory factory = new VerificationStorage.Factory(
+                            new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
                     this.storage.set((VerificationStorage) factory.getStorageAdapter());
                     return factory;
                 });
@@ -101,15 +102,16 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
         return this.serviceBuilder.initialize(timeout)
-                                  .thenRun(() -> {
-                                      this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
-                                      this.initialized.set(true);
-                                      TestLogger.log(LOG_ID, "Up and running.");
-                                  });
+                .thenRun(() -> {
+                    this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
+                    this.initialized.set(true);
+                    TestLogger.log(LOG_ID, "Up and running.");
+                });
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext context, Duration
+            timeout) {
         ensureInitializedAndNotClosed();
         return this.streamSegmentStore.append(streamSegmentName, data, context, timeout).thenAccept(LONG_TO_VOID);
     }

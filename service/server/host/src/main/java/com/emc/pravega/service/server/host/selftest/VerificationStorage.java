@@ -85,7 +85,8 @@ class VerificationStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
+                                         Duration timeout) {
         CompletableFuture<Void> result = this.baseStorage.write(streamSegmentName, offset, data, length, timeout);
         result.thenRun(() -> triggerListeners(streamSegmentName, offset + length, false));
         return result;
@@ -99,11 +100,13 @@ class VerificationStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
+            sourceStreamSegmentName, Duration timeout) {
         unregisterAllListeners(sourceStreamSegmentName);
-        CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
+        CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset,
+                sourceStreamSegmentName, timeout);
         result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout))
-              .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
+                .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
         return result;
     }
 
@@ -114,7 +117,8 @@ class VerificationStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
+                                           int length, Duration timeout) {
         return this.baseStorage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
     }
 
@@ -140,7 +144,8 @@ class VerificationStorage implements Storage {
     void registerListener(SegmentUpdateListener listener) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         synchronized (this.listenerLock) {
-            HashMap<Integer, SegmentUpdateListener> segmentListeners = this.updateListeners.getOrDefault(listener.segmentName, null);
+            HashMap<Integer, SegmentUpdateListener> segmentListeners = this.updateListeners.getOrDefault(listener
+                    .segmentName, null);
             if (segmentListeners == null) {
                 segmentListeners = new HashMap<>();
                 this.updateListeners.put(listener.segmentName, segmentListeners);
@@ -198,7 +203,8 @@ class VerificationStorage implements Storage {
         synchronized (this.listenerLock) {
             val segmentListeners = this.updateListeners.remove(segmentName);
             if (segmentListeners != null) {
-                // This isn't really necessary, but it's a good practice to call close() on anything that implements AutoCloseable.
+                // This isn't really necessary, but it's a good practice to call close() on anything that implements
+                // AutoCloseable.
                 segmentListeners.values().forEach(SegmentUpdateListener::close);
             }
         }
@@ -243,7 +249,8 @@ class VerificationStorage implements Storage {
         }
 
         private void register(int id, java.util.function.Consumer<SegmentUpdateListener> unregisterCallback) {
-            Preconditions.checkState(this.unregisterCallback == null, "This SegmentUpdateListener is already registered.");
+            Preconditions.checkState(this.unregisterCallback == null, "This SegmentUpdateListener is already " +
+                    "registered.");
             this.registrationId = id;
             this.unregisterCallback = unregisterCallback;
         }

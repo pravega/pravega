@@ -212,7 +212,8 @@ public class ByteArraySegment implements ArrayView {
 
     /**
      * Creates an OutputStream that can be used to write contents to this ByteArraySegment. The OutputStream returned
-     * is a FixedByteArrayOutputStream (ByteArrayOutputStream that cannot expand) that spans the entire ByteArraySegment.
+     * is a FixedByteArrayOutputStream (ByteArrayOutputStream that cannot expand) that spans the entire
+     * ByteArraySegment.
      *
      * @return The OutputStream.
      * @throws IllegalStateException If the ByteArraySegment is readonly.

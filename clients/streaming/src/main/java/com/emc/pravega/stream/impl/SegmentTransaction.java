@@ -35,7 +35,8 @@ public interface SegmentTransaction<Type> {
      * Blocks until all events passed to the publish call have made it to durable storage.
      * After this the transaction can be committed.
      *
-     * @throws TxFailedException Not all of the items could be persisted because the transaction has failed. (Timed out or dropped)
+     * @throws TxFailedException Not all of the items could be persisted because the transaction has failed. (Timed
+     * out or dropped)
      */
     void flush() throws TxFailedException;
 }

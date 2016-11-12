@@ -183,8 +183,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 if (connection == null) {
                     connection = connectionFactory.establishConnection(uri, responseProcessor);
                 }
-                return connection; 
-            } 
+                return connection;
+            }
         });
     }
 
@@ -212,7 +212,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     closeConnection(e);
                 }
             }
-            return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(() -> read.get());
+            return Exceptions.handleInterrupted(() -> read.get());
         });
     }
 

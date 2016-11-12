@@ -23,7 +23,8 @@ import com.emc.pravega.service.server.logs.SerializationException;
 import java.io.DataInputStream;
 
 /**
- * Log Operation that deals with Metadata Operations. This is generally an internal-only operation and is not necessarily
+ * Log Operation that deals with Metadata Operations. This is generally an internal-only operation and is not
+ * necessarily
  * the direct outcome of an external call.
  */
 public abstract class MetadataOperation extends Operation {

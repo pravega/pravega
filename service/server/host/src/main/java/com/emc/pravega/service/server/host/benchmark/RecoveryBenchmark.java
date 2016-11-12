@@ -141,7 +141,8 @@ public class RecoveryBenchmark extends Benchmark {
             // Append context is unique per Append Index (we can share it with multiple StreamSegments).
             AppendContext appendContext = new AppendContext(clientId, appendIndex);
             for (String segmentName : segmentNames) {
-                CompletableFuture<Long> appendCompletion = store.append(segmentName, appendData, appendContext, TIMEOUT);
+                CompletableFuture<Long> appendCompletion = store.append(segmentName, appendData, appendContext,
+                        TIMEOUT);
                 appendCompletions.add(appendCompletion);
             }
         }
@@ -161,7 +162,8 @@ public class RecoveryBenchmark extends Benchmark {
 
         TestOutput result = new TestOutput(testInput);
         final long testStartTime = System.nanoTime();
-        ContainerHandle handle = serviceBuilder.getSegmentContainerRegistry().startContainer(containerId, TIMEOUT).join();
+        ContainerHandle handle = serviceBuilder.getSegmentContainerRegistry().startContainer(containerId, TIMEOUT)
+                .join();
         result.totalDurationNanos = System.nanoTime() - testStartTime;
         return result;
     }

@@ -30,10 +30,12 @@ public interface AsyncReadResultEntryHandler {
     /**
      * Determines whether the AsyncReadResultProcessor should request data for the given ReadResultEntryType and Offset.
      * <p/>
-     * This method will only be invoked on those ReadResultEntries that do not currently have data available for consumption,
+     * This method will only be invoked on those ReadResultEntries that do not currently have data available for
+     * consumption,
      * such as StorageReadResultEntry or FutureReadResultEntry.
      * <p/>
-     * If a call to this method returns false, the AsyncReadResultProcessor, as well as the underlying ReadResult, will be closed.
+     * If a call to this method returns false, the AsyncReadResultProcessor, as well as the underlying ReadResult,
+     * will be closed.
      *
      * @param entryType           The Type of the ReadResultEntry to process.
      * @param streamSegmentOffset The offset in the StreamSegment where the current ReadResultEntry is at.
@@ -51,7 +53,8 @@ public interface AsyncReadResultEntryHandler {
 
     /**
      * This method is called whenever a retrieval error occurred on a ReadResultEntry. This is not an exception handler,
-     * rather just a notification that an exception occurred. After this is called, the generating AsyncReadResultProcessor
+     * rather just a notification that an exception occurred. After this is called, the generating
+     * AsyncReadResultProcessor
      * will auto-close.
      *
      * @param entry The entry that caused the processing error (this may be null, depending on when the error occurred).

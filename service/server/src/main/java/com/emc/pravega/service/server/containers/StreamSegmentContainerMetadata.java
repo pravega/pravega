@@ -129,8 +129,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         UpdateableSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName",
+                    "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId",
+                    "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
@@ -142,22 +144,29 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
+    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long
+            parentStreamSegmentId) {
         UpdateableSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName", "StreamSegment '%s' is already mapped.", streamSegmentName);
-            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId", "StreamSegment Id %d is already mapped.", streamSegmentId);
+            Exceptions.checkArgument(!this.streamSegmentIds.containsKey(streamSegmentName), "streamSegmentName",
+                    "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.segmentMetadata.containsKey(streamSegmentId), "streamSegmentId",
+                    "StreamSegment Id %d is already mapped.", streamSegmentId);
 
             UpdateableSegmentMetadata parentMetadata = this.segmentMetadata.getOrDefault(parentStreamSegmentId, null);
             Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
-            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction StreamSegment.");
+            Exceptions.checkArgument(parentMetadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                    "parentStreamSegmentId", "Cannot create a transaction StreamSegment for another transaction " +
+                            "StreamSegment.");
 
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
+            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId,
+                    getContainerId());
             this.streamSegmentIds.put(streamSegmentName, streamSegmentId);
             this.segmentMetadata.put(streamSegmentId, segmentMetadata);
         }
 
-        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId,
+                parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
 
@@ -171,9 +180,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Collection<String> result = new ArrayList<>();
         result.add(streamSegmentName);
         synchronized (this.lock) {
-            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata.NO_STREAM_SEGMENT_ID);
+            long streamSegmentId = this.streamSegmentIds.getOrDefault(streamSegmentName, ContainerMetadata
+                    .NO_STREAM_SEGMENT_ID);
             if (streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
-                // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
+                // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions
+                // associated
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
                 return result;
@@ -209,8 +220,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public void setOperationSequenceNumber(long value) {
         ensureRecoveryMode();
 
-        // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this is ok.
-        Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting greater than %d.", this.sequenceNumber.get());
+        // Note: This check-and-set is not atomic, but in recovery mode we are executing in a single thread, so this
+        // is ok.
+        Exceptions.checkArgument(value >= this.sequenceNumber.get(), "value", "Invalid SequenceNumber. Expecting " +
+                "greater than %d.", this.sequenceNumber.get());
         this.sequenceNumber.set(value);
     }
     //endregion
@@ -249,11 +262,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     private void ensureRecoveryMode() {
-        Preconditions.checkState(isRecoveryMode(), "StreamSegmentContainerMetadata is not in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(isRecoveryMode(), "StreamSegmentContainerMetadata is not in recovery mode. Cannot " +
+                "execute this operation.");
     }
 
     private void ensureNonRecoveryMode() {
-        Preconditions.checkState(!isRecoveryMode(), "StreamSegmentContainerMetadata is in recovery mode. Cannot execute this operation.");
+        Preconditions.checkState(!isRecoveryMode(), "StreamSegmentContainerMetadata is in recovery mode. Cannot " +
+                "execute this operation.");
     }
 
     //endregion
@@ -262,7 +277,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public void recordTruncationMarker(long operationSequenceNumber, LogAddress address) {
-        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber", "Operation Sequence Number " +
+                "must be a positive number.");
         Preconditions.checkNotNull(address, "address");
         synchronized (this.truncationMarkers) {
             this.truncationMarkers.put(operationSequenceNumber, address);
@@ -296,7 +312,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     @Override
     public void setValidTruncationPoint(long sequenceNumber) {
-        Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive number.");
+        Exceptions.checkArgument(sequenceNumber >= 0, "sequenceNumber", "Operation Sequence Number must be a positive" +
+                " number.");
         synchronized (this.truncationMarkers) {
             this.truncationPoints.add(sequenceNumber);
         }

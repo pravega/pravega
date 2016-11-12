@@ -49,6 +49,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the write() method.
+     *
      * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
@@ -96,6 +97,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the read() method.
+     *
      * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
@@ -118,8 +120,10 @@ public class HDFSStorageTest {
                     int length = expectedData.length - 2 * offset;
                     byte[] readBuffer = new byte[length];
                     int bytesRead = s.read(segmentName, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-                    Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset), length, bytesRead);
-                    AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset), expectedData, offset, readBuffer, 0, bytesRead);
+                    Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                            length, bytesRead);
+                    AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.",
+                            offset), expectedData, offset, readBuffer, 0, bytesRead);
                 }
             }
 
@@ -133,7 +137,8 @@ public class HDFSStorageTest {
 
             AssertExtensions.assertThrows(
                     "read() allowed reading with offset beyond Segment length.",
-                    s.read(testSegmentName, s.getStreamSegmentInfo(testSegmentName, TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                    s.read(testSegmentName, s.getStreamSegmentInfo(testSegmentName, TIMEOUT).join().getLength() + 1,
+                            testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             AssertExtensions.assertThrows(
@@ -162,6 +167,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the seal() method.
+     *
      * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
@@ -184,7 +190,8 @@ public class HDFSStorageTest {
 
                 AssertExtensions.assertThrows(
                         "write() did not throw for a sealed StreamSegment.",
-                        s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
+                        s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(), new
+                                ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
@@ -199,6 +206,7 @@ public class HDFSStorageTest {
 
     /**
      * Tests the concat() method.
+     *
      * @throws Exception asserts and exceptions thrown by the test run.
      */
     @Ignore
@@ -246,7 +254,8 @@ public class HDFSStorageTest {
                         ex -> ex instanceof StreamSegmentNotExistsException);
 
                 // Only check lengths here; we'll check the contents at the end.
-                Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
+                Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.",
+                        preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
             }
 
             // Check the contents of the first StreamSegment. We already validated that the length is correct.
@@ -261,7 +270,8 @@ public class HDFSStorageTest {
             int offset = 0;
             for (String segmentName : concatOrder) {
                 byte[] concatData = appendData.get(segmentName).toByteArray();
-                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset, concatData.length);
+                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset,
+                        concatData.length);
                 offset += concatData.length;
             }
 

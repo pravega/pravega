@@ -74,7 +74,8 @@ public interface Controller {
     CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
+     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees
+     * specified in {@link Producer}.
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
      *
      * @param stream The stream to commit the transaction for.

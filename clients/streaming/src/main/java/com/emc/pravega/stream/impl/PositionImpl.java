@@ -42,18 +42,19 @@ public class PositionImpl implements Position, PositionInternal {
         this.ownedSegments = ownedSegments;
         this.futureOwnedSegments = futureOwnedSegments;
         Preconditions.checkArgument(isFutureSegmentsWellFormed(ownedSegments, futureOwnedSegments),
-                                    "Owned and future logs must be coherent: " + this.toString());
+                "Owned and future logs must be coherent: " + this.toString());
     }
 
 
-    private boolean isFutureSegmentsWellFormed(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long> futureOwnedSegments) {
+    private boolean isFutureSegmentsWellFormed(Map<Segment, Long> ownedSegments, Map<FutureSegment, Long>
+            futureOwnedSegments) {
         // every segment in futures should
         // 1. not be in ownedLogs, and
         // 2. have a predecessor in ownedLogs
         Set<Integer> current = ownedSegments.entrySet()
-            .stream()
-            .map(x -> x.getKey().getSegmentNumber())
-            .collect(Collectors.toSet());
+                .stream()
+                .map(x -> x.getKey().getSegmentNumber())
+                .collect(Collectors.toSet());
         return futureOwnedSegments.entrySet().stream().allMatch(x -> current.contains(x.getKey().getPrecedingNumber())
                 && !current.contains(x.getKey().getSegmentNumber()));
     }
@@ -71,10 +72,10 @@ public class PositionImpl implements Position, PositionInternal {
     @Override
     public Set<Segment> getCompletedSegments() {
         return ownedSegments.entrySet()
-            .stream()
-            .filter(x -> x.getValue() < 0)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+                .stream()
+                .filter(x -> x.getValue() < 0)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
 
     @Override

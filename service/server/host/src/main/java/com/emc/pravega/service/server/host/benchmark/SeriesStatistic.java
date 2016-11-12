@@ -74,7 +74,8 @@ public class SeriesStatistic {
     public double percentile(double percentile) {
         Preconditions.checkState(this.isSnapshot, "Cannot get a statistic if snapshot() hasn't been run.");
         Preconditions.checkState(this.items.size() > 0, "No elements in the series.");
-        Preconditions.checkArgument(percentile >= 0 && percentile <= 100, "Invalid percentile. Must be between 0 and 100 (inclusive).");
+        Preconditions.checkArgument(percentile >= 0 && percentile <= 100, "Invalid percentile. Must be between 0 and " +
+                "100 (inclusive).");
         int index = (int) (this.items.size() * percentile / 100);
         return this.items.get(index);
     }
@@ -87,7 +88,8 @@ public class SeriesStatistic {
             return "Empty series.";
         } else {
             return String.format(
-                    "Min = %.1f, Max = %.1f, Avg = %.1f, 50%% = %.1f, 90%% = %.1f, 95%% = %.1f, 99%% = %.1f, 99.9%% = %.1f",
+                    "Min = %.1f, Max = %.1f, Avg = %.1f, 50%% = %.1f, 90%% = %.1f, 95%% = %.1f, 99%% = %.1f, 99.9%% =" +
+                            " %.1f",
                     min(),
                     max(),
                     avg(),

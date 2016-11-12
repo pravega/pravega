@@ -19,7 +19,6 @@ package com.emc.pravega.common.netty;
 
 /**
  * The connection has failed, and needs to be re-established.
- *
  */
 public class ConnectionFailedException extends Exception {
 

@@ -73,6 +73,7 @@ public class Playground {
         }
 
         long readElapsed = System.nanoTime() - readStart;
-        System.out.println(String.format("Count = %s, Write = %sms, Read = %sms", maxSegmentId * maxOffsetId, writeElapsed / 1000 / 1000, readElapsed / 1000 / 1000));
+        System.out.println(String.format("Count = %s, Write = %sms, Read = %sms", maxSegmentId * maxOffsetId,
+                writeElapsed / 1000 / 1000, readElapsed / 1000 / 1000));
     }
 }

@@ -103,8 +103,9 @@ public class TransactionTest {
         transaction.commit();
         producer.publish(routingKey, nonTxEvent);
         AssertExtensions.assertThrows(IllegalStateException.class,
-                                      () -> transaction.publish(routingKey, txnEvent));
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
+                () -> transaction.publish(routingKey, txnEvent));
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(),
+                streamManager.getInitialPosition(streamName), null);
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
@@ -121,7 +122,7 @@ public class TransactionTest {
 
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
     }
-    
+
     @Test
     public void testDoubleCommit() throws TxFailedException {
         String endpoint = "localhost";
@@ -141,9 +142,9 @@ public class TransactionTest {
         Transaction<String> transaction = producer.startTransaction(60000);
         transaction.publish(routingKey, event);
         transaction.commit();
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
+        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
     }
-    
+
     @Test
     public void testDrop() throws TxFailedException {
         String endpoint = "localhost";
@@ -168,8 +169,9 @@ public class TransactionTest {
         transaction.drop();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
-        
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
+
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(),
+                streamManager.getInitialPosition(streamName), null);
         producer.publish(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.getNextEvent(1500));

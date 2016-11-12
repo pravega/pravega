@@ -66,28 +66,31 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
             @Override
             public void transactionInfo(TransactionInfo info) {
-               name.complete(info.getTransactionName());
+                name.complete(info.getTransactionName());
             }
         };
-        controller.getEndpointForSegment(segment.getQualifiedName()).thenCompose((PravegaNodeUri endpointForSegment) -> {
+        controller.getEndpointForSegment(segment.getQualifiedName()).thenCompose((PravegaNodeUri endpointForSegment)
+                -> {
             return cf.establishConnection(endpointForSegment, replyProcessor);
         }).thenAccept((ClientConnection connection) -> {
             try {
                 connection.send(new GetTransactionInfo(segment.getQualifiedName(), txId));
             } catch (ConnectionFailedException e) {
                 throw new RuntimeException(e);
-            } 
+            }
         }).exceptionally((Throwable t) -> {
             name.completeExceptionally(t);
             return null;
         });
-        return new SegmentOutputStreamImpl( getAndHandleExceptions(name, RuntimeException::new), controller, cf, UUID.randomUUID());
+        return new SegmentOutputStreamImpl(getAndHandleExceptions(name, RuntimeException::new), controller, cf, UUID
+                .randomUUID());
     }
 
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config)
             throws SegmentSealedException {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getQualifiedName(), controller, cf, UUID.randomUUID());
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getQualifiedName(), controller, cf, UUID
+                .randomUUID());
         try {
             result.getConnection();
         } catch (RetriesExaustedException e) {

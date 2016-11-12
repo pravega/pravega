@@ -96,28 +96,28 @@ public final class PravegaConnectionListener implements ConnectionListener {
 
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
-         .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
-         .option(ChannelOption.SO_BACKLOG, 100)
-         .handler(new LoggingHandler(LogLevel.INFO))
-         .childHandler(new ChannelInitializer<SocketChannel>() {
-             @Override
-             public void initChannel(SocketChannel ch) throws Exception {
-                 ChannelPipeline p = ch.pipeline();
-                 if (sslCtx != null) {
-                     p.addLast(sslCtx.newHandler(ch.alloc()));
-                 }
-                 ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-                 // p.addLast(new LoggingHandler(LogLevel.INFO));
-                 p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
-                         new CommandEncoder(),
-                         new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                         new CommandDecoder(),
-                         lsh);
-                 lsh.setRequestProcessor(new AppendProcessor(store,
-                         lsh,
-                         new PravegaRequestProcessor(store, lsh)));
-             }
-         });
+                .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 100)
+                .handler(new LoggingHandler(LogLevel.INFO))
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    public void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline p = ch.pipeline();
+                        if (sslCtx != null) {
+                            p.addLast(sslCtx.newHandler(ch.alloc()));
+                        }
+                        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
+                        // p.addLast(new LoggingHandler(LogLevel.INFO));
+                        p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
+                                new CommandEncoder(),
+                                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                                new CommandDecoder(),
+                                lsh);
+                        lsh.setRequestProcessor(new AppendProcessor(store,
+                                lsh,
+                                new PravegaRequestProcessor(store, lsh)));
+                    }
+                });
 
         // Start the server.
         serverChannel = b.bind(port).awaitUninterruptibly().channel();

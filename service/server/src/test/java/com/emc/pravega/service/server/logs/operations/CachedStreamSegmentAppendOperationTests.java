@@ -52,13 +52,15 @@ public class CachedStreamSegmentAppendOperationTests {
 
         // Valid cacheKey.
         CacheKey cacheKey = newOp.createCacheKey();
-        Assert.assertEquals("Unexpected CacheKey.StreamSegmentId.", newOp.getStreamSegmentId(), cacheKey.getStreamSegmentId());
+        Assert.assertEquals("Unexpected CacheKey.StreamSegmentId.", newOp.getStreamSegmentId(), cacheKey
+                .getStreamSegmentId());
         Assert.assertEquals("Unexpected CacheKey.Offset.", newOp.getStreamSegmentOffset(), cacheKey.getOffset());
 
         // Invalid scenarios.
         AssertExtensions.assertThrows(
                 "Unexpected exception when invalid offset.",
-                () -> new CachedStreamSegmentAppendOperation(new StreamSegmentAppendOperation(SEGMENT_ID, data, context)),
+                () -> new CachedStreamSegmentAppendOperation(new StreamSegmentAppendOperation(SEGMENT_ID, data,
+                        context)),
                 ex -> ex instanceof IllegalArgumentException || ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(

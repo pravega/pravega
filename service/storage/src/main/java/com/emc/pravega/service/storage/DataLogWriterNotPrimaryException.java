@@ -19,7 +19,8 @@
 package com.emc.pravega.service.storage;
 
 /**
- * Exception that is thrown whenever it is detected that the current DataLog is not the primary writer to the log anymore.
+ * Exception that is thrown whenever it is detected that the current DataLog is not the primary writer to the log
+ * anymore.
  * This means one of two things:
  * <ul>
  * <li> We lost the exclusive write lock to the log, so we do not have the right to write to it anymore.

@@ -136,7 +136,8 @@ public final class ServiceBuilder implements AutoCloseable {
     //region Configuration
 
     /**
-     * Attaches the given DurableDataLogFactory creator to this ServiceBuilder. The given Function will only not be invoked
+     * Attaches the given DurableDataLogFactory creator to this ServiceBuilder. The given Function will only not be
+     * invoked
      * right away; it will be called when needed.
      *
      * @param dataLogFactoryCreator The Function to attach.
@@ -168,20 +169,23 @@ public final class ServiceBuilder implements AutoCloseable {
      * @param metadataRepositoryCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withMetadataRepository(Function<ComponentSetup, MetadataRepository> metadataRepositoryCreator) {
+    public ServiceBuilder withMetadataRepository(Function<ComponentSetup, MetadataRepository>
+                                                         metadataRepositoryCreator) {
         Preconditions.checkNotNull(metadataRepositoryCreator, "metadataRepositoryCreator");
         this.metadataRepositoryCreator = metadataRepositoryCreator;
         return this;
     }
 
     /**
-     * Attaches the given SegmentContainerManager creator to this ServiceBuilder. The given Function will only not be invoked
+     * Attaches the given SegmentContainerManager creator to this ServiceBuilder. The given Function will only not be
+     * invoked
      * right away; it will be called when needed.
      *
      * @param segmentContainerManagerCreator The Function to attach.
      * @return This ServiceBuilder.
      */
-    public ServiceBuilder withContainerManager(Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator) {
+    public ServiceBuilder withContainerManager(Function<ComponentSetup, SegmentContainerManager>
+                                                       segmentContainerManagerCreator) {
         Preconditions.checkNotNull(segmentContainerManagerCreator, "segmentContainerManagerCreator");
         this.segmentContainerManagerCreator = segmentContainerManagerCreator;
         return this;
@@ -248,14 +252,17 @@ public final class ServiceBuilder implements AutoCloseable {
         MetadataRepository metadataRepository = getSingleton(this.metadataRepository, this.metadataRepositoryCreator);
         ReadIndexFactory readIndexFactory = getSingleton(this.readIndexFactory, this::createReadIndexFactory);
         StorageFactory storageFactory = getSingleton(this.storageFactory, this.storageFactoryCreator);
-        OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory, this::createOperationLogFactory);
+        OperationLogFactory operationLogFactory = getSingleton(this.operationLogFactory,
+                this::createOperationLogFactory);
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
-        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory, writerFactory, storageFactory, cacheFactory, this.executorService);
+        return new StreamSegmentContainerFactory(metadataRepository, operationLogFactory, readIndexFactory,
+                writerFactory, storageFactory, cacheFactory, this.executorService);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
-        SegmentContainerFactory containerFactory = getSingleton(this.containerFactory, this::createSegmentContainerFactory);
+        SegmentContainerFactory containerFactory = getSingleton(this.containerFactory,
+                this::createSegmentContainerFactory);
         return new StreamSegmentContainerRegistry(containerFactory, this.executorService);
     }
 
@@ -287,7 +294,8 @@ public final class ServiceBuilder implements AutoCloseable {
 
     private static <T> Function<ComponentSetup, T> notConfiguredCreator(Class c) {
         return ignored -> {
-            throw new IllegalStateException("ServiceBuilder not properly configured. Missing supplier for: " + c.getName());
+            throw new IllegalStateException("ServiceBuilder not properly configured. Missing supplier for: " + c
+                    .getName());
         };
     }
 
@@ -309,7 +317,8 @@ public final class ServiceBuilder implements AutoCloseable {
     //region ServiceBuilder Factory
 
     /**
-     * Creates a new instance of the ServiceBuilder class which is contained in memory. Any data added to this service will
+     * Creates a new instance of the ServiceBuilder class which is contained in memory. Any data added to this
+     * service will
      * be loss when the object is garbage collected or the process terminates.
      *
      * @param config The ServiceBuilderConfig to use.
@@ -318,7 +327,8 @@ public final class ServiceBuilder implements AutoCloseable {
         ServiceBuilder serviceBuilder = new ServiceBuilder(config);
         return serviceBuilder
                 .withCacheFactory(setup -> new InMemoryCacheFactory())
-                .withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
+                .withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup
+                        .getSegmentToContainerMapper()))
                 .withMetadataRepository(setup -> new InMemoryMetadataRepository())
                 .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
                 .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory());

@@ -117,7 +117,8 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
+                                         Duration timeout) {
         CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
                 .thenCompose(ssd -> ssd.write(offset, data, length));
         result.thenRunAsync(() -> fireOffsetTriggers(streamSegmentName, offset + length), this.executor);
@@ -125,7 +126,8 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
+                                           int length, Duration timeout) {
         return getStreamSegmentData(streamSegmentName)
                 .thenCompose(ssd -> ssd.read(offset, buffer, bufferOffset, length));
     }
@@ -155,12 +157,12 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
-            Duration timeout) {
+                                          Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
-                                                          .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
-                                                          .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
+                .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
+                .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
         result.thenRunAsync(() -> {
             fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
             fireSealTrigger(sourceStreamSegmentName);
@@ -208,13 +210,15 @@ public class InMemoryStorage implements Storage {
      * @param offset      The offset in the segment at which to trigger.
      * @param timeout     The timeout for the wait.
      * @return A CompletableFuture that will complete when the given Segment reaches at least the given minimum size.
-     * This Future will fail with a TimeoutException if the Segment did not reach the minimum size within the given timeout.
+     * This Future will fail with a TimeoutException if the Segment did not reach the minimum size within the given
+     * timeout.
      */
     public CompletableFuture<Void> registerSizeTrigger(String segmentName, long offset, Duration timeout) {
         CompletableFuture<Void> result;
         boolean newTrigger = false;
         synchronized (this.offsetTriggers) {
-            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
+            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName,
+                    null);
             if (segmentTriggers == null) {
                 segmentTriggers = new HashMap<>();
                 this.offsetTriggers.put(segmentName, segmentTriggers);
@@ -247,7 +251,8 @@ public class InMemoryStorage implements Storage {
      *
      * @param segmentName The Name of the Segment.
      * @param timeout     The timeout for the wait.
-     * @return A CompletableFuture that will complete when the given Segment is sealed. This Future will fail with a TimeoutException
+     * @return A CompletableFuture that will complete when the given Segment is sealed. This Future will fail with a
+     * TimeoutException
      * if the Segment was not sealed within the given timeout.
      */
     public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
@@ -278,7 +283,8 @@ public class InMemoryStorage implements Storage {
     private void fireOffsetTriggers(String segmentName, long currentOffset) {
         HashMap<Long, CompletableFuture<Void>> toTrigger = new HashMap<>();
         synchronized (this.offsetTriggers) {
-            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
+            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName,
+                    null);
             if (segmentTriggers != null) {
                 segmentTriggers.entrySet().forEach(e -> {
                     if (e.getKey() <= currentOffset) {
@@ -306,7 +312,8 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.executor);
         result.whenComplete((r, ex) -> {
             synchronized (this.offsetTriggers) {
-                HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
+                HashMap<Long, CompletableFuture<Void>> segmentTriggers =
+                        this.offsetTriggers.getOrDefault(segmentName, null);
                 if (segmentTriggers != null) {
                     segmentTriggers.remove(minSize);
 
@@ -372,7 +379,8 @@ public class InMemoryStorage implements Storage {
                         int bufferSeq = getBufferSequence(offset);
                         int bufferOffset = getBufferOffset(offset);
                         int bytesToCopy = Math.min(BUFFER_SIZE - bufferOffset, length - readBytes);
-                        System.arraycopy(this.data.get(bufferSeq), bufferOffset, target, targetOffset + readBytes, bytesToCopy);
+                        System.arraycopy(this.data.get(bufferSeq), bufferOffset, target, targetOffset + readBytes,
+                                bytesToCopy);
 
                         readBytes += bytesToCopy;
                         offset += bytesToCopy;
@@ -399,7 +407,8 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> concat(StreamSegmentData other, long offset) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
-                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
+                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not " +
+                            "sealed.", other.name, this.name);
                     synchronized (this.lock) {
                         if (offset != this.length) {
                             throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
@@ -421,7 +430,8 @@ public class InMemoryStorage implements Storage {
 
         CompletableFuture<SegmentProperties> getInfo() {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date()));
+                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this
+                        .sealed, false, new Date()));
             }
         }
 

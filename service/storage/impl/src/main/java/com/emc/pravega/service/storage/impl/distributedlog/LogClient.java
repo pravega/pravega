@@ -70,7 +70,8 @@ class LogClient implements AutoCloseable {
         this.clientId = clientId;
         this.config = config;
         this.handles = new HashMap<>();
-        String rawUri = String.format(DISTRIBUTED_LOG_URI_FORMAT, config.getDistributedLogHost(), config.getDistributedLogPort(), config.getDistributedLogNamespace());
+        String rawUri = String.format(DISTRIBUTED_LOG_URI_FORMAT, config.getDistributedLogHost(), config
+                .getDistributedLogPort(), config.getDistributedLogNamespace());
         this.namespaceUri = URI.create(rawUri);
         this.traceObjectId = String.format("%s#%s", rawUri, this.clientId);
     }
@@ -93,7 +94,8 @@ class LogClient implements AutoCloseable {
                 try {
                     handle.close();
                 } catch (Exception ex) {
-                    log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handle == null ? "(null)" : handle.getLogName(), ex);
+                    log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handle == null ? "(null)" +
+                            "" : handle.getLogName(), ex);
                 }
             }
 
@@ -143,7 +145,8 @@ class LogClient implements AutoCloseable {
             log.info("{} Opened DistributedLog Namespace.", this.traceObjectId);
         } catch (IllegalArgumentException | NullPointerException ex) {
             //configuration issue
-            throw new DataLogInitializationException("Unable to create a DistributedLog Namespace. DistributedLog reports bad configuration.", ex);
+            throw new DataLogInitializationException("Unable to create a DistributedLog Namespace. DistributedLog " +
+                    "reports bad configuration.", ex);
         } catch (IOException ex) {
             // Namespace not available, ZooKeeper not reachable, some other environment issue.
             throw new DataLogNotAvailableException("Unable to access DistributedLog Namespace.", ex);

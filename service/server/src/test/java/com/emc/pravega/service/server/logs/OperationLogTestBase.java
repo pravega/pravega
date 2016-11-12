@@ -45,15 +45,21 @@ import java.util.function.Predicate;
 abstract class OperationLogTestBase {
     protected static final Duration TIMEOUT = Duration.ofSeconds(30);
 
-    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds, AbstractMap<Long, Long> transactions, Collection<LogTestHelpers.OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged, boolean expectSegmentsSealed) {
+    void performMetadataChecks(Collection<Long> streamSegmentIds, Collection<Long> invalidStreamSegmentIds,
+                               AbstractMap<Long, Long> transactions, Collection<LogTestHelpers
+            .OperationWithCompletion> operations, ContainerMetadata metadata, boolean expectTransactionsMerged,
+                               boolean expectSegmentsSealed) {
         // Verify that transactions are merged
         for (long transactionId : transactions.keySet()) {
             SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(transactionId);
             if (invalidStreamSegmentIds.contains(transactionId)) {
-                Assert.assertTrue("Unexpected data for a Transaction that was invalid.", transactionMetadata == null || transactionMetadata.getDurableLogLength() == 0);
+                Assert.assertTrue("Unexpected data for a Transaction that was invalid.", transactionMetadata == null
+                        || transactionMetadata.getDurableLogLength() == 0);
             } else {
-                Assert.assertEquals("Unexpected Transaction seal state for Transaction " + transactionId, expectTransactionsMerged, transactionMetadata.isSealed());
-                Assert.assertEquals("Unexpected Transaction merge state for Transaction " + transactionId, expectTransactionsMerged, transactionMetadata.isMerged());
+                Assert.assertEquals("Unexpected Transaction seal state for Transaction " + transactionId,
+                        expectTransactionsMerged, transactionMetadata.isSealed());
+                Assert.assertEquals("Unexpected Transaction merge state for Transaction " + transactionId,
+                        expectTransactionsMerged, transactionMetadata.isMerged());
             }
         }
 
@@ -62,15 +68,19 @@ abstract class OperationLogTestBase {
         for (long streamSegmentId : streamSegmentIds) {
             SegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(streamSegmentId);
             if (invalidStreamSegmentIds.contains(streamSegmentId)) {
-                Assert.assertTrue("Unexpected data for a StreamSegment that was invalid.", segmentMetadata == null || segmentMetadata.getDurableLogLength() == 0);
+                Assert.assertTrue("Unexpected data for a StreamSegment that was invalid.", segmentMetadata == null ||
+                        segmentMetadata.getDurableLogLength() == 0);
             } else {
-                Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId, expectSegmentsSealed, segmentMetadata.isSealed());
-                Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId, (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
+                Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId,
+                        expectSegmentsSealed, segmentMetadata.isSealed());
+                Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId, (int) expectedLengths
+                        .getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
             }
         }
     }
 
-    void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex) throws Exception {
+    void performReadIndexChecks(Collection<LogTestHelpers.OperationWithCompletion> operations, ReadIndex readIndex)
+            throws Exception {
         AbstractMap<Long, Integer> expectedLengths = LogTestHelpers.getExpectedLengths(operations);
         AbstractMap<Long, InputStream> expectedData = LogTestHelpers.getExpectedContents(operations);
         for (Map.Entry<Long, InputStream> e : expectedData.entrySet()) {
@@ -84,10 +94,13 @@ abstract class OperationLogTestBase {
                 readLength += length;
                 int streamSegmentOffset = expectedLengths.getOrDefault(e.getKey(), 0);
                 expectedLengths.put(e.getKey(), streamSegmentOffset + length);
-                AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. StreamSegmentId = %d, Offset = %d.", e.getKey(), streamSegmentOffset), e.getValue(), entry.getData(), length);
+                AssertExtensions.assertStreamEquals(String.format("Unexpected data returned from ReadIndex. " +
+                        "StreamSegmentId = %d, Offset = %d.", e.getKey(), streamSegmentOffset), e.getValue(), entry
+                        .getData(), length);
             }
 
-            Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(), expectedLength, readLength);
+            Assert.assertEquals("Not enough bytes were read from the ReadIndex for StreamSegment " + e.getKey(),
+                    expectedLength, readLength);
         }
     }
 

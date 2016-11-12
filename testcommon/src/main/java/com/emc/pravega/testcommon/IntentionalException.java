@@ -23,7 +23,7 @@ package com.emc.pravega.testcommon;
  */
 public class IntentionalException extends RuntimeException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 

@@ -39,12 +39,14 @@ import com.emc.pravega.stream.Segment;
 public class SegmentHelper {
 
     public static NodeUri getSegmentUri(String scope, String stream, int segmentNumber, HostControllerStore hostStore) {
-        int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore.getContainerCount());
+        int container = HashHelper.seededWith("SegmentHelper").hashToBucket(stream + segmentNumber, hostStore
+                .getContainerCount());
         Host host = hostStore.getHostForContainer(container);
         return new NodeUri(host.getIpAddr(), host.getPort());
     }
-    
-    public static boolean createSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri, ConnectionFactory clientCF) {
+
+    public static boolean createSegment(String scope, String stream, int segmentNumber, PravegaNodeUri uri,
+                                        ConnectionFactory clientCF) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -68,7 +70,8 @@ public class SegmentHelper {
                 result.complete(true);
             }
         };
-        ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri, replyProcessor),
+        ClientConnection connection = FutureHelpers.getAndHandleExceptions(clientCF.establishConnection(uri,
+                replyProcessor),
                 RuntimeException::new);
         try {
             connection.send(new WireCommands.CreateSegment(Segment.getQualifiedName(scope, stream, segmentNumber)));

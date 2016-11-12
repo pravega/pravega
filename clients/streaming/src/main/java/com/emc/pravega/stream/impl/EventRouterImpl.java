@@ -29,12 +29,12 @@ import lombok.RequiredArgsConstructor;
 public class EventRouterImpl implements EventRouter {
 
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
-    
+
     private final Stream stream;
     private final Controller controller;
     private final AtomicReference<StreamSegments> currentSegments = new AtomicReference<>();
 
-    
+
     @Override
     public Segment getSegmentForEvent(String routingKey) {
         Preconditions.checkNotNull(routingKey);
@@ -45,10 +45,11 @@ public class EventRouterImpl implements EventRouter {
         }
         return streamSegments.getSegmentForKey(HASHER.hashToRange(routingKey));
     }
-    
+
     @Override
     public void refreshSegmentList() {
-        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new));
+        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream
+                .getStreamName()), RuntimeException::new));
     }
- 
+
 }

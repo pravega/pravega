@@ -56,7 +56,8 @@ public class ReadIndexConfig extends ComponentConfig {
      *
      * @param properties The java.util.Properties object to read Properties from.
      * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  MissingPropertyException (a required Property is missing from the given
+     *                                  properties collection),
      *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
@@ -101,12 +102,16 @@ public class ReadIndexConfig extends ComponentConfig {
         this.storageReadMinLength = getInt32Property(PROPERTY_STORAGE_READ_MIN_LENGTH, DEFAULT_STORAGE_READ_MIN_LENGTH);
         this.storageReadMaxLength = getInt32Property(PROPERTY_STORAGE_READ_MAX_LENGTH, DEFAULT_STORAGE_READ_MAX_LENGTH);
         if (this.storageReadMinLength > this.storageReadMaxLength) {
-            throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property '%s' (%d).", PROPERTY_STORAGE_READ_MIN_LENGTH, this.storageReadMinLength, PROPERTY_STORAGE_READ_MAX_LENGTH, this.storageReadMaxLength));
+            throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property " +
+                    "'%s' (%d).", PROPERTY_STORAGE_READ_MIN_LENGTH, this.storageReadMinLength,
+                    PROPERTY_STORAGE_READ_MAX_LENGTH, this.storageReadMaxLength));
         }
 
         long cachePolicyMaxSize = getInt64Property(PROPERTY_CACHE_POLICY_MAX_SIZE, DEFAULT_CACHE_POLICY_MAX_SIZE);
         int cachePolicyMaxTime = getInt32Property(PROPERTY_CACHE_POLICY_MAX_TIME, DEFAULT_CACHE_POLICY_MAX_TIME);
-        int cachePolicyGenerationTime = getInt32Property(PROPERTY_CACHE_POLICY_GENERATION_TIME, DEFAULT_CACHE_POLICY_GENERATION_TIME);
-        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration.ofMillis(cachePolicyGenerationTime));
+        int cachePolicyGenerationTime = getInt32Property(PROPERTY_CACHE_POLICY_GENERATION_TIME,
+                DEFAULT_CACHE_POLICY_GENERATION_TIME);
+        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofMillis(cachePolicyMaxTime), Duration
+                .ofMillis(cachePolicyGenerationTime));
     }
 }

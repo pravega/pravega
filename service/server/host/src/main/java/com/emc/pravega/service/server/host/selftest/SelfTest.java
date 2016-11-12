@@ -88,10 +88,10 @@ class SelfTest extends AbstractService implements AutoCloseable {
             ServiceShutdownListener.awaitShutdown(this, false);
 
             this.dataSource.deleteAllSegments()
-                           .exceptionally(ex -> {
-                               TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
-                               return null;
-                           }).join();
+                    .exceptionally(ex -> {
+                        TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
+                        return null;
+                    }).join();
 
             this.store.close();
             this.executor.shutdown();
@@ -176,13 +176,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor));
+            this.actors.add(new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this
+                    .executor));
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
         for (val si : this.state.getAllSegments()) {
             if (!si.isTransaction()) {
-                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.store, this.executor));
+                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.store, this
+                        .executor));
             }
         }
     }

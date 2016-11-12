@@ -86,6 +86,7 @@ class Stream {
     /**
      * Finds all successors of a given segment, that have exactly one predecessor,
      * and hence can be included in the futures of the given segment.
+     *
      * @param segment for which default futures are sought.
      * @return the list of successors of specified segment who have only one predecessor.
      */
@@ -128,7 +129,7 @@ class Stream {
 
     /**
      * @param completedSegments completely read segments.
-     * @param positions current consumer positions.
+     * @param positions         current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
     synchronized List<SegmentFutures> getNextSegments(Set<Integer> completedSegments, List<SegmentFutures> positions) {
@@ -138,7 +139,8 @@ class Stream {
         // successors of completed segments are interesting, which means
         // some of them may become current, and
         // some of them may become future
-        Set<Integer> successors = completedSegments.stream().flatMap(x -> segments.get(x).getSuccessors().stream()).collect(Collectors.toSet());
+        Set<Integer> successors = completedSegments.stream().flatMap(x -> segments.get(x).getSuccessors().stream())
+                .collect(Collectors.toSet());
 
         // a successor that has
         // 1. all its predecessors completed, and
@@ -148,10 +150,10 @@ class Stream {
         List<Integer> newCurrents = successors.stream().filter(x ->
                 // 1. all its predecessors completed, and
                 segments.get(x).getPredecessors().stream().allMatch(y -> completedSegments.contains(y))
-                // 2. it is not completed yet, and
-                && !completedSegments.contains(x)
-                // 3. it is not current in any of the positions
-                && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
+                        // 2. it is not completed yet, and
+                        && !completedSegments.contains(x)
+                        // 3. it is not current in any of the positions
+                        && positions.stream().allMatch(z -> !z.getCurrent().contains(x))
         ).collect(Collectors.toList());
 
         Map<Integer, List<Integer>> newFutures = new HashMap<>();
@@ -160,7 +162,8 @@ class Stream {
                     // if x is not completed
                     if (!completedSegments.contains(x)) {
                         // number of predecessors not completed == 1
-                        List<Integer> filtered = segments.get(x).getPredecessors().stream().filter(y -> !completedSegments.contains(y)).collect(Collectors.toList());
+                        List<Integer> filtered = segments.get(x).getPredecessors().stream().filter(y ->
+                                !completedSegments.contains(y)).collect(Collectors.toList());
                         if (filtered.size() == 1) {
                             Integer pendingPredecessor = filtered.get(0);
                             if (newFutures.containsKey(pendingPredecessor)) {
@@ -178,7 +181,8 @@ class Stream {
         return divideSegments(newCurrents, newFutures, positions);
     }
 
-    private List<SegmentFutures> divideSegments(List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures, List<SegmentFutures> positions) {
+    private List<SegmentFutures> divideSegments(List<Integer> newCurrents, Map<Integer, List<Integer>> newFutures,
+                                                List<SegmentFutures> positions) {
         List<SegmentFutures> newPositions = new ArrayList<>(positions.size());
 
         int quotient = newCurrents.size() / positions.size();
@@ -221,12 +225,15 @@ class Stream {
     /**
      * Seals a set of segments, and adds a new set of segments as current segments.
      * It sets appropriate endtime and successors of sealed segment.
+     *
      * @param sealedSegments segments to be sealed
-     * @param keyRanges    new segments to be added as active segments
-     * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new segments.
+     * @param keyRanges      new segments to be added as active segments
+     * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new
+     *                       segments.
      * @return the list of new segments.
      */
-    synchronized List<Segment> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
+    synchronized List<Segment> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long
+            scaleTimestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(keyRanges);
         Preconditions.checkArgument(sealedSegments.size() > 0);
@@ -240,7 +247,7 @@ class Stream {
         int start = segments.size();
         // assign status, end times, and successors to sealed segments.
         // assign predecessors to new segments
-        for (Integer sealed: sealedSegments) {
+        for (Integer sealed : sealedSegments) {
             Segment segment = segments.get(sealed);
             List<Integer> successors = new ArrayList<>();
 
@@ -250,7 +257,8 @@ class Stream {
                     predecessors.get(i).add(sealed);
                 }
             }
-            Segment sealedSegment = new Segment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(), segment.getKeyEnd(), Segment.Status.Sealed, successors, segment.getPredecessors());
+            Segment sealedSegment = new Segment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(),
+                    segment.getKeyEnd(), Segment.Status.Sealed, successors, segment.getPredecessors());
             segments.set(sealed, sealedSegment);
             currentSegments.remove(sealed);
         }
@@ -259,7 +267,8 @@ class Stream {
         // assign start times, numbers to new segments. Add them to segments list and current list.
         for (int i = 0; i < keyRanges.size(); i++) {
             int number = start + i;
-            Segment segment = new Segment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), Segment.Status.Active, new ArrayList<>(), predecessors.get(i));
+            Segment segment = new Segment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(),
+                    keyRanges.get(i).getValue(), Segment.Status.Active, new ArrayList<>(), predecessors.get(i));
             newSegments.add(segment);
             segments.add(segment);
             currentSegments.add(number);

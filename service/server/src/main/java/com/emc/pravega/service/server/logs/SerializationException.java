@@ -25,7 +25,7 @@ import com.emc.pravega.service.contracts.StreamingException;
  */
 public class SerializationException extends StreamingException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
@@ -59,7 +59,8 @@ public class SerializationException extends StreamingException {
      * @param enableSuppression  Whether or not suppression is enabled or disabled
      * @param writableStackTrace Whether or not the stack trace should be writable
      */
-    public SerializationException(String source, String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
+    public SerializationException(String source, String message, Throwable cause, boolean enableSuppression, boolean
+            writableStackTrace) {
         super(combine(source, message), cause, enableSuppression, writableStackTrace);
     }
 

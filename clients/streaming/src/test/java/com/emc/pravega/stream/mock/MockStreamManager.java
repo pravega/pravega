@@ -31,12 +31,12 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockStreamManager implements StreamManager {
-    
+
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ConnectionFactoryImpl connectionFactory;
     private final MockController controller;
-    
+
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
         this.connectionFactory = new ConnectionFactoryImpl(false);
@@ -46,7 +46,8 @@ public class MockStreamManager implements StreamManager {
     @Override
     public Stream createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
-            config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1));
+            config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0,
+                    1));
         }
         Stream stream = createStreamHelper(streamName, config);
         return stream;
@@ -59,8 +60,8 @@ public class MockStreamManager implements StreamManager {
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
         FutureHelpers.getAndHandleExceptions(controller
-            .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
-                                             RuntimeException::new);
+                        .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
+                RuntimeException::new);
         Stream stream = new StreamImpl(scope, streamName, config, controller, connectionFactory);
         created.put(streamName, stream);
         return stream;
@@ -75,9 +76,9 @@ public class MockStreamManager implements StreamManager {
     public void close() {
 
     }
-    
+
     public Position getInitialPosition(String stream) {
         return controller.getInitialPosition(scope, stream);
     }
-    
+
 }

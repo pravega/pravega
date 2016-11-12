@@ -45,5 +45,6 @@ public interface SegmentOutputStreamFactory {
      * @param config  The SegmentOutputConfiguration to use.
      * @throws SegmentSealedException If the segment is closed for modifications.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config) throws SegmentSealedException;
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, SegmentOutputConfiguration config) throws
+            SegmentSealedException;
 }

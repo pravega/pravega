@@ -24,7 +24,7 @@ import com.emc.pravega.stream.impl.segment.SegmentInputConfiguration;
 public class ConsumerConfig implements Serializable {
 
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 

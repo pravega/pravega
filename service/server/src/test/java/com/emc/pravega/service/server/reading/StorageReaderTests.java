@@ -65,7 +65,8 @@ public class StorageReaderTests {
         final int offsetIncrement = defaultReadLength / 3;
 
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executor.get());
         @Cleanup
@@ -77,7 +78,8 @@ public class StorageReaderTests {
         while (readOffset < segmentData.length) {
             int readLength = Math.min(defaultReadLength, segmentData.length - readOffset);
             CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-            StorageReader.Request r = new StorageReader.Request(readOffset, readLength, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
+            StorageReader.Request r = new StorageReader.Request(readOffset, readLength, requestCompletion::complete,
+                    requestCompletion::completeExceptionally, TIMEOUT);
             reader.execute(r);
             requestCompletions.put(r, requestCompletion);
             readOffset += offsetIncrement;
@@ -90,8 +92,11 @@ public class StorageReaderTests {
             int expectedReadLength = Math.min(request.getLength(), (int) (segmentData.length - request.getOffset()));
 
             Assert.assertNotNull("No data returned for request " + request, readData);
-            Assert.assertEquals("Unexpected read length for request " + request, expectedReadLength, readData.getData().getLength());
-            AssertExtensions.assertStreamEquals("Unexpected read contents for request " + request, new ByteArrayInputStream(segmentData, (int) request.getOffset(), expectedReadLength), readData.getData().getReader(), expectedReadLength);
+            Assert.assertEquals("Unexpected read length for request " + request, expectedReadLength,
+                    readData.getData().getLength());
+            AssertExtensions.assertStreamEquals("Unexpected read contents for request " + request, new
+                    ByteArrayInputStream(segmentData, (int) request.getOffset(), expectedReadLength), readData
+                    .getData().getReader(), expectedReadLength);
         }
     }
 
@@ -104,7 +109,8 @@ public class StorageReaderTests {
     @Test
     public void testInvalidRequests() {
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         @Cleanup
         InMemoryStorage storage = new InMemoryStorage(executor.get());
         @Cleanup
@@ -138,7 +144,8 @@ public class StorageReaderTests {
 
     private CompletableFuture<StorageReader.Result> sendRequest(StorageReader reader, long offset, int length) {
         CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-        reader.execute(new StorageReader.Request(offset, length, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT));
+        reader.execute(new StorageReader.Request(offset, length, requestCompletion::complete,
+                requestCompletion::completeExceptionally, TIMEOUT));
         return requestCompletion;
     }
 
@@ -149,13 +156,15 @@ public class StorageReaderTests {
     @Test
     public void testDependents() {
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestStorage storage = new TestStorage();
         CompletableFuture<Integer> signal = new CompletableFuture<>();
         AtomicBoolean wasReadInvoked = new AtomicBoolean();
         storage.readImplementation = () -> {
             if (wasReadInvoked.getAndSet(true)) {
-                Assert.fail("Read was invoked multiple times, which is a likely indicator that the requests were not chained.");
+                Assert.fail("Read was invoked multiple times, which is a likely indicator that the requests were not " +
+                        "chained.");
             }
             return signal;
         };
@@ -192,9 +201,11 @@ public class StorageReaderTests {
     public void testAutoCancelRequests() {
         final int readCount = 100;
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         TestStorage storage = new TestStorage();
-        storage.readImplementation = CompletableFuture::new; // Just return a Future which we will never complete - simulates a high latency read.
+        storage.readImplementation = CompletableFuture::new; // Just return a Future which we will never complete -
+        // simulates a high latency read.
         @Cleanup
         StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
@@ -203,20 +214,23 @@ public class StorageReaderTests {
 
         for (int i = 0; i < readCount; i++) {
             CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-            StorageReader.Request r = new StorageReader.Request(i * 10, 9, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
+            StorageReader.Request r = new StorageReader.Request(i * 10, 9, requestCompletion::complete,
+                    requestCompletion::completeExceptionally, TIMEOUT);
             reader.execute(r);
             requestCompletions.put(r, requestCompletion);
         }
 
         // Verify the reads aren't failed yet.
         for (val entry : requestCompletions.entrySet()) {
-            Assert.assertFalse("Request is unexpectedly completed before close for request " + entry.getKey(), entry.getValue().isDone());
+            Assert.assertFalse("Request is unexpectedly completed before close for request " + entry.getKey(), entry
+                    .getValue().isDone());
         }
 
         // Close the reader and verify the reads have all been cancelled.
         reader.close();
         for (val entry : requestCompletions.entrySet()) {
-            Assert.assertTrue("Request is not completed with exception after close for request " + entry.getKey(), entry.getValue().isCompletedExceptionally());
+            Assert.assertTrue("Request is not completed with exception after close for request " + entry.getKey(),
+                    entry.getValue().isCompletedExceptionally());
             AssertExtensions.assertThrows(
                     "Request was not failed with a CancellationException after close for request " + entry.getKey(),
                     entry.getValue()::join,
@@ -230,7 +244,8 @@ public class StorageReaderTests {
         byte[] segmentData = new byte[length];
         random.nextBytes(segmentData);
         storage.create(SEGMENT_METADATA.getName(), TIMEOUT).join();
-        storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length, TIMEOUT).join();
+        storage.write(SEGMENT_METADATA.getName(), 0, new ByteArrayInputStream(segmentData), segmentData.length,
+                TIMEOUT).join();
         return segmentData;
     }
 
@@ -238,7 +253,8 @@ public class StorageReaderTests {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int
+                bufferOffset, int length, Duration timeout) {
             return this.readImplementation.get();
         }
 

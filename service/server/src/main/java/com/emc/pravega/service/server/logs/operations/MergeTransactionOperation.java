@@ -121,8 +121,10 @@ public class MergeTransactionOperation extends StorageOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.length >= 0, "Transaction StreamSegment Length has not been assigned for this entry.");
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been assigned for this entry.");
+        ensureSerializationCondition(this.length >= 0, "Transaction StreamSegment Length has not been assigned for " +
+                "this entry.");
+        ensureSerializationCondition(this.streamSegmentOffset >= 0, "Target StreamSegment Offset has not been " +
+                "assigned for this entry.");
 
         target.writeByte(VERSION);
         target.writeLong(getStreamSegmentId());

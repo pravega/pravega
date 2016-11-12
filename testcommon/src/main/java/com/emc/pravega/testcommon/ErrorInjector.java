@@ -58,7 +58,8 @@ public class ErrorInjector<T extends Throwable> {
     }
 
     /**
-     * If the given error injector generates an exception, that exception will be thrown (Wrapped as a CompletionException).
+     * If the given error injector generates an exception, that exception will be thrown (Wrapped as a
+     * CompletionException).
      * If the given error injector is null or does not generate an exception, nothing will happen.
      *
      * @param injector The Error Injector to use.
@@ -74,8 +75,10 @@ public class ErrorInjector<T extends Throwable> {
     }
 
     /**
-     * Returns a CompletableFuture that, if the given injector generates a non-null exception, will be completed exceptionally.
-     * If the given injector is null or does not generate an exception (null), this method returns a normally completed Future with no result.
+     * Returns a CompletableFuture that, if the given injector generates a non-null exception, will be completed
+     * exceptionally.
+     * If the given injector is null or does not generate an exception (null), this method returns a normally
+     * completed Future with no result.
      *
      * @param injector The Error Injector to use.
      * @param <T>      The type of exception to throw.
@@ -103,7 +106,8 @@ public class ErrorInjector<T extends Throwable> {
 
     /**
      * Gets a value indicating the Exception (T) that was thrown during the last call to throwIfNecessary() for any of
-     * the given ErrorInjectors (inspected in the order in which they were provided). If no exception was thrown, null is returned.
+     * the given ErrorInjectors (inspected in the order in which they were provided). If no exception was thrown,
+     * null is returned.
      *
      * @param injectors The injectors to inspect.
      * @param <T>       The type of exception to throw.

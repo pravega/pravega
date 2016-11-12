@@ -31,8 +31,10 @@ class CacheReadResultEntry extends ReadResultEntryBase {
     /**
      * Creates a new instance of the CacheReadResultEntry class.
      *
-     * @param streamSegmentOffset The offset within the StreamSegment where this ReadResultEntry starts at. NOTE: this is
-     *                            not where the first byte of 'data' starts, rather it's where dataOffset points to in the
+     * @param streamSegmentOffset The offset within the StreamSegment where this ReadResultEntry starts at. NOTE:
+     *                            this is
+     *                            not where the first byte of 'data' starts, rather it's where dataOffset points to
+     *                            in the
      *                            StreamSegment.
      * @param data                The data buffer that contains the data.
      * @param dataOffset          The offset within data where this ReadResultEntry starts at.

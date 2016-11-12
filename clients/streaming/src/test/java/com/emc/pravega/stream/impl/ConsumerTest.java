@@ -35,12 +35,12 @@ public class ConsumerTest {
     }
 
     @Test
-    public  void testAutoClose() {
+    public void testAutoClose() {
         fail();
     }
 
     @Test
-    public  void testFailOnAutoClose() {
+    public void testFailOnAutoClose() {
         fail();
     }
 

@@ -29,8 +29,10 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
- * can be serialized to a DurableDataLog. This operation (although possible), should not be directly added to the In-Memory Transaction Log.
+ * Log Operation that represents a StreamSegment Append. This operation, as opposed from
+ * CachedStreamSegmentAppendOperation,
+ * can be serialized to a DurableDataLog. This operation (although possible), should not be directly added to the
+ * In-Memory Transaction Log.
  */
 public class StreamSegmentAppendOperation extends StorageOperation {
     //region Members
@@ -75,7 +77,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
         this.appendContext = appendContext;
     }
 
-    protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws SerializationException {
+    protected StreamSegmentAppendOperation(OperationHeader header, DataInputStream source) throws
+            SerializationException {
         super(header, source);
     }
 
@@ -89,7 +92,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
      * @param value The offset.
      */
     public void setStreamSegmentOffset(long value) {
-        // No need for parameter validation here. We allow even invalid offsets now - we will check for them upon serialization.
+        // No need for parameter validation here. We allow even invalid offsets now - we will check for them upon
+        // serialization.
         this.streamSegmentOffset = value;
     }
 
@@ -132,7 +136,8 @@ public class StreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for " +
+                "this entry.");
 
         target.writeByte(CURRENT_VERSION);
         target.writeLong(getStreamSegmentId());

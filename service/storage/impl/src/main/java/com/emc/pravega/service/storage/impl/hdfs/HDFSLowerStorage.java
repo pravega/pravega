@@ -62,19 +62,19 @@ class HDFSLowerStorage implements Storage {
 
 
     SegmentProperties createSync(String streamSegmentName, Duration timeout) throws IOException {
-            getFS().create(new Path(streamSegmentName),
-                    new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
-                    false,
-                    0,
-                    this.serviceBuilderConfig.getReplication(),
-                    this.serviceBuilderConfig.getBlockSize(),
-                    null).close();
-            return new StreamSegmentInformation(streamSegmentName,
-                    0,
-                    false,
-                    false,
-                    new Date()
-            );
+        getFS().create(new Path(streamSegmentName),
+                new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
+                false,
+                0,
+                this.serviceBuilderConfig.getReplication(),
+                this.serviceBuilderConfig.getBlockSize(),
+                null).close();
+        return new StreamSegmentInformation(streamSegmentName,
+                0,
+                false,
+                false,
+                new Date()
+        );
     }
 
     SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
@@ -95,21 +95,21 @@ class HDFSLowerStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
+                                         Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
-                () ->  writeSync(streamSegmentName, offset, length, data, timeout),
+                () -> writeSync(streamSegmentName, offset, length, data, timeout),
                 e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
                 this.executor);
     }
 
 
-
     private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout)
             throws BadOffsetException, IOException {
         try (FSDataOutputStream stream = getFS().append(new Path(streamSegmentName))) {
-        if (stream.getPos() != offset) {
-            throw new BadOffsetException(streamSegmentName, offset, stream.getPos());
-        }
+            if (stream.getPos() != offset) {
+                throw new BadOffsetException(streamSegmentName, offset, stream.getPos());
+            }
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
         }
@@ -137,16 +137,18 @@ class HDFSLowerStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
+            sourceStreamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout),
                 e -> HDFSExceptionHelpers.translateFromIOException(targetStreamSegmentName, e),
                 executor);
     }
 
-    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException {
+    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout)
+            throws IOException, BadOffsetException {
         FileStatus status = getFS().globStatus(new Path(targetStreamSegmentName))[0];
-        if ( status.getLen() != offset ) {
+        if (status.getLen() != offset) {
             throw new BadOffsetException(targetStreamSegmentName, offset, status.getLen());
         }
         getFS().concat(new Path(targetStreamSegmentName),
@@ -177,7 +179,8 @@ class HDFSLowerStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
+                                           int length, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout),
                 e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
@@ -188,7 +191,8 @@ class HDFSLowerStorage implements Storage {
      * Finds the file containing the given offset for the given segment.
      * Reads from that file.
      */
-    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
+    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length,
+                             Duration timeout) throws IOException {
         FSDataInputStream stream = getFS().open(new Path(streamSegmentName));
         return stream.read(offset,
                 buffer, bufferOffset, length);
@@ -197,7 +201,7 @@ class HDFSLowerStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
-                () ->  this.getStreamSegmentInfoSync(streamSegmentName, timeout),
+                () -> this.getStreamSegmentInfoSync(streamSegmentName, timeout),
                 e -> HDFSExceptionHelpers.translateFromIOException(streamSegmentName, e),
                 executor);
     }

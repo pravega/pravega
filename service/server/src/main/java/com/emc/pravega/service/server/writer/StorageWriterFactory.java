@@ -63,8 +63,10 @@ public class StorageWriterFactory implements WriterFactory {
     }
 
     @Override
-    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
-        Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given containerMetadata and operationLog have different Container Ids.");
+    public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex
+            readIndex, Cache cache) {
+        Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given " +
+                "containerMetadata and operationLog have different Container Ids.");
         Storage storage = this.storageFactory.getStorageAdapter();
         WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex, cache);
         return new StorageWriter(this.config, dataSource, storage, this.executor);
@@ -80,7 +82,8 @@ public class StorageWriterFactory implements WriterFactory {
         private final ReadIndex readIndex;
         private final String traceObjectId;
 
-        StorageWriterDataSource(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache) {
+        StorageWriterDataSource(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex
+                readIndex, Cache cache) {
             Preconditions.checkNotNull(containerMetadata, "containerMetadata");
             Preconditions.checkNotNull(operationLog, "operationLog");
             Preconditions.checkNotNull(readIndex, "readIndex");
@@ -114,7 +117,8 @@ public class StorageWriterFactory implements WriterFactory {
 
         @Override
         public void completeMerge(long targetStreamSegmentId, long sourceStreamSegmentId) {
-            log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
+            log.debug("{}: CompleteMerge (TargetSegmentId={}, SourceSegmentId={}).", this.traceObjectId,
+                    targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.completeMerge(targetStreamSegmentId, sourceStreamSegmentId);
             this.readIndex.performGarbageCollection();
         }

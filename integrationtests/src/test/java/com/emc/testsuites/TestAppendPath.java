@@ -28,7 +28,8 @@ import com.emc.pravega.service.server.host.handler.AppendProcessorTest;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStreamTest;
 
 @RunWith(Suite.class)
-@SuiteClasses({ AppendEncodeDecodeTest.class, AppendProcessorTest.class, AppendTest.class, SegmentOutputStreamTest.class })
+@SuiteClasses({AppendEncodeDecodeTest.class, AppendProcessorTest.class, AppendTest.class, SegmentOutputStreamTest
+        .class})
 public class TestAppendPath {
 
 }

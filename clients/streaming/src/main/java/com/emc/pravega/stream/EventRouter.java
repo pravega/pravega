@@ -27,12 +27,12 @@ public interface EventRouter {
 
     /**
      * Selects which segment an event should be published to.
-     * 
+     *
      * @param routingKey The key that should be used to select from the segment that the event should go to.
      * @return The Segment that has been selected.
      */
     Segment getSegmentForEvent(String routingKey);
 
     void refreshSegmentList();
-    
+
 }

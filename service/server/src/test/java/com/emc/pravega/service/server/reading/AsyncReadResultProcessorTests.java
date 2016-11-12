@@ -72,7 +72,8 @@ public class AsyncReadResultProcessorTests {
 
         // Start an AsyncReadResultProcessor.
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         @Cleanup
         StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
         TestEntryHandler testEntryHandler = new TestEntryHandler(entries);
@@ -86,7 +87,8 @@ public class AsyncReadResultProcessorTests {
                 Assert.fail("Read failure: " + testEntryHandler.error.toString());
             }
 
-            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
+            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount
+                    .get());
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -103,7 +105,8 @@ public class AsyncReadResultProcessorTests {
 
         // Setup an entry provider supplier.
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         AtomicInteger currentIndex = new AtomicInteger();
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             int idx = currentIndex.getAndIncrement();
@@ -111,7 +114,8 @@ public class AsyncReadResultProcessorTests {
                 return null;
             }
 
-            Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
+            Supplier<ReadResultEntryContents> entryContentsSupplier = () -> new ReadResultEntryContents(new
+                    ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
             return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executor.get());
         };
 
@@ -129,7 +133,8 @@ public class AsyncReadResultProcessorTests {
                 Assert.fail("Read failure: " + testEntryHandler.error.toString());
             }
 
-            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount.get());
+            Assert.assertEquals("Unexpected number of reads processed.", entries.size(), testEntryHandler.readCount
+                    .get());
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -146,7 +151,8 @@ public class AsyncReadResultProcessorTests {
 
         // Setup an entry provider supplier that returns Future Reads, which will eventually fail.
         @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
         StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
             Supplier<ReadResultEntryContents> entryContentsSupplier = () -> {
                 barrier.acquireUninterruptibly();
@@ -169,7 +175,8 @@ public class AsyncReadResultProcessorTests {
 
             Assert.assertEquals("Unexpected number of reads processed.", 0, testEntryHandler.readCount.get());
             Assert.assertNotNull("No read failure encountered.", testEntryHandler.error.get());
-            Assert.assertTrue("Unexpected type of exception was raised.", testEntryHandler.error.get() instanceof IntentionalException);
+            Assert.assertTrue("Unexpected type of exception was raised.", testEntryHandler.error.get() instanceof
+                    IntentionalException);
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
@@ -210,7 +217,9 @@ public class AsyncReadResultProcessorTests {
                 int idx = readEntryCount.getAndIncrement();
                 AssertExtensions.assertLessThan("Read too many entries.", entries.size(), idx);
                 byte[] expected = entries.get(idx);
-                Assert.assertArrayEquals(String.format("Unexpected read contents after reading %d entries.", idx + 1), expected, data);
+                Assert.assertArrayEquals(
+                        String.format("Unexpected read contents after reading %d entries.", idx + 1), expected, data);
+
                 readCount.incrementAndGet();
             } catch (Exception ex) {
                 error.set(ex);
@@ -235,7 +244,8 @@ public class AsyncReadResultProcessorTests {
         private final Supplier<ReadResultEntryContents> resultSupplier;
         private final Executor executor;
 
-        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength, Supplier<ReadResultEntryContents> resultSupplier, Executor executor) {
+        TestFutureReadResultEntry(long streamSegmentOffset, int requestedReadLength,
+                                  Supplier<ReadResultEntryContents> resultSupplier, Executor executor) {
             super(streamSegmentOffset, requestedReadLength);
             this.resultSupplier = resultSupplier;
             this.executor = executor;

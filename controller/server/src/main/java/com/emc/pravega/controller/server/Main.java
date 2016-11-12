@@ -55,7 +55,8 @@ public class Main {
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
         log.info("Creating in-memory host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
+        HostControllerStore hostStore = HostStoreFactory.createStore(
+                HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));
 
         //2) start the Server implementations.

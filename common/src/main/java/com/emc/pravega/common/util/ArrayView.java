@@ -46,7 +46,8 @@ public interface ArrayView {
      * Sets the value(s) starting at the specified index.
      *
      * @param index  The index to start setting the values at.
-     * @param values The values to set. Position n inside this array will correspond to position 'index + n' inside the ArrayView.
+     * @param values The values to set. Position n inside this array will correspond to position 'index + n' inside
+     *               the ArrayView.
      * @throws IllegalStateException          If the ArrayView is readonly.
      * @throws ArrayIndexOutOfBoundsException If index is invalid or the items to be added cannot fit.
      */

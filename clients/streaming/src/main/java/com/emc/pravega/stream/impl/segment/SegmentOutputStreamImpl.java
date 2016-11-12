@@ -60,7 +60,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Tracks inflight events, and manages reconnects automatically.
- * 
+ *
  * @see SegmentOutputStream
  */
 @RequiredArgsConstructor
@@ -169,7 +169,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
          * Add event to the infight
          */
         private Append createNewInflightAppend(UUID connectionId, String segment, ByteBuffer buff,
-                CompletableFuture<Void> callback) {
+                                               CompletableFuture<Void> callback) {
             synchronized (lock) {
                 eventNumber++;
                 Append append = new Append(segment, connectionId, eventNumber, Unpooled.wrappedBuffer(buff));
@@ -185,7 +185,8 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         private List<CompletableFuture<Void>> removeInflightBelow(long ackLevel) {
             synchronized (lock) {
                 ArrayList<CompletableFuture<Void>> result = new ArrayList<>();
-                for (Iterator<Entry<Append, CompletableFuture<Void>>> iter = inflight.entrySet().iterator(); iter.hasNext();) {
+                for (Iterator<Entry<Append, CompletableFuture<Void>>> iter = inflight.entrySet().iterator(); iter
+                        .hasNext(); ) {
                     Entry<Append, CompletableFuture<Void>> append = iter.next();
                     if (append.getKey().getEventNumber() <= ackLevel) {
                         result.add(append.getValue());
@@ -223,9 +224,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            state.failConnection(new ConnectionFailedException()); 
+            state.failConnection(new ConnectionFailedException());
         }
-        
+
         @Override
         public void wrongHost(WrongHost wrongHost) {
             state.failConnection(new ConnectionFailedException()); // TODO: Probably something else.
@@ -240,7 +241,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             state.failConnection(new IllegalArgumentException(noSuchSegment.toString()));
         }
-        
+
         @Override
         public void dataAppended(DataAppended dataAppended) {
             long ackLevel = dataAppended.getEventNumber();
@@ -273,15 +274,16 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             }
         }
     }
-    
+
     /**
      * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer,
-     *      java.util.concurrent.CompletableFuture)
+     * java.util.concurrent.CompletableFuture)
      */
     @Override
     @Synchronized
     public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
-        checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff.remaining());
+        checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff
+                .remaining());
         ClientConnection connection = getConnection();
         Append append = state.createNewInflightAppend(connectionId, segmentName, buff, callback);
         try {
@@ -298,7 +300,8 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
+        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class)
+                .run(() -> {
             setupConnection();
             return state.waitForConnection();
         });
@@ -309,9 +312,9 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
             CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
-                .thenCompose((PravegaNodeUri uri) -> {
-                    return connectionFactory.establishConnection(uri, responseProcessor);
-                });
+                    .thenCompose((PravegaNodeUri uri) -> {
+                        return connectionFactory.establishConnection(uri, responseProcessor);
+                    });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(connectionId, segmentName);

@@ -83,7 +83,8 @@ public final class ServiceStarter {
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new)
+                .getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
@@ -130,7 +131,8 @@ public final class ServiceStarter {
         builder.withDataLogFactory(setup -> {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console",
+                        dlConfig);
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {

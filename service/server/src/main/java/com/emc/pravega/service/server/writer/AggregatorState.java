@@ -28,7 +28,8 @@ enum AggregatorState {
     NotInitialized,
 
     /**
-     * Normal operation mode. The SegmentAggregator is accepting new StorageOperations and flushing them normally to Storage.
+     * Normal operation mode. The SegmentAggregator is accepting new StorageOperations and flushing them normally to
+     * Storage.
      */
     Writing,
 
@@ -40,7 +41,8 @@ enum AggregatorState {
 
     /**
      * A disagreement has been detected between the currently-known state of the Segment and what Storage indicates, and
-     * the SegmentAggregator is currently attempting to reconcile the two until it detects a convergence or an unrecoverable situation.
+     * the SegmentAggregator is currently attempting to reconcile the two until it detects a convergence or an
+     * unrecoverable situation.
      */
     Reconciling,
 

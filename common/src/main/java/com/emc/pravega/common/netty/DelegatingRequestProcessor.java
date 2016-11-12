@@ -57,12 +57,12 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     public void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo) {
         getNextRequestProcessor().getStreamSegmentInfo(getStreamInfo);
     }
-    
+
     @Override
     public void getTransactionInfo(GetTransactionInfo getTransactionInfo) {
         getNextRequestProcessor().getTransactionInfo(getTransactionInfo);
     }
-    
+
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         getNextRequestProcessor().createSegment(createStreamsSegment);
@@ -82,7 +82,7 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     public void dropTransaction(DropTransaction dropTransaction) {
         getNextRequestProcessor().dropTransaction(dropTransaction);
     }
-    
+
     @Override
     public void sealSegment(SealSegment sealSegment) {
         getNextRequestProcessor().sealSegment(sealSegment);

@@ -103,7 +103,8 @@ class TestConfig extends ComponentConfig {
         this.operationCount = getInt32Property(PROPERTY_OPERATION_COUNT, DEFAULT_OPERATION_COUNT);
         this.segmentCount = getInt32Property(PROPERTY_SEGMENT_COUNT, DEFAULT_SEGMENT_COUNT);
         this.transactionFrequency = getInt32Property(PROPERTY_TRANSACTION_FREQUENCY, DEFAULT_TRANSACTION_FREQUENCY);
-        this.maxTransactionAppendCount = getInt32Property(PROPERTY_MAX_TRANSACTION_SIZE, DEFAULT_MAX_TRANSACTION_APPEND_COUNT);
+        this.maxTransactionAppendCount = getInt32Property(PROPERTY_MAX_TRANSACTION_SIZE,
+                DEFAULT_MAX_TRANSACTION_APPEND_COUNT);
         this.producerCount = getInt32Property(PROPERTY_PRODUCER_COUNT, DEFAULT_PRODUCER_COUNT);
         this.minAppendSize = getInt32Property(PROPERTY_MIN_APPEND_SIZE, DEFAULT_MIN_APPEND_SIZE);
         this.maxAppendSize = getInt32Property(PROPERTY_MAX_APPEND_SIZE, DEFAULT_MAX_APPEND_SIZE);

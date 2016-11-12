@@ -75,14 +75,16 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given data frame contains the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Function<T, ByteArraySegment>
+            recordConverter) throws Exception {
         checkReadRecords(dataFrames, records, new HashSet<>(), recordConverter);
     }
 
     /**
      * Checks that the given data frame contains the given collection of records.
      */
-    static <T> void checkReadRecords(DataFrame dataFrame, List<T> records, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(DataFrame dataFrame, List<T> records, Function<T, ByteArraySegment>
+            recordConverter) throws Exception {
         ArrayList<DataFrame> frames = new ArrayList<>();
         frames.add(dataFrame);
         checkReadRecords(frames, records, recordConverter);
@@ -91,7 +93,8 @@ class DataFrameTestHelpers {
     /**
      * Checks that the given collection of DataFrames contain the given collection of records.
      */
-    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Collection<Integer> knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
+    static <T> void checkReadRecords(Collection<DataFrame> dataFrames, List<T> records, Collection<Integer>
+            knownBadRecordIndices, Function<T, ByteArraySegment> recordConverter) throws Exception {
         ReadState state = new ReadState(records.size(), knownBadRecordIndices);
 
         for (DataFrame dataFrame : dataFrames) {
@@ -101,7 +104,8 @@ class DataFrameTestHelpers {
             while ((entry = reader.getNext()) != null) {
 
                 // General DataFrameEntry validation.
-                Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
+                Assert.assertNotNull("Received a null entry even though hasNext() returned true." +
+                        state.getPosition(), entry);
                 Assert.assertEquals(
                         "Unexpected value returned by getDataFrameAddress(). " + state.getPosition(),
                         dataFrame.getAddress(),
@@ -117,10 +121,12 @@ class DataFrameTestHelpers {
                 state.getCurrentRecordEntries().add(entry);
                 if (entry.isLastRecordEntry()) {
                     // We have reached the LastEntry for a Record. We are now ready to compare it to the current record.
-                    Assert.assertFalse("Unexpected entry with isLastRecordEntry flag (when current record is bad).", state.isCurrentRecordBad());
+                    Assert.assertFalse("Unexpected entry with isLastRecordEntry flag (when current record is bad).",
+                            state.isCurrentRecordBad());
 
                     int nextGoodRecordIndex = state.getNextGoodRecordIndex();
-                    AssertExtensions.assertGreaterThan("No more valid records to compare to.", nextGoodRecordIndex, records.size());
+                    AssertExtensions.assertGreaterThan("No more valid records to compare to.", nextGoodRecordIndex,
+                            records.size());
                     ByteArraySegment currentRecord = recordConverter.apply(records.get(nextGoodRecordIndex));
                     AssertExtensions.assertLessThanOrEqual(
                             "Accumulated entries have more bytes than the current record has." + state.getPosition(),
@@ -132,14 +138,17 @@ class DataFrameTestHelpers {
                         ByteArraySegment entryData = recordEntry.getData();
                         for (int i = 0; i < entryData.getLength(); i++) {
                             if (currentRecord.get(recordOffset) != entryData.get(i)) {
-                                Assert.fail(String.format("Unexpected entry contents. FrameIndex = %d, RecordIndex = %d, EntryNumberInRecord = %d.", state.getFrameIndex(), state.getNextGoodRecordIndex(), i));
+                                Assert.fail(String.format("Unexpected entry contents. FrameIndex = %d, RecordIndex = " +
+                                        "%d, EntryNumberInRecord = %d.", state.getFrameIndex(), state
+                                        .getNextGoodRecordIndex(), i));
                             }
 
                             recordOffset++;
                         }
                     }
 
-                    Assert.assertEquals("isLastRecordEntry() indicates true but there are bytes remaining to be read in the record.", currentRecord.getLength(), recordOffset);
+                    Assert.assertEquals("isLastRecordEntry() indicates true but there are bytes remaining to be read " +
+                            "in the record.", currentRecord.getLength(), recordOffset);
                     state.clearCurrentRecordEntries();
                 }
             }
@@ -153,7 +162,8 @@ class DataFrameTestHelpers {
             state.moveToNextFrame();
         }
 
-        //Assert.assertEquals("Reached the end of the DataFrames but there are still records to be expected.", records.size(), state.getNextGoodRecordIndex());
+        //Assert.assertEquals("Reached the end of the DataFrames but there are still records to be expected.",
+        // records.size(), state.getNextGoodRecordIndex());
     }
 
     //region ReadState
@@ -209,7 +219,8 @@ class DataFrameTestHelpers {
         }
 
         String getPosition() {
-            return String.format(" FrameIndex = %d, RecordIndex = %d, EntryIndexInRecord = %d.", this.frameIndex, this.recordIndex, this.currentRecordEntries.size());
+            return String.format(" FrameIndex = %d, RecordIndex = %d, EntryIndexInRecord = %d.", this.frameIndex,
+                    this.recordIndex, this.currentRecordEntries.size());
         }
     }
 

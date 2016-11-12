@@ -51,7 +51,8 @@ public class DurableLogConfig extends ComponentConfig {
      *
      * @param properties The java.util.Properties object to read Properties from.
      * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
+     *                                  MissingPropertyException (a required Property is missing from the given
+     *                                  properties collection),
      *                                  NumberFormatException (a Property has a value that is invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
@@ -63,7 +64,8 @@ public class DurableLogConfig extends ComponentConfig {
     //endregion
 
     /**
-     * Gets a value indicating the minimum number of commits that need to be accumulated in order to trigger a Checkpoint.
+     * Gets a value indicating the minimum number of commits that need to be accumulated in order to trigger a
+     * Checkpoint.
      */
     public int getCheckpointMinCommitCount() {
         return this.checkpointMinCommitCount;
@@ -85,12 +87,16 @@ public class DurableLogConfig extends ComponentConfig {
 
     @Override
     protected void refresh() throws ConfigurationException {
-        this.checkpointMinCommitCount = getInt32Property(PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, DEFAULT_MIN_COMMIT_COUNT);
+        this.checkpointMinCommitCount = getInt32Property(PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT,
+                DEFAULT_MIN_COMMIT_COUNT);
         this.checkpointCommitCountThreshold = getInt32Property(PROPERTY_CHECKPOINT_COMMIT_COUNT, DEFAULT_COMMIT_COUNT);
         if (this.checkpointMinCommitCount > this.checkpointCommitCountThreshold) {
-            throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property '%s' (%d).", PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount, PROPERTY_CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
+            throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property " +
+                    "'%s' (%d).", PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount,
+                    PROPERTY_CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
         }
 
-        this.checkpointTotalCommitLengthThreshold = getInt64Property(PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH, DEFAULT_TOTAL_COMMIT_LENGTH);
+        this.checkpointTotalCommitLengthThreshold = getInt64Property(PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH,
+                DEFAULT_TOTAL_COMMIT_LENGTH);
     }
 }

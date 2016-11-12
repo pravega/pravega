@@ -54,7 +54,9 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      * @param executor            The Executor to use for running async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
-    public StreamSegmentContainerFactory(MetadataRepository metadataRepository, OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory, CacheFactory cacheFactory, Executor executor) {
+    public StreamSegmentContainerFactory(MetadataRepository metadataRepository, OperationLogFactory
+            operationLogFactory, ReadIndexFactory readIndexFactory, WriterFactory writerFactory, StorageFactory
+            storageFactory, CacheFactory cacheFactory, Executor executor) {
         Preconditions.checkNotNull(metadataRepository, "metadataRepository");
         Preconditions.checkNotNull(operationLogFactory, "operationLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
@@ -74,6 +76,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
 
     @Override
     public SegmentContainer createStreamSegmentContainer(int containerId) {
-        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executor);
+        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this
+                .readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executor);
     }
 }

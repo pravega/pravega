@@ -38,9 +38,10 @@ import java.util.concurrent.Executor;
  * Each segment is represented by a file with pattern <segment-name>_<owner_host_id>
  * Owner_host_id is optional and means that the segment is owned by the Pravega host of the given id.
  * <p>
- * When ever ownership change happens, the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
+ * When ever ownership change happens, the new node renames the file representing the segment to
+ * <segment-name>_<owner_host_id>.
  * This is done by the acquireLockForSegment call.
- *
+ * <p>
  * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
 @Slf4j
@@ -115,7 +116,8 @@ public class HDFSStorage implements Storage {
      * Create a new file with the name equal to
      * the current offset of the stream which is biggest start offset + its size
      */
-    private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
+    private Boolean acquireLockForSegmentSync(String streamSegmentName) throws IOException,
+            StreamSegmentNotExistsException {
 
         FileStatus[] statuses = this.getStreamSegmentNameWildCard(streamSegmentName);
 
@@ -127,7 +129,8 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
+                                         Duration timeout) {
         return storage.write(this.getOwnedSegmentFullPath(streamSegmentName), offset, data, length, timeout);
     }
 
@@ -138,8 +141,10 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        return storage.concat(this.getOwnedSegmentFullPath(targetStreamSegmentName), offset, this.getOwnedSegmentFullPath(sourceStreamSegmentName), timeout);
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
+            sourceStreamSegmentName, Duration timeout) {
+        return storage.concat(this.getOwnedSegmentFullPath(targetStreamSegmentName), offset, this
+                .getOwnedSegmentFullPath(sourceStreamSegmentName), timeout);
     }
 
     @Override
@@ -153,8 +158,10 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return storage.read(this.getOwnedSegmentFullPath(streamSegmentName), offset, buffer, bufferOffset, length, timeout);
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
+                                           int length, Duration timeout) {
+        return storage.read(this.getOwnedSegmentFullPath(streamSegmentName), offset, buffer, bufferOffset, length,
+                timeout);
     }
 
     @Override

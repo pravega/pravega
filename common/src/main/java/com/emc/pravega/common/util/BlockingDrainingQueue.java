@@ -27,7 +27,8 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.ObjectClosedException;
 
 /**
- * Represents a thread-safe queue that dequeues all elements at once. Blocks the Dequeue if empty until new elements arrive.
+ * Represents a thread-safe queue that dequeues all elements at once. Blocks the Dequeue if empty until new elements
+ * arrive.
  *
  * @param <T> The type of the items in the queue.
  */
@@ -57,7 +58,8 @@ public class BlockingDrainingQueue<T> {
     //region Operations
 
     /**
-     * Closes the queue and prevents any other access to it. Any blocked call to takeAllItems() will fail with InterruptedException.
+     * Closes the queue and prevents any other access to it. Any blocked call to takeAllItems() will fail with
+     * InterruptedException.
      *
      * @return If the queue has any more items in it, these will be returned here. The items are guaranteed not to be
      * returned both here and via takeAllItems().
@@ -101,7 +103,8 @@ public class BlockingDrainingQueue<T> {
      * @return All the items currently in the queue.
      * @throws ObjectClosedException If the Queue is closed.
      * @throws IllegalStateException If another call to takeAllEntries is in progress.
-     * @throws InterruptedException  If the call is waiting for an empty queue to become non-empty and the queue is closed
+     * @throws InterruptedException  If the call is waiting for an empty queue to become non-empty and the queue is
+     * closed
      *                               while waiting.
      */
     public List<T> takeAllEntries() throws InterruptedException {

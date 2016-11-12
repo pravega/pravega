@@ -68,7 +68,8 @@ public class InteractiveStreamSegmentStoreTester {
 
     //region Constructor
 
-    public InteractiveStreamSegmentStoreTester(ServiceBuilder serviceBuilder, InputStream in, PrintStream out, PrintStream errorLogger) {
+    public InteractiveStreamSegmentStoreTester(ServiceBuilder serviceBuilder, InputStream in, PrintStream out,
+                                               PrintStream errorLogger) {
         this.out = out;
         this.in = new BufferedReader(new InputStreamReader(in));
         this.errorLogger = errorLogger;
@@ -101,7 +102,8 @@ public class InteractiveStreamSegmentStoreTester {
 
         try {
             serviceBuilder.initialize(TIMEOUT).join();
-            InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
+            InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder,
+                    System.in, System.out, System.err);
             tester.run();
         } finally {
             serviceBuilder.close();
@@ -170,21 +172,24 @@ public class InteractiveStreamSegmentStoreTester {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.CREATE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createStreamSegment(name, defaultTimeout), r -> log(startTime, "Created StreamSegment %s.", name));
+        await(this.streamSegmentStore.createStreamSegment(name, defaultTimeout), r -> log(startTime, "Created " +
+                "StreamSegment %s.", name));
     }
 
     private void deleteStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.DELETE));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.deleteStreamSegment(name, defaultTimeout), r -> log(startTime, "Deleted StreamSegment %s.", name));
+        await(this.streamSegmentStore.deleteStreamSegment(name, defaultTimeout), r -> log(startTime, "Deleted " +
+                "StreamSegment %s.", name));
     }
 
     private void sealStream(CommandLineParser parsedCommand) {
         String name = parsedCommand.getNext();
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.GET));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.sealStreamSegment(name, defaultTimeout), r -> log(startTime, "Sealed StreamSegment %s.", name));
+        await(this.streamSegmentStore.sealStreamSegment(name, defaultTimeout), r -> log(startTime, "Sealed " +
+                "StreamSegment %s.", name));
     }
 
     private void getStreamInfo(CommandLineParser parsedCommand) {
@@ -192,7 +197,8 @@ public class InteractiveStreamSegmentStoreTester {
         checkArguments(name != null && name.length() > 0, Commands.SYNTAXES.get(Commands.GET));
         long startTime = getCurrentTime();
         await(this.streamSegmentStore.getStreamSegmentInfo(name, defaultTimeout), result ->
-                log(startTime, "Name = %s, Length = %d, Sealed = %s, Deleted = %s.", result.getName(), result.getLength(), result.isSealed(), result.isDeleted()));
+                log(startTime, "Name = %s, Length = %d, Sealed = %s, Deleted = %s.", result.getName(), result
+                        .getLength(), result.isSealed(), result.isDeleted()));
     }
 
     private void appendToStream(CommandLineParser parsedCommand) {
@@ -206,7 +212,8 @@ public class InteractiveStreamSegmentStoreTester {
     private void appendToStream(String name, byte[] data) {
         AppendContext context = new AppendContext(clientId, appendCount++);
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.append(name, data, context, defaultTimeout), r -> log(startTime, "Appended %d bytes at offset %d.", data.length, r));
+        await(this.streamSegmentStore.append(name, data, context, defaultTimeout), r -> log(startTime, "Appended %d " +
+                "bytes at offset %d.", data.length, r));
     }
 
     private void readFromStream(CommandLineParser parsedCommand) {
@@ -215,7 +222,8 @@ public class InteractiveStreamSegmentStoreTester {
         int offset = parsedCommand.getNextOrDefault(Integer.MIN_VALUE);
         int length = parsedCommand.getNextOrDefault(Integer.MIN_VALUE);
 
-        checkArguments(name != null && name.length() > 0 && offset >= 0 && length > 0, Commands.SYNTAXES.get(Commands.READ));
+        checkArguments(name != null && name.length() > 0 && offset >= 0 && length > 0, Commands.SYNTAXES.get(Commands
+                .READ));
 
         final int readId = this.readCount++;
         log("Started Read #%d from %s.", readId, name);
@@ -228,7 +236,8 @@ public class InteractiveStreamSegmentStoreTester {
                             byte[] rawData = new byte[contents.getLength()];
                             StreamHelpers.readAll(contents.getData(), rawData, 0, rawData.length);
                             String data = new String(rawData);
-                            log("Read #%d (Offset=%d, Remaining=%d): %s", readId, entry.getStreamSegmentOffset(), readResult.getMaxResultLength() - readResult.getConsumedLength(), data);
+                            log("Read #%d (Offset=%d, Remaining=%d): %s", readId, entry.getStreamSegmentOffset(),
+                                    readResult.getMaxResultLength() - readResult.getConsumedLength(), data);
                         } catch (CancellationException | InterruptedIOException ex) {
                             log("Read #%d (Offset=%d) has been interrupted.", readId, entry.getStreamSegmentOffset());
                             return;
@@ -243,16 +252,20 @@ public class InteractiveStreamSegmentStoreTester {
 
     private void createTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String parentName = parsedCommand.getNext();
-        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
+        checkArguments(parentName != null && parentName.length() > 0, Commands.combine(Commands.CREATE_TRANSACTION,
+                Commands.PARENT_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.createTransaction(parentName, UUID.randomUUID(), defaultTimeout), r -> log(startTime, "Created Transaction %s with parent %s.", r, parentName));
+        await(this.streamSegmentStore.createTransaction(parentName, UUID.randomUUID(), defaultTimeout),
+                r -> log(startTime, "Created Transaction %s with parent %s.", r, parentName));
     }
 
     private void mergeTransaction(CommandLineParser parsedCommand) throws InvalidCommandSyntax {
         String transactionName = parsedCommand.getNext();
-        checkArguments(transactionName != null && transactionName.length() > 0, Commands.combine(Commands.MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
+        checkArguments(transactionName != null && transactionName.length() > 0, Commands.combine(Commands
+                .MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
         long startTime = getCurrentTime();
-        await(this.streamSegmentStore.mergeTransaction(transactionName, defaultTimeout), r -> log(startTime, "Merged Transaction %s into parent segment.", transactionName));
+        await(this.streamSegmentStore.mergeTransaction(transactionName, defaultTimeout), r -> log(startTime, "Merged " +
+                "Transaction %s into parent segment.", transactionName));
     }
 
     private <T> void await(CompletableFuture<T> future, Consumer<T> callback) {
@@ -331,7 +344,8 @@ public class InteractiveStreamSegmentStoreTester {
             SYNTAXES.put(SEAL, Commands.combine(SEAL, Commands.STREAM_SEGMENT_NAME));
             SYNTAXES.put(GET, Commands.combine(GET, Commands.STREAM_SEGMENT_NAME, Commands.OFFSET, Commands.LENGTH));
             SYNTAXES.put(CREATE_TRANSACTION, Commands.combine(CREATE_TRANSACTION, Commands.PARENT_STREAM_SEGMENT_NAME));
-            SYNTAXES.put(MERGE_TRANSACTION, Commands.combine(MERGE_TRANSACTION, Commands.TRANSACTION_STREAM_SEGMENT_NAME));
+            SYNTAXES.put(MERGE_TRANSACTION, Commands.combine(MERGE_TRANSACTION, Commands
+                    .TRANSACTION_STREAM_SEGMENT_NAME));
         }
 
         private static final String PARENT_STREAM_SEGMENT_NAME = "<parent-stream-segment-name>";

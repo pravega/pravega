@@ -107,7 +107,8 @@ public abstract class ReadResultEntryBase implements ReadResultEntry {
     }
 
     /**
-     * Registers a CompletionConsumer that will be invoked when the content is retrieved, just before the Future is completed.
+     * Registers a CompletionConsumer that will be invoked when the content is retrieved, just before the Future is
+     * completed.
      *
      * @param completionCallback The callback to be invoked.
      */

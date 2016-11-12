@@ -166,7 +166,8 @@ class RocksDBCache implements Cache {
      * Creates the RocksDB WriteOptions to use. Since we use RocksDB as an in-process cache with disk spillover,
      * we do not care about the data being persisted to disk for recovery purposes. As such:
      * * Write-Ahead-Log is disabled (2.8x performance improvement)
-     * * Sync is disabled - does not wait for a disk flush before returning from the write call (50x or more improvement).
+     * * Sync is disabled - does not wait for a disk flush before returning from the write call (50x or more
+     * improvement).
      */
     private WriteOptions createWriteOptions() {
         return new WriteOptions()

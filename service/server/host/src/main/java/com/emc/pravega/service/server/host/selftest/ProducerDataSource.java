@@ -72,7 +72,8 @@ class ProducerDataSource {
      * * MergeTransaction: If a transaction has exceeded its maximum number of appends (based on the TestConfig).
      * * Append: If any of the above are not met (this represents the majority of cases).
      *
-     * @return The next ProducerOperation, or null if not such operation can be generated (we reached the end of the test).
+     * @return The next ProducerOperation, or null if not such operation can be generated (we reached the end of the
+     * test).
      */
     ProducerOperation nextOperation() {
         int operationIndex = this.state.newOperation();
@@ -91,11 +92,13 @@ class ProducerDataSource {
                 }
             } else if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                 // We have exceeded the number of operations since we last created a transaction.
-                result = new ProducerOperation(OperationType.CreateTransaction, this.state.getNonTransactionSegmentName(operationIndex));
+                result = new ProducerOperation(OperationType.CreateTransaction, this.state
+                        .getNonTransactionSegmentName(operationIndex));
                 this.lastCreatedTransaction = operationIndex;
             } else {
                 // If any transaction has already exceeded the max number of appends, then merge it.
-                val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
+                val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >=
+                        this.config.getMaxTransactionAppendCount());
                 if (si != null) {
                     result = new ProducerOperation(OperationType.MergeTransaction, si.getName());
                     si.setClosed(true);
@@ -104,7 +107,8 @@ class ProducerDataSource {
 
             // Otherwise append to random segment.
             if (result == null) {
-                result = new ProducerOperation(OperationType.Append, this.state.getSegmentOrTransactionName(operationIndex));
+                result = new ProducerOperation(OperationType.Append,
+                        this.state.getSegmentOrTransactionName(operationIndex));
             }
         }
 
@@ -184,7 +188,8 @@ class ProducerDataSource {
      * @return A CompletableFuture that will be completed when all segments are created.
      */
     CompletableFuture<Void> createSegments() {
-        Preconditions.checkArgument(this.state.getAllSegments().size() == 0, "Cannot call createSegments more than once.");
+        Preconditions.checkArgument(this.state.getAllSegments().size() == 0, "Cannot call createSegments more than " +
+                "once.");
         ArrayList<CompletableFuture<Void>> segmentFutures = new ArrayList<>();
 
         TestLogger.log(LOG_ID, "Creating segments.");
@@ -193,10 +198,10 @@ class ProducerDataSource {
             String name = String.format("Segment_%s", segmentId);
             segmentFutures.add(
                     this.store.createStreamSegment(name, this.config.getTimeout())
-                              .thenRun(() -> {
-                                  this.state.recordNewSegmentName(name);
-                                  this.appendGenerators.put(name, new AppendContentGenerator(segmentId));
-                              }));
+                            .thenRun(() -> {
+                                this.state.recordNewSegmentName(name);
+                                this.appendGenerators.put(name, new AppendContentGenerator(segmentId));
+                            }));
         }
 
         return FutureHelpers.allOf(segmentFutures);
@@ -222,15 +227,15 @@ class ProducerDataSource {
 
     private CompletableFuture<Void> deleteSegment(String name) {
         return this.store.deleteStreamSegment(name, this.config.getTimeout())
-                         .exceptionally(ex -> {
-                             ex = ExceptionHelpers.getRealException(ex);
-                             if (!(ex instanceof StreamSegmentNotExistsException)) {
-                                 throw new CompletionException(ex);
-                             }
+                .exceptionally(ex -> {
+                    ex = ExceptionHelpers.getRealException(ex);
+                    if (!(ex instanceof StreamSegmentNotExistsException)) {
+                        throw new CompletionException(ex);
+                    }
 
-                             return null;
-                         })
-                         .thenRun(() -> postSegmentDeletion(name));
+                    return null;
+                })
+                .thenRun(() -> postSegmentDeletion(name));
     }
 
     private void postSegmentDeletion(String name) {

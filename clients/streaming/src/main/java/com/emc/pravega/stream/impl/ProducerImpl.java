@@ -63,8 +63,9 @@ public class ProducerImpl<Type> implements Producer<Type> {
     @GuardedBy("lock")
     private final Map<Segment, SegmentProducer<Type>> producers = new HashMap<>();
 
-    ProducerImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter router, Serializer<Type> serializer,
-            ProducerConfig config) {
+    ProducerImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter
+            router, Serializer<Type> serializer,
+                 ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -86,25 +87,26 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
     /**
      * Populate {@link #producers} by setting up a segmentProducer for each segment in the stream.
-     * 
+     *
      * @return The events that were sent but never acked to segments that are now sealed, and hence need to be
-     *         retransmitted.
+     * retransmitted.
      */
     private List<Event<Type>> setupSegmentProducers() {
         Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
-            .retryingOn(SegmentSealedException.class)
-            .throwingOn(RuntimeException.class)
-            .run(() -> {
-                Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new).getSegments();
-                for (Segment segment : s) {
-                    if (!producers.containsKey(segment)) {
-                        SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
-                                                                                         config.getSegmentConfig());
-                        producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+                .retryingOn(SegmentSealedException.class)
+                .throwingOn(RuntimeException.class)
+                .run(() -> {
+                    Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
+                            stream.getStreamName()), RuntimeException::new).getSegments();
+                    for (Segment segment : s) {
+                        if (!producers.containsKey(segment)) {
+                            SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
+                                    config.getSegmentConfig());
+                            producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+                        }
                     }
-                }
-                return s;
-            });
+                    return s;
+                });
         List<Event<Type>> toResend = new ArrayList<>();
 
         Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();
@@ -185,7 +187,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
         private final Stream stream;
 
         TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, EventRouter router,
-                Controller controller, Stream stream) {
+                        Controller controller, Stream stream) {
             this.txId = txId;
             this.inner = transactions;
             this.router = router;
@@ -218,7 +220,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
 
         @Override
         public Status checkStatus() {
-            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(stream, txId), RuntimeException::new);
+            return FutureHelpers.getAndHandleExceptions(controller.checkTransactionStatus(stream, txId),
+                    RuntimeException::new);
         }
 
         @Override
@@ -238,7 +241,8 @@ public class ProducerImpl<Type> implements Producer<Type> {
         synchronized (lock) {
             segmentIds = new ArrayList<>(producers.keySet());
         }
-        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout), RuntimeException::new);
+        UUID txId = FutureHelpers.getAndHandleExceptions(controller.createTransaction(stream, timeout),
+                RuntimeException::new);
         for (Segment s : segmentIds) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);

@@ -25,7 +25,7 @@ import com.emc.pravega.service.contracts.StreamingException;
  */
 public class MetadataUpdateException extends StreamingException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
@@ -37,7 +37,8 @@ public class MetadataUpdateException extends StreamingException {
         super(message, cause);
     }
 
-    public MetadataUpdateException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
+    public MetadataUpdateException(String message, Throwable cause, boolean enableSuppression, boolean
+            writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
 }

@@ -36,11 +36,13 @@ interface WriterDataSource {
     int getId();
 
     /**
-     * Acknowledges that all Operations with Sequence Numbers up to and including the given one have been successfully committed.
+     * Acknowledges that all Operations with Sequence Numbers up to and including the given one have been
+     * successfully committed.
      *
      * @param upToSequence The Sequence up to where to acknowledge.
      * @param timeout      The timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the acknowledgment completed. If the operation
+     * @return A CompletableFuture that, when completed, will indicate that the acknowledgment completed. If the
+     * operation
      * failed, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout);
@@ -81,7 +83,8 @@ interface WriterDataSource {
     boolean isValidTruncationPoint(long operationSequenceNumber);
 
     /**
-     * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence Number.
+     * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence
+     * Number.
      *
      * @param operationSequenceNumber The Sequence number to query.
      */

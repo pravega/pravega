@@ -59,7 +59,8 @@ class Producer extends Actor {
      * @param store      A StoreAdapter to execute operations on.
      * @param executor   An Executor to use for async operations.
      */
-    Producer(String id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
+    Producer(String id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store,
+             ScheduledExecutorService executor) {
         super(config, dataSource, store, executor);
 
         this.logId = String.format("Producer[%s]", id);
@@ -133,17 +134,17 @@ class Producer extends Actor {
             case CreateTransaction:
                 // Create the Transaction, then record it's name in the operation's result.
                 return this.store.createTransaction(operation.getTarget(), timer.getRemaining())
-                                 .thenAccept(operation::setResult);
+                        .thenAccept(operation::setResult);
             case MergeTransaction:
                 // Seal & Merge the Transaction.
                 return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
-                                 .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
+                        .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
             case Append:
                 // Generate some random data, then append it.
                 byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
                 AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
                 return this.store.append(operation.getTarget(), appendContent, context, timer.getRemaining())
-                                 .exceptionally(ex -> attemptReconcile(ex, operation, timer));
+                        .exceptionally(ex -> attemptReconcile(ex, operation, timer));
             case Seal:
                 // Seal the segment.
                 return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
@@ -162,7 +163,7 @@ class Producer extends Actor {
                 // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
                 try {
                     SegmentProperties sp = this.store.getStreamSegmentInfo(operation.getTarget(), timer.getRemaining())
-                                                     .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
+                            .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
                     reconciled = sp.isSealed() || sp.isDeleted();
                 } catch (Throwable ex2) {
                     ex2 = ExceptionHelpers.getRealException(ex2);

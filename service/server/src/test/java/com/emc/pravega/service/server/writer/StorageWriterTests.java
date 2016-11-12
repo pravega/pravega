@@ -82,11 +82,11 @@ public class StorageWriterTests {
     private static final int THREAD_POOL_SIZE = 100;
     private static final WriterConfig DEFAULT_CONFIG = ConfigHelpers.createWriterConfig(
             PropertyBag.create()
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
-                       .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
-                       .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
-                       .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
-                       .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
+                    .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_BYTES, 1000)
+                    .with(WriterConfig.PROPERTY_FLUSH_THRESHOLD_MILLIS, 1000)
+                    .with(WriterConfig.PROPERTY_MIN_READ_TIMEOUT_MILLIS, 10)
+                    .with(WriterConfig.PROPERTY_MAX_READ_TIMEOUT_MILLIS, 250)
+                    .with(WriterConfig.PROPERTY_ERROR_SLEEP_MILLIS, 0));
 
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
@@ -123,15 +123,20 @@ public class StorageWriterTests {
         Supplier<Exception> exceptionSupplier = IntentionalException::new;
 
         // Simulated Read errors.
-        context.dataSource.setReadSyncErrorInjector(new ErrorInjector<>(count -> count % failReadSyncEvery == 0, exceptionSupplier));
-        context.dataSource.setReadAsyncErrorInjector(new ErrorInjector<>(count -> count % failReadAsyncEvery == 0, exceptionSupplier));
+        context.dataSource.setReadSyncErrorInjector(new ErrorInjector<>(count -> count % failReadSyncEvery == 0,
+                exceptionSupplier));
+        context.dataSource.setReadAsyncErrorInjector(new ErrorInjector<>(count -> count % failReadAsyncEvery == 0,
+                exceptionSupplier));
 
         // Simulated ack/truncate errors.
-        context.dataSource.setAckSyncErrorInjector(new ErrorInjector<>(count -> count % failAckSyncEvery == 0, exceptionSupplier));
-        context.dataSource.setAckAsyncErrorInjector(new ErrorInjector<>(count -> count % failAckAsyncEvery == 0, exceptionSupplier));
+        context.dataSource.setAckSyncErrorInjector(new ErrorInjector<>(count -> count % failAckSyncEvery == 0,
+                exceptionSupplier));
+        context.dataSource.setAckAsyncErrorInjector(new ErrorInjector<>(count -> count % failAckAsyncEvery == 0,
+                exceptionSupplier));
 
         // Simulated data retrieval errors.
-        context.dataSource.setGetAppendDataErrorInjector(new ErrorInjector<>(count -> count % failGetAppendDataEvery == 0, exceptionSupplier));
+        context.dataSource.setGetAppendDataErrorInjector(new ErrorInjector<>(count -> count % failGetAppendDataEvery
+                == 0, exceptionSupplier));
 
         testWriter(context);
     }
@@ -148,11 +153,13 @@ public class StorageWriterTests {
         // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed
+        // back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
         CompletableFuture<Void> producingComplete = new CompletableFuture<>();
         context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata
+                    .getOperationSequenceNumber()) {
                 ackEverything.complete(null);
             }
         });
@@ -173,11 +180,13 @@ public class StorageWriterTests {
                 () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
                 ex -> ex instanceof IllegalStateException);
 
-        Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(),
+                ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
     }
 
     /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not badOffset).
+     * Tests the StorageWriter in a Scenario where the Storage component throws non-corruption exceptions (i.e., not
+     * badOffset).
      */
     @Test
     public void testWithStorageTransientErrors() throws Exception {
@@ -193,21 +202,27 @@ public class StorageWriterTests {
         Supplier<Exception> exceptionSupplier = IntentionalException::new;
 
         // Simulated Write errors.
-        context.storage.setWriteSyncErrorInjector(new ErrorInjector<>(count -> count % failWriteSyncEvery == 0, exceptionSupplier));
-        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(count -> count % failWriteAsyncEvery == 0, exceptionSupplier));
+        context.storage.setWriteSyncErrorInjector(new ErrorInjector<>(count -> count % failWriteSyncEvery == 0,
+                exceptionSupplier));
+        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(count -> count % failWriteAsyncEvery == 0,
+                exceptionSupplier));
 
         // Simulated Seal errors.
-        context.storage.setSealSyncErrorInjector(new ErrorInjector<>(count -> count % failSealSyncEvery == 0, exceptionSupplier));
-        context.storage.setSealAsyncErrorInjector(new ErrorInjector<>(count -> count % failSealAsyncEvery == 0, exceptionSupplier));
+        context.storage.setSealSyncErrorInjector(new ErrorInjector<>(count -> count % failSealSyncEvery == 0,
+                exceptionSupplier));
+        context.storage.setSealAsyncErrorInjector(new ErrorInjector<>(count -> count % failSealAsyncEvery == 0,
+                exceptionSupplier));
 
         // Simulated Concat errors.
-        context.storage.setConcatAsyncErrorInjector(new ErrorInjector<>(count -> count % failConcatAsyncEvery == 0, exceptionSupplier));
+        context.storage.setConcatAsyncErrorInjector(new ErrorInjector<>(count -> count % failConcatAsyncEvery == 0,
+                exceptionSupplier));
 
         testWriter(context);
     }
 
     /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., badOffset,
+     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e.,
+     * badOffset,
      * and after reconciliation, the data is still corrupt).
      */
     @Test
@@ -218,11 +233,13 @@ public class StorageWriterTests {
         // Create a bunch of segments and Transactions.
         ArrayList<Long> segmentIds = createSegments(context);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed
+        // back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
         CompletableFuture<Void> producingComplete = new CompletableFuture<>();
         context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata
+                    .getOperationSequenceNumber()) {
                 ackEverything.complete(null);
             }
         });
@@ -238,7 +255,8 @@ public class StorageWriterTests {
             for (long segmentId : segmentIds) {
                 String name = context.metadata.getStreamSegmentMetadata(segmentId).getName();
                 long length = context.storage.getStreamSegmentInfo(name, TIMEOUT).join().getLength();
-                context.storage.write(name, length, new ByteArrayInputStream(corruptionData), corruptionData.length, TIMEOUT).join();
+                context.storage.write(name, length, new ByteArrayInputStream(corruptionData), corruptionData.length,
+                        TIMEOUT).join();
             }
 
             // Return some other kind of exception.
@@ -247,7 +265,8 @@ public class StorageWriterTests {
 
         // We only try to corrupt data once.
         AtomicBoolean corruptionHappened = new AtomicBoolean();
-        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier));
+        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true),
+                exceptionSupplier));
 
         context.writer.startAsync().awaitRunning();
 
@@ -255,11 +274,13 @@ public class StorageWriterTests {
                 "StorageWriter did not fail when a fatal data corruption error occurred.",
                 () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
                 ex -> ex instanceof IllegalStateException);
-        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context
+                .writer.failureCause()) instanceof ReconciliationFailureException);
     }
 
     /**
-     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e., badOffset),
+     * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e.,
+     * badOffset),
      * but after reconciliation, the data is not corrupt.
      */
     @Test
@@ -307,13 +328,15 @@ public class StorageWriterTests {
         testWriter(context);
 
         AssertExtensions.assertGreaterThan("Not enough writes were made for this test.", 0, writeCount.get());
-        AssertExtensions.assertGreaterThan("Not enough write failures happened for this test.", 0, writeFailCount.get());
+        AssertExtensions.assertGreaterThan("Not enough write failures happened for this test.", 0,
+                writeFailCount.get());
 
         AssertExtensions.assertGreaterThan("Not enough seals were made for this test.", 0, sealCount.get());
         AssertExtensions.assertGreaterThan("Not enough seal failures happened for this test.", 0, sealFailCount.get());
 
         AssertExtensions.assertGreaterThan("Not enough mergers were made for this test.", 0, mergeCount.get());
-        AssertExtensions.assertGreaterThan("Not enough merge failures happened for this test.", 0, mergeFailCount.get());
+        AssertExtensions.assertGreaterThan("Not enough merge failures happened for this test.", 0,
+                mergeFailCount.get());
     }
 
     /**
@@ -340,11 +363,13 @@ public class StorageWriterTests {
         ArrayList<Long> transactionIds = new ArrayList<>();
         transactionsBySegment.values().forEach(transactionIds::addAll);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed
+        // back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
         CompletableFuture<Void> producingComplete = new CompletableFuture<>();
         context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata
+                    .getOperationSequenceNumber()) {
                 ackEverything.complete(null);
             }
         });
@@ -356,15 +381,19 @@ public class StorageWriterTests {
         appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
 
         List<Long> firstThirdTransactions = transactionIds.subList(0, transactionIds.size() / 3);
-        List<Long> secondThirdTransactions = transactionIds.subList(transactionIds.size() / 3, transactionIds.size() * 2 / 3);
+        List<Long> secondThirdTransactions = transactionIds.subList(transactionIds.size() / 3, transactionIds.size()
+                * 2 / 3);
         List<Long> lastThirdTransactions = transactionIds.subList(transactionIds.size() * 2 / 3, transactionIds.size());
 
         // First and second 1/3 of Transactions have full data.
-        appendDataDepthFirst(firstThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
-        appendDataDepthFirst(secondThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents, context);
+        appendDataDepthFirst(firstThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents,
+                context);
+        appendDataDepthFirst(secondThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY, segmentContents,
+                context);
 
         // Third 1/3 of Transactions have 50% of data.
-        appendDataDepthFirst(lastThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+        appendDataDepthFirst(lastThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents,
+                context);
 
         // First 1/3 of Transactions are merged into parent.
         sealSegments(firstThirdTransactions, context);
@@ -379,13 +408,15 @@ public class StorageWriterTests {
         ackEverything.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // At this point the storage should mimic the setup we created above, yet the WriterDataSource still has all the
-        // original operations in place. Stop the writer, add the rest of the operations to the DataSource, then restart the writer.
+        // original operations in place. Stop the writer, add the rest of the operations to the DataSource, then
+        // restart the writer.
         context.writer.stopAsync().awaitTerminated();
         context.dataSource.setAckEffective(true);
         CompletableFuture<Void> ackEverything2 = new CompletableFuture<>();
         CompletableFuture<Void> producingComplete2 = new CompletableFuture<>();
         context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete2.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+            if (producingComplete2.isDone() && args.getAckSequenceNumber() >= context.metadata
+                    .getOperationSequenceNumber()) {
                 ackEverything2.complete(null);
             }
         });
@@ -398,7 +429,8 @@ public class StorageWriterTests {
         mergeTransactions(secondThirdTransactions, segmentContents, context);
 
         // Add remaining data, seal & merge last 1/3 of Transactions.
-        appendDataDepthFirst(lastThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents, context);
+        appendDataDepthFirst(lastThirdTransactions, segmentId -> APPENDS_PER_SEGMENT_RECOVERY / 2, segmentContents,
+                context);
         sealSegments(lastThirdTransactions, context);
         mergeTransactions(lastThirdTransactions, segmentContents, context);
 
@@ -435,11 +467,13 @@ public class StorageWriterTests {
         ArrayList<Long> transactionIds = new ArrayList<>();
         transactionsBySegment.values().forEach(transactionIds::addAll);
 
-        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed back.
+        // Use a few Futures to figure out when we are done filling up the DataSource and when everything is ack-ed
+        // back.
         CompletableFuture<Void> ackEverything = new CompletableFuture<>();
         CompletableFuture<Void> producingComplete = new CompletableFuture<>();
         context.dataSource.setAcknowledgeCallback(args -> {
-            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata.getOperationSequenceNumber()) {
+            if (producingComplete.isDone() && args.getAckSequenceNumber() >= context.metadata
+                    .getOperationSequenceNumber()) {
                 ackEverything.complete(null);
             }
         });
@@ -467,56 +501,69 @@ public class StorageWriterTests {
 
     //region Helpers
 
-    private void verifyFinalOutput(HashMap<Long, ByteArrayOutputStream> segmentContents, Collection<Long> transactionIds, TestContext context) {
+    private void verifyFinalOutput(HashMap<Long, ByteArrayOutputStream> segmentContents, Collection<Long>
+            transactionIds, TestContext context) {
         // Verify all Transactions are deleted.
         for (long transactionId : transactionIds) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(transactionId);
             Assert.assertTrue("Transaction not marked as deleted in metadata: " + transactionId, metadata.isDeleted());
-            Assert.assertFalse("Transaction was not deleted from storage after being merged: " + transactionId, context.storage.exists(metadata.getName(), TIMEOUT).join());
+            Assert.assertFalse("Transaction was not deleted from storage after being merged: " + transactionId,
+                    context.storage.exists(metadata.getName(), TIMEOUT).join());
         }
 
         for (long segmentId : segmentContents.keySet()) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
             Assert.assertNotNull("Setup error: No metadata for segment " + segmentId, metadata);
-            Assert.assertEquals("Setup error: Not expecting a Transaction segment in the final list: " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
+            Assert.assertEquals("Setup error: Not expecting a Transaction segment in the final list: " + segmentId,
+                    ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
 
-            Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
-            Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
+            Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " +
+                    segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
+            Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId,
+                    metadata.isSealed(), metadata.isSealedInStorage());
 
             SegmentProperties sp = context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join();
-            Assert.assertEquals("Metadata.StorageLength disagrees with Storage.Length for segment " + segmentId, metadata.getStorageLength(), sp.getLength());
-            Assert.assertEquals("Metadata.Sealed/SealedInStorage disagrees with Storage.Sealed for segment " + segmentId, metadata.isSealedInStorage(), sp.isSealed());
+            Assert.assertEquals("Metadata.StorageLength disagrees with Storage.Length for segment " + segmentId,
+                    metadata.getStorageLength(), sp.getLength());
+            Assert.assertEquals("Metadata.Sealed/SealedInStorage disagrees with Storage.Sealed for segment " +
+                    segmentId, metadata.isSealedInStorage(), sp.isSealed());
 
             byte[] expected = segmentContents.get(segmentId).toByteArray();
             byte[] actual = new byte[expected.length];
             int actualLength = context.storage.read(metadata.getName(), 0, actual, 0, actual.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata.getStorageLength(), actualLength);
+            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata
+                    .getStorageLength(), actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
         }
     }
 
-    private void mergeTransactions(Iterable<Long> transactionIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    private void mergeTransactions(Iterable<Long> transactionIds, HashMap<Long, ByteArrayOutputStream>
+            segmentContents, TestContext context) {
         for (long transactionId : transactionIds) {
             UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
-            UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
+            UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(transactionMetadata
+                    .getParentId());
             Assert.assertFalse("Transaction already merged", transactionMetadata.isMerged());
             Assert.assertTrue("Transaction not sealed prior to merger", transactionMetadata.isSealed());
             Assert.assertFalse("Parent is sealed already merged", parentMetadata.isSealed());
 
             // Create the Merge Op
-            MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+            MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata
+                    .getId());
             op.setLength(transactionMetadata.getLength());
             op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
 
             // Update metadata
-            parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + transactionMetadata.getDurableLogLength());
+            parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + transactionMetadata
+                    .getDurableLogLength());
             transactionMetadata.markMerged();
 
             // Process the merge op
             context.dataSource.add(op);
 
             try {
-                segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionMetadata.getId()).toByteArray());
+                segmentContents.get(parentMetadata.getId()).write(segmentContents.get(transactionMetadata.getId())
+                        .toByteArray());
             } catch (IOException ex) {
                 throw new AssertionError(ex);
             }
@@ -542,14 +589,16 @@ public class StorageWriterTests {
     /**
      * Appends data, depth-first, by filling up one segment before moving on to another.
      */
-    private void appendDataDepthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    private void appendDataDepthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream>
+            segmentContents, TestContext context) {
         appendDataDepthFirst(segmentIds, segmentId -> APPENDS_PER_SEGMENT, segmentContents, context);
     }
 
     /**
      * Appends data, depth-first, by filling up one segment before moving on to another.
      */
-    private void appendDataDepthFirst(Collection<Long> segmentIds, Function<Long, Integer> getAppendsPerSegment, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    private void appendDataDepthFirst(Collection<Long> segmentIds, Function<Long, Integer> getAppendsPerSegment,
+                                      HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         int writeId = 0;
         for (long segmentId : segmentIds) {
             UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
@@ -564,7 +613,8 @@ public class StorageWriterTests {
     /**
      * Appends data, round-robin style, one append per segment (for each segment), then back to the beginning.
      */
-    private void appendDataBreadthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    private void appendDataBreadthFirst(Collection<Long> segmentIds, HashMap<Long, ByteArrayOutputStream>
+            segmentContents, TestContext context) {
         int writeId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : segmentIds) {
@@ -575,14 +625,16 @@ public class StorageWriterTests {
         }
     }
 
-    private void appendData(UpdateableSegmentMetadata segmentMetadata, int appendId, int writeId, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
+    private void appendData(UpdateableSegmentMetadata segmentMetadata, int appendId, int writeId, HashMap<Long,
+            ByteArrayOutputStream> segmentContents, TestContext context) {
         AppendContext appendContext = new AppendContext(UUID.randomUUID(), appendId);
         byte[] data = getAppendData(segmentMetadata.getName(), segmentMetadata.getId(), appendId, writeId);
 
         // Make sure we increase the DurableLogLength prior to appending; the Writer checks for this.
         long offset = segmentMetadata.getDurableLogLength();
         segmentMetadata.setDurableLogLength(offset + data.length);
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, appendContext);
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data,
+                appendContext);
         op.setStreamSegmentOffset(offset);
         if (writeId % 2 == 0) {
             context.cache.insert(new CacheKey(segmentMetadata.getId(), offset), data);
@@ -616,7 +668,8 @@ public class StorageWriterTests {
             segmentIds.add((long) i);
 
             // Add the operation to the log.
-            StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(name, TIMEOUT).join());
+            StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
+                    context.storage.getStreamSegmentInfo(name, TIMEOUT).join());
             mapOp.setStreamSegmentId((long) i);
             context.dataSource.add(mapOp);
         }
@@ -633,13 +686,15 @@ public class StorageWriterTests {
             transactions.put(parentId, segmentTransactions);
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
-                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(),
+                        UUID.randomUUID());
                 context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
                 initializeSegment(transactionId, context);
                 segmentTransactions.add(transactionId);
 
                 // Add the operation to the log.
-                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
+                TransactionMapOperation mapOp = new TransactionMapOperation(parentId, context.storage
+                        .getStreamSegmentInfo(transactionName, TIMEOUT).join());
                 mapOp.setStreamSegmentId(transactionId);
                 context.dataSource.add(mapOp);
 
@@ -658,8 +713,10 @@ public class StorageWriterTests {
     }
 
     private byte[] getAppendData(String segmentName, long segmentId, int segmentAppendSeq, int writeId) {
-        // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it being that way.
-        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId, segmentAppendSeq, writeId).getBytes();
+        // NOTE: the data returned by this should be deterministic (not random) since the recovery test relies on it
+        // being that way.
+        return String.format("SegmentName=%s,SegmentId=_%d,AppendSeq=%d,WriteId=%d\n", segmentName, segmentId,
+                segmentAppendSeq, writeId).getBytes();
     }
 
     private String getSegmentName(int i) {
@@ -688,7 +745,8 @@ public class StorageWriterTests {
 
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
-            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(), dataSourceConfig);
+            this.dataSource = new TestWriterDataSource(this.metadata, this.cache, this.executor.get(),
+                    dataSourceConfig);
             this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.executor.get());
         }
 

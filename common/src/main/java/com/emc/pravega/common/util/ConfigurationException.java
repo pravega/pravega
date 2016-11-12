@@ -23,12 +23,13 @@ package com.emc.pravega.common.util;
  */
 public class ConfigurationException extends RuntimeException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
     /**
      * Creates a new instance of the ConfigurationException class.
+     *
      * @param message The message.
      */
     public ConfigurationException(String message) {
@@ -37,8 +38,9 @@ public class ConfigurationException extends RuntimeException {
 
     /**
      * Creates a new instance of the ConfigurationException class.
+     *
      * @param message The message.
-     * @param cause The cause.
+     * @param cause   The cause.
      */
     public ConfigurationException(String message, Throwable cause) {
         super(message, cause);

@@ -74,22 +74,23 @@ public class ControllerServiceImpl implements ControllerService.Iface {
 
         if (streamStore.createStream(stream, ModelHelper.encode(streamConfig))) {
             streamStore.getActiveSegments(stream)
-                .getCurrent()
-                .stream()
-                .parallel()
-                .forEach(i -> notifyNewSegment(streamConfig.getScope(), stream, i));
+                    .getCurrent()
+                    .stream()
+                    .parallel()
+                    .forEach(i -> notifyNewSegment(streamConfig.getScope(), stream, i));
             return Status.SUCCESS;
         } else {
             return Status.FAILURE;
         }
     }
-    
+
     public void notifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostStore);
 
         // async call, dont wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), connectionFactory));
+        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber,
+                ModelHelper.encode(uri), connectionFactory));
     }
 
     @Override
@@ -98,14 +99,14 @@ public class ControllerServiceImpl implements ControllerService.Iface {
     }
 
     @Override
-    public List<SegmentRange> getCurrentSegments(String scope, String stream) throws TException {        
+    public List<SegmentRange> getCurrentSegments(String scope, String stream) throws TException {
         // fetch active segments from segment store
         SegmentFutures activeSegments = streamStore.getActiveSegments(stream);
         List<SegmentRange> segments = activeSegments.getCurrent().stream().map(number -> {
             Segment segment = streamStore.getSegment(stream, number);
             return new SegmentRange(new SegmentId(scope, stream, number), segment.getKeyStart(), segment.getKeyEnd());
         }).collect(Collectors.toList());
-        return segments;    
+        return segments;
     }
 
     @Override
@@ -127,10 +128,11 @@ public class ControllerServiceImpl implements ControllerService.Iface {
      * distributes the future segments in segmentFutures among the shards. E.g., if n=5, and segmentFutures contains
      * a) 3 current segments, then 3 positions will be created each having one current segment
      * b) 6 current segments, then 5 positions will be created 1st position containing #1, #2 current segments
-     *    and remaining positions having 1 current segment each
-     * @param stream input stream
+     * and remaining positions having 1 current segment each
+     *
+     * @param stream         input stream
      * @param segmentFutures input segmentFutures
-     * @param n number of shards
+     * @param n              number of shards
      * @return the list of position objects
      */
     private List<Position> shard(String scope, String stream, SegmentFutures segmentFutures, long timestamp, int n) {
@@ -162,11 +164,13 @@ public class ControllerServiceImpl implements ControllerService.Iface {
             Map<FutureSegment, Long> futureSegments = new HashMap<>();
             current.stream().forEach(
                     x -> {
-                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
+                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega
+                        // host
                         // put it in the currentSegments
                         currentSegments.put(x, 0L);
 
-                        // update futures with all segments in segmentFutures.getFutures having x.number as the predecessor
+                        // update futures with all segments in segmentFutures.getFutures having x.number as the
+                        // predecessor
                         // these segments can be found from the inverted segmentFutures.getFutures
                         int previous = x.getNumber();
                         if (inverse.containsKey(previous)) {
@@ -186,44 +190,50 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         }
         return positions;
     }
-    
-    
+
+
     @Override
     public List<Position> updatePositions(String scope, String stream, List<Position> positions) throws TException {
         // TODO: handle npe with null exception return case
-        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
+        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors
+                .toList());
         // initialize completed segments set from those found in the list of input position objects
-        Set<Integer> completedSegments = internalPositions.stream().flatMap(position -> 
-            position.getCompletedSegments().stream().map(segment -> segment.getSegmentNumber())
+        Set<Integer> completedSegments = internalPositions.stream().flatMap(position ->
+                position.getCompletedSegments().stream().map(segment -> segment.getSegmentNumber())
         ).collect(Collectors.toSet());
-        
+
         Map<Integer, Long> segmentOffsets = new HashMap<>();
 
         // convert positions to segmentFutures, while updating completedSegments set and
         // storing segment offsets in segmentOffsets map
-        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(stream, internalPositions, completedSegments, segmentOffsets);
+        List<SegmentFutures> segmentFutures = convertPositionsToSegmentFutures(stream, internalPositions,
+                completedSegments, segmentOffsets);
 
         // fetch updated SegmentFutures from stream metadata
-        List<SegmentFutures> updatedSegmentFutures = streamStore.getNextSegments(stream, completedSegments, segmentFutures);
+        List<SegmentFutures> updatedSegmentFutures = streamStore.getNextSegments(stream, completedSegments,
+                segmentFutures);
 
         // finally convert SegmentFutures back to position objects
         return convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets);
     }
-    
+
     /**
      * This method converts list of positions into list of segmentFutures.
      * While doing so it updates the completedSegments set and stores segment offsets in a map.
-     * @param stream input stream
-     * @param positions input list of positions
+     *
+     * @param stream            input stream
+     * @param positions         input list of positions
      * @param completedSegments set of completed segments that shall be updated in this method
-     * @param segmentOffsets map of segment number of its offset that shall be populated in this method
+     * @param segmentOffsets    map of segment number of its offset that shall be populated in this method
      * @return the list of segmentFutures objects
      */
-    private List<SegmentFutures> convertPositionsToSegmentFutures(String stream, List<PositionInternal> positions, Set<Integer> completedSegments, Map<Integer, Long> segmentOffsets) {
+    private List<SegmentFutures> convertPositionsToSegmentFutures(String stream, List<PositionInternal> positions,
+                                                                  Set<Integer> completedSegments, Map<Integer, Long>
+                                                                          segmentOffsets) {
         List<SegmentFutures> segmentFutures = new ArrayList<>(positions.size());
 
         // construct SegmentFutures for each position object.
-        for (PositionInternal position: positions) {
+        for (PositionInternal position : positions) {
             List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
             Map<Integer, Integer> futures = new HashMap<>();
             position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
@@ -236,23 +246,27 @@ public class ControllerServiceImpl implements ControllerService.Iface {
                         segmentOffsets.put(number, x.getValue());
                     }
             );
-            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPrecedingNumber()));
+            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x
+                    .getPrecedingNumber()));
             segmentFutures.add(new SegmentFutures(current, futures));
         }
         return segmentFutures;
     }
 
-    private List<Position> convertSegmentFuturesToPositions(String scope, String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
+    private List<Position> convertSegmentFuturesToPositions(String scope, String stream, List<SegmentFutures>
+            segmentFutures, Map<Integer, Long> segmentOffsets) {
         List<Position> resultPositions = new ArrayList<>(segmentFutures.size());
         segmentFutures.stream().forEach(
                 future -> {
                     Map<SegmentId, Long> currentSegments = new HashMap<>();
                     Map<FutureSegment, Long> futureSegments = new HashMap<>();
                     future.getCurrent().stream().forEach(
-                            current -> currentSegments.put(new SegmentId(scope, stream, current), segmentOffsets.get(current))
+                            current -> currentSegments.put(new SegmentId(scope, stream, current),
+                                    segmentOffsets.get(current))
                     );
                     future.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new SegmentId(scope, stream, y.getValue())), 0L)
+                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new
+                                    SegmentId(scope, stream, y.getValue())), 0L)
                     );
                     resultPositions.add(new Position(currentSegments, futureSegments));
                 }
@@ -283,5 +297,5 @@ public class ControllerServiceImpl implements ControllerService.Iface {
         // TODO Auto-generated method stub
         return null;
     }
-    
+
 }

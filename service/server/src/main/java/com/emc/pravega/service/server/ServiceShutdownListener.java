@@ -44,7 +44,8 @@ public class ServiceShutdownListener extends Service.Listener {
      * Creates a new instance of the ServiceShutdownListener class.
      *
      * @param terminatedCallback An optional callback that will be invoked when the monitored service terminates.
-     * @param failureCallback    An optional callback that will be invoked when the monitored service fails. The argument
+     * @param failureCallback    An optional callback that will be invoked when the monitored service fails. The
+     *                           argument
      *                           to this callback is the exception that caused the service to fail.
      */
     public ServiceShutdownListener(Runnable terminatedCallback, Consumer<Throwable> failureCallback) {
@@ -137,7 +138,8 @@ public class ServiceShutdownListener extends Service.Listener {
      * @throws TimeoutException If the store did not shut down within the specified amount of time. This exception is
      *                          thrown regardless of the value passed in as throwIfFailed.
      */
-    public static <T extends Service> void awaitShutdown(Collection<T> services, Duration timeout, boolean throwIfFailed) throws TimeoutException {
+    public static <T extends Service> void awaitShutdown(Collection<T> services, Duration timeout, boolean
+            throwIfFailed) throws TimeoutException {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         int failureCount = 0;
         for (Service service : services) {

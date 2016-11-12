@@ -47,7 +47,8 @@ import java.util.function.Consumer;
  * Test version of a WriterDataSource that can accumulate operations in memory (just like the real DurableLog) and only
  * depends on a metadata and a cache as external dependencies.
  * <p>
- * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except recording truncation markers & Sequence Numbers).
+ * Note that even though it uses an UpdateableContainerMetadata, no changes to this metadata are performed (except
+ * recording truncation markers & Sequence Numbers).
  * All other changes (Segment-based) must be done externally.
  */
 class TestWriterDataSource implements WriterDataSource, AutoCloseable {
@@ -81,7 +82,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     //region Constructor
 
-    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, ScheduledExecutorService executor, DataSourceConfig config) {
+    TestWriterDataSource(UpdateableContainerMetadata metadata, Cache cache, ScheduledExecutorService executor,
+                         DataSourceConfig config) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(cache, "cache");
         Preconditions.checkNotNull(executor, "executor");
@@ -124,12 +126,15 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     public long add(Operation operation) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkArgument(operation.getSequenceNumber() < 0, "Given operation already has a sequence number.");
+        Preconditions.checkArgument(operation.getSequenceNumber() < 0, "Given operation already has a sequence number" +
+                ".");
 
         // If not a checkpoint op, see if we need to auto-add one.
         boolean isCheckpoint = operation instanceof MetadataCheckpointOperation;
         if (!isCheckpoint) {
-            if (this.config.autoInsertCheckpointFrequency != DataSourceConfig.NO_METADATA_CHECKPOINT && this.metadata.getOperationSequenceNumber() - this.lastAddedCheckpoint >= this.config.autoInsertCheckpointFrequency) {
+            if (this.config.autoInsertCheckpointFrequency != DataSourceConfig.NO_METADATA_CHECKPOINT && this.metadata
+                    .getOperationSequenceNumber() - this.lastAddedCheckpoint >= this.config
+                    .autoInsertCheckpointFrequency) {
                 MetadataCheckpointOperation checkpointOperation = new MetadataCheckpointOperation();
                 this.lastAddedCheckpoint = add(checkpointOperation);
             }
@@ -138,10 +143,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         // Set the Sequence Number, after the possible recursive call to add a checkpoint (to maintain Seq No order).
         operation.setSequenceNumber(this.metadata.nextOperationSequenceNumber());
 
-        // We need to record the Truncation Marker/Point prior to actually adding the operation to the log (because it could
+        // We need to record the Truncation Marker/Point prior to actually adding the operation to the log (because
+        // it could
         // get picked up very fast by the Writer, so we need to have everything in place).
         if (isCheckpoint) {
-            this.metadata.recordTruncationMarker(operation.getSequenceNumber(), new TestLogAddress(operation.getSequenceNumber()));
+            this.metadata.recordTruncationMarker(operation.getSequenceNumber(), new TestLogAddress(operation
+                    .getSequenceNumber()));
             this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
         }
 
@@ -165,7 +172,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @Override
     public CompletableFuture<Void> acknowledge(long upToSequenceNumber, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation Point. Must refer to a MetadataCheckpointOperation.");
+        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation " +
+                "Point. Must refer to a MetadataCheckpointOperation.");
         ErrorInjector.throwSyncExceptionIfNeeded(this.ackSyncErrorInjector);
 
         return ErrorInjector
@@ -181,8 +189,10 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                     Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
                     if (callback != null) {
                         Operation lastOperation = this.log.getLast();
-                        long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
-                        CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
+                        long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation
+                                .getSequenceNumber();
+                        CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo),
+                                null);
                     }
                 }, this.executor);
     }
@@ -195,14 +205,16 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         return ErrorInjector
                 .throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
                 .thenCompose(v -> {
-                    Iterator<Operation> logReadResult = this.log.read(e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
+                    Iterator<Operation> logReadResult = this.log.read(e -> e.getSequenceNumber() >
+                            afterSequenceNumber, maxCount);
                     if (logReadResult.hasNext()) {
                         // Result is readily available; return it.
                         return CompletableFuture.completedFuture(logReadResult);
                     } else {
                         // Result is not yet available; wait for an add and then retry the read.
                         return waitForAdd(afterSequenceNumber, timeout)
-                                .thenComposeAsync(v1 -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
+                                .thenComposeAsync(v1 -> this.read(afterSequenceNumber, maxCount, timeout), this
+                                        .executor);
                     }
                 });
     }

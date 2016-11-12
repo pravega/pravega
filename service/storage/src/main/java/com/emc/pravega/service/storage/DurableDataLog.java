@@ -51,11 +51,14 @@ public interface DurableDataLog extends AutoCloseable {
      * <li>WriteTooLongException - When a write that is greater than getMaxAppendLength() is given.
      * </ul>
      *
-     * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first byte
-     *                where the data should be read from. The InputStream's available() method must also specify the number
+     * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first
+     *                byte
+     *                where the data should be read from. The InputStream's available() method must also specify the
+     *                number
      *                of bytes to append.
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If the entry
+     * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If
+     * the entry
      * failed to be added, this Future will complete with the appropriate exception.
      */
     CompletableFuture<LogAddress> append(InputStream data, Duration timeout);
@@ -69,7 +72,8 @@ public interface DurableDataLog extends AutoCloseable {
      * <li>WriteFailureException - When a general failure occurred with the write.
      * </ul>
      *
-     * @param upToAddress The LogAddress up to where to truncate. This is the value returned either by append() or obtained
+     * @param upToAddress The LogAddress up to where to truncate. This is the value returned either by append() or
+     *                    obtained
      *                    via read().
      * @param timeout     The timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate whether any truncation completed. If anything was
@@ -84,7 +88,8 @@ public interface DurableDataLog extends AutoCloseable {
      * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return A CloseableIterator with the result.
      * @throws DurableDataLogException If an exception occurred:
-     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the current time;
+     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the
+     *                                 current time;
      *                                 DurableDataLogException: the operation was unable to open a reader.
      */
     CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;

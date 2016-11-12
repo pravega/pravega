@@ -148,10 +148,12 @@ public class AppendsOnlyBenchmark extends Benchmark {
 
     private void printResults(List<TestOutput> results) {
         Collections.sort(results);
-        printResultLine("Segments", "Appends", "Append Size", "Burst Size", "TPut(MB/S)", "L.min", "L.max", "L.avg", "L.50%", "L.90%", "L.95%", "L.99%", "L.99.9%");
+        printResultLine("Segments", "Appends", "Append Size", "Burst Size", "TPut(MB/S)", "L.min", "L.max", "L.avg",
+                "L.50%", "L.90%", "L.95%", "L.99%", "L.99.9%");
         for (TestOutput result : results) {
             int appendCount = result.input.segmentCount * result.input.appendsPerSegment;
-            double mbps = (double) result.totalAppendLength / ONE_MB / (result.totalDurationNanos / 1000.0 / 1000 / 1000);
+            double mbps = (double) result.totalAppendLength / ONE_MB / (result.totalDurationNanos / 1000.0 / 1000 /
+                    1000);
             printResultLine(
                     result.input.segmentCount,
                     appendCount,
@@ -186,7 +188,8 @@ public class AppendsOnlyBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.totalAppendLength / ONE_MB / (this.totalDurationNanos / 1000000000), this.latencies);
+            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.totalAppendLength
+                    / ONE_MB / (this.totalDurationNanos / 1000000000), this.latencies);
         }
 
         @Override
@@ -214,7 +217,8 @@ public class AppendsOnlyBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("Segments = %d, App/Seg = %d, App.Size = %d, BurstSize = %d", this.segmentCount, this.appendsPerSegment, this.appendSize, this.burstSize);
+            return String.format("Segments = %d, App/Seg = %d, App.Size = %d, BurstSize = %d", this.segmentCount,
+                    this.appendsPerSegment, this.appendSize, this.burstSize);
         }
 
         @Override

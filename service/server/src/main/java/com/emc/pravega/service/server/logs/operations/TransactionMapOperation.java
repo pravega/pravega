@@ -53,7 +53,8 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
      */
     public TransactionMapOperation(long parentStreamSegmentId, SegmentProperties transSegmentInfo) {
         super();
-        Preconditions.checkArgument(parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "parentStreamSegmentId must be defined.");
+        Preconditions.checkArgument(parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "parentStreamSegmentId must be defined.");
         this.parentStreamSegmentId = parentStreamSegmentId;
         this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
         this.streamSegmentName = transSegmentInfo.getName();
@@ -82,7 +83,8 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
      * @param value The Segment Id to set.
      */
     public void setStreamSegmentId(long value) {
-        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
+        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has" +
+                " already been assigned for this operation.");
         Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
     }
@@ -122,7 +124,8 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "TransactionStreamSegment Id has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "TransactionStreamSegment Id has not been assigned for this entry.");
         target.writeByte(CURRENT_VERSION);
         target.writeLong(this.parentStreamSegmentId);
         target.writeLong(this.streamSegmentId);

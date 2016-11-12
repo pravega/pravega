@@ -100,7 +100,8 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        log.debug("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream, timestamp, count);
+        log.debug("Invoke ConsumerService.Client.getPositions() for stream: {}, timestamp: {}, count: {}", stream,
+                timestamp, count);
 
         ThriftAsyncCallback<ControllerService.AsyncClient.getPositions_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
@@ -142,21 +143,22 @@ public class ControllerImpl implements Controller {
         //Use RPC client to invoke getPositions
         log.debug("Invoke ProducerService.Client.getCurrentSegments() for stream: {}", stream);
 
-        ThriftAsyncCallback<ControllerService.AsyncClient.getCurrentSegments_call> callback = new ThriftAsyncCallback<>();
+        ThriftAsyncCallback<ControllerService.AsyncClient.getCurrentSegments_call> callback = new
+                ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.getCurrentSegments(scope, stream, callback);
             return callback.getResult();
         });
         return callback.getResult()
-            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply((List<SegmentRange> ranges) -> {
-                NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                for (SegmentRange r : ranges) {
-                    rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                }
-                return rangeMap;
-            })
-            .thenApply(map -> new StreamSegments(map));
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+                .thenApply((List<SegmentRange> ranges) -> {
+                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+                    for (SegmentRange r : ranges) {
+                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+                    }
+                    return rangeMap;
+                })
+                .thenApply(map -> new StreamSegments(map));
     }
 
     @Override
@@ -164,7 +166,8 @@ public class ControllerImpl implements Controller {
         ThriftAsyncCallback<ControllerService.AsyncClient.getURI_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
-            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()), callback);
+            client.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()),
+                    callback);
             return callback.getResult();
         });
         return callback
@@ -177,7 +180,8 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
         log.debug("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 
-        ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new ThriftAsyncCallback<>();
+        ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new
+                ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.createTransaction(stream.getScope(), stream.getStreamName(), callback);
             return null;
@@ -190,7 +194,8 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<Status> commitTransaction(Stream stream, UUID txId) {
         log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
 
-        ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new ThriftAsyncCallback<>();
+        ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new
+                ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
             return null;
@@ -214,20 +219,21 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream,
-            UUID txId) {
+                                                                        UUID txId) {
         log.debug("Invoke AdminService.Client.checkTransactionStatus() with stream: {}, txUd: {}", stream, txId);
 
-        ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback = new ThriftAsyncCallback<>();
+        ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback = new
+                ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
             client.checkTransactionStatus(stream.getScope(),
-                                          stream.getStreamName(),
-                                          ModelHelper.decode(txId),
-                                          callback);
+                    stream.getStreamName(),
+                    ModelHelper.decode(txId),
+                    callback);
             return null;
         });
         return callback.getResult()
-            .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
-            .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+                .thenApply(result -> ThriftHelper.thriftCall(result::getResult))
+                .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
 
 }

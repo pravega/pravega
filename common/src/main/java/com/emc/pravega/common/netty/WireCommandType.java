@@ -58,7 +58,7 @@ import com.google.common.base.Preconditions;
  * The various types of commands that can be sent over the wire.
  * Each has two fields the first is a code that identifies it in the wire protocol. (This is the first thing written)
  * The second is a constructor method, that is used to decode commands of that type.
- * 
+ * <p>
  * (Types below that are grouped into pairs where there is a corresponding request and reply.)
  */
 public enum WireCommandType {
@@ -82,7 +82,7 @@ public enum WireCommandType {
 
     GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom),
     STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),
-    
+
     GET_TRANSACTION_INFO(10, GetTransactionInfo::readFrom),
     TRANSACTION_INFO(11, TransactionInfo::readFrom),
 
@@ -97,7 +97,7 @@ public enum WireCommandType {
 
     DROP_TRANSACTION(26, DropTransaction::readFrom),
     TRANSACTION_DROPPED(27, TransactionDropped::readFrom),
-    
+
     SEAL_SEGMENT(28, SealSegment::readFrom),
     SEGMENT_SEALED(29, SegmentSealed::readFrom),
 

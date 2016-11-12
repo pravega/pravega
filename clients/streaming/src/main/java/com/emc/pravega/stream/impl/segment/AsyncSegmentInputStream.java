@@ -30,20 +30,20 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
          */
         boolean isSuccess();
     }
-    
+
     /**
      * Given an ongoing read request, blocks on its completion and returns its result.
      */
     public abstract SegmentRead getResult(ReadFuture ongoingRead);
-    
+
     /**
      * Reads from the Segment at the specified offset asynchronously.
-     * 
-     * 
+     *
      * @param offset The offset in the segment to read from
      * @param length The suggested number of bytes to read. (Note the result may contain either more or less than this
-     *            value.)
-     * @return A future for the result of the read call. The result can be obtained by calling {@link #getResult(ReadFuture)}
+     *               value.)
+     * @return A future for the result of the read call. The result can be obtained by calling
+     * {@link #getResult(ReadFuture)}
      */
     public abstract ReadFuture read(long offset, int length);
 

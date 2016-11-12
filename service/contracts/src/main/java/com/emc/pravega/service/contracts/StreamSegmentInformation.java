@@ -43,7 +43,8 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
      * @param lastModified      The last time the StreamSegment was modified.
      */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date lastModified) {
+    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Date
+            lastModified) {
         this.name = streamSegmentName;
         this.length = length;
         this.sealed = isSealed;
@@ -53,7 +54,8 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     @Override
     public String toString() {
-        return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(), getLength(), isSealed(), isDeleted(), getLastModified());
+        return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(),
+                getLength(), isSealed(), isDeleted(), getLastModified());
     }
 
 }

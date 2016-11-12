@@ -80,7 +80,7 @@ public class TestDurableDataLog implements DurableDataLog {
     public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedLog.append(data, timeout));
+                .thenCompose(v -> this.wrappedLog.append(data, timeout));
     }
 
     @Override
@@ -98,9 +98,11 @@ public class TestDurableDataLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws
+            DurableDataLogException {
         ErrorInjector.throwSyncExceptionIfNeeded(this.getReaderInitialErrorInjector);
-        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector, this.readInterceptor);
+        return new CloseableIteratorWrapper(this.wrappedLog.getReader(afterSequence), this.readSyncErrorInjector,
+                this.readInterceptor);
     }
 
     @Override
@@ -130,7 +132,8 @@ public class TestDurableDataLog implements DurableDataLog {
      * Sets the ErrorInjectors for append exceptions.
      *
      * @param syncInjector  An ErrorInjector to throw sync exceptions. If null, no sync exceptions will be thrown.
-     * @param asyncInjector An ErrorInjector to throw async exceptions (wrapped in CompletableFutures). If null, no async
+     * @param asyncInjector An ErrorInjector to throw async exceptions (wrapped in CompletableFutures). If null, no
+     *                      async
      *                      exceptions will be thrown (from this wrapper).
      */
     public void setAppendErrorInjectors(ErrorInjector<Exception> syncInjector, ErrorInjector<Exception> asyncInjector) {
@@ -141,18 +144,21 @@ public class TestDurableDataLog implements DurableDataLog {
     /**
      * Sets the ErrorInjectors for the read operation.
      *
-     * @param getReaderInjector An ErrorInjector to throw sync exceptions during calls to getReader. If null, no exceptions
+     * @param getReaderInjector An ErrorInjector to throw sync exceptions during calls to getReader. If null, no
+     *                          exceptions
      *                          will be thrown when calling getReader.
      * @param readErrorInjector An ErrorInjector to throw sync exceptions during calls to getNext() from the iterator
      *                          returned by getReader. If null, no sync exceptions will be thrown.
      */
-    public void setReadErrorInjectors(ErrorInjector<Exception> getReaderInjector, ErrorInjector<Exception> readErrorInjector) {
+    public void setReadErrorInjectors(ErrorInjector<Exception> getReaderInjector, ErrorInjector<Exception>
+            readErrorInjector) {
         this.getReaderInitialErrorInjector = getReaderInjector;
         this.readSyncErrorInjector = readErrorInjector;
     }
 
     /**
-     * Sets the Read Interceptor that will be called with every getNext() invocation from the iterator returned by getReader.
+     * Sets the Read Interceptor that will be called with every getNext() invocation from the iterator returned by
+     * getReader.
      *
      * @param interceptor The read interceptor to set.
      */
@@ -221,7 +227,8 @@ public class TestDurableDataLog implements DurableDataLog {
         private final ErrorInjector<Exception> getNextErrorInjector;
         private final Consumer<ReadItem> readInterceptor;
 
-        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator, ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
+        CloseableIteratorWrapper(CloseableIterator<ReadItem, DurableDataLogException> innerIterator,
+                                 ErrorInjector<Exception> getNextErrorInjector, Consumer<ReadItem> readInterceptor) {
             assert innerIterator != null;
             this.innerIterator = innerIterator;
             this.getNextErrorInjector = getNextErrorInjector;

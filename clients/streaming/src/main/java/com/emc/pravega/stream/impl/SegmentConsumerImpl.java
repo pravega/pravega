@@ -42,7 +42,7 @@ public class SegmentConsumerImpl<Type> implements SegmentConsumer<Type> {
     @Override
     public Type getNextEvent(long timeout) throws EndOfSegmentException {
         ByteBuffer buffer;
-        synchronized (in) { 
+        synchronized (in) {
             buffer = in.read();
         }
         return deserializer.deserialize(buffer);

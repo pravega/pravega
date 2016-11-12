@@ -58,7 +58,7 @@ public class JavaSerializerTest {
     @Test
     public void testByteArray() {
         JavaSerializer<byte[]> serializer = new JavaSerializer<>();
-        byte[] in = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        byte[] in = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9};
         byte[] out = serializer.deserialize(serializer.serialize(in));
         AssertExtensions.assertArrayEquals("testByteArray failed", in, 0, out, 0, in.length);
     }

@@ -52,7 +52,8 @@ public class DataFrameOutputStreamTests {
             writtenFrame.set(df);
         };
 
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(9, 0, 1024); // This should fit in one frame of 10KB
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(9, 0, 1024); // This should fit in one frame
+        // of 10KB
         try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
             // Verify that we cannot write unless we have a record started.
             AssertExtensions.assertThrows(
@@ -71,7 +72,8 @@ public class DataFrameOutputStreamTests {
             s.write(new byte[10]);
             s.discardRecord();
             s.flush();
-            Assert.assertNull("An empty frame has been created when flush() was called with no contents.", writtenFrame.get());
+            Assert.assertNull("An empty frame has been created when flush() was called with no contents.",
+                    writtenFrame.get());
 
             // startNewRecord() + endRecord();
             writtenFrame.set(null);
@@ -118,7 +120,8 @@ public class DataFrameOutputStreamTests {
             s.endRecord();
             s.reset();
             s.flush();
-            Assert.assertNull("A frame has been created when flush() was called with no contents (post reset()).", writtenFrame.get());
+            Assert.assertNull("A frame has been created when flush() was called with no contents (post reset()).",
+                    writtenFrame.get());
 
             // Test 2: write record 1 + reset + write record 2 + flush -> frame with record 2 only.
             s.startNewRecord();
@@ -146,12 +149,14 @@ public class DataFrameOutputStreamTests {
     @Test
     public void testWriteSingleBytes() throws Exception {
         int maxFrameSize = 512; // Very small frame, so we can test switching over to new frames.
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate
+        // enough records that cross over boundaries.
 
         // Callback for when a frame is written.
         ArrayList<DataFrame> writtenFrames = new ArrayList<>();
         AtomicLong seqNo = new AtomicLong(0);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, writtenFrames::add)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement,
+                writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
                 s.startNewRecord();
@@ -176,12 +181,14 @@ public class DataFrameOutputStreamTests {
     @Test
     public void testWriteByteArrays() throws Exception {
         int maxFrameSize = 512; // Very small frame, so we can test switching over to new frames.
-        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate enough records that cross over boundaries.
+        ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(10, 0, 10240); // This should generate
+        // enough records that cross over boundaries.
 
         // Callback for when a frame is written.
         ArrayList<DataFrame> writtenFrames = new ArrayList<>();
         AtomicLong seqNo = new AtomicLong(0);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, writtenFrames::add)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement,
+                writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
                 s.startNewRecord();
@@ -198,14 +205,16 @@ public class DataFrameOutputStreamTests {
     }
 
     /**
-     * Tests the behavior of startNewRecord(), write(byte) and write(byte[]) when the commit callback throws an exception.
+     * Tests the behavior of startNewRecord(), write(byte) and write(byte[]) when the commit callback throws an
+     * exception.
      */
     @Test
     public void testCommitFailure() throws Exception {
         int maxFrameSize = 50;
         final String exceptionMessage = "intentional";
 
-        // Callback for when a frame is written. If we need to throw an exception, do it; otherwise just remember the frame.
+        // Callback for when a frame is written. If we need to throw an exception, do it; otherwise just remember the
+        // frame.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
         AtomicLong seqNo = new AtomicLong(0);
         AtomicBoolean throwException = new AtomicBoolean();

@@ -75,7 +75,8 @@ public class MetadataCheckpointPolicy {
         int minCount = this.config.getCheckpointMinCommitCount();
         int countThreshold = this.config.getCheckpointCommitCountThreshold();
         long lengthThreshold = this.config.getCheckpointTotalCommitLengthThreshold();
-        if (this.commitCount >= minCount && (this.commitCount >= countThreshold || this.accumulatedLength >= lengthThreshold)) {
+        if (this.commitCount >= minCount && (this.commitCount >= countThreshold || this.accumulatedLength >=
+                lengthThreshold)) {
             // Reset counters.
             this.commitCount = 0;
             this.accumulatedLength = 0;
@@ -87,7 +88,9 @@ public class MetadataCheckpointPolicy {
 
     @Override
     public String toString() {
-        return String.format("Count = %d/%d, Length = %d/%d", this.commitCount, this.config.getCheckpointCommitCountThreshold(), this.accumulatedLength, this.config.getCheckpointTotalCommitLengthThreshold());
+        return String.format("Count = %d/%d, Length = %d/%d", this.commitCount, this.config
+                .getCheckpointCommitCountThreshold(), this.accumulatedLength, this.config
+                .getCheckpointTotalCommitLengthThreshold());
     }
 
     //endregion

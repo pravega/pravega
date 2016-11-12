@@ -65,7 +65,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         channel.set(c);
         keepAliveFuture.set(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 2, 1, TimeUnit.SECONDS));
     }
-    
+
     @RequiredArgsConstructor
     private final class KeepAliveTask implements Runnable {
         private final ChannelHandlerContext ctx;
@@ -77,7 +77,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
                     send(new KeepAlive());
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection "+connectionName);
+                log.warn("Keep alive failed, killing connection " + connectionName);
                 ctx.close();
             }
         }

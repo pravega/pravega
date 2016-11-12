@@ -53,7 +53,8 @@ public class InMemoryCacheTests {
 
         // Remove from the cache.
         forAllCombinations(cache::remove);
-        forAllCombinations(key -> Assert.assertNull("Cache still had contents even after key removal.", cache.get(key)));
+        forAllCombinations(key -> Assert.assertNull("Cache still had contents even after key removal.",
+                cache.get(key)));
     }
 
     private void forAllCombinations(Consumer<CacheKey> consumer) {

@@ -59,7 +59,8 @@ public class StreamImpl implements Stream {
         }
     }
 
-    public StreamImpl(String scope, String streamName, StreamConfiguration config, Controller controller, ConnectionFactory connectionFactory) {
+    public StreamImpl(String scope, String streamName, StreamConfiguration config, Controller controller,
+                      ConnectionFactory connectionFactory) {
         Preconditions.checkNotNull(streamName);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(connectionFactory);
@@ -73,7 +74,8 @@ public class StreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, connectionFactory), router, s, config);
+        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller,
+                connectionFactory), router, s, config);
     }
 
     @Override

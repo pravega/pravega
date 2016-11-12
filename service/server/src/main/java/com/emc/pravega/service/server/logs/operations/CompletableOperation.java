@@ -47,7 +47,8 @@ public class CompletableOperation {
      *
      * @param operation      The operation to wrap.
      * @param callbackFuture A CompletableFuture that will be used to indicate the outcome of this operation.
-     *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation as its payload.
+     *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation
+     *                       as its payload.
      * @throws IllegalArgumentException If the given callbackFuture is already done.
      */
     public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture) {
@@ -59,11 +60,14 @@ public class CompletableOperation {
      * Creates a new instance of the CompletableOperation class.
      *
      * @param operation      The operation to wrap.
-     * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided is the Sequence Number of the Operation.
-     * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the causing Exception for the failure.
+     * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided
+     *                       is the Sequence Number of the Operation.
+     * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the
+     *                       causing Exception for the failure.
      * @throws NullPointerException If operation is null.
      */
-    public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler) {
+    public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable>
+            failureHandler) {
         Preconditions.checkNotNull(operation, "operation");
         this.operation = operation;
         this.failureHandler = failureHandler;
@@ -90,7 +94,8 @@ public class CompletableOperation {
 
         this.done = true;
         if (this.successHandler != null) {
-            CallbackHelpers.invokeSafely(this.successHandler, seqNo, cex -> log.error("Success Callback invocation failure.", cex));
+            CallbackHelpers.invokeSafely(this.successHandler, seqNo, cex -> log.error("Success Callback invocation " +
+                    "failure.", cex));
         }
     }
 
@@ -102,7 +107,8 @@ public class CompletableOperation {
     public void fail(Throwable ex) {
         this.done = true;
         if (this.failureHandler != null) {
-            CallbackHelpers.invokeSafely(this.failureHandler, ex, cex -> log.error("Fail Callback invocation failure.", cex));
+            CallbackHelpers.invokeSafely(this.failureHandler, ex, cex -> log.error("Fail Callback invocation failure" +
+                    ".", cex));
         }
     }
 
