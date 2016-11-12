@@ -21,20 +21,24 @@ package com.emc.pravega.service.storage.impl.hdfs;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import com.emc.pravega.common.io.FileHelpers;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.storage.Storage;
 import com.emc.pravega.service.storage.mocks.StorageTestBase;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.security.PrivilegedExceptionAction;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 
 /**
@@ -54,17 +58,8 @@ public class HDFSStorageTest extends StorageTestBase {
         Configuration conf = new Configuration();
         conf.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, baseDir.getAbsolutePath());
         conf.setBoolean("dfs.permissions.enabled", true);
-        UserGroupInformation ugi;
-        ugi = UserGroupInformation.createRemoteUser("hdfs");
-        ugi.doAs(new PrivilegedExceptionAction<Void>() {
-            @Override
-            public Void run() throws Exception {
-                MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
-                hdfsCluster = builder.build();
-                return null;
-            }
-        });
-
+        MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(conf);
+        hdfsCluster = builder.build();
     }
 
     @org.junit.AfterClass
@@ -93,11 +88,89 @@ public class HDFSStorageTest extends StorageTestBase {
             throw new UncheckedIOException(ex);
         }
 
-        return storage;
+        return new MiniClusterPermFixer(storage);
     }
 
     @Override
     protected String createInvalidHandle(String segmentName) {
         return segmentName + "_invalid";
+    }
+
+    /**
+     * Wrapper for a storage class which handles the ACL behavior of MiniDFSCluster.
+     * This keeps track of the sealed segments and throws error when a write is attempted on a segment.
+     **/
+    private class MiniClusterPermFixer implements Storage {
+        private final HDFSStorage storage;
+        private ArrayList<String> sealedList;
+
+        public MiniClusterPermFixer(HDFSStorage storage) {
+            sealedList = new ArrayList<>();
+            this.storage = storage;
+        }
+
+        @Override
+        public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+            return storage.create(streamSegmentName, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
+                                             Duration timeout) {
+
+            if (sealedList.contains(streamSegmentName)) {
+                CompletableFuture<Void> retVal = new CompletableFuture<>();
+                retVal.completeExceptionally(new StreamSegmentSealedException(streamSegmentName));
+                return retVal;
+            }
+            return storage.write(streamSegmentName, offset, data, length, timeout);
+        }
+
+        @Override
+        public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
+            addToSealedList(streamSegmentName);
+            return storage.seal(streamSegmentName, timeout);
+        }
+
+        private void addToSealedList(String streamSegmentName) {
+            sealedList.add(streamSegmentName);
+        }
+
+        @Override
+        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
+                                              String sourceStreamSegmentName, Duration timeout) {
+            return storage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
+            return storage.delete(streamSegmentName, timeout);
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public CompletableFuture<Void> open(String streamSegmentName) {
+            return storage.open(streamSegmentName);
+        }
+
+        @Override
+        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer,
+                                               int bufferOffset, int length, Duration timeout) {
+            return storage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
+        }
+
+        @Override
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+            return storage.getStreamSegmentInfo(streamSegmentName, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+            return storage.exists(streamSegmentName, timeout);
+        }
     }
 }

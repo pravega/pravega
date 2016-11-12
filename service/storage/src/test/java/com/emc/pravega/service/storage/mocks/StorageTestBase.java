@@ -135,8 +135,10 @@ public abstract class StorageTestBase {
                     int length = expectedData.length - 2 * offset;
                     byte[] readBuffer = new byte[length];
                     int bytesRead = s.read(segmentName, offset, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-                    Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset), length, bytesRead);
-                    AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset), expectedData, offset, readBuffer, 0, bytesRead);
+                    Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                            length, bytesRead);
+                    AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
+                            expectedData, offset, readBuffer, 0, bytesRead);
                 }
             }
 
@@ -149,7 +151,8 @@ public abstract class StorageTestBase {
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with offset beyond Segment length.",
-                    () -> s.read(testSegment, s.getStreamSegmentInfo(testSegment, TIMEOUT).join().getLength() + 1, testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
+                    () -> s.read(testSegment, s.getStreamSegmentInfo(testSegment, TIMEOUT).join().getLength() + 1,
+                            testReadBuffer, 0, testReadBuffer.length, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException || ex instanceof ArrayIndexOutOfBoundsException);
 
             assertThrows("read() allowed reading with negative read buffer offset.",
@@ -197,7 +200,8 @@ public abstract class StorageTestBase {
                 Assert.assertTrue("seal() is reentrant returns with isSealed == true", segmentInfo1.isSealed());
 
                 assertThrows("write() did not throw for a sealed StreamSegment.",
-                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
+                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).
+                                join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
@@ -223,7 +227,8 @@ public abstract class StorageTestBase {
             // Check invalid handle.
             val firstSegmentHandle = getSegmentName(0, context);
             s.open(firstSegmentHandle).join();
-            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join().getLength());
+            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle,
+                    TIMEOUT).join().getLength());
             assertThrows("concat() did not throw invalid target StreamSegment handle.",
                     () -> s.concat(createInvalidHandle("foo1"), 0, firstSegmentHandle, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
@@ -255,7 +260,8 @@ public abstract class StorageTestBase {
                 Assert.assertFalse("concat() did not delete source segment", s.exists(sourceSegment, TIMEOUT).join());
 
                 // Only check lengths here; we'll check the contents at the end.
-                Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.", preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
+                Assert.assertEquals("Unexpected target StreamSegment.length after concatenation.",
+                        preConcatTargetProps.getLength() + sourceProps.getLength(), postConcatTargetProps.getLength());
                 firstSegmentLength.set(postConcatTargetProps.getLength());
             }
 
@@ -271,7 +277,8 @@ public abstract class StorageTestBase {
             int offset = 0;
             for (String segmentName : concatOrder) {
                 byte[] concatData = appendData.get(segmentName).toByteArray();
-                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset, concatData.length);
+                AssertExtensions.assertArrayEquals("Unexpected concat data.", concatData, 0, readBuffer, offset,
+                        concatData.length);
                 offset += concatData.length;
             }
 
