@@ -213,7 +213,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     closeConnection(e);
                 }
             }
-            return handleInterrupted(() -> read.get());
+            return Exceptions.<ExecutionException, SegmentRead>handleInterrupted(() -> read.get());
         });
     }
 
