@@ -93,7 +93,8 @@ public final class Retry {
     /**
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a
      * retry.
-     * Any subtype of this exception will be retried unless the subtype is passed to {@link #throwingOn()}.
+     * Any subtype of this exception will be retried unless the subtype is passed to
+     * {@link RetringOnException#throwingOn(Class)}
      */
     public static final class RetringOnException<RetryT extends Exception> {
         private final Class<RetryT> retryType;
