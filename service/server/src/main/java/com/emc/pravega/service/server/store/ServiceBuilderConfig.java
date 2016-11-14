@@ -104,7 +104,7 @@ public class ServiceBuilderConfig {
     }
 
     private static String getHostAddress() {
-        //TODO: Find a better way to compute the host address.
+        //TODO: Find a better way to compute the host address. https://github.com/emccode/pravega/issues/162
         try {
             return Inet4Address.getLocalHost().getHostAddress();
         } catch (UnknownHostException e) {
