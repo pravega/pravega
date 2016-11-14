@@ -22,7 +22,14 @@ import com.emc.pravega.controller.util.Config;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.PrimitiveIterator;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -84,15 +91,9 @@ public class UniformContainerBalancer implements ContainerBalancer {
                 } else if (o1.getValue().size() > o2.getValue().size()) {
                     return 1;
                 } else {
-                    // Position elements with equal container length, using object hashCode to provide strict weak
-                    // ordering.
-                    if (o1.getKey().hashCode() < o2.getKey().hashCode()) {
-                        return -1;
-                    } else if (o1.getKey().hashCode() > o2.getKey().hashCode()) {
-                        return 1;
-                    } else {
-                        return 0;
-                    }
+                    // Position elements with equal container length using object hashCode to provide strict weak
+                    // ordering. We don't need any specific ordering using information from the host.
+                    return o1.getKey().hashCode() - o2.getKey().hashCode();
                 }
             });
 

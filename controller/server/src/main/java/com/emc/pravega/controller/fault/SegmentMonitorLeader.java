@@ -22,7 +22,6 @@ import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.util.Config;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
