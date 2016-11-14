@@ -35,7 +35,6 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.framework.recipes.nodes.PersistentNode;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -219,13 +218,5 @@ public class ClusterZKImpl implements Cluster {
     private String getServerName(final PathChildrenCacheEvent event) {
         String path = event.getData().getPath();
         return path.substring(path.lastIndexOf("/") + 1);
-    }
-
-    private void createPathIfNotExists(String basePath) throws Exception {
-        try {
-            client.create().creatingParentsIfNeeded().forPath(basePath);
-        } catch (KeeperException.NodeExistsException e) {
-            log.debug("Path exists {} , ignoring exception", basePath, e);
-        }
     }
 }

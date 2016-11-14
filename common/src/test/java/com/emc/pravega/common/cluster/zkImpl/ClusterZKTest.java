@@ -35,6 +35,7 @@ import static org.junit.Assert.assertEquals;
 
 
 public class ClusterZKTest {
+    private final static int TEST_TIMEOUT = 30000;
 
     private final static String HOST_1 = "host1";
     private final static String HOST_2 = "host2";
@@ -59,7 +60,7 @@ public class ClusterZKTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT)
     public void registerNode() throws Exception {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();
@@ -99,7 +100,7 @@ public class ClusterZKTest {
         clusterZKInstance2.close();
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT)
     public void deregisterNode() throws Exception {
         LinkedBlockingQueue<String> nodeAddedQueue = new LinkedBlockingQueue();
         LinkedBlockingQueue<String> nodeRemovedQueue = new LinkedBlockingQueue();

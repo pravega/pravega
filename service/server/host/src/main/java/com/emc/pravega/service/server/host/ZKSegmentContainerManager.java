@@ -37,6 +37,7 @@ import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.utils.ZKPaths;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,12 +48,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
  * ZK based implementation for SegmentContainerManager. The controller updates the segmentContainer ownership in zk.
  * The SegmentContainerManager watches the zk entry and starts or stop appropriate segment containers.
- * <p>
  * <p>
  * The SegmentName -> ContainerId mapping is done by taking the hash of the StreamSegment name and then modulo the
  * number of containers (result is in hex).
@@ -63,10 +64,12 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30); //TODO: config?
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
+
+    @GuardedBy("itself")
     private final HashMap<Integer, ContainerHandle> handles;
     private final Host host;
 
-    private boolean closed;
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
@@ -76,18 +79,18 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * Creates a new instance of the ZKSegmentContainerManager class.
      *
      * @param containerRegistry        The SegmentContainerRegistry to manage.
-     * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the cluster
-     *                                 (i.e., number of containers).
+     * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the
+     *                                 cluster (i.e., number of containers).
      * @param zkClient                 ZooKeeper client.
      * @param pravegaServiceEndpoint   Pravega service endpoint details.
      * @param clusterName              Cluster Name.
      * @throws NullPointerException If containerRegistry is null.
      * @throws NullPointerException If segmentToContainerMapper is null.
      * @throws NullPointerException If logger is null.
-     * @throws Exception            Error while communicating with Zookeeper.
      */
-    public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper,
-                                     CuratorFramework zkClient, Host pravegaServiceEndpoint, String clusterName) throws Exception {
+    public ZKSegmentContainerManager(SegmentContainerRegistry containerRegistry,
+                                     SegmentToContainerMapper segmentToContainerMapper,
+                                     CuratorFramework zkClient, Host pravegaServiceEndpoint, String clusterName) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
@@ -99,19 +102,17 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
         this.client = zkClient;
         this.clusterName = clusterName;
-        segContainerHostMapping = new NodeCache(zkClient, ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping"));
-        segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
+        segContainerHostMapping = new NodeCache(zkClient, ZKPaths.makePath("cluster", clusterName,
+                "segmentContainerHostMapping"));
 
         this.host = pravegaServiceEndpoint;
     }
 
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
-
         long traceId = LoggerHelpers.traceEnter(log, "initialize");
         ensureNotClosed();
         try {
-
             List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
             CompletableFuture<Void> initResult = FutureHelpers.allOf(futures)
                     .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
@@ -127,9 +128,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     @Override
     public void close() {
-        if (this.closed) {
-            return;
-        } else {
+        if (closed.compareAndSet(false, true)) {
             // Close all containers that are still open.
             ArrayList<CompletableFuture<Void>> results = new ArrayList<>();
             synchronized (this.handles) {
@@ -140,10 +139,8 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
                             .thenAccept(v -> unregisterHandle(handle.getContainerId())));
                 }
             }
-
             // Wait for all the containers to be closed.
             FutureHelpers.allOf(results).join();
-            this.closed = true;
         }
     }
 
@@ -159,7 +156,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     @VisibleForTesting
-    public Map<Integer, ContainerHandle> getHandles() {
+    Map<Integer, ContainerHandle> getHandles() {
         return Collections.unmodifiableMap(this.handles);
     }
 
@@ -172,28 +169,31 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     }
 
     private void registerHandle(ContainerHandle handle) {
-        assert handle != null : "handle is null.";
+        Preconditions.checkNotNull(handle, "handle");
         synchronized (this.handles) {
-            assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
+            assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle
+                    .getContainerId();
             this.handles.put(handle.getContainerId(), handle);
 
             handle.setContainerStoppedListener(id -> {
                 unregisterHandle(handle.getContainerId());
-                //TODO: Handle container failures. This will be changed after design review.
+                //TODO: Handle container failures. https://github.com/emccode/pravega/issues/154
             });
         }
         log.info("Container {} has been registered.", handle.getContainerId());
     }
 
     private void ensureNotClosed() {
-        Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkNotClosed(closed.get(), this);
     }
 
     private void addListenerSegContainerMapping(Duration timeout, Host host) {
         try {
+            segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
             segContainerHostMapping.getListenable().addListener(getListenerNodeCache(timeout, host));
         } catch (Exception e) {
-            throw new RuntimeStreamingException("Unable to start zk based cache which has the segContainer to Host mapping", e);
+            throw new RuntimeStreamingException(
+                    "Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
     }
 
@@ -235,7 +235,9 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         Collection<Integer> containersToBeStopped = getComplement(runningContainers, desiredContainerList);
 
         List<CompletableFuture<Void>> futures = containersToBeStarted.stream()
-                .map(containerId -> this.registry.startContainer(containerId, timer.getRemaining()).thenAccept(this::registerHandle))
+                .map(containerId ->
+                        this.registry.startContainer(containerId, timer.getRemaining())
+                                .thenAccept(this::registerHandle))
                 .collect(Collectors.toList());
 
         futures.addAll(containersToBeStopped.stream()

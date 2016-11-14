@@ -140,7 +140,7 @@ public final class ServiceStarter {
         return builder.withContainerManager(setup -> {
             try {
                 ServiceConfig config = setup.getConfig(ServiceConfig::new);
-                CuratorFramework zkClient = getZKClient(config);
+                CuratorFramework zkClient = createZKClient(config);
                 joinCluster(config, zkClient);
                 return (SegmentContainerManager) new ZKSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper(),
                         zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()), config.getClusterName());
@@ -150,7 +150,7 @@ public final class ServiceStarter {
         });
     }
 
-    private static CuratorFramework getZKClient(ServiceConfig config) {
+    private static CuratorFramework createZKClient(ServiceConfig config) {
         CuratorFramework zkClient = CuratorFrameworkFactory.newClient(config.getZkHostName() + ":" + config.getZkPort(), new ExponentialBackoffRetry(
                 config.getZkRetrySleepMs(), config.getZkRetryCount()));
         zkClient.start();
