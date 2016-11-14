@@ -52,7 +52,7 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     @Override
     public void createStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("checkStreamExists called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
+        log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()),
                 resultHandler);
     }
@@ -152,10 +152,11 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
         result.whenComplete(
                 (value, ex) -> {
-                    log.debug("result = " + value.toString());
                     if (ex != null) {
                         resultHandler.onError(new RuntimeException(ex));
-                    } else {
+                    } else if (value != null) {
+                        log.debug("result = " + value.toString());
+
                         resultHandler.onComplete(value);
                     }
                 });
