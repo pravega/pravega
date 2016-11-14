@@ -142,5 +142,4 @@ public class SegmentContainerMonitorTest {
 
         monitor.close();
     }
-
 }

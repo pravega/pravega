@@ -32,7 +32,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
 
 /**
  * This is the monitor leader which watches the pravega data node cluster and handles host level failures.
@@ -62,8 +62,8 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     //handle this scenario.
     private Duration minRebalanceInterval;
 
-    //Flag to track if any rebalance operations are pending.
-    private AtomicBoolean hostsChanged = new AtomicBoolean(false);
+    //Semaphore to notify the leader thread to trigger a rebalance.
+    private final Semaphore hostsChange = new Semaphore(0);
 
     /**
      * The leader instance which monitors the data node cluster.
@@ -99,7 +99,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         log.info("Obtained leadership to monitor the Host to Segment Container Mapping");
 
         //Attempt a rebalance whenever leadership is obtained to ensure no host events are missed.
-        hostsChanged.set(true);
+        hostsChange.release();
 
         //Start cluster monitor.
         pravegaServiceCluster = new ClusterZKImpl(client, clusterName);
@@ -112,10 +112,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                     //We don't keep track of the hosts and we always query for the entire set from the cluster
                     //when changes occur. This is to avoid any inconsistencies if we miss any notifications.
                     log.info("Received event: {} for host: {}. Wake up leader for rebalancing", type, host);
-                    synchronized (this) {
-                        hostsChanged.set(true);
-                        notify();
-                    }
+                    hostsChange.release();
                     break;
                 case ERROR:
                     //This event should be due to ZK errors and would have been received by the monitor too, hence not
@@ -128,13 +125,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
         try {
             //Keep looping here as long as possible to stay as the leader and exclusively monitor the pravega cluster.
             while (true) {
-                synchronized (this) {
-                    //Loop and check for changed flag to avoid spurious wakeups in wait().
-                    while (!hostsChanged.get()) {
-                        wait();
-                    }
-                }
-
+                hostsChange.acquire();
                 log.debug("Received rebalance event");
 
                 //Wait here until the rebalance timer is zero so that we honour the minimum rebalance interval.
@@ -143,6 +134,9 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                             timeoutTimer.getRemaining().getSeconds());
                     Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
                 }
+
+                //Clear all events that has been received until this point.
+                hostsChange.drainPermits();
                 triggerRebalance();
             }
         } catch (Exception e) {
@@ -157,20 +151,14 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
 
     private void triggerRebalance() throws Exception {
 
-        //Check and clear the cluster modified flag.
-        if (hostsChanged.compareAndSet(true, false)) {
+        //Read the current mapping from the host store and write back the update after rebalancing.
+        Optional<Map<Host, Set<Integer>>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
+                pravegaServiceCluster.getClusterMembers());
+        if (newMapping.isPresent()) {
+            hostStore.updateHostContainersMap(newMapping.get());
 
-            //Read the current mapping from the host store and write back the update after rebalancing.
-            Optional<Map<Host, Set<Integer>>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
-                    pravegaServiceCluster.getClusterMembers());
-            if (newMapping.isPresent()) {
-                hostStore.updateHostContainersMap(newMapping.get());
-
-                //Reset the rebalance timer.
-                timeoutTimer = new TimeoutTimer(minRebalanceInterval);
-            }
-        } else {
-            log.warn("Rebalance triggered without any host change");
+            //Reset the rebalance timer.
+            timeoutTimer = new TimeoutTimer(minRebalanceInterval);
         }
     }
 
