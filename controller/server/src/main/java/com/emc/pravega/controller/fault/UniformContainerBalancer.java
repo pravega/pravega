@@ -22,14 +22,7 @@ import com.emc.pravega.controller.util.Config;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.AbstractMap;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.PrimitiveIterator;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -45,7 +38,7 @@ import java.util.stream.IntStream;
  * - The balanced condition happens when the difference between min and max containers is at most 1.
  */
 @Slf4j
-public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Integer>> {
+public class UniformContainerBalancer implements ContainerBalancer {
 
     @Override
     public Optional<Map<Host, Set<Integer>>> rebalance(Map<Host, Set<Integer>> prevSegContainerMap,
@@ -55,8 +48,8 @@ public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Int
         Preconditions.checkNotNull(currentHosts, "currentHosts");
 
         if (currentHosts.isEmpty()) {
-            log.info("No hosts present, returning empty");
-            return Optional.empty();
+            log.debug("No hosts present, returning empty map");
+            return Optional.of(new HashMap<>());
         }
 
         if (prevSegContainerMap.keySet().equals(currentHosts)) {
@@ -85,7 +78,23 @@ public class UniformContainerBalancer implements ContainerBalancer<Host, Set<Int
 
         //Using a TreeSet sorted by number of containers to optimize add/remove operations.
         TreeSet<Map.Entry<Host, Set<Integer>>> mapElements =
-            new TreeSet<>((o1, o2) -> o1.getValue().size() > o2.getValue().size() ? 1 : -1);
+            new TreeSet<>((o1, o2) -> {
+                if (o1.getValue().size() < o2.getValue().size()) {
+                    return -1;
+                } else if (o1.getValue().size() > o2.getValue().size()) {
+                    return 1;
+                } else {
+                    // Position elements with equal container length, using object hashCode to provide strict weak
+                    // ordering.
+                    if (o1.getKey().hashCode() < o2.getKey().hashCode()) {
+                        return -1;
+                    } else if (o1.getKey().hashCode() > o2.getKey().hashCode()) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+                }
+            });
 
         //Add the new hosts to the TreeSet.
         prevSegContainerMap.entrySet().stream().filter(h -> currentHosts.contains(h.getKey())).

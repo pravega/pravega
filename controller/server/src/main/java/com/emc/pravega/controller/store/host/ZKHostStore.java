@@ -21,6 +21,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.base.Preconditions;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -59,7 +60,8 @@ public class ZKHostStore implements HostControllerStore {
     }
 
     //Ensure required zk node is present in zookeeper.
-    private synchronized void tryInit() throws Exception {
+    @Synchronized
+    private void tryInit() throws Exception {
         if (!zkInit) {
             ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host,
                     Set<Integer>>()));

@@ -24,17 +24,22 @@ import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.ZKConfig;
 import com.emc.pravega.controller.util.Config;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Test;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
-@Slf4j
 public class SegmentContainerMonitorTest {
 
     private static TestingServer zkTestServer;
@@ -58,70 +63,81 @@ public class SegmentContainerMonitorTest {
         zkTestServer.close();
     }
 
-    //Disabling the test for regular builds since this is time sensitive and depends on minRebalanceInterval to be less
-    //than 1 second.
-    //TODO: enable this test by default.
-    //@Test
+    @Test
     public void testMonitorWithZKStore() throws Exception {
-
-        cluster.registerHost(new Host("localhost1", 1));
-
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.Zookeeper,
                 new ZKConfig(zkClient, CLUSTER_NAME));
-
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, zkClient, CLUSTER_NAME);
-        monitor.start();
-
-        assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
-
-        Thread.sleep(1000);
-        assertEquals(1, hostStore.getHostContainersMap().size());
-
-        cluster.registerHost(new Host("localhost2", 2));
-        cluster.registerHost(new Host("localhost3", 3));
-        cluster.registerHost(new Host("localhost4", 4));
-        cluster.deregisterHost(new Host("localhost1", 1));
-
-        Thread.sleep(1000);
-        assertEquals(3, hostStore.getHostContainersMap().size());
-
-        cluster.registerHost(new Host("localhost1", 1));
-
-        Thread.sleep(1000);
-        assertEquals(4, hostStore.getHostContainersMap().size());
-
-        monitor.close();
+        testMonitor(hostStore);
     }
 
-    //Disabling the test for regular builds since this is time sensitive and depends on minRebalanceInterval to be less
-    //than 1 second.
-    //TODO: enable this test by default.
-    //@Test
+    @Test
     public void testMonitorWithInMemoryStore() throws Exception {
-
-        cluster.registerHost(new Host("localhost1", 1));
-
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory, null);
+        testMonitor(hostStore);
+    }
 
-        SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, zkClient, CLUSTER_NAME);
+    private void testMonitor(HostControllerStore hostStore) throws Exception {
+
+        //To coordinate the test cases.
+        Semaphore sync = new Semaphore(0);
+
+        //Decorating hostStore to add the coordination logic using semaphore.
+        class MockHostControllerStore implements HostControllerStore {
+
+            @Override
+            public Map<Host, Set<Integer>> getHostContainersMap() throws Exception {
+                return hostStore.getHostContainersMap();
+            }
+
+            @Override
+            public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception {
+                hostStore.updateHostContainersMap(newMapping);
+                //Notify the test case of the update.
+                sync.release();
+            }
+
+            @Override
+            public Host getHostForContainer(int containerId) throws Exception {
+                return hostStore.getHostForContainer(containerId);
+            }
+
+            @Override
+            public int getContainerCount() {
+                return hostStore.getContainerCount();
+            }
+        }
+
+        SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,
+                CLUSTER_NAME, new UniformContainerBalancer(), 5);
         monitor.start();
 
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
 
-        Thread.sleep(1000);
+        //Rebalance should be triggered for the very first attempt. Verify that no hosts are added to the store.
+        assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
+        assertEquals(0, hostStore.getHostContainersMap().size());
+
+        //New host added.
+        cluster.registerHost(new Host("localhost1", 1));
+        assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(1, hostStore.getHostContainersMap().size());
 
+        //Multiple hosts added and removed.
         cluster.registerHost(new Host("localhost2", 2));
         cluster.registerHost(new Host("localhost3", 3));
         cluster.registerHost(new Host("localhost4", 4));
         cluster.deregisterHost(new Host("localhost1", 1));
-
-        Thread.sleep(1000);
+        assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(3, hostStore.getHostContainersMap().size());
 
+        //Add a host.
         cluster.registerHost(new Host("localhost1", 1));
 
-        Thread.sleep(1000);
+        //Rebalance should not have been triggered since the min rebalance interval is not yet elapsed.
+        assertEquals(3, hostStore.getHostContainersMap().size());
+
+        //Wait for rebalance and verify the host update.
+        assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(4, hostStore.getHostContainersMap().size());
 
         monitor.close();

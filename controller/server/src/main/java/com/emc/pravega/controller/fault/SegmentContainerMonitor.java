@@ -17,7 +17,9 @@
  */
 package com.emc.pravega.controller.fault;
 
+import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.utils.ZKPaths;
 
+import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -54,36 +58,28 @@ public class SegmentContainerMonitor implements AutoCloseable {
     /**
      * Monitor to manage data node addition and removal in the cluster.
      *
-     * @param hostStore     The store to read and write the host container mapping data.
-     * @param client        The curator client for coordination.
-     * @param clusterName   The unique name for this cluster.
+     * @param hostStore             The store to read and write the host container mapping data.
+     * @param client                The curator client for coordination.
+     * @param clusterName           The unique name for this cluster.
+     * @param balancer              The host to segment container balancer implementation.
+     * @param minRebalanceInterval  The minimum interval between any two rebalance operations in seconds.
+     *                              0 indicates there can be no waits between retries.
      */
-    public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, String clusterName) {
+    public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, String clusterName,
+            ContainerBalancer balancer, int minRebalanceInterval) {
         Preconditions.checkNotNull(hostStore, "hostStore");
         Preconditions.checkNotNull(client, "Curator Client");
         Preconditions.checkNotNull(clusterName, "clusterName");
+        Preconditions.checkNotNull(balancer, "balancer");
 
         leaderZKPath = ZKPaths.makePath("cluster", clusterName, "faulthandlerleader");
 
-        try {
-            ZKUtils.createPathIfNotExists(client, leaderZKPath);
-            zkInit = true;
-        } catch (Exception e) {
-            //We will not fail startup due to this, we will perform the initialization lazily.
-            log.debug("Couldn't init zookeeper path. Will retry lazily");
-        }
-
-        segmentMonitorLeader = new SegmentMonitorLeader(clusterName, hostStore);
+        segmentMonitorLeader = new SegmentMonitorLeader(clusterName, hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
 
         //Listen for any zookeeper connectivity error and relinquish leadership.
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
-                    if (!zkInit && newState.isConnected()) {
-                        ZKUtils.createPathIfNotExists(client, leaderZKPath);
-                        zkInit = true;
-                    }
-
                     if (!newState.isConnected()) {
                         log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
                         leaderSelector.interruptLeadership();

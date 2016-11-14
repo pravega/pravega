@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 import com.google.common.base.Preconditions;
+import lombok.Synchronized;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,19 +34,22 @@ public class InMemoryHostStore implements HostControllerStore {
     }
 
     @Override
-    public synchronized Map<Host, Set<Integer>> getHostContainersMap() {
+    @Synchronized
+    public Map<Host, Set<Integer>> getHostContainersMap() {
         return new HashMap<>(hostContainerMap);
     }
 
     @Override
-    public synchronized void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
+    @Synchronized
+    public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
 
         hostContainerMap = new HashMap<>(newMapping);
     }
 
     @Override
-    public synchronized Host getHostForContainer(int containerId) {
+    @Synchronized
+    public Host getHostForContainer(int containerId) {
         Optional<Host> hosts = hostContainerMap.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (hosts.isPresent()) {
@@ -56,7 +60,8 @@ public class InMemoryHostStore implements HostControllerStore {
     }
 
     @Override
-    public synchronized int getContainerCount() {
+    @Synchronized
+    public int getContainerCount() {
         return (int) hostContainerMap.values().stream().flatMap(f -> f.stream()).count();
     }
 }

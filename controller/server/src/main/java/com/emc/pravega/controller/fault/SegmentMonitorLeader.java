@@ -41,16 +41,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * also moved if neccessary for load balancing.
  */
 @Slf4j
-public class SegmentMonitorLeader implements LeaderSelectorListener {
-
-    //The host to containers balancer.
-    private final ContainerBalancer<Host, Set<Integer>> segBalancer;
+class SegmentMonitorLeader implements LeaderSelectorListener {
 
     //The store for reading and writing the host to container mapping.
     private final HostControllerStore hostStore;
 
     //The name of the cluster which has to be monitored.
     private final String clusterName;
+
+    //The host to containers balancer.
+    private final ContainerBalancer segBalancer;
 
     //The pravega cluster which this host controller manages.
     private Cluster pravegaServiceCluster = null;
@@ -61,7 +61,7 @@ public class SegmentMonitorLeader implements LeaderSelectorListener {
     //The minimum interval between any two rebalance operations. The minimum duration is not guaranteed when leadership
     //moves across controllers. Since this is uncommon and there are no significant side-effects to it, we don't
     //handle this scenario.
-    private Duration minRebalanceInterval = Duration.ofSeconds(Config.CLUSTER_MIN_REBALANCE_INTERVAL);
+    private Duration minRebalanceInterval;
 
     //Flag to track if any rebalance operations are pending.
     private AtomicBoolean hostsChanged = new AtomicBoolean(false);
@@ -69,16 +69,22 @@ public class SegmentMonitorLeader implements LeaderSelectorListener {
     /**
      * The leader instance which monitors the data node cluster.
      *
-     * @param clusterName   The unique name for this cluster.
-     * @param hostStore     The store for reading and writing the host to container mapping.
+     * @param clusterName           The unique name for this cluster.
+     * @param hostStore             The store for reading and writing the host to container mapping.
+     * @param balancer              The host to segment container balancer implementation.
+     * @param minRebalanceInterval  The minimum interval between any two rebalance operations in seconds.
+     *                              0 indicates there can be no waits between retries.
      */
-    public SegmentMonitorLeader(String clusterName, HostControllerStore hostStore) {
+    public SegmentMonitorLeader(String clusterName, HostControllerStore hostStore, ContainerBalancer balancer,
+            int minRebalanceInterval) {
         Preconditions.checkNotNull(clusterName, "clusterName");
         Preconditions.checkNotNull(hostStore, "hostStore");
+        Preconditions.checkNotNull(balancer, "balancer");
 
         this.clusterName = clusterName;
         this.hostStore = hostStore;
-        segBalancer = new UniformContainerBalancer();
+        segBalancer = balancer;
+        this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
     }
 
     /**

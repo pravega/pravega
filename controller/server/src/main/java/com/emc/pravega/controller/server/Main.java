@@ -18,6 +18,7 @@
 package com.emc.pravega.controller.server;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
+import com.emc.pravega.controller.fault.UniformContainerBalancer;
 import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -57,7 +58,8 @@ public class Main {
                 zkConfig);
 
         //Start the segment Container Monitor.
-        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, zkClient, Config.CLUSTER_NAME)) {
+        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, zkClient, Config.CLUSTER_NAME,
+                new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL)) {
             monitor.start();
         } catch (Exception e) {
             log.error("Error while starting SegmentContainerMonitor", e);
