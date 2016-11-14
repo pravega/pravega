@@ -26,6 +26,7 @@ import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
 import com.emc.pravega.common.netty.Request;
 import com.emc.pravega.common.netty.WireCommands;
+import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
@@ -146,16 +147,17 @@ public class SegmentHelper {
         final NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
         final CompletableFuture<UUID> result = new CompletableFuture<>();
+        final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.ConnectionDropped));
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.UnknownHost));
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
@@ -180,17 +182,20 @@ public class SegmentHelper {
                                                                          final ConnectionFactory clientCF) {
         final NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
 
-        CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        final CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
+        final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.ConnectionDropped));
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.UnknownHost));
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
@@ -200,7 +205,8 @@ public class SegmentHelper {
 
             @Override
             public void transactionDropped(WireCommands.TransactionDropped transactionDropped) {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.PreconditionFailed));
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
         };
 
@@ -219,22 +225,23 @@ public class SegmentHelper {
                                                                        final HostControllerStore hostControllerStore,
                                                                        final ConnectionFactory clientCF) {
         final NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
-        CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
-        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+        final CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
+        final WireCommandType type = WireCommandType.DROP_TRANSACTION;
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.ConnectionDropped));
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.UnknownHost));
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-                result.completeExceptionally(new SealingFailedException(SealingFailedException.Reason.PreconditionFailed));
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
@@ -260,7 +267,7 @@ public class SegmentHelper {
                     try {
                         connection.send(request);
                     } catch (ConnectionFailedException cfe) {
-                        throw new SealingFailedException(cfe, SealingFailedException.Reason.ConnectionFailed);
+                        throw new WireCommandFailedException(cfe, request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
                     }
                     return null;
                 });

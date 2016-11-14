@@ -17,10 +17,12 @@
  */
 package com.emc.pravega.controller.server.rpc.v1;
 
+import com.emc.pravega.common.netty.WireCommandType;
+
 /**
- * Sealing failed exception.
+ * Wire command failed exception.
  */
-public class SealingFailedException extends RuntimeException {
+public class WireCommandFailedException extends RuntimeException {
 
     public enum Reason {
         ConnectionDropped,
@@ -29,14 +31,17 @@ public class SealingFailedException extends RuntimeException {
         PreconditionFailed,
     }
 
+    private final WireCommandType type;
     private final Reason reason;
 
-    public SealingFailedException(Throwable cause, Reason reason) {
+    public WireCommandFailedException(Throwable cause, WireCommandType type, Reason reason) {
         super(cause);
+        this.type = type;
         this.reason = reason;
     }
 
-    public SealingFailedException(Reason reason) {
+    public WireCommandFailedException(WireCommandType type, Reason reason) {
+        this.type = type;
         this.reason = reason;
     }
 }

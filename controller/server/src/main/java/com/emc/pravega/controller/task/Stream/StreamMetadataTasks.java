@@ -19,7 +19,7 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.rpc.v1.SealingFailedException;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
@@ -245,7 +245,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     private CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
         return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
-                .retryingOn(SealingFailedException.class)
+                .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() ->
                         SegmentHelper.sealSegment(

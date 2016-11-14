@@ -20,7 +20,7 @@ package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
 import com.emc.pravega.common.util.Retry;
-import com.emc.pravega.controller.server.rpc.v1.SealingFailedException;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
@@ -180,7 +180,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
         return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
-                .retryingOn(SealingFailedException.class)
+                .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.createTransaction(scope,
                                 stream,
@@ -192,7 +192,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     private CompletableFuture<TransactionStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
-                .retryingOn(SealingFailedException.class)
+                .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.dropTransaction(scope,
                         stream,
@@ -204,7 +204,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
 
     private CompletableFuture<TransactionStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
         return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
-                .retryingOn(SealingFailedException.class)
+                .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.commitTransaction(scope,
                         stream,
