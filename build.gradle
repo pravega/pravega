@@ -127,6 +127,8 @@ project('service:server') {
 }
 
 project('service:server:host') {
+    apply plugin: 'application'
+    mainClassName = "com.emc.pravega.service.server.host.ServiceStarter"
     dependencies {
         compile project(':common')
         compile project(':service:contracts')
