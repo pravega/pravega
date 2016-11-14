@@ -42,6 +42,9 @@ class RedirectReadIndexEntry extends ReadIndexEntry {
         this.redirectReadIndex = redirectReadIndex;
     }
 
+    /**
+     * Gets a reference to the StreamSegmentReadIndex that this entry redirects to.
+     */
     StreamSegmentReadIndex getRedirectReadIndex() {
         return this.redirectReadIndex;
     }

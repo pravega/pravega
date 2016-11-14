@@ -31,9 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * This class
- */
 @Slf4j
 public class TaskSweeper {
 
@@ -50,7 +47,7 @@ public class TaskSweeper {
         private final Throwable error;
     }
 
-    public TaskSweeper(TaskMetadataStore taskMetadataStore, String hostId, TaskBase... classes) {
+    public TaskSweeper(final TaskMetadataStore taskMetadataStore, final String hostId, final TaskBase... classes) {
         this.taskMetadataStore = taskMetadataStore;
         this.hostId = hostId;
         for (TaskBase object : classes) {
@@ -66,17 +63,19 @@ public class TaskSweeper {
     /**
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method with one of the dead hostId.
-     *
+     * <p>
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
+     * @param oldHostId old host id
+     * @return
      */
-    public CompletableFuture<Void> sweepOrphanedTasks(String oldHostId) {
+    public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
         return FutureHelpers.doWhileLoop(
                 () -> executeHostTask(oldHostId),
                 x -> x != null);
     }
 
-    public CompletableFuture<Result> executeHostTask(String oldHostId) {
+    public CompletableFuture<Result> executeHostTask(final String oldHostId) {
 
         // Get a random child TaggedResource of oldHostId node and attempt to execute corresponding task
         return taskMetadataStore.getRandomChild(oldHostId)
@@ -84,6 +83,7 @@ public class TaskSweeper {
 
                     if (!taggedResourceOption.isPresent()) {
 
+                        log.debug("Host={} fetched no child of {}", this.hostId, oldHostId);
                         // Invariant: If no taggedResources were found, it is safe to delete oldHostId node.
                         // Moreover, no need to get any more children, hence return null.
                         return taskMetadataStore.removeNode(oldHostId)
@@ -91,15 +91,18 @@ public class TaskSweeper {
 
                     } else {
 
+                        TaggedResource taggedResource = taggedResourceOption.get();
+                        log.debug("Host={} processing child <{}, {}> of {}",
+                                this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                         // Fetch task corresponding to resourceTag.resource owned by (oldHostId, resourceTag.threadId)
                         // and compete to execute it to completion.
-                        return executeResourceTask(oldHostId, taggedResourceOption.get());
+                        return executeResourceTask(oldHostId, taggedResource);
 
                     }
                 });
     }
 
-    public CompletableFuture<Result> executeResourceTask(String oldHostId, TaggedResource taggedResource) {
+    public CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
         final CompletableFuture<Result> result = new CompletableFuture<>();
         // Get the task details associated with resource taggedResource.resource
         // that is owned by oldHostId and taggedResource.threadId
@@ -110,10 +113,12 @@ public class TaskSweeper {
         // Else
         //     It is safe to delete the taggedResource child under oldHostId, since there is no pending task on
         //     resource taggedResource.resource and owned by (oldHostId, taggedResource.threadId).
-        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getThreadId())
+        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag())
                 .whenComplete((taskData, ex) -> {
                     if (taskData != null && taskData.isPresent()) {
 
+                        log.debug("Host={} found task for child <{}, {}> of {}",
+                                this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                         execute(oldHostId, taskData.get(), taggedResource)
                                 .whenComplete((value, e) -> result.complete(new Result(taggedResource, value, e)));
 
@@ -121,6 +126,8 @@ public class TaskSweeper {
 
                         if (taskData != null) {
 
+                            log.debug("Host={} found no task for child <{}, {}> of {}. Removing child.",
+                                    this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                             // taskData.isPresent() is false
                             // If no task was found for the taggedResource.resource owned by
                             // (oldHostId, taggedResource.threadId), then either of the following holds
@@ -148,14 +155,16 @@ public class TaskSweeper {
 
     /**
      * This method identifies correct method to execute form among the task classes and executes it.
-     * @param oldHostId identifier of old failed host.
-     * @param taskData taks data.
+     *
+     * @param oldHostId      identifier of old failed host.
+     * @param taskData       taks data.
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
-    public CompletableFuture<Object> execute(String oldHostId, TaskData taskData, TaggedResource taggedResource) {
+    public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
 
-        log.debug("Trying to execute {}", taskData.getMethodName());
+        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
+                this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
         try {
 
             String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
@@ -164,7 +173,7 @@ public class TaskSweeper {
                 // find the method and object
                 Method method = methodMap.get(key);
                 TaskBase o = objectMap.get(key).clone();
-                o.setContext(new Context(hostId, oldHostId, taggedResource.getThreadId(), taggedResource.getResource()));
+                o.setContext(new Context(hostId, oldHostId, taggedResource.getTag(), taggedResource.getResource()));
 
                 // finally execute the task by invoking corresponding method and return its result
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
@@ -211,11 +220,12 @@ public class TaskSweeper {
 
     /**
      * Internal key used in mapping tables.
-     * @param taskName method name.
+     *
+     * @param taskName    method name.
      * @param taskVersion method version.,
      * @return key
      */
-    private String getKey(String taskName, String taskVersion) {
+    private String getKey(final String taskName, final String taskVersion) {
         return taskName + "--" + taskVersion;
     }
 }

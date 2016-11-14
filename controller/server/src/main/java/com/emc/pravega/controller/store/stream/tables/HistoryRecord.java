@@ -30,7 +30,7 @@ import java.util.Optional;
 @Data
 @RequiredArgsConstructor
 /**
- * Class corresponding to one row in the HistoryTable
+ * Class corresponding to one row in the HistoryTable.
  * HistoryRecords are of variable length, so we will maintain markers for
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
@@ -50,8 +50,9 @@ public class HistoryRecord {
     }
 
     public static Optional<HistoryRecord> readRecord(final byte[] historyTable, final int offset) {
-        if (offset >= historyTable.length)
+        if (offset >= historyTable.length) {
             return Optional.empty();
+        }
 
         final int rowEndOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
                 offset,
@@ -63,8 +64,9 @@ public class HistoryRecord {
     }
 
     public static Optional<HistoryRecord> readLatestRecord(final byte[] historyTable) {
-        if (historyTable.length == 0)
+        if (historyTable.length == 0) {
             return Optional.empty();
+        }
 
         final int lastRowStartOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
                 historyTable.length - (Integer.SIZE / 8),
@@ -76,18 +78,18 @@ public class HistoryRecord {
     public static Optional<HistoryRecord> fetchNext(final HistoryRecord record, final byte[] historyTable) {
         assert historyTable.length >= record.getEndOfRowPointer();
 
-        if (historyTable.length == record.getEndOfRowPointer())
+        if (historyTable.length == record.getEndOfRowPointer()) {
             return Optional.empty();
-        else {
+        } else {
             return HistoryRecord.readRecord(historyTable, record.getEndOfRowPointer() + 1);
         }
     }
 
     public static Optional<HistoryRecord> fetchPrevious(final HistoryRecord record,
                                                         final byte[] historyTable) {
-        if (record.getStartOfRowPointer() == 0)
+        if (record.getStartOfRowPointer() == 0) {
             return Optional.empty();
-        else {
+        } else {
             final int rowStartOffset = Utilities.toInt(
                     org.apache.commons.lang3.ArrayUtils.subarray(historyTable,
                             record.getStartOfRowPointer() - (Integer.SIZE / 8),

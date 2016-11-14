@@ -28,7 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Stream Metadata
+ * Stream Metadata.
  */
 //TODO: Add scope to most methods.
 public interface StreamMetadataStore {
@@ -38,9 +38,12 @@ public interface StreamMetadataStore {
      *
      * @param name          stream name.
      * @param configuration stream configuration.
+     * @param createTimestamp stream creation timestamp.
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String name, final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<Boolean> createStream(final String name,
+                                            final StreamConfiguration configuration,
+                                            final long createTimestamp);
 
     /**
      * Updates the configuration of an existing stream.
@@ -60,19 +63,24 @@ public interface StreamMetadataStore {
     CompletableFuture<StreamConfiguration> getConfiguration(final String name);
 
     /**
-     * @param name   stream name.
+     * Get Segment.
+     *  @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
     CompletableFuture<Segment> getSegment(final String name, final int number);
 
     /**
+     * Get active segments.
+     *
      * @param name stream name.
      * @return currently active segments
      */
     CompletableFuture<List<Segment>> getActiveSegments(final String name);
 
     /**
+     * Get active segments at given timestamp.
+     *
      * @param name      stream name.
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
@@ -80,6 +88,8 @@ public interface StreamMetadataStore {
     CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp);
 
     /**
+     * Get next segments.
+     *
      * @param name              stream name.
      * @param completedSegments completely read segments.
      * @param currentSegments   current consumer positions.
@@ -105,56 +115,56 @@ public interface StreamMetadataStore {
                                            final long scaleTimestamp);
 
     /**
-     * Method to create a new transaction on a stream
+     * Method to create a new transaction on a stream.
      *
-     * @param scope
-     * @param stream
+     * @param scope  scope
+     * @param stream stream
      * @return new Transaction Id
      */
     CompletableFuture<UUID> createTransaction(final String scope, final String stream);
 
     /**
-     * get transaction status from the stream store
+     * Get transaction status from the stream store.
      *
-     * @param scope
-     * @param stream
-     * @param txId
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<TxStatus> transactionStatus(final String scope, final String stream, final UUID txId);
 
     /**
-     * Update stream store to mark transaction as committed
+     * Update stream store to mark transaction as committed.
      *
-     * @param scope
-     * @param stream
-     * @param txId
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<TxStatus> commitTransaction(final String scope, final String stream, final UUID txId);
 
     /**
-     * Update stream store to mark transaction as sealed
+     * Update stream store to mark transaction as sealed.
      *
-     * @param scope
-     * @param stream
-     * @param txId
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<TxStatus> sealTransaction(final String scope, final String stream, final UUID txId);
 
     /**
-     * Update stream store to mark the transaction as dropped
+     * Update stream store to mark the transaction as dropped.
      *
-     * @param scope
-     * @param stream
-     * @param txId
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<TxStatus> dropTransaction(final String scope, final String stream, final UUID txId);
 
     /**
-     * Returns all active transactions for all streams
+     * Returns all active transactions for all streams.
      * This is used for periodically identifying timedout transactions which can be dropped
      *
      * @return

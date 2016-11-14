@@ -17,10 +17,7 @@
  */
 package com.emc.pravega.controller.task;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
@@ -59,14 +56,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 /**
- * Task test cases
+ * Task test cases.
  */
 @Slf4j
 public class TaskTest {
@@ -96,7 +97,7 @@ public class TaskTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config, executor);
+        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config), executor);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, HOSTNAME);
     }
 
@@ -108,7 +109,7 @@ public class TaskTest {
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
-        // region checkStreamExists
+        // region createStream
         streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
         streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion
@@ -161,7 +162,7 @@ public class TaskTest {
         final TaskData taskData = new TaskData();
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
-        taskData.setMethodName("checkStreamExists");
+        taskData.setMethodName("createStream");
         taskData.setMethodVersion("1.0");
         taskData.setParameters(new Serializable[]{scope, stream, configuration, timestamp});
 
@@ -187,7 +188,7 @@ public class TaskTest {
         StreamConfiguration config = streamStore.getConfiguration(stream).get();
         assertTrue(config.getName().equals(configuration.getName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
-        assertTrue(config.getScalingingPolicy().equals(configuration.getScalingingPolicy()));
+        assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
     @Test
@@ -206,14 +207,14 @@ public class TaskTest {
         final TaskData taskData1 = new TaskData();
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
-        taskData1.setMethodName("checkStreamExists");
+        taskData1.setMethodName("createStream");
         taskData1.setMethodVersion("1.0");
         taskData1.setParameters(new Serializable[]{scope, stream1, config1, timestamp1});
 
         final TaskData taskData2 = new TaskData();
         final Resource resource2 = new Resource(scope, stream2);
         final long timestamp2 = System.currentTimeMillis();
-        taskData2.setMethodName("checkStreamExists");
+        taskData2.setMethodName("createStream");
         taskData2.setMethodVersion("1.0");
         taskData2.setParameters(new Serializable[]{scope, stream2, config2, timestamp2});
 
@@ -294,13 +295,13 @@ public class TaskTest {
         @Override
         public void run() {
             testTasks.testStreamLock(scope, stream)
-            .whenComplete((value, ex) -> {
-                if (ex != null) {
-                    this.result.completeExceptionally(ex);
-                } else {
-                    this.result.complete(value);
-                }
-            });
+                    .whenComplete((value, ex) -> {
+                        if (ex != null) {
+                            this.result.completeExceptionally(ex);
+                        } else {
+                            this.result.complete(value);
+                        }
+                    });
         }
     }
 

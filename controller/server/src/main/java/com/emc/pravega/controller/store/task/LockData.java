@@ -37,7 +37,7 @@ class LockData implements Serializable {
         return SerializationUtils.serialize(this);
     }
 
-    public static LockData deserialize(byte[] bytes) {
+    public static LockData deserialize(final byte[] bytes) {
         return (LockData) SerializationUtils.deserialize(bytes);
     }
 }

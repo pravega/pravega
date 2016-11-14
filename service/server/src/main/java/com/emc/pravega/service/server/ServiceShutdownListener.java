@@ -108,6 +108,7 @@ public class ServiceShutdownListener extends Service.Listener {
      *
      * @param services      The services to monitor.
      * @param throwIfFailed Throw an IllegalStateException if any of the services ended up in a FAILED state.
+     * @param <T>           The type of the Collection's elements.
      */
     public static <T extends Service> void awaitShutdown(Collection<T> services, boolean throwIfFailed) {
         int failureCount = 0;
@@ -130,7 +131,9 @@ public class ServiceShutdownListener extends Service.Listener {
      * Awaits for the given Services to shut down, whether normally or exceptionally.
      *
      * @param services      The services to monitor.
+     * @param timeout       Timeout for the operation.
      * @param throwIfFailed Throw an IllegalStateException if any of the services ended up in a FAILED state.
+     * @param <T>           The type of the Collection's elements.
      * @throws TimeoutException If the store did not shut down within the specified amount of time. This exception is
      *                          thrown regardless of the value passed in as throwIfFailed.
      */

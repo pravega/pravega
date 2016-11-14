@@ -23,6 +23,7 @@ import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
+import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
@@ -191,7 +192,14 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
     }
 
     private void fail(Throwable exception) {
-        this.entryHandler.processError(this.currentEntry, exception);
+        try {
+            this.entryHandler.processError(this.currentEntry, exception);
+        } catch (Throwable ex) {
+            if (ExceptionHelpers.mustRethrow(ex)) {
+                throw ex;
+            }
+        }
+
         close();
     }
 

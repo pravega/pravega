@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Synchronous controller service implementation
+ * Synchronous controller service implementation.
  */
 public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
@@ -82,13 +82,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public boolean isSegmentValid(final String scope, final String stream, final int segmentNumber, final String caller) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.isSegmentValid(scope, stream, segmentNumber, caller), RuntimeException::new);
-    }
-
-    @Override
-    public boolean isTransactionOpen(final String scope, final String stream, final TxId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.isTransactionOpen(scope, stream, txid), RuntimeException::new);
+    public boolean isSegmentValid(final String scope, final String stream, final int segmentNumber) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.isSegmentValid(scope, stream, segmentNumber), RuntimeException::new);
     }
 
     @Override

@@ -19,7 +19,6 @@
 package com.emc.pravega.common;
 
 import com.google.common.base.Preconditions;
-
 import lombok.SneakyThrows;
 
 /**
@@ -28,25 +27,27 @@ import lombok.SneakyThrows;
 public final class Exceptions {
 
     @FunctionalInterface
-    public static interface InterruptableRun<ExceptionT extends Exception> {
+    public interface InterruptibleRun<ExceptionT extends Exception> {
         void run() throws InterruptedException, ExceptionT;
     }
-    
+
     @FunctionalInterface
-    public static interface InterruptableCall<ExceptionT extends Exception, ResultT> {
+    public interface InterruptibleCall<ExceptionT extends Exception, ResultT> {
         ResultT call() throws InterruptedException, ExceptionT;
     }
 
     /**
      * Eliminates boilerplate code of catching and re-interrupting the thread.
-     * 
+     * <p>
      * NOTE: This method currently has the limitation that it can only handle functions that throw up to one additional
      * exception besides {@link InterruptedException}. This is a limitation of the Compiler.
-     * 
-     * @param run A method that should be run handling interrupts automatically
+     *
+     * @param run          A method that should be run handling interrupts automatically
+     * @param <ExceptionT> The type of exception.
+     * @throws ExceptionT If thrown by run.
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception> void handleInterrupted(InterruptableRun<ExceptionT> run)
+    public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run)
             throws ExceptionT {
         try {
             run.run();
@@ -55,17 +56,20 @@ public final class Exceptions {
             throw e;
         }
     }
-    
+
     /**
      * Eliminates boilerplate code of catching and re-interrupting the thread.
-     * 
+     * <p>
      * NOTE: This method currently has the limitation that it can only handle functions that throw up to one additional
      * exception besides {@link InterruptedException}. This is a limitation of the Compiler.
-     * 
-     * @param run A method that should be run handling interrupts automatically
+     *
+     * @param call         A method that should be run handling interrupts automatically
+     * @param <ExceptionT> The type of exception.
+     * @param <ResultT>    The type of the result.
+     * @throws ExceptionT If thrown by call.
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptableCall<ExceptionT, ResultT> call)
+    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)
             throws ExceptionT {
         try {
             return call.call();
@@ -74,7 +78,7 @@ public final class Exceptions {
             throw e;
         }
     }
-    
+
     /**
      * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the String arg
      * argument has a length of zero.

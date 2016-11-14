@@ -44,17 +44,17 @@ public interface Controller {
     // Controller Apis for administrative action for streams
 
     /**
-     * Api to create stream
+     * Api to create stream.
      *
-     * @param streamConfig
+     * @param streamConfig stream configuration
      * @return
      */
     CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
 
     /**
-     * Api to alter stream
+     * Api to alter stream.
      *
-     * @param streamConfig
+     * @param streamConfig stream configuration to updated
      * @return
      */
     CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
@@ -63,28 +63,43 @@ public interface Controller {
 
     /**
      * Api to get list of current segments for the stream to produce to.
+     * @param scope scope
+     * @param streamName stream name
+     * @return
      */
     CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
      * Api to create a new transaction.
      * The transaction timeout is relative to the creation time.
+     * @param stream stream name
+     * @param timeout tx timeout
+     * @return
      */
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}
+     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+     * @param stream stream name
+     * @param txId transaction id
+     * @return
      */
     CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
      * Drops a transaction. No events published to it may be read, and no further events may be published.
+     * @param stream stream name
+     * @param txId transaction id
+     * @return
      */
     CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
+     * @param stream stream name
+     * @param txId transaction id
+     * @return
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
@@ -92,20 +107,20 @@ public interface Controller {
 
     /**
      * Returns list of position objects by distributing available segments at the
-     * given timestamp into requested number of position objects
+     * given timestamp into requested number of position objects.
      *
-     * @param stream
-     * @param timestamp
-     * @param count
+     * @param stream name
+     * @param timestamp timestamp for getting position objects
+     * @param count number of position objects
      * @return
      */
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Called by consumer upon reaching end of segment on some segment in its position obejct
+     * Called by consumer upon reaching end of segment on some segment in its position obejct.
      *
-     * @param stream
-     * @param positions
+     * @param stream stream name
+     * @param positions current position objects
      * @return
      */
     CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
@@ -125,23 +140,14 @@ public interface Controller {
     // Controller Apis that are called by Pravega host
 
     /**
-     * Given a segment number, check if the segment is created and not sealed
+     * Given a segment number, check if the segment is created and not sealed.
      *
-     * @param scope
-     * @param stream
-     * @param segmentNumber
+     * @param scope scope
+     * @param stream stream
+     * @param segmentNumber segment number
      * @return
      */
-    CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber, final String caller);
-
-    /**
-     * Given a segment number, check if the segment is created and not sealed
-     *
-     * @param scope
-     * @param stream
-     * @param txid
-     * @return
-     */
-    CompletableFuture<Boolean> isTransactionOpen(final String scope, final String stream, final UUID txid);
-
+    CompletableFuture<Boolean> isSegmentValid(final String scope,
+                                              final String stream,
+                                              final int segmentNumber);
 }

@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.task;
 
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.task.LockFailedException;
 import com.emc.pravega.controller.store.task.Resource;
@@ -58,7 +59,7 @@ public class ZKTaskMetadataStoreTests {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config, executor);
+        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config), executor);
         taskData.setMethodName("test");
         taskData.setMethodVersion("1.0");
         taskData.setParameters(new String[]{"string1"});

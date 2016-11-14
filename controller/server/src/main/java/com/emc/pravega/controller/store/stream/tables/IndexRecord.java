@@ -28,7 +28,7 @@ import java.util.Optional;
 
 @Data
 /**
- * Class corresponding to a record/row in Index table
+ * Class corresponding to a record/row in Index table.
  * Each row is fixed size
  * Row: [eventTime, pointer-into-history-table]
  */
@@ -39,10 +39,11 @@ public class IndexRecord {
     private final int historyOffset;
 
     public static Optional<IndexRecord> readRecord(final byte[] indexTable, final int offset) {
-        if (offset >= indexTable.length)
+        if (offset >= indexTable.length) {
             return Optional.empty();
-        else
+        } else {
             return Optional.of(parse(ArrayUtils.subarray(indexTable, offset, offset + INDEX_RECORD_SIZE)));
+        }
     }
 
     public static Optional<IndexRecord> readLatestRecord(final byte[] indexTable) {
@@ -83,8 +84,9 @@ public class IndexRecord {
                                                                           final int upper,
                                                                           final long timestamp,
                                                                           final byte[] indexTable) {
-        if (upper < lower || indexTable.length == 0)
+        if (upper < lower || indexTable.length == 0) {
             return new ImmutablePair<>(0, Optional.empty());
+        }
 
         final int offset = ((lower + upper) / 2) * IndexRecord.INDEX_RECORD_SIZE;
 
@@ -115,5 +117,4 @@ public class IndexRecord {
 
         return outputStream.toByteArray();
     }
-
 }

@@ -97,6 +97,7 @@ public final class ModelHelper {
                 .map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue()))
                 .collect(Collectors.toList());
     }
+
     public static Transaction.Status encode(TxState status, String logString) {
         switch (status) {
             case COMMITTED:
@@ -142,7 +143,7 @@ public final class ModelHelper {
         Preconditions.checkNotNull(configModel, "StreamConfiguration");
         return new StreamConfig(configModel.getScope(),
                 configModel.getName(),
-                decode(configModel.getScalingingPolicy()));
+                decode(configModel.getScalingPolicy()));
     }
 
     public static final Position decode(final PositionInternal position) {

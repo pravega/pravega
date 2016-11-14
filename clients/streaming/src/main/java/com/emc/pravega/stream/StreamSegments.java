@@ -17,13 +17,12 @@
  */
 package com.emc.pravega.stream;
 
+import com.google.common.base.Preconditions;
+import lombok.EqualsAndHashCode;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.NavigableMap;
-
-import com.google.common.base.Preconditions;
-
-import lombok.EqualsAndHashCode;
 
 /**
  * The segments that within a stream at a particular point in time.
@@ -31,10 +30,12 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode
 public class StreamSegments {
     private final NavigableMap<Double, Segment> segments;
-    
+
     /**
+     * Creates a new instance of the StreamSegments class.
+     *
      * @param segments Segments of a stream, keyed by the largest key in their key range.
-     * IE: If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0
+     *                 IE: If there are two segments split evenly, the first should have a value of 0.5 and the second 1.0.
      */
     public StreamSegments(NavigableMap<Double, Segment> segments) {
         this.segments = Collections.unmodifiableNavigableMap(segments);
@@ -46,7 +47,7 @@ public class StreamSegments {
         Preconditions.checkArgument(segments.lastKey() >= 1.0, "Last segment missing.");
         Preconditions.checkArgument(segments.lastKey() < 1.00001, "Segments should only go up to 1.0");
     }
-    
+
     public Segment getSegmentForKey(double key) {
         Preconditions.checkArgument(key >= 0.0);
         Preconditions.checkArgument(key <= 1.0);

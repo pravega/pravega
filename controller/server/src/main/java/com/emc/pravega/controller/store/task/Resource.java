@@ -30,7 +30,7 @@ import lombok.Data;
 public class Resource {
     private final String string;
 
-    public Resource(String... parts) {
+    public Resource(final String... parts) {
         Preconditions.checkNotNull(parts);
         Preconditions.checkArgument(parts.length > 0);
         String representation = parts[0];

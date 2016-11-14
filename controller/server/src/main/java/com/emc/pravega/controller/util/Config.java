@@ -38,14 +38,11 @@ public final class Config {
     public static final String STREAM_STORE_TYPE = CONFIG.getString("config.controller.server.store.stream.type");
     public static final String STREAM_STORE_CONNECTION_STRING = CONFIG.getString("config.controller.server.store.stream.connectionString");
 
-    // ZK configuration
-    public static final String ZK_CONNECTION_STRING = CONFIG.getString("config.controller.server.zk.connectionString");
-
     //HostStore configuration.
     public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");
     public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
 
     //TaskStore configuration
-    public static final String TASK_STORE_TYPE = CONFIG.getString("config.controller.server.store.task.type");
-    public static final String TASK_STORE_CONNECTION_STRING = CONFIG.getString("config.controller.server.store.task.connectionString");
+    public static final String STORE_TYPE = CONFIG.getString("config.controller.server.store.type");
+    public static final String STORE_CONNECTION_STRING = CONFIG.getString("config.controller.server.store.connectionString");
 }

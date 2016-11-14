@@ -29,6 +29,9 @@ public interface SegmentInputStreamFactory {
      * This operation may be called multiple times on the same stream from the
      * same client (i.e., there can be concurrent Stream Readers in the same
      * process space).
+     *
+     * @param segment The segment to create an input for.
+     * @param config  The SegmentInputConfiguration to use.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, SegmentInputConfiguration config);
 }

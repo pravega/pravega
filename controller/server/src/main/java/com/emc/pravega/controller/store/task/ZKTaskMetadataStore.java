@@ -17,13 +17,11 @@
  */
 package com.emc.pravega.controller.store.task;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
@@ -35,7 +33,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Zookeeper based task store
+ * Zookeeper based task store.
+ * todo: potentially merge this class with stream metadata store
  */
 @Slf4j
 class ZKTaskMetadataStore implements TaskMetadataStore {
@@ -47,14 +46,19 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     private final String hostRoot = "/hostIndex";
     private final String taskRoot = "/taskIndex";
 
-    public ZKTaskMetadataStore(StoreConfiguration config, ScheduledExecutorService executor) {
-        this.client = CuratorFrameworkFactory.newClient(config.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
+    public ZKTaskMetadataStore(ZKStoreClient storeClient, ScheduledExecutorService executor) {
+        this.client = storeClient.getClient();
         this.client.start();
         this.executor = executor;
     }
 
     @Override
-    public CompletableFuture<Void> lock(Resource resource, TaskData taskData, String owner, String threadId, String oldOwner, String oldThreadId) {
+    public CompletableFuture<Void> lock(final Resource resource,
+                                        final TaskData taskData,
+                                        final String owner,
+                                        final String threadId,
+                                        final String oldOwner,
+                                        final String oldThreadId) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(resource);
             Preconditions.checkNotNull(taskData);
@@ -122,7 +126,9 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> unlock(Resource resource, String owner, String threadId) {
+    public CompletableFuture<Void> unlock(final Resource resource,
+                                          final String owner,
+                                          final String threadId) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(resource);
             Preconditions.checkNotNull(owner);
@@ -174,7 +180,9 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Optional<TaskData>> getTask(Resource resource, String owner, String threadId) {
+    public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
+                                                         final String owner,
+                                                         final String threadId) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(resource);
             Preconditions.checkNotNull(owner);
@@ -207,7 +215,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> putChild(String parent, TaggedResource child) {
+    public CompletableFuture<Void> putChild(final String parent, final TaggedResource child) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(parent);
             Preconditions.checkNotNull(child);
@@ -231,7 +239,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> removeChild(String parent, TaggedResource child, boolean deleteEmptyParent) {
+    public CompletableFuture<Void> removeChild(final String parent, final TaggedResource child, final boolean deleteEmptyParent) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(parent);
             Preconditions.checkNotNull(child);
@@ -263,44 +271,44 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         }, executor);
     }
 
-//    @Override
-//    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
-//        Preconditions.checkNotNull(parent);
-//        Preconditions.checkNotNull(children);
-//
-//        return CompletableFuture.supplyAsync(() -> {
-//            try {
-//
-//                for (TaggedResource child : children) {
-//                    client.delete()
-//                            .forPath(getHostPath(parent, child));
-//                }
-//
-//                if (deleteEmptyParent) {
-//                    // if there are no children for the parent, remove parent znode
-//                    Stat stat = new Stat();
-//                    client.getData()
-//                            .storingStatIn(stat)
-//                            .forPath(getHostPath(parent));
-//
-//                    if (stat.getNumChildren() == 0) {
-//                        client.delete()
-//                                .withVersion(stat.getVersion())
-//                                .forPath(getHostPath(parent));
-//                    }
-//                }
-//                return null;
-//            } catch (KeeperException.NoNodeException e) {
-//                log.debug("Node does not exist.", e);
-//                return null;
-//            } catch (Exception e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-//    }
+    //    @Override
+    //    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
+    //        Preconditions.checkNotNull(parent);
+    //        Preconditions.checkNotNull(children);
+    //
+    //        return CompletableFuture.supplyAsync(() -> {
+    //            try {
+    //
+    //                for (TaggedResource child : children) {
+    //                    client.delete()
+    //                            .forPath(getHostPath(parent, child));
+    //                }
+    //
+    //                if (deleteEmptyParent) {
+    //                    // if there are no children for the parent, remove parent znode
+    //                    Stat stat = new Stat();
+    //                    client.getData()
+    //                            .storingStatIn(stat)
+    //                            .forPath(getHostPath(parent));
+    //
+    //                    if (stat.getNumChildren() == 0) {
+    //                        client.delete()
+    //                                .withVersion(stat.getVersion())
+    //                                .forPath(getHostPath(parent));
+    //                    }
+    //                }
+    //                return null;
+    //            } catch (KeeperException.NoNodeException e) {
+    //                log.debug("Node does not exist.", e);
+    //                return null;
+    //            } catch (Exception e) {
+    //                throw new RuntimeException(e);
+    //            }
+    //        });
+    //    }
 
     @Override
-    public CompletableFuture<Void> removeNode(String parent) {
+    public CompletableFuture<Void> removeNode(final String parent) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(parent);
 
@@ -321,29 +329,29 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         }, executor);
     }
 
-//    @Override
-//    public CompletableFuture<List<TaggedResource>> getChildren(String parent) {
-//        Preconditions.checkNotNull(parent);
-//
-//        return CompletableFuture.supplyAsync(() -> {
-//            try {
-//
-//                return client.getChildren().forPath(getHostPath(parent))
-//                        .stream()
-//                        .map(this::getTaggedResource)
-//                        .collect(Collectors.toList());
-//
-//            } catch (KeeperException.NoNodeException e) {
-//                log.debug("Node does not exist.", e);
-//                return Collections.emptyList();
-//            } catch (Exception e) {
-//                throw new RuntimeException(e);
-//            }
-//        });
-//    }
+    //    @Override
+    //    public CompletableFuture<List<TaggedResource>> getChildren(String parent) {
+    //        Preconditions.checkNotNull(parent);
+    //
+    //        return CompletableFuture.supplyAsync(() -> {
+    //            try {
+    //
+    //                return client.getChildren().forPath(getHostPath(parent))
+    //                        .stream()
+    //                        .map(this::getTaggedResource)
+    //                        .collect(Collectors.toList());
+    //
+    //            } catch (KeeperException.NoNodeException e) {
+    //                log.debug("Node does not exist.", e);
+    //                return Collections.emptyList();
+    //            } catch (Exception e) {
+    //                throw new RuntimeException(e);
+    //            }
+    //        });
+    //    }
 
     @Override
-    public CompletableFuture<Optional<TaggedResource>> getRandomChild(String parent) {
+    public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(parent);
 
@@ -366,32 +374,32 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         }, executor);
     }
 
-    private String getTaskPath(Resource resource) {
+    private String getTaskPath(final Resource resource) {
         return taskRoot + "/" + getNode(resource);
     }
 
-    private String getHostPath(String hostId, TaggedResource resource) {
+    private String getHostPath(final String hostId, final TaggedResource resource) {
         return hostRoot + "/" + hostId + "/" + getNode(resource);
     }
 
-    private String getHostPath(String hostId) {
+    private String getHostPath(final String hostId) {
         return hostRoot + "/" + hostId;
     }
 
-    private String getNode(Resource resource) {
+    private String getNode(final Resource resource) {
         return resource.getString().replaceAll("/", RESOURCE_PART_SEPARATOR);
     }
 
-    private String getNode(TaggedResource resource) {
-        return getNode(resource.getResource()) + TAG_SEPARATOR + resource.getThreadId();
+    private String getNode(final TaggedResource resource) {
+        return getNode(resource.getResource()) + TAG_SEPARATOR + resource.getTag();
     }
 
-    private Resource getResource(String node) {
+    private Resource getResource(final String node) {
         String[] parts = node.split(RESOURCE_PART_SEPARATOR);
         return new Resource(parts);
     }
 
-    private TaggedResource getTaggedResource(String node) {
+    private TaggedResource getTaggedResource(final String node) {
         String[] splits = node.split(TAG_SEPARATOR);
         return new TaggedResource(splits[1], getResource(splits[0]));
     }

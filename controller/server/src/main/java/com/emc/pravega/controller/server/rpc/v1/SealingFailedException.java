@@ -18,7 +18,7 @@
 package com.emc.pravega.controller.server.rpc.v1;
 
 /**
- * Sealing failed exception
+ * Sealing failed exception.
  */
 public class SealingFailedException extends RuntimeException {
 
@@ -26,6 +26,7 @@ public class SealingFailedException extends RuntimeException {
         ConnectionDropped,
         ConnectionFailed,
         UnknownHost,
+        PreconditionFailed,
     }
 
     private final Reason reason;

@@ -91,9 +91,9 @@ public final class Retry {
             this.maxDelay = maxDelay;
         }
         
-        public <RetryT extends Exception> RetringOnException<RetryT> retryingOn(Class<RetryT> retryType) {
+        public <RetryT extends Exception> RetryingOnException<RetryT> retryingOn(Class<RetryT> retryType) {
             Preconditions.checkNotNull(retryType);
-            return new RetringOnException<>(retryType, this);
+            return new RetryingOnException<>(retryType, this);
         }
         
     }
@@ -102,11 +102,11 @@ public final class Retry {
      * Returned by {@link RetryWithBackoff#retryingOn(Class)} to add the type of exception that should result in a retry.
      * Any subtype of this exception will be retried unless the subtype is passed to {@link RetringOnException#throwingOn(Class)}.
      */
-    public static final class RetringOnException<RetryT extends Exception> {
+    public static final class RetryingOnException<RetryT extends Exception> {
         private final Class<RetryT> retryType;
         private final RetryWithBackoff params;
 
-        private RetringOnException(Class<RetryT> retryType, RetryWithBackoff params) {
+        private RetryingOnException(Class<RetryT> retryType, RetryWithBackoff params) {
             this.retryType = retryType;
             this.params = params;
         }
@@ -123,7 +123,7 @@ public final class Retry {
     }
 
     /**
-     * Returned by {@link RetringOnException#throwingOn(Class)} to add the type of exception that should cause the
+     * Returned by {@link RetryingOnException#throwingOn(Class)} to add the type of exception that should cause the
      * method to throw right away. If any subtype of this exception occurs the method will throw it right away unless
      * that subtype was passed as the RetryType to {@link RetryWithBackoff#retryingOn(Class)}
      */

@@ -19,17 +19,19 @@
 package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
-import com.emc.pravega.service.server.logs.DurableLogConfig;
-import com.emc.pravega.service.server.reading.ReadIndexConfig;
-import com.emc.pravega.service.server.writer.WriterConfig;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Properties;
 import java.util.function.Function;
 
 /**
  * Configuration for ServiceBuilder.
  */
+@Slf4j
 public class ServiceBuilderConfig {
     //region Members
 
@@ -52,37 +54,10 @@ public class ServiceBuilderConfig {
     //endregion
 
     /**
-     * Gets a new instance of the ServiceConfig for this builder.
-     */
-    public ServiceConfig getServiceConfig() {
-        return getConfig(ServiceConfig::new);
-    }
-
-    /**
-     * Gets a new instance of the DurableLogConfig for this builder.
-     */
-    public DurableLogConfig getDurableLogConfig() {
-        return getConfig(DurableLogConfig::new);
-    }
-
-    /**
-     * Gets a new instance of the WriterConfig for this builder.
-     */
-    public WriterConfig getWriterConfig() {
-        return getConfig(WriterConfig::new);
-    }
-
-    /**
-     * Gets a new instance of the ReadIndexConfig for this builder.
-     */
-    public ReadIndexConfig getReadIndexConfig() {
-        return getConfig(ReadIndexConfig::new);
-    }
-
-    /**
      * Gets a new instance of a ComponentConfig for this builder.
      *
      * @param constructor The constructor for the new instance.
+     * @param <T>         The type of the ComponentConfig to instantiate.
      */
     public <T extends ComponentConfig> T getConfig(Function<Properties, ? extends T> constructor) {
         return constructor.apply(this.properties);
@@ -91,9 +66,35 @@ public class ServiceBuilderConfig {
     //region Default Configuration
 
     /**
-     * Gets a default set of configuration values, in absence of any real configuration.
+     * Gets a set of configuration values from the default config file.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
+        FileReader reader = null;
+        try {
+            reader = new FileReader("config/config.properties");
+            return getConfigFromStream(reader);
+        } catch (IOException e) {
+            log.warn("Unable to read configuration because of exception " + e.getMessage());
+            return getDefaultConfigHardCoded();
+        }
+    }
+
+    /**
+     * Gets a set of configuration values from a given InputStreamReader.
+     * @param  reader the InputStreamReader from which to read the configuration.
+     * @return A ServiceBuilderConfig object.
+     * @throws IOException If an exception occurred during reading of the configuration.
+     */
+    public static ServiceBuilderConfig getConfigFromStream(InputStreamReader reader) throws IOException {
+        Properties p = new Properties();
+        p.load(reader);
+        return new ServiceBuilderConfig(p);
+    }
+
+    /**
+     * Gets a default set of configuration values, in absence of any real configuration.
+     */
+    private static ServiceBuilderConfig getDefaultConfigHardCoded() {
         Properties p = new Properties();
 
         // General params
@@ -105,6 +106,13 @@ public class ServiceBuilderConfig {
         set(p, "dlog", "hostname", "zk1");
         set(p, "dlog", "port", "2181");
         set(p, "dlog", "namespace", "messaging/distributedlog/mynamespace");
+
+        //HDFS params
+        set(p, "hdfs", "fs.default.name", "localhost:9000");
+        set(p, "hdfs", "hdfsroot", "");
+        set(p, "hdfs", "pravegaid", "0");
+        set(p, "hdfs", "replication", "1");
+        set(p, "hdfs", "blocksize", "1048576");
 
         // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);

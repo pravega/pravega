@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Asynchronous controller service implementation
+ * Asynchronous controller service implementation.
  */
 @Slf4j
 public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface {
@@ -52,7 +52,7 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     @Override
     public void createStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("checkStreamExists called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
+        log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()),
                 resultHandler);
     }
@@ -109,19 +109,9 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     public void isSegmentValid(final String scope,
                                final String stream,
                                final int segmentNumber,
-                               final String caller,
                                final AsyncMethodCallback resultHandler) throws TException {
         log.debug("isSegmentValid called for stream " + scope + "/" + stream + " segment " + segmentNumber);
-        processResult(controllerService.isSegmentValid(scope, stream, segmentNumber, caller), resultHandler);
-    }
-
-    @Override
-    public void isTransactionOpen(final String scope,
-                                  final String stream,
-                                  final TxId txid,
-                                  final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("isTransactionOpen called for stream " + scope + "/" + stream + " txid " + txid.toString());
-        processResult(controllerService.isTransactionOpen(scope, stream, txid), resultHandler);
+        processResult(controllerService.isSegmentValid(scope, stream, segmentNumber), resultHandler);
     }
 
     @Override

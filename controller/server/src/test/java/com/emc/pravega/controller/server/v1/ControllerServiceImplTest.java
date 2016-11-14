@@ -18,7 +18,29 @@
 
 package com.emc.pravega.controller.server.v1;
 
-import static org.junit.Assert.assertEquals;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.store.ZKStoreClient;
+import com.emc.pravega.controller.store.host.Host;
+import com.emc.pravega.controller.store.host.HostControllerStore;
+import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
+import com.emc.pravega.controller.store.stream.StreamMetadataStore;
+import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.stream.api.v1.Position;
+import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.stream.ScalingPolicy;
+import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import org.apache.curator.test.TestingServer;
+import org.apache.thrift.TException;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
@@ -33,32 +55,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.store.task.TaskStoreFactory;
-import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
-import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import org.apache.curator.test.TestingServer;
-import org.apache.thrift.TException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
-import com.emc.pravega.controller.store.host.Host;
-import com.emc.pravega.controller.store.host.HostControllerStore;
-import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
-import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.store.stream.StreamStoreFactory;
-import com.emc.pravega.controller.stream.api.v1.Position;
-import com.emc.pravega.controller.stream.api.v1.SegmentId;
-import com.emc.pravega.stream.ScalingPolicy;
-import com.emc.pravega.stream.StreamConfiguration;
-import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import static org.junit.Assert.assertEquals;
 
 /**
- * Controller service implementation test
+ * Controller service implementation test.
  */
 public class ControllerServiceImplTest {
 
@@ -80,7 +80,7 @@ public class ControllerServiceImplTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(TaskStoreFactory.StoreType.Zookeeper, config, executor);
+        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config), executor);
         final HostControllerStore hostStore =
                 HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
                         new InMemoryHostControllerStoreConfig(hostContainerMap));
@@ -97,7 +97,7 @@ public class ControllerServiceImplTest {
         final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
-        // region checkStreamExists
+        // region createStream
         streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
         streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion
@@ -150,7 +150,6 @@ public class ControllerServiceImplTest {
         assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
-
 
         Position newPosition = new Position(
                 Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),

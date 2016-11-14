@@ -175,22 +175,10 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber, final String caller) {
+    public CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber) {
         final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
         ThriftHelper.thriftCall(() -> {
-            client.isSegmentValid(scope, stream, segmentNumber, caller, callback);
-            return callback.getResult();
-        });
-
-        return callback.getResult()
-                .thenApply(result -> ThriftHelper.thriftCall(result::getResult));
-    }
-
-    @Override
-    public CompletableFuture<Boolean> isTransactionOpen(final String scope, final String stream, final UUID txid) {
-        final ThriftAsyncCallback<ControllerService.AsyncClient.isSegmentValid_call> callback = new ThriftAsyncCallback<>();
-        ThriftHelper.thriftCall(() -> {
-            client.isTransactionOpen(scope, stream, ModelHelper.decode(txid), callback);
+            client.isSegmentValid(scope, stream, segmentNumber, callback);
             return callback.getResult();
         });
 

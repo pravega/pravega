@@ -36,7 +36,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Stream metadata test
+ * Stream metadata test.
  */
 public class StreamMetadataStoreTest {
 
@@ -55,7 +55,7 @@ public class StreamMetadataStoreTest {
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
-        // region checkStreamExists
+        // region createStream
         store.createStream(stream1, configuration1, System.currentTimeMillis());
         store.createStream(stream2, configuration2, System.currentTimeMillis());
 

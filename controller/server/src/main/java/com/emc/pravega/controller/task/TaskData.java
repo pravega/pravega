@@ -23,7 +23,7 @@ import org.apache.commons.lang.SerializationUtils;
 import java.io.Serializable;
 
 /**
- * Task data: task name and its parameters
+ * Task data: task name and its parameters.
  */
 @Data
 public class TaskData implements Serializable {
@@ -35,7 +35,7 @@ public class TaskData implements Serializable {
         return SerializationUtils.serialize(this);
     }
 
-    public static TaskData deserialize(byte[] bytes) {
+    public static TaskData deserialize(final byte[] bytes) {
         return (TaskData) SerializationUtils.deserialize(bytes);
     }
 }
