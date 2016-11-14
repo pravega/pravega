@@ -31,6 +31,7 @@ public final class Config {
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int SERVER_SELECTOR_THREAD_COUNT = CONFIG.getInt("config.controller.server.selectorThreadCount");
     public static final int SERVER_WORKER_THREAD_COUNT = CONFIG.getInt("config.controller.server.workerThreadCount");
+    public static final int SERVER_MAX_READ_BUFFER_BYTES = CONFIG.getInt("config.controller.server.maxReadBufferBytes");
 
     //Store configuration.
     //Stream store configuration.
