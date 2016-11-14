@@ -50,6 +50,10 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
+    private static final long RETRY_INITIAL_DELAY = 100;
+    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MAX_ATTEMPTS = 100;
+    private static final long RETRY_MAX_DELAY = 100000;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -179,7 +183,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
-        return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.createTransaction(scope,
@@ -191,7 +195,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<TransactionStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.dropTransaction(scope,
@@ -203,7 +207,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     }
 
     private CompletableFuture<TransactionStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> SegmentHelper.commitTransaction(scope,

@@ -153,9 +153,10 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
         result.whenComplete(
                 (value, ex) -> {
                     log.debug("result = " + (value == null ? "null" : value.toString()));
+
                     if (ex != null) {
                         resultHandler.onError(new RuntimeException(ex));
-                    } else {
+                    } else if (value != null) {
                         resultHandler.onComplete(value);
                     }
                 });

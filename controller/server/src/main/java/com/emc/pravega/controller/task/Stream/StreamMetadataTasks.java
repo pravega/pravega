@@ -58,6 +58,10 @@ import java.util.stream.Collectors;
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamMetadataTasks extends TaskBase implements Cloneable {
+    private static final long RETRY_INITIAL_DELAY = 100;
+    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MAX_ATTEMPTS = 100;
+    private static final long RETRY_MAX_DELAY = 100000;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -244,7 +248,7 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
     }
 
     private CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
-        return Retry.withExpBackoff(100, 10, Integer.MAX_VALUE, 100000)
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
                 .retryingOn(WireCommandFailedException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() ->

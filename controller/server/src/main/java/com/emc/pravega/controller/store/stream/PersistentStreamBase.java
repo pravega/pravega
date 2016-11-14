@@ -60,14 +60,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * If no task exists, fall through all create steps. They are all idempotent
      * <p>
      * Create Steps:
-     * 0. Take distributed mutex
-     * 1. Create task/Fetch existing task
-     * 2. Create a new znode to store configuration
-     * 3. Create a new znode for segment table.
-     * 4. Create a new znode for history table.
-     * 5. Create a new znode for index
-     * 6. delete task
-     * 7. release mutex
+     * 1. Create new store configuration
+     * 2. Create new segment table.
+     * 3. Create new history table.
+     * 4. Create new index
      *
      * @param configuration stream configuration.
      * @return : future of whether it was done or not
@@ -86,19 +82,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * Update configuration in zk at configurationPath.
+     * Update configuration at configurationPath.
      *
      * @param configuration new stream configuration.
      * @return : future of boolean
      */
     @Override
     public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
-        // replace the configurationPath zknode with new configurationPath
+        // replace the configurationPath with new configurationPath
         return setConfigurationData(configuration).thenApply(x -> true);
     }
 
     /**
-     * Fetch configuration from zk at configurationPath.
+     * Fetch configuration at configurationPath.
      *
      * @return : future of stream configuration
      */
@@ -108,7 +104,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     /**
-     * Compute correct znode name for the segment chunk that contains entry for this segment.
+     * Compute correct name for the segment chunk that contains entry for this segment.
      * Fetch the segment table chunk and retrieve the segment
      *
      * @param number segment number.
@@ -219,16 +215,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * Scale and create are two tasks where we update the table. For scale to be legitimate, it has to be
      * preceeded by create. Which means all appropriate tables exist.
      * Scale Steps:
-     * 0. Take distributed mutex
-     * 1. Scale task/Fetch existing task
-     * 2. Verify if new scale input is same as existing scale task.
-     * If not, existing takes precedence. TODO: Notify caller!
-     * 3. Add new segment information in segment table.
+     * 1. Add new segment information in segment table.
      * Segments could spillover into a new chunk.
-     * 4. Add entry into the history table.
-     * 5. Add entry into the index table.
-     * 6. delete task
-     * 7. release mutex
+     * 2. Add entry into the history table.
+     * 3. Add entry into the index table.
      *
      * @param sealedSegments segments to be sealed
      * @param newRanges      key ranges of new segments to be created
