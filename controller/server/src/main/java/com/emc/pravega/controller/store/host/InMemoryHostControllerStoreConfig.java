@@ -25,12 +25,13 @@ import java.util.Set;
 
 import static com.emc.pravega.controller.util.Config.HOST_STORE_CONTAINER_COUNT;
 
-public class InMemoryHostControllerStoreConfig implements StoreConfiguration {
+public class InMemoryHostControllerStoreConfig extends StoreConfiguration {
     private final int numOfContainers = HOST_STORE_CONTAINER_COUNT;
 
     private final Map<Host, Set<Integer>> hostContainerMap;
 
     public InMemoryHostControllerStoreConfig(Map<Host, Set<Integer>> hostContainerMap) {
+        super("");
         this.hostContainerMap = hostContainerMap;
     }
 

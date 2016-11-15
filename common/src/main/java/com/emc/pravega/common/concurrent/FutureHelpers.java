@@ -30,14 +30,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
-
-
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -289,11 +288,28 @@ public final class FutureHelpers {
     public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>> loopBody, Consumer<T> resultConsumer, Executor executor) {
         if (condition.get()) {
             return loopBody.get()
-                           .thenAccept(resultConsumer)
-                           .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
+                    .thenAccept(resultConsumer)
+                    .thenComposeAsync(v -> loop(condition, loopBody, resultConsumer, executor), executor);
         } else {
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    /**
+     * Executes a code fragment returning a CompletableFutures while a condition on the returned value is satisfied.
+     *
+     * @param condition Predicate that indicates whether to proceed with the loop or not.
+     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                  supplier is invoked every time the loopBody needs to execute.
+     * @param <T>                 Return type of the executor.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     */
+    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T> condition) {
+        return loopBody.get().thenCompose(result ->
+                condition.test(result)
+                        ? doWhileLoop(loopBody, condition)
+                        : CompletableFuture.completedFuture(null));
     }
 
     /**
@@ -301,10 +317,10 @@ public final class FutureHelpers {
      * the execution of the given function in an async manner. The exceptions are translated to the exceptions
      * that are understandable by the tier1 implementation.
      *
-     * @param function This function is executed in the async future.
+     * @param function            This function is executed in the async future.
      * @param exceptionTranslator utility function that translates the exception
-     * @param executor  The context for the execution.
-     * @param <T>   Return type of the executor.
+     * @param executor            The context for the execution.
+     * @param <T>                 Return type of the executor.
      * @return The CompletableFuture which either holds the result or is completed exceptionally.
      */
     public static <T> CompletableFuture<T> runAsyncTranslateException(Callable<T> function,

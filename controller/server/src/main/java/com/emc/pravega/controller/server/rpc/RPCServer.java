@@ -43,12 +43,10 @@ import static com.emc.pravega.controller.util.Config.SERVER_WORKER_THREAD_COUNT;
 @Slf4j
 public class RPCServer {
 
-    public static void start(ControllerService.Iface controllerService) {
+    public static void start(ControllerService.AsyncIface controllerService) {
         try {
 
-            Runnable simple = () -> {
-                threadedSelectorServer(new ControllerService.Processor(controllerService));
-            };
+            Runnable simple = () -> threadedSelectorServer(new ControllerService.AsyncProcessor<>(controllerService));
 
             new Thread(simple).start();
         } catch (Exception x) {
