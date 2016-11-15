@@ -26,7 +26,6 @@ import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.PrimitiveIterator;
 import java.util.Set;
 import java.util.TreeSet;
@@ -50,20 +49,20 @@ import java.util.stream.Stream;
 public class UniformContainerBalancer implements ContainerBalancer {
 
     @Override
-    public Optional<Map<Host, Set<Integer>>> rebalance(Map<Host, Set<Integer>> prevSegContainerMap,
+    public Map<Host, Set<Integer>> rebalance(Map<Host, Set<Integer>> prevSegContainerMap,
             Set<Host> currentHosts) {
         Preconditions.checkNotNull(prevSegContainerMap, "prevSegContainerMap");
         Preconditions.checkNotNull(currentHosts, "currentHosts");
 
         if (currentHosts.isEmpty()) {
             log.info("No hosts found during rebalancing, creating empty map");
-            return Optional.of(new HashMap<>());
+            return new HashMap<>();
         }
 
         if (prevSegContainerMap.keySet().equals(currentHosts)) {
             //Assuming the input map is always balanced, since this balancer only depends on the host list.
             log.debug("No change in host list, using existing map");
-            return Optional.of(new HashMap<>(prevSegContainerMap));
+            return new HashMap<>(prevSegContainerMap);
         }
 
         if (prevSegContainerMap.size() == 0 || currentHosts.size() == 1) {
@@ -131,10 +130,10 @@ public class UniformContainerBalancer implements ContainerBalancer {
         mapElements.forEach(m -> newMap.put(m.getKey(), m.getValue()));
 
         log.info("Completed segment container rebalancing using new hosts set");
-        return Optional.of(newMap);
+        return newMap;
     }
 
-    private Optional<Map<Host, Set<Integer>>> initializeMap(Set<Host> currentHosts) {
+    private Map<Host, Set<Integer>> initializeMap(Set<Host> currentHosts) {
         final int containerCount = Config.HOST_STORE_CONTAINER_COUNT;
 
         //Assigned containers from 0 to HOST_STORE_CONTAINER_COUNT - 1 uniformly to all the hosts.
@@ -149,6 +148,6 @@ public class UniformContainerBalancer implements ContainerBalancer {
             )
         );
 
-        return Optional.of(segContainerMap);
+        return segContainerMap;
     }
 }

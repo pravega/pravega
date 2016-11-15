@@ -31,7 +31,6 @@ import org.apache.curator.framework.state.ConnectionState;
 
 import java.time.Duration;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 
@@ -116,9 +115,9 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                     hostsChange.release();
                     break;
                 case ERROR:
-                    //This event should be due to ZK errors and would have been received by the monitor too, hence not
-                    //handling it explicitly here.
-                    log.warn("Error monitoring the cluster, stop all processing");
+                    //This event should be due to ZK connection errors and would have been received by the monitor too,
+                    //hence not handling it explicitly here.
+                    log.warn("Received error event when monitoring the pravega host cluster");
                     break;
             }
         });
@@ -142,7 +141,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
             }
         } catch (Exception e) {
             //On any errors (exceptions) we relinquish leadership and start afresh.
-            log.warn("Failed to rebalance, relinquishing leadership. error: " + e.getMessage());
+            log.error("Failed to rebalance, relinquishing leadership. error: " + e.getMessage());
             throw e;
         } finally {
             // stop watching the pravega cluster
@@ -152,14 +151,12 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
 
     private void triggerRebalance() throws Exception {
         //Read the current mapping from the host store and write back the update after rebalancing.
-        Optional<Map<Host, Set<Integer>>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
+        Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
                 pravegaServiceCluster.getClusterMembers());
-        if (newMapping.isPresent()) {
-            hostStore.updateHostContainersMap(newMapping.get());
+        hostStore.updateHostContainersMap(newMapping);
 
-            //Reset the rebalance timer.
-            timeoutTimer = new TimeoutTimer(minRebalanceInterval);
-        }
+        //Reset the rebalance timer.
+        timeoutTimer = new TimeoutTimer(minRebalanceInterval);
     }
 
     @Override

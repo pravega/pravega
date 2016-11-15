@@ -20,7 +20,6 @@ package com.emc.pravega.controller.fault;
 import com.emc.pravega.common.cluster.Host;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -35,6 +34,6 @@ public interface ContainerBalancer {
      * @param currentHosts      The updated list of hosts in the cluster.
      * @return                  The new host to containers mapping after performing a rebalance operation.
      */
-    Optional<Map<Host, Set<Integer>>> rebalance(Map<Host, Set<Integer>> previousMapping, Set<Host> currentHosts);
+    Map<Host, Set<Integer>> rebalance(Map<Host, Set<Integer>> previousMapping, Set<Host> currentHosts);
 
 }
