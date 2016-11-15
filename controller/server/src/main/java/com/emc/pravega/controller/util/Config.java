@@ -32,6 +32,10 @@ public final class Config {
     public static final int SERVER_SELECTOR_THREAD_COUNT = CONFIG.getInt("config.controller.server.selectorThreadCount");
     public static final int SERVER_WORKER_THREAD_COUNT = CONFIG.getInt("config.controller.server.workerThreadCount");
 
+    //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
+    public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
+    public static final int SERVICE_PORT = CONFIG.getInt("config.controller.server.serviceHostPort");
+
     //Store configuration.
     //Stream store configuration.
     public static final String STREAM_STORE_TYPE = CONFIG.getString("config.controller.server.store.stream.type");

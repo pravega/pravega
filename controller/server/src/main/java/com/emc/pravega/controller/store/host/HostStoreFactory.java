@@ -41,8 +41,7 @@ public class HostStoreFactory {
             case InMemory:
                 log.info("Creating in-memory host store");
                 Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
-                //TODO: Get the correct host and port number from config.
-                hostContainerMap.put(new Host("localhost", 12345),
+                hostContainerMap.put(new Host(Config.SERVICE_HOST, Config.SERVICE_PORT),
                         IntStream.range(0, Config.HOST_STORE_CONTAINER_COUNT).boxed().collect(Collectors.toSet()));
                 return new InMemoryHostStore(hostContainerMap);
 
