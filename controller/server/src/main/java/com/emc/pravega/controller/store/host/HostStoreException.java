@@ -17,13 +17,8 @@
  */
 package com.emc.pravega.controller.store.host;
 
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
-import lombok.Data;
-import org.apache.curator.framework.CuratorFramework;
-
-@Data
-public class ZKConfig implements StoreConfiguration {
-    private final CuratorFramework client;
-    private final String clusterName;
-
+public class HostStoreException extends RuntimeException {
+    public HostStoreException(String message) {
+        super(message);
+    }
 }

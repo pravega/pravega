@@ -23,6 +23,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.google.common.base.Preconditions;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
@@ -94,6 +95,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
      * @throws Exception    On any error. This would result in leadership being relinquished.
      */
     @Override
+    @Synchronized
     public void takeLeadership(CuratorFramework client) throws Exception {
 
         log.info("Obtained leadership to monitor the Host to Segment Container Mapping");

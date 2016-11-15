@@ -41,9 +41,6 @@ public class SegmentContainerMonitor implements AutoCloseable {
     //during load balancing.
     private final LeaderSelector leaderSelector;
 
-    //Flag to ensure zk is bootstrapped properly.
-    private boolean zkInit = false;
-
     //The ZK path which is monitored for leader selection.
     private final String leaderZKPath;
 

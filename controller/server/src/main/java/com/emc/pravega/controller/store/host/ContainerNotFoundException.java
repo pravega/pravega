@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.store.host;
 
-public class ContainerNotFoundException extends HostControllerException {
+public class ContainerNotFoundException extends HostStoreException {
     private static final long serialVersionUID = 1L;
 
     public ContainerNotFoundException(int containerId) {

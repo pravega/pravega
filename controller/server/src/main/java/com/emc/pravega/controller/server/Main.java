@@ -23,14 +23,11 @@ import com.emc.pravega.controller.server.rpc.RPCServer;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.ZKConfig;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.util.ZKUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
@@ -48,22 +45,17 @@ public class Main {
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
 
-        //Create Zookeeper based configuration.
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(Config.ZK_URL, new ExponentialBackoffRetry(
-                Config.ZK_RETRY_SLEEP_MS, Config.ZK_MAX_RETRIES));
-        ZKConfig zkConfig = new ZKConfig(zkClient, Config.CLUSTER_NAME);
-
         log.info("Creating the host store");
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
-                zkConfig);
+        HostControllerStore hostStore = HostStoreFactory.createStore(
+                HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE));
 
-        //Start the segment Container Monitor.
-        try (SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore, zkClient, Config.CLUSTER_NAME,
-                new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL)) {
+        //Host monitor is not required for a single node local setup.
+        if (Config.HOST_MONITOR_ENABLED) {
+            //Start the segment Container Monitor.
+            SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
+                    ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
+                    new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
             monitor.start();
-        } catch (Exception e) {
-            log.error("Error while starting SegmentContainerMonitor", e);
-            throw e;
         }
 
         //2) Start the Server implementations.

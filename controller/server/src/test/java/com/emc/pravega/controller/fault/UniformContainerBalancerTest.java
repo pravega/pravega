@@ -19,13 +19,16 @@ package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.util.Config;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,6 +36,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class UniformContainerBalancerTest {
+
+    //Ensure test completes within 5 seconds.
+    @Rule
+    public Timeout globalTimeout = new Timeout(5, TimeUnit.SECONDS);
 
     @Test
     public void testRebalancer() {
@@ -116,5 +123,4 @@ public class UniformContainerBalancerTest {
         //Verify the hosts in the map matches the expected hosts.
         assertEquals(containerMap.keySet(), hosts);
     }
-
 }

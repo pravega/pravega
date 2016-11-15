@@ -22,7 +22,7 @@ import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.host.ZKConfig;
+import com.emc.pravega.controller.store.host.ZKHostStore;
 import com.emc.pravega.controller.util.Config;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -30,7 +30,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +49,10 @@ public class SegmentContainerMonitorTest {
     private static Cluster cluster;
 
     private final static String CLUSTER_NAME = "testcluster";
+
+    //Ensure each test completes within 30 seconds.
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     @Before
     public void startZookeeper() throws Exception {
@@ -65,14 +71,13 @@ public class SegmentContainerMonitorTest {
 
     @Test
     public void testMonitorWithZKStore() throws Exception {
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.Zookeeper,
-                new ZKConfig(zkClient, CLUSTER_NAME));
+        HostControllerStore hostStore = new ZKHostStore(zkClient, Config.CLUSTER_NAME);
         testMonitor(hostStore);
     }
 
     @Test
     public void testMonitorWithInMemoryStore() throws Exception {
-        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory, null);
+        HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
         testMonitor(hostStore);
     }
 

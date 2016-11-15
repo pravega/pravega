@@ -41,6 +41,7 @@ public final class Config {
     public static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
 
     //Cluster configuration.
+    public static final boolean HOST_MONITOR_ENABLED = CONFIG.getBoolean("config.controller.server.hostMonitorEnabled");
     public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.cluster");
     public static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
 

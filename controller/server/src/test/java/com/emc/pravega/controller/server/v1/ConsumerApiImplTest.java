@@ -59,8 +59,7 @@ public class ConsumerApiImplTest {
 
     private Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
-    private final HostControllerStore hostStore = HostStoreFactory.createStore(
-            HostStoreFactory.StoreType.InMemory, null);
+    private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
 
     private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore);
 

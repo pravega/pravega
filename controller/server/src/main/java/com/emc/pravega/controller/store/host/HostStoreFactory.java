@@ -19,6 +19,7 @@ package com.emc.pravega.controller.store.host;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.util.Config;
+import com.emc.pravega.controller.util.ZKUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -35,7 +36,7 @@ public class HostStoreFactory {
         Zookeeper
     }
 
-    public static HostControllerStore createStore(StoreType type, ZKConfig config) {
+    public static HostControllerStore createStore(StoreType type) {
         switch (type) {
             case InMemory:
                 log.info("Creating in-memory host store");
@@ -47,7 +48,8 @@ public class HostStoreFactory {
 
             case Zookeeper:
                 log.info("Creating Zookeeper based host store");
-                return new ZKHostStore(config.getClient(), config.getClusterName());
+                return new ZKHostStore(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(),
+                        Config.CLUSTER_NAME);
 
             default:
                 throw new NotImplementedException();
