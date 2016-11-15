@@ -97,7 +97,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     @Override
     @Synchronized
     public void takeLeadership(CuratorFramework client) throws Exception {
-
         log.info("Obtained leadership to monitor the Host to Segment Container Mapping");
 
         //Attempt a rebalance whenever leadership is obtained to ensure no host events are missed.
@@ -152,7 +151,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     }
 
     private void triggerRebalance() throws Exception {
-
         //Read the current mapping from the host store and write back the update after rebalancing.
         Optional<Map<Host, Set<Integer>>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
                 pravegaServiceCluster.getClusterMembers());
@@ -167,5 +165,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     @Override
     public void stateChanged(CuratorFramework client, ConnectionState newState) {
         //Nothing to do here. We are already monitoring the state changes for shutdown.
+        log.info("Zookeeper connection state changed to: " + newState.toString());
     }
 }

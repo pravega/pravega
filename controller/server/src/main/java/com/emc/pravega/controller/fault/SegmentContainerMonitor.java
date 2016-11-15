@@ -22,13 +22,14 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
+import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Class used to monitor the Data nodes for failures and ensure the segment containers owned by them is assigned
- * to the other Data nodes.
+ * Class used to monitor the pravega host cluster for failures and ensure the segment containers owned by them is
+ * assigned to the other pravega hosts.
  */
 @Slf4j
 public class SegmentContainerMonitor implements AutoCloseable {
@@ -48,7 +49,7 @@ public class SegmentContainerMonitor implements AutoCloseable {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     /**
-     * Monitor to manage data node addition and removal in the cluster.
+     * Monitor to manage pravega host addition and removal in the cluster.
      *
      * @param hostStore             The store to read and write the host container mapping data.
      * @param client                The curator client for coordination.
@@ -72,7 +73,7 @@ public class SegmentContainerMonitor implements AutoCloseable {
         //Listen for any zookeeper connectivity error and relinquish leadership.
         client.getConnectionStateListenable().addListener(
                 (curatorClient, newState) -> {
-                    if (!newState.isConnected()) {
+                    if (newState == ConnectionState.LOST) {
                         log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
                         leaderSelector.interruptLeadership();
                     }

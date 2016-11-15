@@ -60,6 +60,7 @@ public class SegmentContainerMonitorTest {
         String zkUrl = zkTestServer.getConnectString();
 
         zkClient = CuratorFrameworkFactory.newClient(zkUrl, new ExponentialBackoffRetry(200, 10, 5000));
+        zkClient.start();
         cluster = new ClusterZKImpl(zkClient, CLUSTER_NAME);
     }
 

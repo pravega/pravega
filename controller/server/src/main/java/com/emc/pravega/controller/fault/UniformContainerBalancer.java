@@ -30,8 +30,10 @@ import java.util.Optional;
 import java.util.PrimitiveIterator;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * This implements the ContainerBalancer by uniformly distributing Segment containers across all hosts in the cluster.
@@ -55,13 +57,13 @@ public class UniformContainerBalancer implements ContainerBalancer {
         Preconditions.checkNotNull(currentHosts, "currentHosts");
 
         if (currentHosts.isEmpty()) {
-            log.debug("No hosts present, returning empty map");
+            log.info("No hosts found during rebalancing, creating empty map");
             return Optional.of(new HashMap<>());
         }
 
         if (prevSegContainerMap.keySet().equals(currentHosts)) {
             //Assuming the input map is always balanced, since this balancer only depends on the host list.
-            log.info("No change in host list, returning previous map");
+            log.debug("No change in host list, using existing map");
             return Optional.of(new HashMap<>(prevSegContainerMap));
         }
 
@@ -140,9 +142,9 @@ public class UniformContainerBalancer implements ContainerBalancer {
         //Assigned containers from 0 to HOST_STORE_CONTAINER_COUNT - 1 uniformly to all the hosts.
         PrimitiveIterator.OfInt intIter = IntStream.range(0, currentHosts.size()).iterator();
         Map<Host, Set<Integer>> segContainerMap = currentHosts.stream().collect(Collectors.toMap(
-            java.util.function.Function.identity(),
+            Function.identity(),
             host ->
-                java.util.stream.Stream.of(intIter.next()).flatMap(i ->
+                Stream.of(intIter.next()).flatMap(i ->
                     IntStream.rangeClosed(0, containerCount / currentHosts.size()).boxed().
                         map(j -> j * currentHosts.size() + i)).filter(k -> k < containerCount).
                     collect(Collectors.toSet())

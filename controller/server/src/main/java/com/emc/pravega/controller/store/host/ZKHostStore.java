@@ -25,7 +25,6 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.HashMap;
@@ -53,9 +52,6 @@ public class ZKHostStore implements HostControllerStore {
         Preconditions.checkNotNull(clusterName, "clusterName");
 
         zkClient = client;
-        if (zkClient.getState().equals(CuratorFrameworkState.LATENT)) {
-            zkClient.start();
-        }
         zkPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
     }
 
