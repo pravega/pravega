@@ -17,36 +17,20 @@
  */
 package com.emc.pravega.service.storage.mocks;
 
-import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.storage.Storage;
-import com.emc.pravega.testcommon.AssertExtensions;
+
 
 /**
  * Unit tests for InMemoryStorage
  */
-public class InMemoryStorageTests {
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+public class InMemoryStorageTests extends StorageTestBase {
+    /* private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SEGMENT_COUNT = 10;
     private static final int APPENDS_PER_SEGMENT = 10;
 
-    /**
+    **
      * Tests the write() method.
-     */
+     *
     @Test
     public void testWrite() throws Exception {
         String segmentName = "foo";
@@ -87,7 +71,7 @@ public class InMemoryStorageTests {
 
     /**
      * Tests the read() method.
-     */
+     *
     @Test
     public void testRead() throws Exception {
         try (Storage s = createStorage()) {
@@ -144,7 +128,7 @@ public class InMemoryStorageTests {
 
     /**
      * Tests the seal() method.
-     */
+     *
     @Test
     public void testSeal() throws Exception {
         try (Storage s = createStorage()) {
@@ -175,7 +159,7 @@ public class InMemoryStorageTests {
 
     /**
      * Tests the concat() method.
-     */
+     *
     @Test
     public void testConcat() throws Exception {
         try (Storage s = createStorage()) {
@@ -238,7 +222,7 @@ public class InMemoryStorageTests {
             Assert.assertEquals("Concat included more bytes than expected.", offset, readBuffer.length);
         }
     }
-
+*
     private String getSegmentName(int id) {
         return Integer.toString(id);
     }
@@ -264,8 +248,14 @@ public class InMemoryStorageTests {
         }
         return appendData;
     }
-
-    private Storage createStorage() {
+*/
+    @Override
+    protected Storage createStorage() {
         return new InMemoryStorage();
+    }
+
+    @Override
+    protected String createInvalidHandle(String segmentName) {
+        return null;
     }
 }
