@@ -52,7 +52,6 @@ public class UniformContainerBalancer implements ContainerBalancer {
     @Override
     public Optional<Map<Host, Set<Integer>>> rebalance(Map<Host, Set<Integer>> prevSegContainerMap,
             Set<Host> currentHosts) {
-
         Preconditions.checkNotNull(prevSegContainerMap, "prevSegContainerMap");
         Preconditions.checkNotNull(currentHosts, "currentHosts");
 
@@ -136,7 +135,6 @@ public class UniformContainerBalancer implements ContainerBalancer {
     }
 
     private Optional<Map<Host, Set<Integer>>> initializeMap(Set<Host> currentHosts) {
-
         final int containerCount = Config.HOST_STORE_CONTAINER_COUNT;
 
         //Assigned containers from 0 to HOST_STORE_CONTAINER_COUNT - 1 uniformly to all the hosts.

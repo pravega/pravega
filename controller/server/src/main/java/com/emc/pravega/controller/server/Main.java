@@ -39,7 +39,6 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 public class Main {
 
     public static void main(String[] args) {
-
         //1) LOAD configuration.
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(

@@ -43,7 +43,6 @@ public class UniformContainerBalancerTest {
 
     @Test
     public void testRebalancer() {
-
         UniformContainerBalancer balancer = new UniformContainerBalancer();
 
         //Validate empty host.
@@ -105,7 +104,6 @@ public class UniformContainerBalancerTest {
     }
 
     private void validateContainerCount(Map<Host, Set<Integer>> containerMap, Set<Host> hosts) {
-
         long contCount = containerMap.values().stream().map(m -> m.size()).reduce((a, b) -> a + b).get();
         assertTrue(contCount == Config.HOST_STORE_CONTAINER_COUNT);
 

@@ -83,7 +83,6 @@ public class SegmentContainerMonitorTest {
     }
 
     private void testMonitor(HostControllerStore hostStore) throws Exception {
-
         //To coordinate the test cases.
         Semaphore sync = new Semaphore(0);
 
