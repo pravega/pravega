@@ -29,7 +29,22 @@ public class StreamSegmentSealedException extends StreamSegmentException {
      */
     private static final long serialVersionUID = 1L;
 
-    public StreamSegmentSealedException(String streamName) {
-        super(streamName, "The StreamSegment is closed for appends.");
+    /**
+     * Creates a new instance of the StreamSegmentSealedException class.
+     *
+     * @param streamSegmentName The name of the StreamSegment that is sealed.
+     */
+    public StreamSegmentSealedException(String streamSegmentName) {
+        super(streamSegmentName, null);
+    }
+
+    /**
+     * Creates a new instance of the StreamSegmentSealedException class.
+     *
+     * @param streamSegmentName The name of the StreamSegment that is sealed.
+     * @param cause             Actual cause of the exception.
+     */
+    public StreamSegmentSealedException(String streamSegmentName, Throwable cause) {
+        super(streamSegmentName, "The StreamSegment is closed for appends.", cause);
     }
 }

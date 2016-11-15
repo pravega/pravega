@@ -234,8 +234,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 "been initialized.");
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
 
-        return this.storage.acquireLockForSegment(this.metadata.getName()).
-                thenCompose(bool -> this.storage.getStreamSegmentInfo(this.metadata.getName(), timeout))
+        return this.storage.open(this.metadata.getName()).
+                thenCompose( bool -> this.storage.getStreamSegmentInfo(this.metadata.getName(), timeout))
                 .thenAccept(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
                     if (this.metadata.getStorageLength() != segmentInfo.getLength()) {

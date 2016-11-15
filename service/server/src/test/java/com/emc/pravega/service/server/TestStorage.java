@@ -64,10 +64,18 @@ public class TestStorage implements Storage {
     private SealInterceptor sealInterceptor;
     @Setter
     private ConcatInterceptor concatInterceptor;
+    private boolean opened;
 
     public TestStorage(Storage wrappedStorage) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
         this.wrappedStorage = wrappedStorage;
+        opened = false;
+    }
+
+    private void checkOpened() {
+        if (!opened) {
+            throw new IllegalStateException();
+        }
     }
 
     @Override
@@ -77,80 +85,84 @@ public class TestStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        opened = true;
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector)
-                .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Boolean> acquireLockForSegment(String streamSegmentName) {
-        return CompletableFuture.completedFuture(true);
+    public CompletableFuture<Void> open(String streamSegmentName) {
+        opened = true;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
-                                         Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+        checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
-                .thenAccept(v -> {
-                    WriteInterceptor wi = this.writeInterceptor;
-                    if (wi != null) {
-                        wi.accept(streamSegmentName, offset, data, length, this.wrappedStorage);
-                    }
-                })
-                .thenCompose(v -> this.wrappedStorage.write(streamSegmentName, offset, data, length, timeout));
+                            .thenAccept(v -> {
+                                WriteInterceptor wi = this.writeInterceptor;
+                                if (wi != null) {
+                                    wi.accept(streamSegmentName, offset, data, length, this.wrappedStorage);
+                                }
+                            })
+                            .thenCompose(v -> this.wrappedStorage.write(streamSegmentName, offset, data, length, timeout));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
+        checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.sealSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector)
-                .thenAccept(v -> {
-                    SealInterceptor wi = this.sealInterceptor;
-                    if (wi != null) {
-                        wi.accept(streamSegmentName, this.wrappedStorage);
-                    }
-                }).thenCompose(v -> this.wrappedStorage.seal(streamSegmentName, timeout));
+                            .thenAccept(v -> {
+                                SealInterceptor wi = this.sealInterceptor;
+                                if (wi != null) {
+                                    wi.accept(streamSegmentName, this.wrappedStorage);
+                                }
+                            }).thenCompose(v -> this.wrappedStorage.seal(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
-            sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+        checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
-                .thenAccept(v -> {
-                    ConcatInterceptor wi = this.concatInterceptor;
-                    if (wi != null) {
-                        wi.accept(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
-                    }
-                }).thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, offset,
-                        sourceStreamSegmentName, timeout));
+                            .thenAccept(v -> {
+                                ConcatInterceptor wi = this.concatInterceptor;
+                                if (wi != null) {
+                                    wi.accept(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
+                                }
+                            }).thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
     }
 
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
+        checkOpened();
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.deleteErrorInjector)
-                .thenCompose(v -> this.wrappedStorage.delete(streamSegmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.delete(streamSegmentName, timeout));
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
-                                           int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
-                .thenCompose(v -> this.wrappedStorage.read(streamSegmentName, offset, buffer, bufferOffset, length,
-                        timeout));
+                            .thenCompose(v -> this.wrappedStorage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+        checkOpened();
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.getErrorInjector)
-                .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(streamSegmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(streamSegmentName, timeout));
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        checkOpened();
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector)
-                .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
+                            .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
     }
 
     @FunctionalInterface
@@ -165,7 +177,6 @@ public class TestStorage implements Storage {
 
     @FunctionalInterface
     public interface ConcatInterceptor {
-        void accept(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage
-                wrappedStorage);
+        void accept(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage wrappedStorage);
     }
 }
