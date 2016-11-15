@@ -170,7 +170,8 @@ public class StreamSegmentMapper {
         if (parentCheckFuture == null) {
             // We were unable to find this StreamSegment in our metadata. Check in Storage. If the parent StreamSegment
             // does not exist, this will throw an exception (and place it on the resulting future).
-            parentCheckFuture = FutureHelpers.toVoid(this.storage.getStreamSegmentInfo(parentStreamSegmentName, timer.getRemaining()));
+            parentCheckFuture = FutureHelpers.toVoid(this.storage.getStreamSegmentInfo(parentStreamSegmentName,
+                    timer.getRemaining()));
         }
 
         return parentCheckFuture

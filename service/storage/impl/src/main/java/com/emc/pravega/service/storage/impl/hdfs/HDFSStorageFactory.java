@@ -47,7 +47,8 @@ public class HDFSStorageFactory implements StorageFactory {
     }
 
     /**
-     * Creates a new instance of the HDFSStorageFactory class, using the default ForkJoinPool executor for async operations.
+     * Creates a new instance of the HDFSStorageFactory class, using the default
+     * ForkJoinPool executor for async operations.
      *
      * @param serviceBuilderConfig The configuration to use.
      */

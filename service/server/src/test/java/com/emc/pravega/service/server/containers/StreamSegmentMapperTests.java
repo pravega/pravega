@@ -37,6 +37,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -617,12 +618,14 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+        public CompletableFuture<Void> write(String streamSegmentName, long offset,
+                                             InputStream data, int length, Duration timeout) {
             throw new NotImplementedException();
         }
 
         @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer,
+                                               int bufferOffset, int length, Duration timeout) {
             throw new NotImplementedException();
         }
 
@@ -632,7 +635,8 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
-        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
+                                              String sourceStreamSegmentName, Duration timeout) {
             throw new NotImplementedException();
         }
 

@@ -341,12 +341,14 @@ public final class FutureHelpers {
     }
 
     /**
-     * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given future
+     * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given
+     * future
      * fails, the returned future will fail with the same exception.
      *
      * @param future The CompletableFuture to attach to.
      * @param <T>    The type of the input's future result.
-     * @return A CompletableFuture that will complete when the given future completes. If the given future fails, so will
+     * @return A CompletableFuture that will complete when the given future completes. If the given future fails, so
+     * will
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {

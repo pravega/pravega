@@ -51,8 +51,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Each segment is represented by a file with pattern <segment-name>_<owner_host_id>
  * Owner_host_id is optional and means that the segment is owned by the Pravega host of the given id.
  * <p>
- * When ever ownership change happens, the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
- * This is done by the acquireLockForSegment call.
+ * When ever ownership change happens, the new node renames the file representing the
+ * segment to <segment-name>_<owner_host_id>.
+ * This is done by the open call.
  *
  * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
@@ -70,7 +71,7 @@ public class HDFSStorage implements Storage {
         Preconditions.checkNotNull(executor, "executor");
         this.serviceBuilderConfig = serviceBuilderConfig;
         this.executor = executor;
-        this.storage = new HDFSLowerStorage(serviceBuilderConfig, executor);
+        this.closed = new AtomicBoolean();
     }
 
 
@@ -161,7 +162,8 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset,
+                                         InputStream data, int length, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () ->  writeSync(streamSegmentName, offset, length, data, timeout),
                 e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
@@ -215,19 +217,22 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
+                                          String sourceStreamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout),
                 e -> HDFSExceptionHelpers.translateFromException(targetStreamSegmentName, e),
                 executor);
     }
 
-    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) throws IOException, BadOffsetException, StreamSegmentSealedException {
+    Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout)
+            throws IOException, BadOffsetException, StreamSegmentSealedException {
         FileStatus[] status = fileSystem.globStatus(new Path(this.getOwnedSegmentFullPath(targetStreamSegmentName)));
         if (status == null) {
             throw new FileNotFoundException(targetStreamSegmentName);
         }
-        FileStatus[] sourceStatus = fileSystem.globStatus(new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName)));
+        FileStatus[] sourceStatus = fileSystem.globStatus(
+                new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName)));
         if (sourceStatus == null) {
             throw new FileNotFoundException(sourceStreamSegmentName);
         }
@@ -279,7 +284,8 @@ public class HDFSStorage implements Storage {
 
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset,
+                                           byte[] buffer, int bufferOffset, int length, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout),
                 e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
@@ -290,7 +296,8 @@ public class HDFSStorage implements Storage {
      * Finds the file containing the given offset for the given segment.
      * Reads from that file.
      */
-    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) throws IOException {
+    private Integer readSync(String streamSegmentName, long offset, byte[] buffer,
+                             int bufferOffset, int length, Duration timeout) throws IOException {
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset+length) {
             throw new ArrayIndexOutOfBoundsException();
         }
@@ -298,10 +305,12 @@ public class HDFSStorage implements Storage {
         int retVal = stream.read(offset,
                 buffer, bufferOffset, length);
         if (retVal < 0) {
-            // -1 is usually a code for invalid args; check to see if we were supplied with an offset that exceeds the length of the segment.
+            // -1 is usually a code for invalid args; check to see if we were supplied with an
+            // offset that exceeds the length of the segment.
             long segLen = getStreamSegmentInfoSync(streamSegmentName, null).getLength();
             if (offset >= segLen) {
-                throw new IllegalArgumentException(String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, segLen));
+                throw new IllegalArgumentException(
+                        String.format("Read offset (%s) is beyond the length of the segment (%s).", offset, segLen));
             }
         }
         return retVal;

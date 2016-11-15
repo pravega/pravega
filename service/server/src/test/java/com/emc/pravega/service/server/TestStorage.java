@@ -97,7 +97,8 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName,
+                                         long offset, InputStream data, int length, Duration timeout) {
         checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
@@ -107,7 +108,8 @@ public class TestStorage implements Storage {
                                     wi.accept(streamSegmentName, offset, data, length, this.wrappedStorage);
                                 }
                             })
-                            .thenCompose(v -> this.wrappedStorage.write(streamSegmentName, offset, data, length, timeout));
+                            .thenCompose(v -> this.wrappedStorage.write(
+                                    streamSegmentName, offset, data, length, timeout));
     }
 
     @Override
@@ -124,16 +126,19 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
+                                          String sourceStreamSegmentName, Duration timeout) {
         checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
                             .thenAccept(v -> {
                                 ConcatInterceptor wi = this.concatInterceptor;
                                 if (wi != null) {
-                                    wi.accept(targetStreamSegmentName, offset, sourceStreamSegmentName, this.wrappedStorage);
+                                    wi.accept(targetStreamSegmentName, offset,
+                                            sourceStreamSegmentName, this.wrappedStorage);
                                 }
-                            }).thenCompose(v -> this.wrappedStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
+                            }).thenCompose(v ->
+                        this.wrappedStorage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout));
     }
 
     @Override
@@ -144,11 +149,13 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer,
+                                           int bufferOffset, int length, Duration timeout) {
         checkOpened();
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout));
+                            .thenCompose(v -> this.wrappedStorage.read(
+                                    streamSegmentName, offset, buffer, bufferOffset, length, timeout));
     }
 
     @Override
@@ -177,6 +184,7 @@ public class TestStorage implements Storage {
 
     @FunctionalInterface
     public interface ConcatInterceptor {
-        void accept(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage wrappedStorage);
+        void accept(String targetStreamSegmentName, long offset,
+                    String sourceStreamSegmentName, Storage wrappedStorage);
     }
 }
