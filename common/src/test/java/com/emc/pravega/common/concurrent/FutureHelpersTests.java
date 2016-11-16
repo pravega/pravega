@@ -213,6 +213,46 @@ public class FutureHelpersTests {
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
     }
 
+    @Test
+    public void testDoWhileLoopWithCondition() {
+        final int maxLoops = 10;
+        final int expectedResult = maxLoops * (maxLoops - 1) / 2;
+        AtomicInteger loopCounter = new AtomicInteger();
+        AtomicInteger accumulator = new AtomicInteger();
+
+        // 1. Successful execution.
+        FutureHelpers.doWhileLoop(
+                () -> {
+                    int i = loopCounter.get();
+                    accumulator.addAndGet(i);
+                    return CompletableFuture.completedFuture(loopCounter.incrementAndGet());
+                },
+                x -> x < maxLoops
+        ).join();
+
+        Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult, accumulator.get());
+
+        //2. With exceptions.
+        loopCounter.set(0);
+        accumulator.set(0);
+        CompletableFuture<Void> loopFuture = FutureHelpers.doWhileLoop(
+                () -> {
+                    if (loopCounter.incrementAndGet() % 3 == 0) {
+                        throw new IntentionalException();
+                    } else {
+                        accumulator.addAndGet(loopCounter.get());
+                        return CompletableFuture.completedFuture(loopCounter.get());
+                    }
+                },
+                x -> x < maxLoops);
+
+        AssertExtensions.assertThrows(
+                "doWhileLoop() did not return a failed Future when one of the loopBody calls returned a failed Future.",
+                loopFuture::join,
+                ex -> ex instanceof IntentionalException);
+        Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+    }
+
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {
         ArrayList<CompletableFuture<Integer>> result = new ArrayList<>();
         for (int i = 0; i < count; i++) {

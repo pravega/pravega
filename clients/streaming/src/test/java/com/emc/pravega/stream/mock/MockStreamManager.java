@@ -21,13 +21,17 @@ import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.stream.Position;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.ScalingPolicy.Type;
+import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.StreamManager;
+import com.emc.pravega.stream.impl.Controller;
+import com.emc.pravega.stream.impl.PositionImpl;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
+import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MockStreamManager implements StreamManager {
@@ -35,7 +39,7 @@ public class MockStreamManager implements StreamManager {
     private final String scope;
     private final ConcurrentHashMap<String, Stream> created = new ConcurrentHashMap<>();
     private final ConnectionFactoryImpl connectionFactory;
-    private final MockController controller;
+    private final Controller controller;
 
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
@@ -43,11 +47,16 @@ public class MockStreamManager implements StreamManager {
         this.controller = new MockController(endpoint, port, connectionFactory);
     }
 
+    public MockStreamManager(String scope, Controller controller) {
+        this.scope = scope;
+        this.connectionFactory = new ConnectionFactoryImpl(false);
+        this.controller = controller;
+    }
+
     @Override
     public Stream createStream(String streamName, StreamConfiguration config) {
         if (config == null) {
-            config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0,
-                    1));
+            config = new StreamConfigurationImpl(scope, streamName, new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, 1));
         }
         Stream stream = createStreamHelper(streamName, config);
         return stream;
@@ -78,7 +87,6 @@ public class MockStreamManager implements StreamManager {
     }
 
     public Position getInitialPosition(String stream) {
-        return controller.getInitialPosition(scope, stream);
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
-
 }

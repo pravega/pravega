@@ -18,23 +18,36 @@
 package com.emc.pravega.controller.server;
 
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
+import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import static com.emc.pravega.controller.util.Config.STORE_CONNECTION_STRING;
+import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.server.rpc.RPCServer;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerServiceAsyncImpl;
+import com.emc.pravega.controller.store.StoreClient;
+import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
 import com.emc.pravega.controller.store.host.InMemoryHostControllerStoreConfig;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import com.emc.pravega.controller.task.TaskSweeper;
+import lombok.extern.slf4j.Slf4j;
 import com.google.common.collect.Sets;
 
-import lombok.extern.slf4j.Slf4j;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Entry point of controller server.
@@ -50,18 +63,50 @@ public class Main {
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
         hostContainerMap.put(new Host("localhost", 12345), Sets.newHashSet(0));
 
+        String hostId;
+        try {
+            // On each controller process restart, it gets a fresh hostId,
+            // which is a combination of hostname and random GUID.
+            hostId = InetAddress.getLocalHost().getHostAddress() + UUID.randomUUID().toString();
+        } catch (UnknownHostException e) {
+            log.debug("Failed to get host address.", e);
+            hostId = UUID.randomUUID().toString();
+        }
+
         //1) LOAD configuration.
+
+        log.info("Creating store client");
+        StoreClient storeClient = StoreClientFactory.createStoreClient(
+                StoreClientFactory.StoreType.valueOf(STORE_TYPE),
+                new StoreConfiguration(STORE_CONNECTION_STRING));
+
         log.info("Creating in-memory stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE),
+                new StoreConfiguration(STREAM_STORE_CONNECTION_STRING));
+
         log.info("Creating in-memory host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(
                 HostStoreFactory.StoreType.valueOf(HOST_STORE_TYPE),
                 new InMemoryHostControllerStoreConfig(hostContainerMap));
 
-        //2) start the Server implementations.
-        //2.1) start RPC server with v1 implementation. Enable other versions if required.
+        log.info("Creating zk based task store");
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient);
+
+        //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+
+        //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
+        // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
+        // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
+        // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
+        // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
+        // are processed and deleted, that failed HostId is removed from FH folder.
+        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of controllers
+        // and starts sweeping tasks orphaned by those hostIds.
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 }

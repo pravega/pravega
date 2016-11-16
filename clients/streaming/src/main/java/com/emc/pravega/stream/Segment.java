@@ -58,10 +58,10 @@ public class Segment {
     }
 
     public static Segment fromQualifiedName(String qualifiedName) {
-        String[] tokens = qualifiedName.split("/");
+        String[] tokens = qualifiedName.split("[/#]");
         if (tokens.length == 2) {
             return new Segment(null, tokens[0], Integer.parseInt(tokens[1]));
-        } else if (tokens.length == 3) {
+        } else if (tokens.length >= 3) {
             return new Segment(tokens[0], tokens[1], Integer.parseInt(tokens[2]));
         } else {
             throw new IllegalArgumentException("Not a valid segment name");

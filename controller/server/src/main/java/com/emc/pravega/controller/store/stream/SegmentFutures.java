@@ -37,7 +37,7 @@ public class SegmentFutures {
     // (consumer) or sealed (producer)
     private final Map<Integer, Integer> futures;
 
-    public SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
+    public SegmentFutures(final List<Integer> current, final Map<Integer, Integer> futures) {
         this.current = Collections.unmodifiableList(current);
         this.futures = Collections.unmodifiableMap(futures);
     }

@@ -17,5 +17,9 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-public interface StoreConfiguration {
+import lombok.Data;
+
+@Data
+public class StoreConfiguration {
+    private final String connectionString;
 }

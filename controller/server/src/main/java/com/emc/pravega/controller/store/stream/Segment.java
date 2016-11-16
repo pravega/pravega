@@ -17,66 +17,26 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-/**
- * In-memory representation of a stream segment.
- */
-
-import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.ToString;
 
-import java.util.ArrayList;
-import java.util.List;
-
+/**
+ * Properties of a stream segment that don't change over its lifetime.
+ */
 @Data
 @ToString(includeFieldNames = true)
 public class Segment {
 
-    enum Status {
-        Active,
-        Sealing,
-        Sealed,
-    }
+    protected final int number;
+    protected final long start;
+    protected final double keyStart;
+    protected final double keyEnd;
 
-    private final int number;
-    private final long start;
-    private final long end;
-    private final double keyStart;
-    private final double keyEnd;
-    private final Status status;
-    private final List<Integer> successors;
-    private final List<Integer> predecessors;
-
-    Segment(int number, long start, long end, double keyStart, double keyEnd) {
-        this.number = number;
-        this.start = start;
-        this.end = end;
-        this.keyStart = keyStart;
-        this.keyEnd = keyEnd;
-        this.status = Status.Active;
-        successors = new ArrayList<>();
-        predecessors = new ArrayList<>();
-    }
-
-    Segment(int number, long start, long end, double keyStart, double keyEnd, Status status, List<Integer>
-            successors, List<Integer> predecessors) {
-        Preconditions.checkNotNull(successors);
-        Preconditions.checkNotNull(predecessors);
-        this.number = number;
-        this.start = start;
-        this.end = end;
-        this.keyStart = keyStart;
-        this.keyEnd = keyEnd;
-        this.status = status;
-        this.successors = successors;
-        this.predecessors = predecessors;
-    }
-
-    public boolean overlaps(Segment segment) {
+    public boolean overlaps(final Segment segment) {
         return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
     }
 
-    public boolean overlaps(double keyStart, double keyEnd) {
+    public boolean overlaps(final double keyStart, final double keyEnd) {
         return keyEnd > this.keyStart && keyStart < this.keyEnd;
     }
 }

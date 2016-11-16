@@ -113,7 +113,14 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
-        return CompletableFuture.completedFuture(null);
+        return CompletableFuture.supplyAsync(() -> {
+            synchronized (this.lock) {
+                if (!this.streamSegments.containsKey(streamSegmentName)) {
+                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                }
+                return null;
+            }
+        }, this.executor);
     }
 
     @Override
@@ -394,10 +401,6 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<SegmentProperties> markSealed() {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
-                    if (this.sealed) {
-                        throw new CompletionException(new StreamSegmentSealedException(this.name));
-                    }
-
                     this.sealed = true;
                     return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
                 }

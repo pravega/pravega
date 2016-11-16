@@ -19,7 +19,9 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.Segment;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+
 /**
  * Stream Controller APIs.
  */
@@ -43,61 +46,63 @@ public interface Controller {
     /**
      * Api to create stream.
      *
-     * @param streamConfig The StreamConfiguration to use.
+     * @param streamConfig stream configuration
+     * @return
      */
-    CompletableFuture<Status> createStream(StreamConfiguration streamConfig);
+    CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig);
 
     /**
      * Api to alter stream.
      *
-     * @param streamConfig The StreamConfiguration to use.
+     * @param streamConfig stream configuration to updated
+     * @return
      */
-    CompletableFuture<Status> alterStream(StreamConfiguration streamConfig);
+    CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig);
 
     // Controller Apis called by pravega producers for getting stream specific information
 
     /**
      * Api to get list of current segments for the stream to produce to.
-     *
-     * @param scope      The segment scope.
-     * @param streamName The name of the stream.
+     * @param scope scope
+     * @param streamName stream name
+     * @return
      */
-    CompletableFuture<StreamSegments> getCurrentSegments(String scope, String streamName);
+    CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName);
 
     /**
      * Api to create a new transaction.
      * The transaction timeout is relative to the creation time.
-     *
-     * @param stream  The stream to create a transaction for.
-     * @param timeout The timeout for the operation, in milliseconds.
+     * @param stream stream name
+     * @param timeout tx timeout
+     * @return
      */
-    CompletableFuture<UUID> createTransaction(Stream stream, long timeout);
+    CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees
      * specified in {@link Producer}.
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
-     *
-     * @param stream The stream to commit the transaction for.
-     * @param txId   The transaction id.
+     * @param stream stream name
+     * @param txId transaction id
+     * @return
      */
-    CompletableFuture<Status> commitTransaction(Stream stream, UUID txId);
+    CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
      * Drops a transaction. No events published to it may be read, and no further events may be published.
-     *
-     * @param stream The stream to drop the transaction for.
-     * @param txId   The transaction id.
+     * @param stream stream name
+     * @param txId transaction id
+     * @return
      */
-    CompletableFuture<Status> dropTransaction(Stream stream, UUID txId);
+    CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
-     *
-     * @param stream The stream to check the transaction for.
-     * @param txId   The transaction id.
+     * @param stream stream name
+     * @param txId transaction id
+     * @return
      */
-    CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId);
+    CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
 
     // Controller Apis that are called by consumers
 
@@ -105,19 +110,21 @@ public interface Controller {
      * Returns list of position objects by distributing available segments at the
      * given timestamp into requested number of position objects.
      *
-     * @param stream    The stream.
-     * @param timestamp The current timestamp.
-     * @param count     THe number of positions to retrieve.
+     * @param stream name
+     * @param timestamp timestamp for getting position objects
+     * @param count number of position objects
+     * @return
      */
-    CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count);
+    CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
 
     /**
-     * Called by consumer upon reaching end of segment on some segment in its position object.
+     * Called by consumer upon reaching end of segment on some segment in its position obejct.
      *
-     * @param stream    The stream.
-     * @param positions The position within the stream.
+     * @param stream stream name
+     * @param positions current position objects
+     * @return
      */
-    CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions);
+    CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
 
     //Controller Apis that are called by producers and consumers
 
@@ -129,5 +136,19 @@ public interface Controller {
      *
      * @param qualifiedSegmentName The name of the segment. Usually obtained from {@link Segment#getQualifiedName()}.
      */
-    CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName);
+    CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
+
+    // Controller Apis that are called by Pravega host
+
+    /**
+     * Given a segment number, check if the segment is created and not sealed.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param segmentNumber segment number
+     * @return
+     */
+    CompletableFuture<Boolean> isSegmentValid(final String scope,
+                                              final String stream,
+                                              final int segmentNumber);
 }

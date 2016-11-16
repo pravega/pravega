@@ -43,7 +43,9 @@ import com.emc.pravega.common.netty.WireCommands.TransactionCommitted;
 import com.emc.pravega.common.netty.WireCommands.TransactionCreated;
 import com.emc.pravega.common.netty.WireCommands.TransactionDropped;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
-import com.emc.pravega.controller.stream.api.v1.Status;
+import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
+import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.Segment;
@@ -66,7 +68,7 @@ public class MockController implements Controller {
     private final ConnectionFactory connectionFactory;
 
     @Override
-    public CompletableFuture<Status> createStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<CreateStreamStatus> createStream(StreamConfiguration streamConfig) {
         Segment segmentId = new Segment(streamConfig.getScope(), streamConfig.getName(), 0);
 
         createSegment(segmentId.getQualifiedName(), new PravegaNodeUri(endpoint, port));
@@ -76,11 +78,11 @@ public class MockController implements Controller {
             e.printStackTrace();
         }
 
-        return CompletableFuture.completedFuture(Status.SUCCESS);
+        return CompletableFuture.completedFuture(CreateStreamStatus.SUCCESS);
     }
 
     @Override
-    public CompletableFuture<Status> alterStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<UpdateStreamStatus> alterStream(StreamConfiguration streamConfig) {
         return null;
     }
 
@@ -109,7 +111,7 @@ public class MockController implements Controller {
             }
         };
         ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(uri, replyProcessor),
-                RuntimeException::new);
+                                                             RuntimeException::new);
         try {
             connection.send(new WireCommands.CreateSegment(name));
         } catch (ConnectionFailedException e) {
@@ -126,8 +128,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Status> commitTransaction(Stream stream, UUID txId) {
-        CompletableFuture<Status> result = new CompletableFuture<>();
+    public CompletableFuture<TransactionStatus> commitTransaction(Stream stream, UUID txId) {
+        CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -142,7 +144,7 @@ public class MockController implements Controller {
 
             @Override
             public void transactionCommitted(TransactionCommitted transactionCommitted) {
-                result.complete(Status.SUCCESS);
+                result.complete(TransactionStatus.SUCCESS);
             }
 
             @Override
@@ -150,14 +152,13 @@ public class MockController implements Controller {
                 result.completeExceptionally(new TxFailedException("Transaction already dropped."));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream
-                .getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
     @Override
-    public CompletableFuture<Status> dropTransaction(Stream stream, UUID txId) {
-        CompletableFuture<Status> result = new CompletableFuture<>();
+    public CompletableFuture<TransactionStatus> dropTransaction(Stream stream, UUID txId) {
+        CompletableFuture<TransactionStatus> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -177,11 +178,10 @@ public class MockController implements Controller {
 
             @Override
             public void transactionDropped(TransactionDropped transactionDropped) {
-                result.complete(Status.SUCCESS);
+                result.complete(TransactionStatus.SUCCESS);
             }
         };
-        sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream
-                .getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
@@ -211,15 +211,13 @@ public class MockController implements Controller {
                 result.complete(txId);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream
-                .getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
         return result;
     }
 
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream
-                .getScope(), stream.getStreamName())));
+        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(), stream.getStreamName())));
     }
 
     @Override
@@ -232,13 +230,18 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
     }
 
-    public PositionImpl getInitialPosition(String scope, String stream) {
-        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+    @Override
+    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
+        return CompletableFuture.completedFuture(true);
     }
 
+    private PositionImpl getInitialPosition(String scope, String stream) {
+        return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
+    }
+    
     private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
-                .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
+            .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
         try {
             connection.send(request);
         } catch (ConnectionFailedException e) {

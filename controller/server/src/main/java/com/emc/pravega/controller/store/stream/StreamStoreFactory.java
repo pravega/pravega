@@ -28,11 +28,12 @@ public class StreamStoreFactory {
         HDFS
     }
 
-    public static StreamMetadataStore createStore(StoreType type, StoreConfiguration config) {
+    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
         switch (type) {
             case InMemory:
-                return new InMemoryStreamStore();
+                return new InMemoryStreamMetadataStore();
             case Zookeeper:
+                return new ZKStreamMetadataStore(config);
             case ECS:
             case S3:
             case HDFS:
