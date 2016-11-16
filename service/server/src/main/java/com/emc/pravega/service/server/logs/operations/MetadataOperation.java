@@ -24,8 +24,7 @@ import java.io.DataInputStream;
 
 /**
  * Log Operation that deals with Metadata Operations. This is generally an internal-only operation and is not
- * necessarily
- * the direct outcome of an external call.
+ * necessarily the direct outcome of an external call.
  */
 public abstract class MetadataOperation extends Operation {
     //region Constructor

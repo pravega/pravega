@@ -196,8 +196,7 @@ class TestState {
 
     /**
      * Gets the name of an arbitrary Segment (non-transaction) that is registered. Note that calling this method with
-     * the
-     * same value for the argument may not necessarily produce the same result if done repeatedly.
+     * the same value for the argument may not necessarily produce the same result if done repeatedly.
      *
      * @param hint A hint to use to get the Segment name.
      */

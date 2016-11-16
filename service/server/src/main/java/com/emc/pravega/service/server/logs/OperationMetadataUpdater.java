@@ -200,9 +200,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * transactions) is serialized to it.
      * <p/>
      * For all other kinds of MetadataOperations (i.e., StreamSegmentMapOperation, TransactionMapOperation) this
-     * method only
-     * does anything if the base Container Metadata is in Recovery Mode (in which case the given MetadataOperation) is
-     * recorded in the pending transaction.
+     * method only does anything if the base Container Metadata is in Recovery Mode (in which case the given
+     * MetadataOperation) is recorded in the pending transaction.
      *
      * @param operation The operation to pre-process.
      * @throws MetadataUpdateException         If the given operation was rejected given the current state of the
@@ -225,8 +224,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * Phase 2/2 of processing an Operation. The Operation's effects are reflected in the pending transaction.
      * <p/>
      * This method only has an effect on StorageOperations. It does nothing for MetadataOperations, regardless of
-     * whether
-     * the base Container Metadata is in Recovery Mode or not.
+     * whether the base Container Metadata is in Recovery Mode or not.
      *
      * @param operation The operation to accept.
      * @throws MetadataUpdateException If the given operation was rejected given the current state of the metadata.

@@ -22,8 +22,7 @@ import com.typesafe.config.ConfigFactory;
 /**
  * This is a utility used to read configuration. It can be configured to read custom configuration
  * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=< Resource Name>. By
- * default
- * it reads application.conf if no system property is set. Reference: {@link ConfigFactory#defaultApplication()}
+ * default it reads application.conf if no system property is set. Reference: {@link ConfigFactory#defaultApplication()}
  */
 public final class Config {
     private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication();

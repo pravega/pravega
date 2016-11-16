@@ -456,8 +456,7 @@ public class ContainerReadIndexTests {
      * * If an entry is pushed out because of cache space pressure.
      * <p>
      * This also verifies that certain entries, such as RedirectReadIndexEntries and entries after the Storage Offset
-     * are
-     * not removed.
+     * are not removed.
      * <p>
      * The way this test goes is as follows (it's pretty subtle, because there aren't many ways to hook into the
      * ReadIndex and see what it's doing)
@@ -468,7 +467,7 @@ public class ContainerReadIndexTests {
      * 3. It loads all the data from Storage into the ReadIndex, in entries of size equal to those already loaded in
      * step #2.
      * 3a. At this point, all the entries added in step #2 have Generations 0..A/4-1, and step #3 have generations
-     * A/4..A-1
+     * A/4..A-1.
      * 4. Append more data at the end. This forces the generation to increase to 1.25A.
      * 4a. Nothing should be evicted from the cache now, since the earliest items are all post-storage.
      * 5. We 'touch' (read) the first 1/3 of pre-storage entries (offsets 0..N/4).

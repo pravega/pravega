@@ -81,8 +81,7 @@ public interface ReadOnlyStorage {
      * @param streamSegmentName The name of the StreamSegment.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the information requested. If the operation
-     * failed,
-     * it will contain the cause of the failure.
+     * failed, it will contain the cause of the failure.
      */
     CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout);
 }

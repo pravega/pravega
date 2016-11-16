@@ -216,8 +216,7 @@ public class StorageWriterTests {
 
     /**
      * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e.,
-     * badOffset,
-     * and after reconciliation, the data is still corrupt).
+     * badOffset, and after reconciliation, the data is still corrupt).
      */
     @Test
     public void testWithStorageCorruptionErrors() throws Exception {
@@ -272,8 +271,7 @@ public class StorageWriterTests {
 
     /**
      * Tests the StorageWriter in a Scenario where the Storage component throws data corruption exceptions (i.e.,
-     * badOffset),
-     * but after reconciliation, the data is not corrupt.
+     * badOffset), but after reconciliation, the data is not corrupt.
      */
     @Test
     public void testWithStorageRecoverableCorruptionErrors() throws Exception {

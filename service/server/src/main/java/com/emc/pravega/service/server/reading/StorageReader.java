@@ -101,13 +101,10 @@ class StorageReader implements AutoCloseable {
 
     /**
      * Queues the given request. The Request will be checked against existing pending Requests. If necessary, this
-     * request
-     * will be adjusted to take advantage of an existing request (i.e., if it overlaps with an existing request, no
-     * actual
-     * Storage read will happen for this one, yet the result of the previous one will be used instead). The callbacks
-     * passed
-     * to the request will be invoked with either the result of the read or with the exception that caused the read
-     * to fail.
+     * request will be adjusted to take advantage of an existing request (i.e., if it overlaps with an existing request,
+     * no actual Storage read will happen for this one, yet the result of the previous one will be used instead).
+     * The callbacks passed to the request will be invoked with either the result of the read or with the exception
+     * that caused the read to fail.
      *
      * @param request The request to queue.
      */

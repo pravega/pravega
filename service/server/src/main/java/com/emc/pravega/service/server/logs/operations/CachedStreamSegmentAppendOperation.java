@@ -28,10 +28,8 @@ import java.io.IOException;
 
 /**
  * Log Operation that represents a StreamSegment Append. As opposed from StreamSegmentAppendOperation, this operation
- * cannot
- * be serialized to a DurableLog. Its purpose is to be added to the In-Memory Transaction Log, where it binds a
- * StreamSegmentAppendOperation
- * to its corresponding Cache entry.
+ * cannot be serialized to a DurableLog. Its purpose is to be added to the In-Memory Transaction Log, where it binds a
+ * StreamSegmentAppendOperation to its corresponding Cache entry.
  */
 public class CachedStreamSegmentAppendOperation extends StorageOperation {
     //region Members
@@ -46,9 +44,8 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
     /**
      * Creates a new instance of the CachedStreamSegmentAppendOperation based on the given StreamSegmentAppendOperation.
      * The created operation will have the same SequenceNumber, StreamSegmentId, Offset and Length as the base
-     * operation,
-     * but it will not directly store the data (the contents of the Append is stored in the Cache, and will have to be
-     * retrieved using properties of this object).
+     * operation, but it will not directly store the data (the contents of the Append is stored in the Cache, and will
+     * have to be retrieved using properties of this object).
      *
      * @param baseOperation The StreamSegmentAppendOperation to use.
      */

@@ -199,8 +199,8 @@ class LogTestHelpers {
 
     /**
      * Given a list of LogOperations, calculates the final lengths of the StreamSegments that are encountered, by
-     * inspecting
-     * every StreamSegmentAppendOperation and MergeTransactionOperation. All other types of Log Operations are ignored.
+     * inspecting every StreamSegmentAppendOperation and MergeTransactionOperation. All other types of Log Operations
+     * are ignored.
      */
     static AbstractMap<Long, Integer> getExpectedLengths(Collection<OperationWithCompletion> operations) {
         HashMap<Long, Integer> result = new HashMap<>();
@@ -231,8 +231,7 @@ class LogTestHelpers {
 
     /**
      * Given a list of Log Operations, generates an InputStream for each encountered StreamSegment that contains the
-     * final
-     * contents of that StreamSegment. Only considers operations of type StreamSegmentAppendOperation and
+     * final contents of that StreamSegment. Only considers operations of type StreamSegmentAppendOperation and
      * MergeTransactionOperation.
      */
     static AbstractMap<Long, InputStream> getExpectedContents(Collection<OperationWithCompletion> operations) {

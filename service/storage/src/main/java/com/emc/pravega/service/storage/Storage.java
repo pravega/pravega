@@ -77,8 +77,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
 
     /**
      * Concatenates two StreamSegments together. The Source StreamSegment will be appended as one atomic block at the
-     * end
-     * of the Target StreamSegment (but only if its length equals the given offset), after which the Source
+     * end of the Target StreamSegment (but only if its length equals the given offset), after which the Source
      * StreamSegment
      * will cease to exist. Prior to this operation, the Source StreamSegment must be sealed.
      *

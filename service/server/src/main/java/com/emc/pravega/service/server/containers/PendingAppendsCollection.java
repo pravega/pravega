@@ -100,8 +100,7 @@ class PendingAppendsCollection implements AutoCloseable {
      * @param clientId        The Id of the Client to inquire for.
      * @return A CompletableFuture that, when completed, will contain the requested AppendContext. If the append failed,
      * the Future will contain the cause of the failure. If no pending appends exist for the given combination of
-     * arguments,
-     * this method returns null.
+     * arguments, this method returns null.
      */
     public CompletableFuture<AppendContext> get(long streamSegmentId, UUID clientId) {
         Exceptions.checkNotClosed(this.closed, this);

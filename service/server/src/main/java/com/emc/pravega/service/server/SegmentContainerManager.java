@@ -33,8 +33,7 @@ public interface SegmentContainerManager extends AutoCloseable {
      *
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, indicates that this operation completed. If the operation
-     * failed,
-     * the Future will contain the Exception that caused the failure.
+     * failed, the Future will contain the Exception that caused the failure.
      */
     CompletableFuture<Void> initialize(Duration timeout);
 

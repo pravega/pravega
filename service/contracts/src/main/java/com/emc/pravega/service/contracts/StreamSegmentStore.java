@@ -46,9 +46,8 @@ public interface StreamSegmentStore {
 
     /**
      * Appends a range of bytes at the end of a StreamSegment, but only if the current length of the StreamSegment
-     * equals
-     * a certain value. The byte range will be appended as a contiguous block. This method guarantees ordering (among
-     * subsequent calls).
+     * equals a certain value. The byte range will be appended as a contiguous block. This method guarantees ordering
+     * (among subsequent calls).
      *
      * @param streamSegmentName The name of the StreamSegment to add to.
      * @param offset            The offset at which to append. If the current length of the StreamSegment does not equal
@@ -68,8 +67,7 @@ public interface StreamSegmentStore {
 
     /**
      * Initiates a Read operation on a particular StreamSegment and returns a ReadResult which can be used to consume
-     * the
-     * read data.
+     * the read data.
      *
      * @param streamSegmentName The name of the StreamSegment to read from.
      * @param offset            The offset within the stream to start reading at.
@@ -99,8 +97,7 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to create.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the
-     * operation
-     * failed, the future will be failed with the causing exception.
+     * operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> createStreamSegment(String streamSegmentName, Duration timeout);
@@ -148,8 +145,7 @@ public interface StreamSegmentStore {
      * @param streamSegmentName The name of the StreamSegment to delete.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the
-     * operation
-     * failed, the future will be failed with the causing exception.
+     * operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
@@ -165,11 +161,9 @@ public interface StreamSegmentStore {
      * @param clientId          A UUID representing the Client Id to inquire about.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the requested information. If any
-     * exception
-     * occurred during processing, or if the last append in flight failed to process, the future will be failed with the
-     * causing exception.. The future will also fail with a StreamSegmentNotExistsException if the given
-     * StreamSegmentName
-     * does not exist.
+     * exception occurred during processing, or if the last append in flight failed to process, the future will be
+     * failed with the causing exception.. The future will also fail with a StreamSegmentNotExistsException if the given
+     * StreamSegmentName does not exist.
      */
     CompletableFuture<AppendContext> getLastAppendContext(String streamSegmentName, UUID clientId, Duration timeout);
 }

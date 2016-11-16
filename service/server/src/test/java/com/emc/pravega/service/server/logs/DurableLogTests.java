@@ -91,8 +91,7 @@ import java.util.function.Supplier;
  * Note: Some of the tests within this class are very similar to those of OperationProcessorTests. This is because the
  * DurableLog makes heavy use of that class and has the same semantics for the add/append methods. The main difference
  * is that the DurableLog sets up many of the components that the OperationProcessor requires, so we still need to do
- * all
- * these tests.
+ * all these tests.
  */
 public class DurableLogTests extends OperationLogTestBase {
     private static final int CONTAINER_ID = 1234567;

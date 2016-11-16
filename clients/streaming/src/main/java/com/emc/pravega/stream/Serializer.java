@@ -24,8 +24,7 @@ import java.nio.ByteBuffer;
  * these same byte buffers back into objects.
  * <p>
  * NOTE: There is no need for implementations to implement any sort of "framing"; the byte buffers passed back will
- * be of
- * the appropriate length.
+ * be of the appropriate length.
  *
  * @param <T> The type of event that this serializes.
  */

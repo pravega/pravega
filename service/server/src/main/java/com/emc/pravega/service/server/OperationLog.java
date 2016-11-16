@@ -34,8 +34,7 @@ public interface OperationLog extends Container {
      * @param operation The Operation to append.
      * @param timeout   Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the Sequence for the Operation. If the entry
-     * failed to
-     * be added, this Future will complete with the appropriate exception.
+     * failed to be added, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Long> add(Operation operation, Duration timeout);
 

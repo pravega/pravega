@@ -1212,10 +1212,8 @@ public class SegmentAggregatorTests {
 
     /**
      * Tests the ability of the SegmentAggregator to reconcile operations as they are added to it (it detected a
-     * possible
-     * data corruption, but it does not yet have all the operations it needs to reconcile - it needs to stay in
-     * reconciliation
-     * mode until all disagreements have been resolved).
+     * possible data corruption, but it does not yet have all the operations it needs to reconcile - it needs to stay in
+     * reconciliation mode until all disagreements have been resolved).
      */
     @Test
     public void testProgressiveReconcile() throws Exception {

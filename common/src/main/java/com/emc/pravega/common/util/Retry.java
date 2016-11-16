@@ -41,8 +41,7 @@ import com.google.common.base.Preconditions;
  * <p>
  * Note that the class is not a builder object, so the methods in the chain must be invoked in
  * order. The intermediate objects in the chain are reusable and threadsafe, so they can be shared
- * between
- * invocations.
+ * between invocations.
  * <p>
  * In the event that the exception passed to retryingOn() and throwingOn() are related. IE: In the
  * above example if FooException were to extend RuntimeException. Then the more specific exception

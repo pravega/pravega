@@ -195,8 +195,7 @@ public class StreamSegmentMapper {
      * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the
-     * operation
-     * failed, this will contain the exception that caused the failure.
+     * operation failed, this will contain the exception that caused the failure.
      */
     public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
         // Check to see if the metadata already knows about this stream.
@@ -244,8 +243,7 @@ public class StreamSegmentMapper {
      * @param parentSegmentName      The Name of the Parent StreamSegment.
      * @param timeout                The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the
-     * operation
-     * failed, this will contain the exception that caused the failure.
+     * operation failed, this will contain the exception that caused the failure.
      */
     private CompletableFuture<Long> assignTransactionStreamSegmentId(String transactionSegmentName, String
             parentSegmentName, Duration timeout) {
@@ -271,8 +269,7 @@ public class StreamSegmentMapper {
      * @param parentStreamSegmentId The ID of the Parent StreamSegment.
      * @param timeout               The timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the
-     * operation
-     * failed, this will contain the exception that caused the failure.
+     * operation failed, this will contain the exception that caused the failure.
      */
     private CompletableFuture<Long> assignTransactionStreamSegmentId(SegmentProperties transInfo, long
             parentStreamSegmentId, Duration timeout) {

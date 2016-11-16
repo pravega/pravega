@@ -137,8 +137,7 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Attaches the given DurableDataLogFactory creator to this ServiceBuilder. The given Function will only not be
-     * invoked
-     * right away; it will be called when needed.
+     * invoked right away; it will be called when needed.
      *
      * @param dataLogFactoryCreator The Function to attach.
      * @return This ServiceBuilder.
@@ -178,8 +177,7 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Attaches the given SegmentContainerManager creator to this ServiceBuilder. The given Function will only not be
-     * invoked
-     * right away; it will be called when needed.
+     * invoked right away; it will be called when needed.
      *
      * @param segmentContainerManagerCreator The Function to attach.
      * @return This ServiceBuilder.
@@ -317,8 +315,7 @@ public final class ServiceBuilder implements AutoCloseable {
 
     /**
      * Creates a new instance of the ServiceBuilder class which is contained in memory. Any data added to this
-     * service will
-     * be loss when the object is garbage collected or the process terminates.
+     * service will be loss when the object is garbage collected or the process terminates.
      *
      * @param config The ServiceBuilderConfig to use.
      */

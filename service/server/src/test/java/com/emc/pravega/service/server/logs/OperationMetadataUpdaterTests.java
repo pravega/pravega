@@ -662,8 +662,7 @@ public class OperationMetadataUpdaterTests {
 
     /**
      * Tests the processMetadataOperation method with MetadataCheckpoint operations, when such checkpoints are
-     * skipped over
-     * because they are after other operations.
+     * skipped over because they are after other operations.
      */
     @Test
     public void testProcessMetadataCheckpointIgnored() throws Exception {

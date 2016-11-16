@@ -571,8 +571,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * </ul>
      * <p>
      * Note that various other data integrity checks are done pre and post merger as part of this operation which are
-     * meant
-     * to ensure the StreamSegment is not in a corrupted state.
+     * meant to ensure the StreamSegment is not in a corrupted state.
      *
      * @param flushResult The flush result from the previous chained operation.
      * @param timer       Timer for the operation.
@@ -738,11 +737,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
     /**
      * Initiates the Storage reconciliation procedure. Gets the current state of the Segment from Storage, and based
-     * on that,
-     * does one of the following:
+     * on that, does one of the following:
      * * Nothing, if the Storage agrees with the Metadata.
      * * Throws a show-stopping DataCorruptionException (wrapped in a CompletionException) if the situation is
-     * unrecoverable.
+     *     unrecoverable.
      * * Initiates the Reconciliation Procedure, which allows the reconcile() method to execute.
      *
      * @param timer Timer for the operation.

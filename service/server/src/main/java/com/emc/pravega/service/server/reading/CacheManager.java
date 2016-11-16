@@ -38,14 +38,13 @@ import java.util.concurrent.TimeUnit;
  * removal.
  * <p/>
  * Entry Management is indirect, and doesn't deal with them directly. Also, the management needs to be done across
- * multiple
- * CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to evict
- * unused entries.
+ * multiple CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to
+ * evict unused entries.
  * <p/>
  * The CacheManager holds two reference numbers: the current generation and the oldest generation. Every new Cache Entry
  * (in the clients) that is generated or updated gets assigned the current generation. As the CacheManager determines
- * that
- * there are too many Cache Entries or that the maximum size has been exceeded, it will increment the oldest generation.
+ * that there are too many Cache Entries or that the maximum size has been exceeded, it will increment the oldest
+ * generation.
  * The CacheManager Clients can use this information to evict those Cache Entries that have a generation below the
  * oldest generation number.
  */

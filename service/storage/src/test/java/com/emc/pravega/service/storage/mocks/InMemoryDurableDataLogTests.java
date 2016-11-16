@@ -153,8 +153,7 @@ public class InMemoryDurableDataLogTests {
 
     /**
      * Tests the ability of InMemoryDurableDataLog to simulate an exclusive writer, by only allowing one client at a
-     * time
-     * to write to an "EntryCollection".
+     * time to write to an "EntryCollection".
      */
     @Test
     public void testExclusiveWriteLock() throws Exception {

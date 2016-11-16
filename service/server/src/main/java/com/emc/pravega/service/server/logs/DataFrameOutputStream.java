@@ -204,10 +204,8 @@ class DataFrameOutputStream extends OutputStream {
 
     /**
      * Indicates to the stream that the currently open record is discarded. If the record spans multiple frames (and
-     * thus
-     * has multiple DataFrame Entries), the already committed entries will not be discarded. Instead, the
-     * DataFrameReader
-     * will detect that such a record was discarded and skip over it upon reading.
+     * thus has multiple DataFrame Entries), the already committed entries will not be discarded. Instead, the
+     * DataFrameReader will detect that such a record was discarded and skip over it upon reading.
      */
     public void discardRecord() {
         Exceptions.checkNotClosed(this.closed, this);

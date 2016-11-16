@@ -68,8 +68,7 @@ public final class StreamSegmentNameUtils {
 
     /**
      * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method
-     * returns a
-     * valid value only if the Transaction StreamSegmentName was generated using the
+     * returns a valid value only if the Transaction StreamSegmentName was generated using the
      * generateTransactionStreamSegmentName method.
      *
      * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.

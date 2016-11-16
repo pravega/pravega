@@ -152,10 +152,8 @@ class StreamSegmentReadResult implements ReadResult {
      * <li> Calls to next() will block until the ReadResultEntry.getContent() for the previous call to next() has
      * been completed (normally or exceptionally).
      * <li> Due to a result from next() only being considered "consumed" after its getContent() is completed, it is
-     * possible
-     * that hasNext() will report true, but a subsequent call to next() will return null - that's because next() will
-     * wait
-     * for the previous entry to complete and then do more processing.
+     * possible that hasNext() will report true, but a subsequent call to next() will return null - that's because
+     * next() will wait for the previous entry to complete and then do more processing.
      * </ul>
      *
      * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished processing.

@@ -56,9 +56,8 @@ public class StreamSegmentNameUtilsTests {
 
     /**
      * Tests recursive batch generation. This is not a direct requirement or in any way represents how the service
-     * works,
-     * but it is good to test the principles of batch generation (i.e., only look at the last part of a segment name and
-     * ignore the first part).
+     * works, but it is good to test the principles of batch generation (i.e., only look at the last part of a
+     * segment name and ignore the first part).
      */
     @Test
     public void testRecursiveBatchNameGeneration() {

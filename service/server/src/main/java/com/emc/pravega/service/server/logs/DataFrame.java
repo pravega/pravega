@@ -32,9 +32,7 @@ import static com.emc.pravega.common.util.BitConverter.writeInt;
 
 /**
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a
- * record
- * across multiple frames.
- */
+ * record across multiple frames. */
 public class DataFrame {
     //region Members
 
@@ -266,8 +264,7 @@ public class DataFrame {
      *
      * @param data The ByteArraySegment to append.
      * @return The number of bytes written. If less than the length of the ByteArraySegment, the frame is full and
-     * cannot
-     * write anything anymore. The remaining bytes will need to be written to a new frame.
+     * cannot write anything anymore. The remaining bytes will need to be written to a new frame.
      * @throws IllegalStateException If the frame is sealed or no entry has been started.
      */
     int append(ByteArraySegment data) {

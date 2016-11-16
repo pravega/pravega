@@ -42,8 +42,7 @@ interface WriterDataSource {
      * @param upToSequence The Sequence up to where to acknowledge.
      * @param timeout      The timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the acknowledgment completed. If the
-     * operation
-     * failed, this Future will complete with the appropriate exception.
+     * operation failed, this Future will complete with the appropriate exception.
      */
     CompletableFuture<Void> acknowledge(long upToSequence, Duration timeout);
 

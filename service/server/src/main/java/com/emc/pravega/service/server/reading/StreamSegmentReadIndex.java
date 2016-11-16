@@ -52,8 +52,7 @@ import java.util.function.Consumer;
  * <li> The part of the StreamSegment that is in Storage, but not in DurableLog. This data will be brought into memory
  * for fast read-ahead access.
  * <li> Future appends. If a read operation requests data from an offset in the future, the read operation will block
- * until
- * data becomes available or until it gets canceled.
+ * until data becomes available or until it gets canceled.
  * </ol>
  */
 @Slf4j

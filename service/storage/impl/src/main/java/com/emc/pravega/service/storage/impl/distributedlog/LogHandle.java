@@ -298,8 +298,7 @@ class LogHandle implements AutoCloseable {
      * @param upToAddress The DLSNAddress to truncate to.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the outcome of the operation. If the operation
-     * failed,
-     * the Future will be completed with the appropriate exception.
+     * failed, the Future will be completed with the appropriate exception.
      */
     CompletableFuture<Boolean> truncate(DLSNAddress upToAddress, java.time.Duration timeout) {
         ensureNotClosed();

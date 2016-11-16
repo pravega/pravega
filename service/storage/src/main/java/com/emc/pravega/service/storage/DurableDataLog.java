@@ -58,8 +58,7 @@ public interface DurableDataLog extends AutoCloseable {
      *                of bytes to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If
-     * the entry
-     * failed to be added, this Future will complete with the appropriate exception.
+     * the entry failed to be added, this Future will complete with the appropriate exception.
      */
     CompletableFuture<LogAddress> append(InputStream data, Duration timeout);
 
