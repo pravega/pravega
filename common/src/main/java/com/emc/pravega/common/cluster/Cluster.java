@@ -30,17 +30,15 @@ public interface Cluster extends AutoCloseable {
      * Register a Host to a cluster.
      *
      * @param host - Host to be part of cluster.
-     * @throws Exception - Error while registering Host.
      */
-    public void registerHost(final Host host) throws Exception;
+    public void registerHost(final Host host);
 
     /**
      * De-register a Host from a cluster.
      *
      * @param host - Host to be removed from cluster.
-     * @throws Exception - Error while de-registering Host.
      */
-    public void deregisterHost(final Host host) throws Exception;
+    public void deregisterHost(final Host host);
 
     /**
      * Add Listeners.

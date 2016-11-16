@@ -82,11 +82,10 @@ public class ClusterZKImpl implements Cluster {
      * Register Host to cluster.
      *
      * @param host - Host to be part of cluster.
-     * @throws Exception - Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
-    public void registerHost(Host host) throws Exception {
+    public void registerHost(Host host) {
         Preconditions.checkNotNull(host, "host");
         Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
@@ -101,11 +100,10 @@ public class ClusterZKImpl implements Cluster {
      * Remove Host from cluster.
      *
      * @param host - Host to be removed from cluster.
-     * @throws Exception - Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
-    public void deregisterHost(Host host) throws Exception {
+    public void deregisterHost(Host host) {
         Preconditions.checkNotNull(host, "host");
         PersistentNode node = entryMap.get(host);
         Exceptions.checkArgument(node != null, "host", "host is not present in cluster.");
