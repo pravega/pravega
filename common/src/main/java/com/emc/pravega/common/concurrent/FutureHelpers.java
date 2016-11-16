@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -326,14 +327,26 @@ public final class FutureHelpers {
     public static <T> CompletableFuture<T> runAsyncTranslateException(Callable<T> function,
                                                                       Function<Exception, Exception> exceptionTranslator,
                                                                       Executor executor) {
-        CompletableFuture<T> retVal = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
+        return CompletableFuture.supplyAsync(() -> {
             try {
-                retVal.complete(function.call());
+                return function.call();
             } catch (Exception e) {
-                retVal.completeExceptionally(exceptionTranslator.apply(e));
+                throw new CompletionException(exceptionTranslator.apply(e));
             }
         }, executor);
-        return retVal;
+    }
+
+    /**
+     * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given future
+     * fails, the returned future will fail with the same exception.
+     *
+     * @param future The CompletableFuture to attach to.
+     * @param <T>    The type of the input's future result.
+     * @return A CompletableFuture that will complete when the given future completes. If the given future fails, so will
+     * this future.
+     */
+    public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
+        return future.thenAccept(r -> {
+        });
     }
 }
