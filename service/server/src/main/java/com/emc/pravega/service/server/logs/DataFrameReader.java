@@ -233,8 +233,8 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
         /**
          * Gets a value indicating the Address of the Last Data Frame containing the LogItem. If the LogItem fits on
-         * exactly one DataFrame, this will return the Address for that Data Frame; if it spans multiple data frames, only
-         * the last data frame Address is returned.
+         * exactly one DataFrame, this will return the Address for that Data Frame; if it spans multiple data frames,
+         * only the last data frame Address is returned.
          */
         LogAddress getLastUsedDataFrameAddress() {
             return this.lastUsedDataFrameAddress;
