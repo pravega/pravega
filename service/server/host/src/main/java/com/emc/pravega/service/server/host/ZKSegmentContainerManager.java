@@ -65,11 +65,11 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
 
-    @GuardedBy("itself")
+    @GuardedBy("handles")
     private final HashMap<Integer, ContainerHandle> handles;
     private final Host host;
 
-    private AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
@@ -162,7 +162,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private void unregisterHandle(int containerId) {
         synchronized (this.handles) {
-            assert this.handles.containsKey(containerId) : "found unregistered handle " + containerId;
+            Preconditions.checkState(handles.containsKey(containerId), "found unregistered handle %s", containerId);
             this.handles.remove(containerId);
         }
         log.info("Container {} has been unregistered.", containerId);
@@ -171,8 +171,8 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private void registerHandle(ContainerHandle handle) {
         Preconditions.checkNotNull(handle, "handle");
         synchronized (this.handles) {
-            assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle
-                    .getContainerId();
+            Preconditions.checkState(!this.handles.containsKey(handle.getContainerId()),
+                    "handle is already registered %s", handle);
             this.handles.put(handle.getContainerId(), handle);
 
             handle.setContainerStoppedListener(id -> {

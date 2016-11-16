@@ -25,7 +25,6 @@ import com.emc.pravega.common.cluster.Cluster;
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
-import com.emc.pravega.service.server.SegmentContainerManager;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
@@ -77,7 +76,8 @@ public final class ServiceStarter {
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new)
+                .getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }
@@ -124,7 +124,8 @@ public final class ServiceStarter {
         return builder.withDataLogFactory(setup -> {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
-                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console", dlConfig);
+                DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console",
+                        dlConfig);
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {
@@ -138,31 +139,25 @@ public final class ServiceStarter {
      */
     static ServiceBuilder attachZKSegmentManager(ServiceBuilder builder) {
         return builder.withContainerManager(setup -> {
-            try {
-                ServiceConfig config = setup.getConfig(ServiceConfig::new);
-                CuratorFramework zkClient = createZKClient(config);
-                joinCluster(config, zkClient);
-                return (SegmentContainerManager) new ZKSegmentContainerManager(setup.getContainerRegistry(), setup.getSegmentToContainerMapper(),
-                        zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()), config.getClusterName());
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
+            ServiceConfig config = setup.getConfig(ServiceConfig::new);
+            CuratorFramework zkClient = createZKClient(config);
+            joinCluster(config, zkClient);
+            return new ZKSegmentContainerManager(setup.getContainerRegistry(), setup
+                    .getSegmentToContainerMapper(),
+                    zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()), config
+                    .getClusterName());
         });
     }
 
     private static CuratorFramework createZKClient(ServiceConfig config) {
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(config.getZkHostName() + ":" + config.getZkPort(), new ExponentialBackoffRetry(
-                config.getZkRetrySleepMs(), config.getZkRetryCount()));
+        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(config.getZkHostName() + ":" + config.getZkPort(),
+                new ExponentialBackoffRetry(config.getZkRetrySleepMs(), config.getZkRetryCount()));
         zkClient.start();
         return zkClient;
     }
 
     private static void joinCluster(ServiceConfig config, CuratorFramework zkClient) {
-        try {
-            Cluster cluster = new ClusterZKImpl(zkClient, config.getClusterName());
-            cluster.registerHost(new Host(config.getListeningIPAddress(), config.getListeningPort()));
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+        Cluster cluster = new ClusterZKImpl(zkClient, config.getClusterName());
+        cluster.registerHost(new Host(config.getListeningIPAddress(), config.getListeningPort()));
     }
 }
