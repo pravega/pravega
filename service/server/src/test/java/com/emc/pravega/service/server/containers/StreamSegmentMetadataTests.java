@@ -98,28 +98,28 @@ public class StreamSegmentMetadataTests {
         // Verify we cannot copy from different StreamSegments.
         AssertExtensions.assertThrows(
                 "copyFrom allowed copying from a metadata with a different Segment Name",
-                () -> new StreamSegmentMetadata("foo", SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).
-                        copyFrom(baseMetadata),
+                () -> new StreamSegmentMetadata("foo", SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID)
+                        .copyFrom(baseMetadata),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "copyFrom allowed copying from a metadata with a different Segment Id",
-                () -> new StreamSegmentMetadata(SEGMENT_NAME, -SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).
-                        copyFrom(baseMetadata),
+                () -> new StreamSegmentMetadata(SEGMENT_NAME, -SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID)
+                        .copyFrom(baseMetadata),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "copyFrom allowed copying from a metadata with a different Parent Id",
-                () -> new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, -PARENT_SEGMENT_ID, CONTAINER_ID).
-                        copyFrom(baseMetadata),
+                () -> new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, -PARENT_SEGMENT_ID, CONTAINER_ID)
+                        .copyFrom(baseMetadata),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     private static void assertEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
         Assert.assertEquals(message + " StorageLength differs.", expected.getStorageLength(),
                 actual.getStorageLength());
-        Assert.assertEquals(message + " DurableLogLength differs.", expected.getDurableLogLength(), actual
-                .getDurableLogLength());
+        Assert.assertEquals(message + " DurableLogLength differs.", expected.getDurableLogLength(),
+                            actual.getDurableLogLength());
         Assert.assertEquals(message + " isDeleted differs.", expected.isDeleted(), actual.isDeleted());
         Assert.assertEquals(message + " isSealed differs.", expected.isSealed(), actual.isSealed());
         Assert.assertEquals(message + " isMerged differs.", expected.isMerged(), actual.isMerged());

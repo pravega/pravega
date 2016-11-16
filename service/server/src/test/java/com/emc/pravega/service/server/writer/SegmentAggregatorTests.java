@@ -216,8 +216,8 @@ public class SegmentAggregatorTests {
 
         // Create 2 more segments that can be used to verify MergeTransactionOperation.
         context.containerMetadata.mapStreamSegmentId(badParentName, badParentId);
-        UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata.
-                mapStreamSegmentId(badTransactionName, badTransactionId, badParentId);
+        UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata
+                .mapStreamSegmentId(badTransactionName, badTransactionId, badParentId);
 
         badTransactionMetadata.setDurableLogLength(0);
         badTransactionMetadata.setStorageLength(0);
@@ -278,8 +278,8 @@ public class SegmentAggregatorTests {
                 },
                 ex -> ex instanceof DataCorruptionException);
 
-        ((UpdateableSegmentMetadata) context.segmentAggregator.getMetadata()).
-                setDurableLogLength(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength() + 1);
+        ((UpdateableSegmentMetadata) context.segmentAggregator.getMetadata())
+                .setDurableLogLength(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength() + 1);
         AssertExtensions.assertThrows(
                 "add() allowed an operation beyond the DurableLogOffset (offset+length).",
                 () -> {
@@ -946,10 +946,10 @@ public class SegmentAggregatorTests {
         // Verify that all Transactions are now fully merged.
         for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
             SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
-            Assert.assertTrue("Merged Transaction was not marked as deleted in metadata.", transactionMetadata
-                    .isDeleted());
-            Assert.assertFalse("Merged Transaction still exists in storage.", context.storage.
-                    exists(transactionMetadata.getName(), TIMEOUT).join());
+            Assert.assertTrue("Merged Transaction was not marked as deleted in metadata.",
+                              transactionMetadata.isDeleted());
+            Assert.assertFalse("Merged Transaction still exists in storage.",
+                               context.storage.exists(transactionMetadata.getName(), TIMEOUT).join());
         }
 
         // Verify that in the end, the contents of the parents is as expected.
@@ -1491,10 +1491,11 @@ public class SegmentAggregatorTests {
     }
 
     private StorageOperation generateMergeTransactionAndUpdateMetadata(long transactionId, TestContext context) {
-        UpdateableSegmentMetadata transactionMetadata = context.containerMetadata.
-                getStreamSegmentMetadata(transactionId);
-        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.
-                getStreamSegmentMetadata(transactionMetadata.getParentId());
+        UpdateableSegmentMetadata transactionMetadata =
+                context.containerMetadata.getStreamSegmentMetadata(transactionId);
+
+        UpdateableSegmentMetadata parentMetadata =
+                context.containerMetadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
 
         MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata
                 .getId());
@@ -1508,13 +1509,13 @@ public class SegmentAggregatorTests {
     }
 
     private StorageOperation generateSimpleMergeTransaction(long transactionId, TestContext context) {
-        UpdateableSegmentMetadata transactionMetadata = context.containerMetadata.
-                getStreamSegmentMetadata(transactionId);
-        UpdateableSegmentMetadata parentMetadata = context.containerMetadata.
-                getStreamSegmentMetadata(transactionMetadata.getParentId());
+        UpdateableSegmentMetadata transactionMetadata = context.containerMetadata
+                .getStreamSegmentMetadata(transactionId);
+        UpdateableSegmentMetadata parentMetadata = context.containerMetadata
+                .getStreamSegmentMetadata(transactionMetadata.getParentId());
 
-        MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata
-                .getId());
+        MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(),
+                                                                     transactionMetadata.getId());
         op.setLength(transactionMetadata.getLength());
         op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
 
@@ -1578,8 +1579,8 @@ public class SegmentAggregatorTests {
             }
 
             if (context.segmentAggregator.mustFlush()) {
-                FlushResult parentFlushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get()).
-                        get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                FlushResult parentFlushResult = context.segmentAggregator.flush(TIMEOUT, context.executor.get())
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
                 anythingFlushed = anythingFlushed | (parentFlushResult.getFlushedBytes() + parentFlushResult
                         .getMergedBytes()) > 0;
@@ -1676,17 +1677,19 @@ public class SegmentAggregatorTests {
                     dataSourceConfig);
 
             this.transactionAggregators = new SegmentAggregator[TRANSACTION_COUNT];
-            UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata.
-                    mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
+            UpdateableSegmentMetadata segmentMetadata = initialize(this.containerMetadata
+                    .mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID));
 
             this.segmentAggregator = new SegmentAggregator(segmentMetadata, this.dataSource, this.storage, config,
                     this.stopwatch);
             for (int i = 0; i < TRANSACTION_COUNT; i++) {
                 String name = TRANSACTION_NAME_PREFIX + i;
-                UpdateableSegmentMetadata transactionMetadata = initialize(this.containerMetadata.
-                        mapStreamSegmentId(name, TRANSACTION_ID_START + i, SEGMENT_ID));
-                this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource, this
-                        .storage, config, this.stopwatch);
+                UpdateableSegmentMetadata transactionMetadata = initialize(
+                        this.containerMetadata.mapStreamSegmentId(name, TRANSACTION_ID_START + i, SEGMENT_ID)
+                                                                          );
+
+                this.transactionAggregators[i] = new SegmentAggregator(transactionMetadata, this.dataSource,
+                                                                       this.storage, config, this.stopwatch);
             }
         }
 

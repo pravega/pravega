@@ -58,8 +58,8 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
-        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).
-                thenReturn(contextFuture);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT))
+                .thenReturn(contextFuture);
         CompletableFuture<Long> result = new CompletableFuture<>();
         result.complete((long) data.length);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))
@@ -90,8 +90,8 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 100));
-        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).
-                thenReturn(contextFuture);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT))
+                .thenReturn(contextFuture);
 
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
         try {
@@ -187,8 +187,9 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
-        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).
-                thenReturn(contextFuture);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT))
+                .thenReturn(contextFuture);
+
         CompletableFuture<Long> result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException("Fake exception for testing"));
         when(store.append(streamSegmentName, data, new AppendContext(clientId, data.length), AppendProcessor.TIMEOUT))

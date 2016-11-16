@@ -198,8 +198,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public SegmentRead getResult(ReadFuture ongoingRead) {
         ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
-        return backoffSchedule.retryingOn(ExecutionException.class).throwingOn(RuntimeException.class).
-                run(() -> {
+        return backoffSchedule
+                .retryingOn(ExecutionException.class)
+                .throwingOn(RuntimeException.class)
+                .run(() -> {
             if (closed.get()) {
                 throw new ObjectClosedException(this);
             }

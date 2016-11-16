@@ -110,9 +110,10 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         ensureNotClosed();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0; containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
-            futures.add(this.registry.startContainer(containerId, timer.getRemaining()).
-                    thenAccept(this::registerHandle));
+        for (int containerId = 0;
+             containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
+            futures.add(this.registry.startContainer(containerId, timer.getRemaining())
+                                .thenAccept(this::registerHandle));
         }
 
         return FutureHelpers.allOf(futures)

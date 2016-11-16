@@ -234,8 +234,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 "been initialized.");
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
 
-        return this.storage.open(this.metadata.getName()).
-                thenCompose( bool -> this.storage.getStreamSegmentInfo(this.metadata.getName(), timeout))
+        return this.storage.open(this.metadata.getName())
+                .thenCompose( bool -> this.storage.getStreamSegmentInfo(this.metadata.getName(), timeout))
                 .thenAccept(segmentInfo -> {
                     // Check & Update StorageLength in metadata.
                     if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
@@ -615,8 +615,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // TODO: This only processes one merge at a time. If we had several, that would mean each is done in a
         // different iteration. Should we improve this?
         MergeTransactionOperation mergeTransactionOperation = (MergeTransactionOperation) first;
-        UpdateableSegmentMetadata transactionMetadata = this.dataSource.
-                getStreamSegmentMetadata(mergeTransactionOperation.getTransactionSegmentId());
+        UpdateableSegmentMetadata transactionMetadata = this.dataSource
+                .getStreamSegmentMetadata(mergeTransactionOperation.getTransactionSegmentId());
 
         return mergeWith(transactionMetadata, mergeTransactionOperation, timer)
                 .thenApply(mergeResult -> {

@@ -200,8 +200,8 @@ public abstract class StorageTestBase {
                 Assert.assertTrue("seal() is reentrant returns with isSealed == true", segmentInfo1.isSealed());
 
                 assertThrows("write() did not throw for a sealed StreamSegment.",
-                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).
-                                join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
+                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT)
+                                .join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
