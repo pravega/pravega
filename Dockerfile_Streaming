@@ -8,5 +8,8 @@ WORKDIR /opt
 
 RUN tar -xf /opt/host.tar
 
+RUN rm /opt/host.tar
+RUN rm /opt/host.zip
+
 ENTRYPOINT [ "/opt/host/bin/host" ]
 
