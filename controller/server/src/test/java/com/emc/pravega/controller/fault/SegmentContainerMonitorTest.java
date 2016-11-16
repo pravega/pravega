@@ -90,19 +90,19 @@ public class SegmentContainerMonitorTest {
         class MockHostControllerStore implements HostControllerStore {
 
             @Override
-            public Map<Host, Set<Integer>> getHostContainersMap() throws Exception {
+            public Map<Host, Set<Integer>> getHostContainersMap() {
                 return hostStore.getHostContainersMap();
             }
 
             @Override
-            public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception {
+            public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
                 hostStore.updateHostContainersMap(newMapping);
                 //Notify the test case of the update.
                 sync.release();
             }
 
             @Override
-            public Host getHostForContainer(int containerId) throws Exception {
+            public Host getHostForContainer(int containerId) {
                 return hostStore.getHostForContainer(containerId);
             }
 

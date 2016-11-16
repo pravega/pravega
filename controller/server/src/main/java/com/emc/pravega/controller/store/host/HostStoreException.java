@@ -18,7 +18,12 @@
 package com.emc.pravega.controller.store.host;
 
 public class HostStoreException extends RuntimeException {
+
     public HostStoreException(String message) {
         super(message);
+    }
+
+    public HostStoreException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

@@ -29,10 +29,12 @@ public interface ContainerBalancer {
     /**
      * Compute the new owners of the segment containers based on hosts alive in the cluster.
      *
-     * @param previousMapping   Existing host to container mapping. If non-empty its assumed to be balanced for the
-     *                          older host set.
-     * @param currentHosts      The updated list of hosts in the cluster.
-     * @return                  The new host to containers mapping after performing a rebalance operation.
+     * @param previousMapping       Existing host to container mapping. If non-empty its assumed to be balanced for the
+     *                              older host set.
+     * @param currentHosts          The updated list of hosts in the cluster.
+     * @return                      The new host to containers mapping after performing a rebalance operation.
+     * @throws NullPointerException If previousMapping is null.
+     * @throws NullPointerException If currentHosts is null.
      */
     Map<Host, Set<Integer>> rebalance(Map<Host, Set<Integer>> previousMapping, Set<Host> currentHosts);
 

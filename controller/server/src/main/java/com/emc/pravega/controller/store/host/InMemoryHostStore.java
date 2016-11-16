@@ -20,16 +20,27 @@ package com.emc.pravega.controller.store.host;
 import com.emc.pravega.common.cluster.Host;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+@Slf4j
 public class InMemoryHostStore implements HostControllerStore {
     private Map<Host, Set<Integer>> hostContainerMap;
 
+    /**
+     * Creates an in memory based host store. The data is not persisted across restarts. Useful for dev and single node
+     * deployment purposes.
+     *
+     * @param hostContainerMap      The initial Host to container ownership information.
+     * @throws NullPointerException If hostContainerMap is null.
+     */
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
+        Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
+
         this.hostContainerMap = hostContainerMap;
     }
 
@@ -50,12 +61,13 @@ public class InMemoryHostStore implements HostControllerStore {
     @Override
     @Synchronized
     public Host getHostForContainer(int containerId) {
-        Optional<Host> hosts = hostContainerMap.entrySet().stream()
+        Optional<Host> host = hostContainerMap.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
-        if (hosts.isPresent()) {
-            return hosts.get();
+        if (host.isPresent()) {
+            log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
+            return host.get();
         } else {
-            throw new ContainerNotFoundException(containerId);
+            throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
 

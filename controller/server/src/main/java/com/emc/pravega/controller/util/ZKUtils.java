@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.controller.util;
 
+import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -53,40 +54,52 @@ public class ZKUtils {
     /**
      * Creates the znode if is doesn't already exist in zookeeper.
      *
-     * @param client    The curator client to access zookeeper.
-     * @param basePath  The znode path string.
+     * @param client                The curator client to access zookeeper.
+     * @param basePath              The znode path string.
+     * @throws NullPointerException If client is null.
+     * @throws NullPointerException If basePath is null.
+     * @throws RuntimeException     If checking or creating path on zookeeper fails.
      */
     public static void createPathIfNotExists(final CuratorFramework client, final String basePath) {
+        Preconditions.checkNotNull(client, "client");
+        Preconditions.checkNotNull(basePath, "basePath");
+
         try {
             if (client.checkExists().forPath(basePath) == null) {
                 client.create().creatingParentsIfNeeded().forPath(basePath);
             }
         } catch (KeeperException.NodeExistsException e) {
-            log.debug("Path exists {}, ignoring exception", basePath, e);
+            log.debug("Path exists {}, ignoring exception", basePath);
         } catch (Exception e) {
-            log.error("Exception while creating path {}", basePath, e);
-            throw new RuntimeException("Exception while creating znode", e);
+            throw new RuntimeException("Exception while creating znode: " + basePath, e);
         }
     }
 
     /**
      * Creates the znode if is doesn't already exist in zookeeper.
      *
-     * @param client    The curator client to access zookeeper.
-     * @param basePath  The znode path string.
-     * @param initData  Initialize the znode using the supplied data if not already created.
+     * @param client                The curator client to access zookeeper.
+     * @param basePath              The znode path string.
+     * @param initData              Initialize the znode using the supplied data if not already created.
+     * @throws NullPointerException If client is null.
+     * @throws NullPointerException If basePath is null.
+     * @throws NullPointerException If initData is null.
+     * @throws RuntimeException     If checking or creating path on zookeeper fails.
      */
     public static void createPathIfNotExists(final CuratorFramework client, final String basePath,
             final byte[] initData) {
+        Preconditions.checkNotNull(client, "client");
+        Preconditions.checkNotNull(basePath, "basePath");
+        Preconditions.checkNotNull(initData, "initData");
+
         try {
             if (client.checkExists().forPath(basePath) == null) {
                 client.create().creatingParentsIfNeeded().forPath(basePath, initData);
             }
         } catch (KeeperException.NodeExistsException e) {
-            log.debug("Path exists {} , ignoring exception", basePath, e);
+            log.debug("Path exists {}, ignoring exception", basePath);
         } catch (Exception e) {
-            log.error("Error while creating node on ZK", e);
-            throw new RuntimeException(e);
+            throw new RuntimeException("Exception while creating znode: " + basePath, e);
         }
     }
 }

@@ -47,6 +47,14 @@ public class ZKHostStore implements HostControllerStore {
     //To bootstrap zookeeper on first use.
     private volatile boolean zkInit = false;
 
+    /**
+     * Zookeeper based host store implementation.
+     *
+     * @param client                    The curator client instance.
+     * @param clusterName               The name of the cluster.
+     * @throws NullPointerException     If client is null.
+     * @throws NullPointerException     If clusterName is null.
+     */
     public ZKHostStore(CuratorFramework client, String clusterName) {
         Preconditions.checkNotNull(client, "Curator Client");
         Preconditions.checkNotNull(clusterName, "clusterName");
@@ -57,7 +65,7 @@ public class ZKHostStore implements HostControllerStore {
 
     //Ensure required zk node is present in zookeeper.
     @Synchronized
-    private void tryInit() throws Exception {
+    private void tryInit() {
         if (!zkInit) {
             ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host,
                     Set<Integer>>()));
@@ -66,48 +74,45 @@ public class ZKHostStore implements HostControllerStore {
     }
 
     @Override
-    public Map<Host, Set<Integer>> getHostContainersMap() throws Exception {
+    public Map<Host, Set<Integer>> getHostContainersMap() {
         tryInit();
 
         return getCurrentHostMap();
     }
 
-    private Map<Host, Set<Integer>> getCurrentHostMap() throws Exception {
+    private Map<Host, Set<Integer>> getCurrentHostMap() {
         try {
             return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(zkPath));
         } catch (Exception e) {
-            log.warn("Failed to fetch segment container map from zookeeper. Error: " + e.getMessage());
-            throw e;
+            throw new HostStoreException("Failed to fetch segment container map from zookeeper", e);
         }
     }
 
     @Override
-    public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception {
+    public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
         tryInit();
 
         try {
             zkClient.setData().forPath(zkPath, SerializationUtils.serialize((HashMap) newMapping));
-            log.debug("Successfully updated segment container map");
+            log.info("Successfully updated segment container map");
         } catch (Exception e) {
-            log.warn("Failed to persist segment container map to zookeeper. Error: " + e.getMessage());
-            throw e;
+            throw new HostStoreException("Failed to persist segment container map to zookeeper", e);
         }
     }
 
     @Override
-    public Host getHostForContainer(int containerId) throws Exception {
+    public Host getHostForContainer(int containerId) {
         tryInit();
 
         Map<Host, Set<Integer>> mapping = getCurrentHostMap();
-        Optional<Host> hosts = mapping.entrySet().stream()
+        Optional<Host> host = mapping.entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
-        if (hosts.isPresent()) {
-            log.debug("Found owning host: {} for containerId: {}", hosts.get(), containerId);
-            return hosts.get();
+        if (host.isPresent()) {
+            log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
+            return host.get();
         } else {
-            log.warn("No owning host found for containerId: " + containerId);
-            throw new ContainerNotFoundException(containerId);
+            throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
 

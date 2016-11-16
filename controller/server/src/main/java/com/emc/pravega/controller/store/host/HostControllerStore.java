@@ -29,28 +29,28 @@ public interface HostControllerStore {
     /**
      * Get the existing host to container map.
      *
-     * @return              The latest host to container mapping.
-     * @throws Exception    On any error.
+     * @return                      The latest host to container mapping.
+     * @throws HostStoreException   On error while fetching the Map.
      */
-    Map<Host, Set<Integer>> getHostContainersMap() throws Exception;
+    Map<Host, Set<Integer>> getHostContainersMap();
 
     /**
      * Update the existing host to container map with the new one. This operation has to be atomic.
      *
-     * @param newMapping    The new host to container mapping which needs to be persisted.
-     * @throws Exception    On any error.
+     * @param newMapping            The new host to container mapping which needs to be persisted.
+     * @throws NullPointerException If newMapping is null.
+     * @throws HostStoreException   On error while updating the Map.
      */
-    void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) throws Exception;
+    void updateHostContainersMap(Map<Host, Set<Integer>> newMapping);
 
     /**
      * Fetch the Host which owns the supplied container.
      *
      * @param containerId                   The container identifier.
      * @return                              The host which owns the supplied container.
-     * @throws ContainerNotFoundException   If no host matches the given container.
-     * @throws Exception                    On any other error.
+     * @throws HostStoreException           On error while fetching host info from the ownership Map.
      */
-    Host getHostForContainer(int containerId) throws Exception;
+    Host getHostForContainer(int containerId);
 
     /**
      * Return the total number of segment containers present in the system.
