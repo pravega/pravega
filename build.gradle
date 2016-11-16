@@ -171,7 +171,7 @@ project('integrationtests') {
 
     task buildPravegaHostImage(type: DockerBuildImage) {
         dockerFile = file(dockerFilePravegaHost)
-        inputDir = file(dockerDirPravega)
+        inputDir = file(dockerDirPravegaHost)
         tag = 'abhijeet78/pravega:host'
     }
 
@@ -263,7 +263,7 @@ project('controller:server') {
 
     task buildPravegaControllerImage(type: DockerBuildImage) {
         dockerFile = file(dockerFilePravegaController)
-        inputDir = file(dockerDirPravega)
+        inputDir = file(dockerDirPravegaController)
         tag = 'abhijeet78/pravega:controller'
     }
 
