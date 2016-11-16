@@ -211,8 +211,8 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
 
-        final ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new
-                ThriftAsyncCallback<>();
+        final ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback =
+                new ThriftAsyncCallback<>();
 
         ThriftHelper.thriftCall(() -> {
             client.commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), callback);
