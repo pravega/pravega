@@ -77,8 +77,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         Preconditions.checkNotNull(dataFrameCommitSuccessCallback, "dataFrameCommitSuccessCallback");
 
         this.targetLog = targetLog;
-        this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(),
-                targetLog::getLastAppendSequence, this::handleDataFrameComplete);
+        this.outputStream = new DataFrameOutputStream(targetLog.getMaxAppendLength(), targetLog::getLastAppendSequence,
+                this::handleDataFrameComplete);
         this.lastSerializedSequenceNumber = -1;
         this.lastStartedSequenceNumber = -1;
         this.dataFrameCommitSuccessCallback = dataFrameCommitSuccessCallback;
@@ -122,14 +122,15 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @param logItem The LogItem to append.
      * @throws NullPointerException If logItem is null.
      * @throws IOException          If the LogItem failed to serialize to the DataLog, or if one of the DataFrames
-     * containing
+     *                              containing
      *                              the LogItem failed to commit to the DataFrameLog.
      */
     public void append(T logItem) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
         long seqNo = logItem.getSequenceNumber();
-        Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem", "Invalid sequence number. " +
-                "Expected: greater than %d, given: %d.", this.lastSerializedSequenceNumber, seqNo);
+        Exceptions.checkArgument(this.lastSerializedSequenceNumber < seqNo, "logItem",
+                "Invalid sequence number. " + "Expected: greater than %d, given: %d.",
+                this.lastSerializedSequenceNumber, seqNo);
 
         // Remember the last Started SeqNo, in case of failure.
         long previousLastStartedSequenceNumber = this.lastStartedSequenceNumber;
@@ -175,7 +176,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // truncation markers.
             dataFrame.setAddress(logAddress);
             assert dataFrame.getPreviousFrameSequence() < logAddress.getSequence() : "DataLog assigned non-monotonic " +
-                    "sequence number";
+                    "" + "sequence number";
         } catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
             // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to
@@ -192,8 +193,9 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         }
 
         try {
-            this.dataFrameCommitSuccessCallback.accept(new DataFrameCommitArgs(this.lastSerializedSequenceNumber,
-                    this.lastStartedSequenceNumber, dataFrame));
+            this.dataFrameCommitSuccessCallback.accept(
+                    new DataFrameCommitArgs(this.lastSerializedSequenceNumber, this.lastStartedSequenceNumber,
+                            dataFrame));
         } catch (Exception ex) {
             CallbackHelpers.invokeSafely(this.dataFrameCommitFailureCallback, ex,
                     cex -> log.error("dataFrameCommitFailureCallback FAILED.", cex));
@@ -227,11 +229,11 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         private DataFrameCommitArgs(long lastFullySerializedSequenceNumber, long lastStartedSequenceNumber, DataFrame
                 dataFrame) {
             assert lastFullySerializedSequenceNumber <= lastStartedSequenceNumber :
-                    "lastFullySerializedSequenceNumber (" + lastFullySerializedSequenceNumber + ") is greater than " +
-                            "lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
+                    "lastFullySerializedSequenceNumber (" + lastFullySerializedSequenceNumber + ") is greater than "
+                            + "lastStartedSequenceNumber (" + lastStartedSequenceNumber + ")";
             assert dataFrame.getAddress().getSequence() >= 0 : "negative dataFrameSequence";
-            assert dataFrame.getAddress().getSequence() > dataFrame.getPreviousFrameSequence() : "dataFrameSequence " +
-                    "should be larger than previousDataFrameSequence";
+            assert dataFrame.getAddress().getSequence() > dataFrame.getPreviousFrameSequence() : "dataFrameSequence "
+                    + "should be larger than previousDataFrameSequence";
 
             this.lastFullySerializedSequenceNumber = lastFullySerializedSequenceNumber;
             this.lastStartedSequenceNumber = lastStartedSequenceNumber;
@@ -287,8 +289,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         @Override
         public String toString() {
             return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, DataFrameSN = %d/%d, Length = %d",
-                    getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress
-                            .getSequence(), getPreviousDataFrameSequence(), getDataFrameLength());
+                    getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(),
+                    this.logAddress.getSequence(), getPreviousDataFrameSequence(), getDataFrameLength());
         }
     }
 

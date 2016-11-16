@@ -88,8 +88,8 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentOffset >= 0, "StreamSegment Offset has not been assigned for " +
-                "this entry.");
+        ensureSerializationCondition(this.streamSegmentOffset >= 0,
+                "StreamSegment Offset has not been assigned for " + "this entry.");
         target.writeByte(CURRENT_VERSION);
         target.writeLong(getStreamSegmentId());
         target.writeLong(this.streamSegmentOffset);
@@ -104,10 +104,7 @@ public class StreamSegmentSealOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format(
-                "%s, Length = %s",
-                super.toString(),
-                toString(this.streamSegmentOffset, -1));
+        return String.format("%s, Length = %s", super.toString(), toString(this.streamSegmentOffset, -1));
     }
 
     //endregion

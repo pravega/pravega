@@ -87,8 +87,8 @@ public class ModelHelperTest {
     public void decodeSegmentId() {
         final String streamName = "stream1";
 
-        com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(createSegmentId(streamName,
-                2));
+        com.emc.pravega.controller.stream.api.v1.SegmentId segmentID = ModelHelper.decode(
+                createSegmentId(streamName, 2));
         assertEquals(streamName, segmentID.getStreamName());
         assertEquals("scope", segmentID.getScope());
         assertEquals(2, segmentID.getNumber());

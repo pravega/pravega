@@ -94,8 +94,8 @@ public class CompletableOperation {
 
         this.done = true;
         if (this.successHandler != null) {
-            CallbackHelpers.invokeSafely(this.successHandler, seqNo, cex -> log.error("Success Callback invocation " +
-                    "failure.", cex));
+            CallbackHelpers.invokeSafely(this.successHandler, seqNo,
+                    cex -> log.error("Success Callback invocation " + "failure.", cex));
         }
     }
 
@@ -107,8 +107,8 @@ public class CompletableOperation {
     public void fail(Throwable ex) {
         this.done = true;
         if (this.failureHandler != null) {
-            CallbackHelpers.invokeSafely(this.failureHandler, ex, cex -> log.error("Fail Callback invocation failure" +
-                    ".", cex));
+            CallbackHelpers.invokeSafely(this.failureHandler, ex,
+                    cex -> log.error("Fail Callback invocation failure" + ".", cex));
         }
     }
 

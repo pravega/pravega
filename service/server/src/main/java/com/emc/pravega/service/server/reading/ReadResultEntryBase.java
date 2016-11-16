@@ -148,12 +148,9 @@ public abstract class ReadResultEntryBase implements ReadResultEntry {
     public String toString() {
         CompletableFuture<ReadResultEntryContents> contentFuture = this.contents;
         return String.format("%s: Offset = %d, RequestedLength = %d, HasData = %s, Error = %s, Cancelled = %s",
-                this.getClass().getSimpleName(),
-                getStreamSegmentOffset(),
-                getRequestedReadLength(),
+                this.getClass().getSimpleName(), getStreamSegmentOffset(), getRequestedReadLength(),
                 contentFuture.isDone() && !contentFuture.isCompletedExceptionally() && !contentFuture.isCancelled(),
-                contentFuture.isCompletedExceptionally(),
-                contentFuture.isCancelled());
+                contentFuture.isCompletedExceptionally(), contentFuture.isCancelled());
     }
 
     //endregion

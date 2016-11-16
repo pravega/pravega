@@ -59,8 +59,7 @@ public abstract class StorageTestBase {
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
             // Segment does not exist.
-            assertThrows("open() did not throw for non-existent StreamSegment.",
-                    s.open(segmentName),
+            assertThrows("open() did not throw for non-existent StreamSegment.", s.open(segmentName),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
@@ -79,8 +78,7 @@ public abstract class StorageTestBase {
             val handle = s.create(segmentName, TIMEOUT).join();
 
             // Invalid name
-            assertThrows(
-                    "write() did not throw for invalid handle.",
+            assertThrows("write() did not throw for invalid handle.",
                     () -> s.write(segmentName + "invalid", 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
@@ -185,8 +183,7 @@ public abstract class StorageTestBase {
         final String context = "Seal";
         try (Storage s = createStorage()) {
             // Check invalid handle.
-            assertThrows("seal() did not throw for invalid handle.",
-                    () -> s.seal(createInvalidHandle("foo"), TIMEOUT),
+            assertThrows("seal() did not throw for invalid handle.", () -> s.seal(createInvalidHandle("foo"), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             HashMap<String, ByteArrayOutputStream> appendData = populate(s, context);
@@ -200,14 +197,13 @@ public abstract class StorageTestBase {
                 Assert.assertTrue("seal() is reentrant returns with isSealed == true", segmentInfo1.isSealed());
 
                 assertThrows("write() did not throw for a sealed StreamSegment.",
-                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT)
-                                .join().getLength(), new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
+                        () -> s.write(segmentName, s.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength(),
+                                new ByteArrayInputStream("g".getBytes()), 1, TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);
 
                 // Check post-delete seal.
                 s.delete(segmentName, TIMEOUT).join();
-                assertThrows("seal() did not throw for a deleted StreamSegment.",
-                        () -> s.seal(segmentName, TIMEOUT),
+                assertThrows("seal() did not throw for a deleted StreamSegment.", () -> s.seal(segmentName, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
             }
         }
@@ -227,8 +223,8 @@ public abstract class StorageTestBase {
             // Check invalid handle.
             val firstSegmentHandle = getSegmentName(0, context);
             s.open(firstSegmentHandle).join();
-            AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentHandle,
-                    TIMEOUT).join().getLength());
+            AtomicLong firstSegmentLength = new AtomicLong(
+                    s.getStreamSegmentInfo(firstSegmentHandle, TIMEOUT).join().getLength());
             assertThrows("concat() did not throw invalid target StreamSegment handle.",
                     () -> s.concat(createInvalidHandle("foo1"), 0, firstSegmentHandle, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);

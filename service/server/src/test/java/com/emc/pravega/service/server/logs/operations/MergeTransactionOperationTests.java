@@ -34,8 +34,7 @@ public class MergeTransactionOperationTests extends OperationTestsBase<MergeTran
 
     @Override
     protected boolean isPreSerializationConfigRequired(MergeTransactionOperation operation) {
-        return operation.getLength() < 0
-                || operation.getStreamSegmentOffset() < 0;
+        return operation.getLength() < 0 || operation.getStreamSegmentOffset() < 0;
     }
 
     @Override

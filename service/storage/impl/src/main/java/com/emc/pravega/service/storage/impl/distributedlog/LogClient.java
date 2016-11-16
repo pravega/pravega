@@ -70,8 +70,8 @@ class LogClient implements AutoCloseable {
         this.clientId = clientId;
         this.config = config;
         this.handles = new HashMap<>();
-        String rawUri = String.format(DISTRIBUTED_LOG_URI_FORMAT, config.getDistributedLogHost(), config
-                .getDistributedLogPort(), config.getDistributedLogNamespace());
+        String rawUri = String.format(DISTRIBUTED_LOG_URI_FORMAT, config.getDistributedLogHost(),
+                config.getDistributedLogPort(), config.getDistributedLogNamespace());
         this.namespaceUri = URI.create(rawUri);
         this.traceObjectId = String.format("%s#%s", rawUri, this.clientId);
     }
@@ -94,8 +94,8 @@ class LogClient implements AutoCloseable {
                 try {
                     handle.close();
                 } catch (Exception ex) {
-                    log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId, handle == null ? "(null)" +
-                            "" : handle.getLogName(), ex);
+                    log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId,
+                            handle == null ? "(null)" + "" : handle.getLogName(), ex);
                 }
             }
 
@@ -127,26 +127,18 @@ class LogClient implements AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.namespace == null, "LogClient is already initialized.");
 
-        DistributedLogConfiguration conf = new DistributedLogConfiguration()
-                .setImmediateFlushEnabled(true)
-                .setOutputBufferSize(0)
-                .setPeriodicFlushFrequencyMilliSeconds(0)
-                .setLockTimeout(DistributedLogConstants.LOCK_IMMEDIATE)
-                .setCreateStreamIfNotExists(true);
+        DistributedLogConfiguration conf = new DistributedLogConfiguration().setImmediateFlushEnabled(
+                true).setOutputBufferSize(0).setPeriodicFlushFrequencyMilliSeconds(0).setLockTimeout(
+                DistributedLogConstants.LOCK_IMMEDIATE).setCreateStreamIfNotExists(true);
 
         try {
-            this.namespace = DistributedLogNamespaceBuilder
-                    .newBuilder()
-                    .conf(conf)
-                    .uri(this.namespaceUri)
-                    .regionId(DistributedLogConstants.LOCAL_REGION_ID)
-                    .clientId(this.clientId)
-                    .build();
+            this.namespace = DistributedLogNamespaceBuilder.newBuilder().conf(conf).uri(this.namespaceUri).regionId(
+                    DistributedLogConstants.LOCAL_REGION_ID).clientId(this.clientId).build();
             log.info("{} Opened DistributedLog Namespace.", this.traceObjectId);
         } catch (IllegalArgumentException | NullPointerException ex) {
             //configuration issue
-            throw new DataLogInitializationException("Unable to create a DistributedLog Namespace. DistributedLog " +
-                    "reports bad configuration.", ex);
+            throw new DataLogInitializationException(
+                    "Unable to create a DistributedLog Namespace. DistributedLog " + "reports bad configuration.", ex);
         } catch (IOException ex) {
             // Namespace not available, ZooKeeper not reachable, some other environment issue.
             throw new DataLogNotAvailableException("Unable to access DistributedLog Namespace.", ex);

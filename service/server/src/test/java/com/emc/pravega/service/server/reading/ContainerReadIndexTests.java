@@ -72,9 +72,8 @@ public class ContainerReadIndexTests {
     private static final int THREAD_POOL_SIZE = 50;
     private static final int CONTAINER_ID = 123;
     private static final ReadIndexConfig DEFAULT_CONFIG = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-            PropertyBag.create()
-                    .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100)
-                    .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
+            PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, 100).with(
+                    ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, 1024));
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
     /**
@@ -82,8 +81,7 @@ public class ContainerReadIndexTests {
      */
     @Test
     public void testAppendRead() throws Exception {
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
@@ -104,8 +102,7 @@ public class ContainerReadIndexTests {
      */
     @Test
     public void testMerge() throws Exception {
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
@@ -138,8 +135,7 @@ public class ContainerReadIndexTests {
     public void testFutureReads() throws Exception {
         final int nonSealReadLimit = APPENDS_PER_SEGMENT * 25; // About 40-50% of the entire segment length.
         final int triggerFutureReadsEvery = 3; // How many appends to trigger Future reads.
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
@@ -229,8 +225,9 @@ public class ContainerReadIndexTests {
                 // the segment was to be sealed.
                 // The next check (see below) will verify if the segments were properly read).
                 if (!(err instanceof StreamSegmentSealedException && segmentsToSeal.contains(e.getKey()))) {
-                    Assert.fail("Unexpected error happened while processing Segment " + e.getKey() + ": " + e
-                            .getValue().error.get());
+                    Assert.fail(
+                            "Unexpected error happened while processing Segment " + e.getKey() + ": " + e.getValue()
+                                    .error.get());
                 }
             }
         }
@@ -259,8 +256,7 @@ public class ContainerReadIndexTests {
      */
     @Test
     public void testInvalidOperations() throws Exception {
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
 
         // Create a segment and a Transaction.
         long segmentId = 0;
@@ -291,8 +287,7 @@ public class ContainerReadIndexTests {
                 () -> context.readIndex.append(segmentId, Integer.MAX_VALUE, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
-        AssertExtensions.assertThrows(
-                "append did not throw the correct exception when provided with invalid offset.",
+        AssertExtensions.assertThrows("append did not throw the correct exception when provided with invalid offset.",
                 () -> context.readIndex.append(segmentId, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -302,8 +297,7 @@ public class ContainerReadIndexTests {
                 () -> context.readIndex.append(transactionId + 1, 0, "foo".getBytes()),
                 ex -> ex instanceof IllegalArgumentException);
 
-        AssertExtensions.assertThrows(
-                "read did not throw the correct exception when provided with invalid SegmentId.",
+        AssertExtensions.assertThrows("read did not throw the correct exception when provided with invalid SegmentId.",
                 () -> context.readIndex.read(transactionId + 1, 0, 1, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -351,8 +345,7 @@ public class ContainerReadIndexTests {
     @Test
     public void testStorageReads() throws Exception {
         // Create all the segments in the metadata.
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
@@ -389,8 +382,7 @@ public class ContainerReadIndexTests {
     @Test
     public void testStorageFailedReads() {
         // Create all segments (Storage and Metadata).
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
         createSegmentsInStorage(context);
 
@@ -401,36 +393,33 @@ public class ContainerReadIndexTests {
         sm.setDurableLogLength(1024 * 1024);
 
         AssertExtensions.assertThrows(
-                "Unexpected exception when attempting to read beyond the Segment length in Storage.",
-                () -> {
-                    @Cleanup
-                    ReadResult readResult = context.readIndex.read(testSegmentId, 0, 100, TIMEOUT);
-                    Assert.assertTrue("Unexpected value from hasNext() when there should be at least one " +
-                            "ReadResultEntry.", readResult.hasNext());
+                "Unexpected exception when attempting to read beyond the Segment length in Storage.", () -> {
+                    @Cleanup ReadResult readResult = context.readIndex.read(testSegmentId, 0, 100, TIMEOUT);
+                    Assert.assertTrue(
+                            "Unexpected value from hasNext() when there should be at least one " + "ReadResultEntry.",
+                            readResult.hasNext());
                     ReadResultEntry entry = readResult.next();
                     Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage,
                             entry.getType());
                     entry.requestContent(TIMEOUT);
                     entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                },
-                ex -> ex instanceof ArrayIndexOutOfBoundsException);
+                }, ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Segment not exists (exists in metadata, but not in Storage)
         context.storage.delete(sm.getName(), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "Unexpected exception when attempting to from a segment that exists in Metadata, but not in Storage.",
                 () -> {
-                    @Cleanup
-                    ReadResult readResult = context.readIndex.read(testSegmentId, 0, 100, TIMEOUT);
-                    Assert.assertTrue("Unexpected value from hasNext() when there should be at least one " +
-                            "ReadResultEntry.", readResult.hasNext());
+                    @Cleanup ReadResult readResult = context.readIndex.read(testSegmentId, 0, 100, TIMEOUT);
+                    Assert.assertTrue(
+                            "Unexpected value from hasNext() when there should be at least one " + "ReadResultEntry.",
+                            readResult.hasNext());
                     ReadResultEntry entry = readResult.next();
                     Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage,
                             entry.getType());
                     entry.requestContent(TIMEOUT);
                     entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                },
-                ex -> ex instanceof StreamSegmentNotExistsException);
+                }, ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
     /**
@@ -439,8 +428,7 @@ public class ContainerReadIndexTests {
     @Test
     public void testMixedReads() throws Exception {
         // Create all the segments in the metadata.
-        @Cleanup
-        TestContext context = new TestContext();
+        @Cleanup TestContext context = new TestContext();
         ArrayList<Long> segmentIds = createSegments(context);
         HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
@@ -514,14 +502,12 @@ public class ContainerReadIndexTests {
         CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, Duration.ofMillis(1000 * 2 * entriesPerSegment),
                 Duration.ofMillis(1000));
         ReadIndexConfig config = ConfigHelpers.createReadIndexConfigWithInfiniteCachePolicy(
-                PropertyBag.create()
-                        .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, appendSize)
-                        .with(ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, appendSize)); // To properly test
+                PropertyBag.create().with(ReadIndexConfig.PROPERTY_STORAGE_READ_MIN_LENGTH, appendSize).with(
+                        ReadIndexConfig.PROPERTY_STORAGE_READ_MAX_LENGTH, appendSize)); // To properly test
         // this, we want predictable storage reads.
 
         ArrayList<CacheKey> removedKeys = new ArrayList<>();
-        @Cleanup
-        TestContext context = new TestContext(config, cachePolicy);
+        @Cleanup TestContext context = new TestContext(config, cachePolicy);
         context.cache.removeCallback = removedKeys::add; // Record every cache removal.
 
         // Create the segments (metadata + storage).
@@ -559,17 +545,18 @@ public class ContainerReadIndexTests {
         for (int i = 0; i < preStorageEntryCount; i++) {
             long offset = i * appendSize;
             for (long segmentId : segmentIds) {
-                @Cleanup
-                ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
+                @Cleanup ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
                 ReadResultEntry resultEntry = result.next();
-                Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the " +
-                        "ReadIndex Cache.", ReadResultEntryType.Storage, resultEntry.getType());
+                Assert.assertEquals(
+                        "Unexpected type of ReadResultEntry when trying to load up data into the " + "ReadIndex Cache.",
+                        ReadResultEntryType.Storage, resultEntry.getType());
                 resultEntry.requestContent(TIMEOUT);
-                ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit
-                        .MILLISECONDS);
+                ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(),
+                        TimeUnit.MILLISECONDS);
                 Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
-                Assert.assertEquals("Unexpected ReadResultEntry length when trying to load up data into the ReadIndex" +
-                        " Cache.", appendSize, contents.getLength());
+                Assert.assertEquals(
+                        "Unexpected ReadResultEntry length when trying to load up data into the ReadIndex" + " Cache.",
+                        appendSize, contents.getLength());
             }
 
             context.cacheManager.applyCachePolicy();
@@ -585,8 +572,9 @@ public class ContainerReadIndexTests {
             context.cacheManager.applyCachePolicy();
         }
 
-        Assert.assertEquals("Not expecting any removed Cache entries at this point (only eligible entries were " +
-                "post-storage).", 0, removedKeys.size());
+        Assert.assertEquals(
+                "Not expecting any removed Cache entries at this point (only eligible entries were " + "post-storage).",
+                0, removedKeys.size());
 
         // 'Touch' the first few entries read from storage. This should move them to the back of the queue (they
         // won't be the first ones to be evicted).
@@ -594,11 +582,11 @@ public class ContainerReadIndexTests {
         for (int i = 0; i < touchCount; i++) {
             long offset = i * appendSize;
             for (long segmentId : segmentIds) {
-                @Cleanup
-                ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
+                @Cleanup ReadResult result = context.readIndex.read(segmentId, offset, appendSize, TIMEOUT);
                 ReadResultEntry resultEntry = result.next();
-                Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the " +
-                        "ReadIndex Cache.", ReadResultEntryType.Cache, resultEntry.getType());
+                Assert.assertEquals(
+                        "Unexpected type of ReadResultEntry when trying to load up data into the " + "ReadIndex Cache.",
+                        ReadResultEntryType.Cache, resultEntry.getType());
             }
         }
 
@@ -609,8 +597,10 @@ public class ContainerReadIndexTests {
             context.cacheManager.applyCachePolicy();
         }
 
-        Assert.assertEquals("Not expecting any removed Cache entries at this point (we touched old entries and they " +
-                "now have the newest generation).", 0, removedKeys.size());
+        Assert.assertEquals(
+                "Not expecting any removed Cache entries at this point (we touched old entries and they " + "now have" +
+                        " the newest generation).",
+                0, removedKeys.size());
 
         // Increment the generations so that we are caught up to just before the generation where the "touched" items
         // now live.
@@ -634,9 +624,8 @@ public class ContainerReadIndexTests {
 
         // Now evict everything (whether by size of by aging out).
         for (int i = 0; i < cachePolicy.getMaxGenerations(); i++) {
-            @Cleanup
-            ReadResult result = context.readIndex.read(readSegment.getId(), readSegment.getDurableLogLength() -
-                    appendSize, appendSize, TIMEOUT);
+            @Cleanup ReadResult result = context.readIndex.read(readSegment.getId(),
+                    readSegment.getDurableLogLength() - appendSize, appendSize, TIMEOUT);
             result.next();
             context.cacheManager.applyCachePolicy();
         }
@@ -649,8 +638,8 @@ public class ContainerReadIndexTests {
         // Finally, verify that the evicted items are in the correct order (for each segment). See this test's
         // description for details.
         for (long segmentId : segmentIds) {
-            List<CacheKey> segmentRemovedKeys = removedKeys.stream().filter(key -> key.getStreamSegmentId() ==
-                    segmentId).collect(Collectors.toList());
+            List<CacheKey> segmentRemovedKeys = removedKeys.stream().filter(
+                    key -> key.getStreamSegmentId() == segmentId).collect(Collectors.toList());
             Assert.assertEquals("Unexpected number of removed entries for segment " + segmentId,
                     expectedRemovalCountPerSegment, segmentRemovedKeys.size());
 
@@ -665,8 +654,8 @@ public class ContainerReadIndexTests {
             checkOffsets(segmentRemovedKeys, segmentId, entriesPerSegment, entriesPerSegment / 4, 0, appendSize);
 
             //1.25N..1.5N
-            checkOffsets(segmentRemovedKeys, segmentId, entriesPerSegment + entriesPerSegment / 4, entriesPerSegment
-                    / 4, (int) (entriesPerSegment * appendSize * 1.25), appendSize);
+            checkOffsets(segmentRemovedKeys, segmentId, entriesPerSegment + entriesPerSegment / 4,
+                    entriesPerSegment / 4, (int) (entriesPerSegment * appendSize * 1.25), appendSize);
         }
     }
 
@@ -680,9 +669,7 @@ public class ContainerReadIndexTests {
             CacheKey currentKey = removedKeys.get(startIndex + i);
             Assert.assertEquals(
                     String.format("Unexpected CacheKey.SegmentOffset at index %d for SegmentId %d.", listIndex,
-                            segmentId),
-                    expectedStartOffset,
-                    currentKey.getOffset());
+                            segmentId), expectedStartOffset, currentKey.getOffset());
             expectedStartOffset += stepIncrease;
         }
     }
@@ -730,8 +717,8 @@ public class ContainerReadIndexTests {
 
                 // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
                 long offset = context.storage.getStreamSegmentInfo(sm.getName(), TIMEOUT).join().getLength();
-                context.storage.write(sm.getName(), offset, new ByteArrayInputStream(data), data.length, TIMEOUT)
-                        .join();
+                context.storage.write(sm.getName(), offset, new ByteArrayInputStream(data), data.length,
+                        TIMEOUT).join();
 
                 // Update metadata appropriately.
                 sm.setStorageLength(offset + data.length);
@@ -753,8 +740,8 @@ public class ContainerReadIndexTests {
         for (Map.Entry<Long, ArrayList<Long>> e : transactionsBySegment.entrySet()) {
             long parentId = e.getKey();
             for (long transactionId : e.getValue()) {
-                UpdateableSegmentMetadata transactionMetadata =
-                        context.metadata.getStreamSegmentMetadata(transactionId);
+                UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(
+                        transactionId);
                 transactionMetadata.markDeleted();
                 context.readIndex.completeMerge(parentId, transactionId);
             }
@@ -768,8 +755,8 @@ public class ContainerReadIndexTests {
             UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
 
             for (long transactionId : e.getValue()) {
-                UpdateableSegmentMetadata transactionMetadata =
-                        context.metadata.getStreamSegmentMetadata(transactionId);
+                UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(
+                        transactionId);
 
                 // Transaction must be sealed first.
                 transactionMetadata.markSealed();
@@ -798,44 +785,48 @@ public class ContainerReadIndexTests {
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
 
             long expectedCurrentOffset = 0;
-            @Cleanup
-            ReadResult readResult = context.readIndex.read(segmentId, expectedCurrentOffset, (int) segmentLength,
-                    TIMEOUT);
+            @Cleanup ReadResult readResult = context.readIndex.read(segmentId, expectedCurrentOffset,
+                    (int) segmentLength, TIMEOUT);
             Assert.assertTrue(testId + ": Empty read result for segment " + segmentId, readResult.hasNext());
 
             while (readResult.hasNext()) {
                 ReadResultEntry readEntry = readResult.next();
-                AssertExtensions.assertGreaterThan(testId + ": getRequestedReadLength should be a positive integer " +
-                        "for segment " + segmentId, 0, readEntry.getRequestedReadLength());
-                Assert.assertEquals(testId + ": Unexpected value from getStreamSegmentOffset for segment " +
-                        segmentId, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
+                AssertExtensions.assertGreaterThan(
+                        testId + ": getRequestedReadLength should be a positive integer " + "for segment " + segmentId,
+                        0, readEntry.getRequestedReadLength());
+                Assert.assertEquals(testId + ": Unexpected value from getStreamSegmentOffset for segment " + segmentId,
+                        expectedCurrentOffset, readEntry.getStreamSegmentOffset());
 
                 // Since this is a non-sealed segment, we only expect Cache or Storage read result entries.
-                Assert.assertTrue(testId + ": Unexpected type of ReadResultEntry for non-sealed segment " +
-                        segmentId, readEntry.getType() == ReadResultEntryType.Cache || readEntry.getType() ==
-                        ReadResultEntryType.Storage);
+                Assert.assertTrue(testId + ": Unexpected type of ReadResultEntry for non-sealed segment " + segmentId,
+                        readEntry.getType() == ReadResultEntryType.Cache || readEntry.getType() ==
+                                ReadResultEntryType.Storage);
                 if (readEntry.getType() == ReadResultEntryType.Cache) {
-                    Assert.assertTrue(testId + ": getContent() did not return a completed future (ReadResultEntryType" +
-                            ".Cache) for segment" + segmentId, readEntry.getContent().isDone() && !readEntry
-                            .getContent().isCompletedExceptionally());
+                    Assert.assertTrue(
+                            testId + ": getContent() did not return a completed future (ReadResultEntryType" + "" +
+                                    ".Cache) for segment" + segmentId,
+                            readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 } else if (readEntry.getType() == ReadResultEntryType.Storage) {
-                    Assert.assertFalse(testId + ": getContent() did not return a non-completed future " +
-                            "(ReadResultEntryType.Storage) for segment" + segmentId, readEntry.getContent().isDone()
-                            && !readEntry.getContent().isCompletedExceptionally());
+                    Assert.assertFalse(
+                            testId + ": getContent() did not return a non-completed future " + "(ReadResultEntryType" +
+                                    ".Storage) for segment" + segmentId,
+                            readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 }
 
                 // Request content, in case it wasn't returned yet.
                 readEntry.requestContent(TIMEOUT);
-                ReadResultEntryContents readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit
-                        .MILLISECONDS);
-                AssertExtensions.assertGreaterThan(testId + ": getContent() returned an empty result entry for " +
-                        "segment " + segmentId, 0, readEntryContents.getLength());
+                ReadResultEntryContents readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(),
+                        TimeUnit.MILLISECONDS);
+                AssertExtensions.assertGreaterThan(
+                        testId + ": getContent() returned an empty result entry for " + "segment " + segmentId, 0,
+                        readEntryContents.getLength());
 
                 byte[] actualData = new byte[readEntryContents.getLength()];
                 StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
-                AssertExtensions.assertArrayEquals(testId + ": Unexpected data read from segment " + segmentId + " at" +
-                        " offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0,
-                        readEntryContents.getLength());
+                AssertExtensions.assertArrayEquals(
+                        testId + ": Unexpected data read from segment " + segmentId + " at" + " offset " +
+                                expectedCurrentOffset,
+                        expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
 
                 expectedCurrentOffset += readEntryContents.getLength();
             }
@@ -925,8 +916,8 @@ public class ContainerReadIndexTests {
             this.metadata = new StreamSegmentContainerMetadata(CONTAINER_ID);
             this.storage = new InMemoryStorage();
             this.cacheManager = new TestCacheManager(cachePolicy, this.executorService.get());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage, this
-                    .cacheManager, this.executorService.get());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cache, this.storage,
+                    this.cacheManager, this.executorService.get());
         }
 
         @Override

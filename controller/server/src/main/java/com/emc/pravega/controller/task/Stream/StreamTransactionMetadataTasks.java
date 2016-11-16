@@ -58,10 +58,8 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactoryImpl connectionFactory;
 
-    public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
-                                          final TaskMetadataStore taskMetadataStore,
-                                          final String hostId) {
+    public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore, final HostControllerStore
+            hostControllerStore, final TaskMetadataStore taskMetadataStore, final String hostId) {
         super(taskMetadataStore, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
@@ -72,16 +70,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
             // find transactions to be dropped
             try {
                 final long currentTime = System.currentTimeMillis();
-                streamMetadataStore.getAllActiveTx().get().stream()
-                        .forEach(x -> {
-                            if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
-                                try {
-                                    dropTx(x.getScope(), x.getStream(), x.getTxid());
-                                } catch (Exception e) {
-                                    // TODO: log and ignore
-                                }
-                            }
-                        });
+                streamMetadataStore.getAllActiveTx().get().stream().forEach(x -> {
+                    if (currentTime - x.getTxRecord().getTxCreationTimestamp() > TIMEOUT) {
+                        try {
+                            dropTx(x.getScope(), x.getStream(), x.getTxid());
+                        } catch (Exception e) {
+                            // TODO: log and ignore
+                        }
+                    }
+                });
             } catch (Exception e) {
                 // TODO: log! and ignore
             }
@@ -104,9 +101,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      */
     @Task(name = "createTransaction", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UUID> createTx(final String scope, final String stream) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream},
+        return execute(new Resource(scope, stream), new Serializable[]{scope, stream},
                 () -> createTxBody(scope, stream));
     }
 
@@ -120,103 +115,76 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
      */
     @Task(name = "dropTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxStatus> dropTx(final String scope, final String stream, final UUID txId) {
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
+        return execute(new Resource(scope, stream, txId.toString()), new Serializable[]{scope, stream, txId},
                 () -> dropTxBody(scope, stream, txId));
     }
 
     /**
      * Commit transaction.
+     * <p>
+     * t     * @param scope  stream scope.
      *
-t     * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
      * @return true/false.
      */
     @Task(name = "commitTransaction", version = "1.0", resource = "{scope}/{stream}/{txId}")
     public CompletableFuture<TxStatus> commitTx(final String scope, final String stream, final UUID txId) {
-        return execute(
-                new Resource(scope, stream, txId.toString()),
-                new Serializable[]{scope, stream, txId},
+        return execute(new Resource(scope, stream, txId.toString()), new Serializable[]{scope, stream, txId},
                 () -> commitTxBody(scope, stream, txId));
     }
 
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
-        return streamMetadataStore.createTransaction(scope, stream)
-                .thenApply(txId -> {
-                    notifyTxCreation(scope, stream, txId);
-                    return txId;
-                });
+        return streamMetadataStore.createTransaction(scope, stream).thenApply(txId -> {
+            notifyTxCreation(scope, stream, txId);
+            return txId;
+        });
     }
 
     private CompletableFuture<TxStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
         // notify hosts to drop transaction
-        return streamMetadataStore.getActiveSegments(stream)
-                .thenCompose(segments ->
-                        FutureCollectionHelper.sequence(
-                                segments.stream()
-                                        .parallel()
-                                        .map(segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid))
-                                        .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.dropTransaction(scope, stream, txid));
+        return streamMetadataStore.getActiveSegments(stream).thenCompose(segments -> FutureCollectionHelper.sequence(
+                segments.stream().parallel().map(
+                        segment -> notifyDropToHost(scope, stream, segment.getNumber(), txid)).collect(
+                        Collectors.toList()))).thenCompose(
+                x -> streamMetadataStore.dropTransaction(scope, stream, txid));
     }
 
     private CompletableFuture<TxStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
-        return streamMetadataStore.sealTransaction(scope, stream, txid)
-                .thenCompose(x -> streamMetadataStore.getActiveSegments(stream)
-                        .thenCompose(segments -> {
-                            List<CompletableFuture<Void>> collect = segments.stream()
-                                    .parallel()
-                                    .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txid))
-                                    .collect(Collectors.toList());
-                            return FutureCollectionHelper.sequence(collect);
-                        }))
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
+        return streamMetadataStore.sealTransaction(scope, stream, txid).thenCompose(
+                x -> streamMetadataStore.getActiveSegments(stream).thenCompose(segments -> {
+                    List<CompletableFuture<Void>> collect = segments.stream().parallel().map(
+                            segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txid)).collect(
+                            Collectors.toList());
+                    return FutureCollectionHelper.sequence(collect);
+                })).thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
     }
 
     private void notifyTxCreation(final String scope, final String stream, final UUID txid) {
-        FutureHelpers.getAndHandleExceptions(streamMetadataStore.getActiveSegments(stream)
-                .thenApply(activeSegments -> {
-                    activeSegments
-                            .stream()
-                            .parallel()
-                            .forEach(segment -> {
-                                NodeUri uri = SegmentHelper.getSegmentUri(scope,
-                                        stream,
-                                        segment.getNumber(),
-                                        this.hostControllerStore);
+        FutureHelpers.getAndHandleExceptions(streamMetadataStore.getActiveSegments(stream).thenApply(activeSegments -> {
+            activeSegments.stream().parallel().forEach(segment -> {
+                NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segment.getNumber(), this.hostControllerStore);
 
-                                SegmentHelper.createTransaction(scope,
-                                        stream,
-                                        segment.getNumber(),
-                                        txid,
-                                        ModelHelper.encode(uri),
-                                        this.connectionFactory);
-                            });
-                    return null;
-                }), RuntimeException::new);
+                SegmentHelper.createTransaction(scope, stream, segment.getNumber(), txid, ModelHelper.encode(uri),
+                        this.connectionFactory);
+            });
+            return null;
+        }), RuntimeException::new);
     }
 
-    private CompletableFuture<Void> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<Void> notifyDropToHost(final String scope, final String stream, final int
+            segmentNumber, final UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
-            SegmentHelper.dropTransaction(scope,
-                    stream,
-                    segmentNumber,
-                    txId,
-                    this.hostControllerStore,
+            SegmentHelper.dropTransaction(scope, stream, segmentNumber, txId, this.hostControllerStore,
                     this.connectionFactory);
             return null;
         });
     }
 
-    private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+    private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream, final int
+            segmentNumber, final UUID txId) {
         return CompletableFuture.<Void>supplyAsync(() -> {
-            SegmentHelper.commitTransaction(scope,
-                    stream,
-                    segmentNumber,
-                    txId,
-                    this.hostControllerStore,
+            SegmentHelper.commitTransaction(scope, stream, segmentNumber, txId, this.hostControllerStore,
                     this.connectionFactory);
             return null;
         });

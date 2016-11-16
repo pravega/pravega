@@ -47,8 +47,8 @@ public final class Exceptions {
      * @throws ExceptionT If thrown by run.
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run)
-            throws ExceptionT {
+    public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run) throws
+            ExceptionT {
         try {
             run.run();
         } catch (InterruptedException e) {
@@ -128,23 +128,23 @@ public final class Exceptions {
             IllegalArgumentException {
         // Check for non-negative length.
         if (length < 0) {
-            throw new IllegalArgumentException(badArgumentMessage(lengthArgName, "length must be a non-negative " +
-                    "integer."));
+            throw new IllegalArgumentException(
+                    badArgumentMessage(lengthArgName, "length must be a non-negative " + "integer."));
         }
 
         // Check for valid start index.
         if (startIndex < 0 || startIndex >= arrayLength) {
             // The only valid case here is if the range has zero elements and the array bounds also has zero elements.
             if (!(startIndex == 0 && length == 0 && arrayLength == 0)) {
-                throw new ArrayIndexOutOfBoundsException(badStartOffsetMessage(startIndex, arrayLength,
-                        startIndexArgName));
+                throw new ArrayIndexOutOfBoundsException(
+                        badStartOffsetMessage(startIndex, arrayLength, startIndexArgName));
             }
         }
 
         // Check for valid end offset. Note that end offset can be equal to upBoundExclusive, because this is a range.
         if (startIndex + length > arrayLength) {
-            throw new ArrayIndexOutOfBoundsException(badLengthMessage(startIndex, length, arrayLength,
-                    startIndexArgName, lengthArgName));
+            throw new ArrayIndexOutOfBoundsException(
+                    badLengthMessage(startIndex, length, arrayLength, startIndexArgName, lengthArgName));
         }
     }
 
@@ -172,7 +172,7 @@ public final class Exceptions {
 
     private static String badLengthMessage(long startIndex, int length, long arrayLength, String startIndexArgName,
                                            String lengthArgName) {
-        return String.format("%s + %s: value must be in interval [0, %d], actual %d.", startIndexArgName,
-                lengthArgName, arrayLength, startIndex + length);
+        return String.format("%s + %s: value must be in interval [0, %d], actual %d.", startIndexArgName, lengthArgName,
+                arrayLength, startIndex + length);
     }
 }

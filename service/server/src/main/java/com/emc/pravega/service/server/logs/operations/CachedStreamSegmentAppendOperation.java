@@ -54,8 +54,8 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
      */
     public CachedStreamSegmentAppendOperation(StreamSegmentAppendOperation baseOperation) {
         super(baseOperation.getStreamSegmentId());
-        Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0, "given baseOperation does not have " +
-                "an assigned StreamSegment Offset.");
+        Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0,
+                "given baseOperation does not have " + "an assigned StreamSegment Offset.");
 
         this.streamSegmentOffset = baseOperation.getStreamSegmentOffset();
         this.length = baseOperation.getData().length;
@@ -77,11 +77,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format(
-                "%s, Offset = %d, Length = %d",
-                super.toString(),
-                this.streamSegmentOffset,
-                this.length);
+        return String.format("%s, Offset = %d, Length = %d", super.toString(), this.streamSegmentOffset, this.length);
     }
 
     //endregion
@@ -100,8 +96,9 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     protected byte getOperationType() {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized, thus it " +
-                "does not have an Operation Type.");
+        throw new UnsupportedOperationException(
+                this.getClass().getSimpleName() + " cannot be serialized, thus it " + "does not have an Operation " +
+                        "Type.");
     }
 
     @Override

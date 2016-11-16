@@ -38,8 +38,9 @@ public class FutureCollectionHelperTest {
 
     /**
      * Test method for FutureCollectionHelpers.filter.
+     *
      * @throws InterruptedException when future is interrupted
-     * @throws ExecutionException when future is interrupted
+     * @throws ExecutionException   when future is interrupted
      */
     @Test
     public void testFilter() throws ExecutionException, InterruptedException {
@@ -48,8 +49,7 @@ public class FutureCollectionHelperTest {
         Predicate<Integer> evenFilter = (Integer x) -> x % 2 == 0;
         FuturePredicate<Integer> futureEvenFilter = (Integer x) -> CompletableFuture.completedFuture(x % 2 == 0);
 
-        CompletableFuture<List<Integer>> filteredList =
-                filter(list, futureEvenFilter);
+        CompletableFuture<List<Integer>> filteredList = filter(list, futureEvenFilter);
 
         Assert.assertEquals(filteredList.get().size(), 3);
         Assert.assertEquals(filteredList.get(), list.stream().filter(evenFilter).collect(Collectors.toList()));
@@ -62,20 +62,19 @@ public class FutureCollectionHelperTest {
     public void testFilterException() {
         List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7);
 
-        FuturePredicate<Integer> futureEvenFilter =
-                (Integer x) -> CompletableFuture.supplyAsync(() -> {
-                    throw new RuntimeException();
-                });
+        FuturePredicate<Integer> futureEvenFilter = (Integer x) -> CompletableFuture.supplyAsync(() -> {
+            throw new RuntimeException();
+        });
 
-        CompletableFuture<List<Integer>> filteredList =
-                filter(list, futureEvenFilter);
+        CompletableFuture<List<Integer>> filteredList = filter(list, futureEvenFilter);
 
         filteredList.join();
     }
 
     /**
      * Test method for FutureCollectionHelpers.sequence.
-     * @throws ExecutionException when future is interrupted
+     *
+     * @throws ExecutionException   when future is interrupted
      * @throws InterruptedException when future is interrupted
      */
     @Test
@@ -99,7 +98,8 @@ public class FutureCollectionHelperTest {
     }
 
     /**
-     * Test method for FutureCollectionHelpers.sequence when some elements in original list complete exceptionally in future.
+     * Test method for FutureCollectionHelpers.sequence when some elements in original
+     * list complete exceptionally in future.
      */
     @Test(expected = CompletionException.class)
     public void testSequenceException() {

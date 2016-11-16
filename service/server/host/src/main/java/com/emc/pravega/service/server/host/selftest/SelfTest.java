@@ -87,11 +87,10 @@ class SelfTest extends AbstractService implements AutoCloseable {
             stopAsync();
             ServiceShutdownListener.awaitShutdown(this, false);
 
-            this.dataSource.deleteAllSegments()
-                    .exceptionally(ex -> {
-                        TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
-                        return null;
-                    }).join();
+            this.dataSource.deleteAllSegments().exceptionally(ex -> {
+                TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
+                return null;
+            }).join();
 
             this.store.close();
             this.executor.shutdown();
@@ -115,38 +114,35 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture<Void> startFuture = this.store
-                .initialize(this.testConfig.getTimeout())
-                .thenCompose(v -> this.dataSource.createSegments())
-                .thenRunAsync(() -> {
-                            // Create and initialize the Test Actors (Producers & Consumers).
-                            createTestActors();
+        CompletableFuture<Void> startFuture = this.store.initialize(this.testConfig.getTimeout()).thenCompose(
+                v -> this.dataSource.createSegments()).thenRunAsync(() -> {
+            // Create and initialize the Test Actors (Producers & Consumers).
+            createTestActors();
 
-                            // Initialize Actor Manager and attach callbacks.
-                            this.actorManager = new ServiceManager(this.actors);
-                            this.actorManager.addListener(new ServiceManager.Listener() {
-                                @Override
-                                public void healthy() {
-                                    // We are considered 'started' only after all Actors are started.
-                                    notifyStarted();
-                                    TestLogger.log(LOG_ID, "Started.");
-                                }
+            // Initialize Actor Manager and attach callbacks.
+            this.actorManager = new ServiceManager(this.actors);
+            this.actorManager.addListener(new ServiceManager.Listener() {
+                @Override
+                public void healthy() {
+                    // We are considered 'started' only after all Actors are started.
+                    notifyStarted();
+                    TestLogger.log(LOG_ID, "Started.");
+                }
 
-                                @Override
-                                public void stopped() {
-                                    // We are considered 'stopped' only after all Actors are stopped.
-                                    notifyStopped();
-                                }
+                @Override
+                public void stopped() {
+                    // We are considered 'stopped' only after all Actors are stopped.
+                    notifyStopped();
+                }
 
-                                @Override
-                                public void failure(Service service) {
-                                    // We are considered 'failed' if at least one Actor failed.
-                                    notifyFailed(service.failureCause());
-                                }
-                            }, this.executor);
-                            this.actorManager.startAsync();
-                        },
-                        this.executor);
+                @Override
+                public void failure(Service service) {
+                    // We are considered 'failed' if at least one Actor failed.
+                    notifyFailed(service.failureCause());
+                }
+            }, this.executor);
+            this.actorManager.startAsync();
+        }, this.executor);
 
         FutureHelpers.exceptionListener(startFuture, this::notifyFailed);
     }
@@ -176,15 +172,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this
-                    .executor));
+            this.actors.add(
+                    new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor));
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
         for (val si : this.state.getAllSegments()) {
             if (!si.isTransaction()) {
-                this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.store, this
-                        .executor));
+                this.actors.add(
+                        new Consumer(si.getName(), this.testConfig, this.dataSource, this.store, this.executor));
             }
         }
     }

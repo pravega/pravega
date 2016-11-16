@@ -74,20 +74,15 @@ public class StreamImpl implements Stream {
 
     @Override
     public <T> Producer<T> createProducer(Serializer<T> s, ProducerConfig config) {
-        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller,
-                connectionFactory), router, s, config);
+        return new ProducerImpl<T>(this, controller, new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+                router, s, config);
     }
 
     @Override
     public <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
                                           RateChangeListener l) {
-        return new ConsumerImpl<T>(this,
-                new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-                s,
-                startingPosition.asImpl(),
-                new SingleStreamOrderer<T>(),
-                l,
-                config);
+        return new ConsumerImpl<T>(this, new SegmentInputStreamFactoryImpl(controller, connectionFactory), s,
+                startingPosition.asImpl(), new SingleStreamOrderer<T>(), l, config);
     }
 
     @Override

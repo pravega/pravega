@@ -143,8 +143,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
             CompletableFuture<ReadResultEntryContents> entryContentsFuture = this.currentEntry.getContent();
             if (!entryContentsFuture.isDone()) {
                 // We have received a ReadResultEntry that does not have data readily available.
-                if (this.entryHandler.shouldRequestContents(this.currentEntry.getType(), this.currentEntry
-                        .getStreamSegmentOffset())) {
+                if (this.entryHandler.shouldRequestContents(this.currentEntry.getType(),
+                        this.currentEntry.getStreamSegmentOffset())) {
                     // We were instructed to request the content.
                     this.currentEntry.requestContent(this.entryHandler.getRequestContentTimeout());
                 } else {
@@ -173,8 +173,9 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
         boolean shouldContinue;
         try {
             if (this.currentEntry.getContent().isCompletedExceptionally()) {
-                fail(new AssertionError("handleEntryFetched: About to have processed a ReadResultEntry that was not " +
-                        "properly fetched."));
+                fail(new AssertionError(
+                        "handleEntryFetched: About to have processed a ReadResultEntry that was not " + "properly " +
+                                "fetched."));
                 return;
             }
 

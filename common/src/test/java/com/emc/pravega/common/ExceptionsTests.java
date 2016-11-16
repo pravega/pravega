@@ -31,15 +31,11 @@ public class ExceptionsTests {
      */
     @Test
     public void testCheckNotNullOrEmpty() {
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkNotNullOrEmpty with null argument.",
-                () -> Exceptions.checkNotNullOrEmpty(null, "null-arg"),
-                ex -> ex instanceof NullPointerException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotNullOrEmpty with null argument.",
+                () -> Exceptions.checkNotNullOrEmpty(null, "null-arg"), ex -> ex instanceof NullPointerException);
 
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkNotNullOrEmpty with empty string argument.",
-                () -> Exceptions.checkNotNullOrEmpty("", "empty-arg"),
-                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotNullOrEmpty with empty string argument.",
+                () -> Exceptions.checkNotNullOrEmpty("", "empty-arg"), ex -> ex instanceof IllegalArgumentException);
 
         // This should not throw.
         Exceptions.checkNotNullOrEmpty("a", "valid-arg");
@@ -50,8 +46,7 @@ public class ExceptionsTests {
      */
     @Test
     public void testCheckArgument() {
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkArgument(arg, msg) with valid=false argument.",
+        AssertExtensions.assertThrows("Unexpected behavior for checkArgument(arg, msg) with valid=false argument.",
                 () -> Exceptions.checkArgument(false, "invalid-arg", "format msg %s", "foo"),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -74,17 +69,15 @@ public class ExceptionsTests {
                 Exceptions.checkArrayRange(i, length, maxBound, "start", "length");
             } else {
                 final int index = i;
-                AssertExtensions.assertThrows(
-                        String.format("Unexpected behavior for checkArrayRange(index = %d, length = %d, maxbound = " +
-                                "%d).", index, length, maxBound),
-                        () -> Exceptions.checkArrayRange(index, length, maxBound, "start", "length"),
+                AssertExtensions.assertThrows(String.format(
+                        "Unexpected behavior for checkArrayRange(index = %d, length = %d, maxbound = " + "%d).", index,
+                        length, maxBound), () -> Exceptions.checkArrayRange(index, length, maxBound, "start", "length"),
                         ex -> ex instanceof ArrayIndexOutOfBoundsException);
             }
         }
 
         // Negative length.
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkArrayRange() with negative length.",
+        AssertExtensions.assertThrows("Unexpected behavior for checkArrayRange() with negative length.",
                 () -> Exceptions.checkArrayRange(10, -1, 20, "start", "length"),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -103,10 +96,8 @@ public class ExceptionsTests {
      */
     @Test
     public void testCheckNotClosed() {
-        AssertExtensions.assertThrows(
-                "Unexpected behavior for checkNotClosed() with closed=true argument.",
-                () -> Exceptions.checkNotClosed(true, "object"),
-                ex -> ex instanceof ObjectClosedException);
+        AssertExtensions.assertThrows("Unexpected behavior for checkNotClosed() with closed=true argument.",
+                () -> Exceptions.checkNotClosed(true, "object"), ex -> ex instanceof ObjectClosedException);
 
         // These should not throw.
         Exceptions.checkNotClosed(false, "object");

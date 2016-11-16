@@ -110,8 +110,9 @@ class MemoryStateUpdater {
                     if (ExceptionHelpers.mustRethrow(ex)) {
                         throw ex;
                     } else {
-                        throw new DataCorruptionException(String.format("Unable to create a " +
-                                "CachedStreamSegmentAppendOperation from operation '%s'.", operation), ex);
+                        throw new DataCorruptionException(String.format(
+                                "Unable to create a " + "CachedStreamSegmentAppendOperation from operation '%s'.",
+                                operation), ex);
                     }
                 }
             }
@@ -124,8 +125,8 @@ class MemoryStateUpdater {
             // We either recorded the Operation correctly, but invoked this callback out of order, or we really
             // recorded the Operation in the wrong order (by sequence number). In either case, we will be inconsistent
             // while serving reads, so better stop now than later.
-            throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was " +
-                    "out of order.");
+            throw new DataCorruptionException(
+                    "About to have added a Log Operation to InMemoryOperationLog that was " + "out of order.");
         }
     }
 

@@ -105,8 +105,8 @@ class VerificationStorage implements Storage {
         unregisterAllListeners(sourceStreamSegmentName);
         CompletableFuture<Void> result = this.baseStorage.concat(targetStreamSegmentName, offset,
                 sourceStreamSegmentName, timeout);
-        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout))
-                .thenAccept(sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
+        result.thenCompose(v -> this.baseStorage.getStreamSegmentInfo(targetStreamSegmentName, timeout)).thenAccept(
+                sp -> triggerListeners(targetStreamSegmentName, sp.getLength(), false));
         return result;
     }
 
@@ -144,8 +144,8 @@ class VerificationStorage implements Storage {
     void registerListener(SegmentUpdateListener listener) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         synchronized (this.listenerLock) {
-            HashMap<Integer, SegmentUpdateListener> segmentListeners = this.updateListeners.getOrDefault(listener
-                    .segmentName, null);
+            HashMap<Integer, SegmentUpdateListener> segmentListeners = this.updateListeners.getOrDefault(
+                    listener.segmentName, null);
             if (segmentListeners == null) {
                 segmentListeners = new HashMap<>();
                 this.updateListeners.put(listener.segmentName, segmentListeners);
@@ -249,8 +249,8 @@ class VerificationStorage implements Storage {
         }
 
         private void register(int id, java.util.function.Consumer<SegmentUpdateListener> unregisterCallback) {
-            Preconditions.checkState(this.unregisterCallback == null, "This SegmentUpdateListener is already " +
-                    "registered.");
+            Preconditions.checkState(this.unregisterCallback == null,
+                    "This SegmentUpdateListener is already " + "registered.");
             this.registrationId = id;
             this.unregisterCallback = unregisterCallback;
         }

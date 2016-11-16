@@ -114,13 +114,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.cache = cacheFactory.getCache(String.format("Container_%d", streamSegmentContainerId));
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.cache);
         this.executor = executor;
-        this.durableLog = durableLogFactory.createDurableLog(this.metadata, new CacheUpdater(this.cache, this
-                .readIndex));
+        this.durableLog = durableLogFactory.createDurableLog(this.metadata,
+                new CacheUpdater(this.cache, this.readIndex));
         this.durableLog.addListener(new ServiceShutdownListener(this.createComponentStoppedHandler("DurableLog"),
                 this.createComponentFailedHandler("DurableLog")), this.executor);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.cache);
-        this.writer.addListener(new ServiceShutdownListener(this.createComponentStoppedHandler("Writer"), this
-                .createComponentFailedHandler("Writer")), this.executor);
+        this.writer.addListener(new ServiceShutdownListener(this.createComponentStoppedHandler("Writer"),
+                this.createComponentFailedHandler("Writer")), this.executor);
         this.pendingAppendsCollection = new PendingAppendsCollection();
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.storage, this.executor);
     }
@@ -202,9 +202,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length, appendContext);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()).thenCompose(
+                streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data,
                             appendContext);
                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
@@ -222,11 +221,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length, appendContext);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId,
-                            offset, data, appendContext);
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()).thenCompose(
+                streamSegmentId -> {
+                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset,
+                            data, appendContext);
                     CompletableFuture<Long> result = this.durableLog.add(operation, timer.getRemaining());
 
                     // Add to Append Context Registry, if needed.
@@ -241,10 +239,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("read", streamSegmentName, offset, maxLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer
-                        .getRemaining()));
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()).thenApply(
+                streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
     }
 
     @Override
@@ -253,15 +249,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenApply(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()).thenApply(
+                streamSegmentId -> {
                     SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                    return new StreamSegmentInformation(streamSegmentName,
-                            sm.getDurableLogLength(),
-                            sm.isSealed(),
-                            sm.isDeleted(),
-                            new Date());
+                    return new StreamSegmentInformation(streamSegmentName, sm.getDurableLogLength(), sm.isSealed(),
+                            sm.isDeleted(), new Date());
                 });
     }
 
@@ -280,8 +272,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("createTransaction", parentStreamName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper.createNewTransactionStreamSegment(parentStreamName, transactionId, timer
-                .getRemaining());
+        return this.segmentMapper.createNewTransactionStreamSegment(parentStreamName, transactionId,
+                timer.getRemaining());
     }
 
     @Override
@@ -315,9 +307,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
-                .thenCompose(transactionId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(transactionName, timer.getRemaining()).thenCompose(
+                transactionId -> {
                     SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
                     if (transactionMetadata == null) {
                         throw new CompletionException(new StreamSegmentNotExistsException(transactionName));
@@ -336,13 +327,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("sealStreamSegment", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()).thenCompose(
+                streamSegmentId -> {
                     operation.set(new StreamSegmentSealOperation(streamSegmentId));
                     return this.durableLog.add(operation.get(), timer.getRemaining());
-                })
-                .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
+                }).thenApply(seqNo -> operation.get().getStreamSegmentOffset());
     }
 
     @Override
@@ -352,9 +341,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getLastAppendContext", streamSegmentName, clientId);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()).thenCompose(
+                streamSegmentId -> {
                     CompletableFuture<AppendContext> result = this.pendingAppendsCollection.get(streamSegmentId,
                             clientId);
                     if (result == null) {
@@ -400,10 +388,10 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return () -> {
             if (state() != State.STOPPING) {
                 // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
-                log.warn("{}: {} stopped unexpectedly (no error) but StreamSegmentContainer was not currently " +
+                log.warn(
+                        "{}: {} stopped unexpectedly (no error) but StreamSegmentContainer was not currently " +
                                 "stopping. Shutting down StreamSegmentContainer.",
-                        this.traceObjectId,
-                        componentName);
+                        this.traceObjectId, componentName);
                 stopAsync().awaitTerminated();
             }
         };

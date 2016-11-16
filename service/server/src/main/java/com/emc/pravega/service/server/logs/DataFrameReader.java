@@ -121,8 +121,9 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                     T logItem = this.logItemFactory.deserialize(source);
                     long seqNo = logItem.getSequenceNumber();
                     if (seqNo <= this.lastReadSequenceNumber) {
-                        throw new DataCorruptionException(String.format("Invalid Operation Sequence Number. Expected:" +
-                                " larger than %d, found: %d.", this.lastReadSequenceNumber, seqNo));
+                        throw new DataCorruptionException(String.format(
+                                "Invalid Operation Sequence Number. Expected:" + " larger than %d, found: %d.",
+                                this.lastReadSequenceNumber, seqNo));
                     }
 
                     this.lastReadSequenceNumber = seqNo;
@@ -181,8 +182,9 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                     if (this.readEntryCount > 0) {
                         // But this should ONLY happen at the very beginning of a read. If we encounter something like
                         // this in the middle of a log, we very likely have some sort of corruption.
-                        throw new DataCorruptionException(String.format("Found a DataFrameEntry which is not marked " +
-                                "as 'First Record Entry', but no active record is being read. DataFrameAddress = %s",
+                        throw new DataCorruptionException(String.format(
+                                "Found a DataFrameEntry which is not marked " + "as 'First Record Entry', but no " +
+                                        "active record is being read. DataFrameAddress = %s",
                                 nextEntry.getDataFrameAddress()));
                     }
                     continue;
@@ -263,8 +265,8 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
         @Override
         public String toString() {
-            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(), this
-                    .lastUsedDataFrameAddress.getSequence(), isLastFrameEntry());
+            return String.format("%s, DataFrameSN = %d, LastInDataFrame = %s", getItem(),
+                    this.lastUsedDataFrameAddress.getSequence(), isLastFrameEntry());
         }
     }
 
@@ -305,8 +307,9 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
             long dataFrameSequence = dataFrameAddress.getSequence();
             if (this.lastUsedDataFrameAddress != null && dataFrameSequence < this.lastUsedDataFrameAddress
                     .getSequence()) {
-                throw new DataCorruptionException(String.format("Invalid DataFrameSequence. Expected at least '%d', " +
-                        "found '%d'.", this.lastUsedDataFrameAddress.getSequence(), dataFrameSequence));
+                throw new DataCorruptionException(
+                        String.format("Invalid DataFrameSequence. Expected at least '%d', " + "found '%d'.",
+                                this.lastUsedDataFrameAddress.getSequence(), dataFrameSequence));
             }
 
             if (lastFrameEntry) {
@@ -372,12 +375,10 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
         @Override
         public String toString() {
-            return String.format("Count = %d, LastUsedDataFrameSeq = %d, LastFullDataFrameSequence = %d, " +
-                            "LastFrameEntry = %s",
-                    this.segments.size(),
-                    this.lastUsedDataFrameAddress.getSequence(),
-                    this.lastFullDataFrameAddress.getSequence(),
-                    this.lastFrameEntry);
+            return String.format(
+                    "Count = %d, LastUsedDataFrameSeq = %d, LastFullDataFrameSequence = %d, " + "LastFrameEntry = %s",
+                    this.segments.size(), this.lastUsedDataFrameAddress.getSequence(),
+                    this.lastFullDataFrameAddress.getSequence(), this.lastFrameEntry);
         }
     }
 
@@ -448,8 +449,8 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                 return null;
             } else {
                 // We just got a new frame.
-                log.debug("{}: Read DataFrame (Address = {}, Length = {}).", this.traceObjectId,
-                        dataFrame.getAddress(), dataFrame.getLength());
+                log.debug("{}: Read DataFrame (Address = {}, Length = {}).", this.traceObjectId, dataFrame.getAddress(),
+                        dataFrame.getLength());
                 this.currentFrameContents = dataFrame.getEntries();
                 result = this.currentFrameContents.getNext();
                 if (result != null) {
@@ -536,22 +537,25 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
                 frame = new DataFrame(nextItem.getPayload());
                 frame.setAddress(nextItem.getAddress());
             } catch (SerializationException ex) {
-                throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. " +
-                        "LastReadFrameSequence =  %d.", this.lastReadFrameSequence), ex);
+                throw new DataCorruptionException(
+                        String.format("Unable to deserialize DataFrame. " + "LastReadFrameSequence =  %d.",
+                                this.lastReadFrameSequence), ex);
             }
 
             long sequence = frame.getAddress().getSequence();
             if (sequence <= this.lastReadFrameSequence) {
                 // FrameSequence must be a strictly monotonically increasing number.
-                throw new DataCorruptionException(String.format("Found DataFrame out of order. Expected frame " +
-                        "sequence greater than %d, found %d.", this.lastReadFrameSequence, sequence));
+                throw new DataCorruptionException(String.format(
+                        "Found DataFrame out of order. Expected frame " + "sequence greater than %d, found %d.",
+                        this.lastReadFrameSequence, sequence));
             }
 
             if (this.lastReadFrameSequence != INITIAL_LAST_READ_FRAME_SEQUENCE && this.lastReadFrameSequence != frame
                     .getPreviousFrameSequence()) {
                 // Previous Frame Sequence is not match what the Current Frame claims it is.
-                throw new DataCorruptionException(String.format("DataFrame with Sequence %d has a " +
-                        "PreviousFrameSequence (%d) that does not match the previous DataFrame FrameSequence (%d).",
+                throw new DataCorruptionException(String.format(
+                        "DataFrame with Sequence %d has a " + "PreviousFrameSequence (%d) that does not match the " +
+                                "previous DataFrame FrameSequence (%d).",
                         sequence, frame.getPreviousFrameSequence(), this.lastReadFrameSequence));
             }
 

@@ -44,12 +44,13 @@ public class StreamSegmentNameUtilsTests {
             String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
             AssertExtensions.assertNotNullOrEmpty("getTransactionNameFromId() did not return any Segment Name.",
                     transactionName);
-            AssertExtensions.assertGreaterThan("getTransactionNameFromId() returned a Segment Name that is shorter " +
-                    "than the base.", segmentName.length(), transactionName.length());
+            AssertExtensions.assertGreaterThan(
+                    "getTransactionNameFromId() returned a Segment Name that is shorter " + "than the base.",
+                    segmentName.length(), transactionName.length());
 
             parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-            Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.",
-                    segmentName, parentName);
+            Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName,
+                    parentName);
         }
     }
 
@@ -78,7 +79,7 @@ public class StreamSegmentNameUtilsTests {
             lastName = expectedName;
         }
 
-        Assert.assertNull("Unexpected parent name when none was expected.", StreamSegmentNameUtils
-                .getParentStreamSegmentName(lastName));
+        Assert.assertNull("Unexpected parent name when none was expected.",
+                StreamSegmentNameUtils.getParentStreamSegmentName(lastName));
     }
 }

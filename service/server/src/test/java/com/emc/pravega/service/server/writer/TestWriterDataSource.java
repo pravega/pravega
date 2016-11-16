@@ -126,8 +126,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     public long add(Operation operation) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkArgument(operation.getSequenceNumber() < 0, "Given operation already has a sequence number" +
-                ".");
+        Preconditions.checkArgument(operation.getSequenceNumber() < 0,
+                "Given operation already has a sequence number" + ".");
 
         // If not a checkpoint op, see if we need to auto-add one.
         boolean isCheckpoint = operation instanceof MetadataCheckpointOperation;
@@ -147,8 +147,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         // it could
         // get picked up very fast by the Writer, so we need to have everything in place).
         if (isCheckpoint) {
-            this.metadata.recordTruncationMarker(operation.getSequenceNumber(), new TestLogAddress(operation
-                    .getSequenceNumber()));
+            this.metadata.recordTruncationMarker(operation.getSequenceNumber(),
+                    new TestLogAddress(operation.getSequenceNumber()));
             this.metadata.setValidTruncationPoint(operation.getSequenceNumber());
         }
 
@@ -172,29 +172,25 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     @Override
     public CompletableFuture<Void> acknowledge(long upToSequenceNumber, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation " +
-                "Point. Must refer to a MetadataCheckpointOperation.");
+        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber),
+                "Invalid Truncation " + "Point. Must refer to a MetadataCheckpointOperation.");
         ErrorInjector.throwSyncExceptionIfNeeded(this.ackSyncErrorInjector);
 
-        return ErrorInjector
-                .throwAsyncExceptionIfNeeded(this.ackAsyncErrorInjector)
-                .thenRunAsync(() -> {
-                    if (this.ackEffective) {
-                        // ackEffective determines whether the ack operation has any effect or not.
-                        this.log.truncate(o -> o.getSequenceNumber() <= upToSequenceNumber);
-                        this.metadata.removeTruncationMarkers(upToSequenceNumber);
-                    }
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.ackAsyncErrorInjector).thenRunAsync(() -> {
+            if (this.ackEffective) {
+                // ackEffective determines whether the ack operation has any effect or not.
+                this.log.truncate(o -> o.getSequenceNumber() <= upToSequenceNumber);
+                this.metadata.removeTruncationMarkers(upToSequenceNumber);
+            }
 
-                    // Invoke the truncation callback.
-                    Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
-                    if (callback != null) {
-                        Operation lastOperation = this.log.getLast();
-                        long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation
-                                .getSequenceNumber();
-                        CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo),
-                                null);
-                    }
-                }, this.executor);
+            // Invoke the truncation callback.
+            Consumer<AcknowledgeArgs> callback = this.acknowledgeCallback;
+            if (callback != null) {
+                Operation lastOperation = this.log.getLast();
+                long highestSeqNo = lastOperation == null ? upToSequenceNumber : lastOperation.getSequenceNumber();
+                CallbackHelpers.invokeSafely(callback, new AcknowledgeArgs(upToSequenceNumber, highestSeqNo), null);
+            }
+        }, this.executor);
     }
 
     @Override
@@ -202,21 +198,18 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
 
-        return ErrorInjector
-                .throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
-                .thenCompose(v -> {
-                    Iterator<Operation> logReadResult = this.log.read(e -> e.getSequenceNumber() >
-                            afterSequenceNumber, maxCount);
-                    if (logReadResult.hasNext()) {
-                        // Result is readily available; return it.
-                        return CompletableFuture.completedFuture(logReadResult);
-                    } else {
-                        // Result is not yet available; wait for an add and then retry the read.
-                        return waitForAdd(afterSequenceNumber, timeout)
-                                .thenComposeAsync(v1 -> this.read(afterSequenceNumber, maxCount, timeout), this
-                                        .executor);
-                    }
-                });
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector).thenCompose(v -> {
+            Iterator<Operation> logReadResult = this.log.read(e -> e.getSequenceNumber() > afterSequenceNumber,
+                    maxCount);
+            if (logReadResult.hasNext()) {
+                // Result is readily available; return it.
+                return CompletableFuture.completedFuture(logReadResult);
+            } else {
+                // Result is not yet available; wait for an add and then retry the read.
+                return waitForAdd(afterSequenceNumber, timeout).thenComposeAsync(
+                        v1 -> this.read(afterSequenceNumber, maxCount, timeout), this.executor);
+            }
+        });
     }
 
     @Override

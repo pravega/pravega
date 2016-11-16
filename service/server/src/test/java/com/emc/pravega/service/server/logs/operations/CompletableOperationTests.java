@@ -46,8 +46,7 @@ public class CompletableOperationTests {
         CompletableOperation co = new CompletableOperation(op, callbackSeqNo::set,
                 ex -> failureCallbackCalled.set(true));
 
-        AssertExtensions.assertThrows("complete() succeeded even if Operation had no Sequence Number.",
-                co::complete,
+        AssertExtensions.assertThrows("complete() succeeded even if Operation had no Sequence Number.", co::complete,
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertEquals("Success callback was invoked for illegal complete() call.", DEFAULT_SEQ_NO,
@@ -70,8 +69,8 @@ public class CompletableOperationTests {
 
         AtomicBoolean successCallbackCalled = new AtomicBoolean();
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
-        CompletableOperation co = new CompletableOperation(op, seqNo -> successCallbackCalled.set(true), ex ->
-                failureCallbackCalled.set(true));
+        CompletableOperation co = new CompletableOperation(op, seqNo -> successCallbackCalled.set(true),
+                ex -> failureCallbackCalled.set(true));
 
         co.fail(new IntentionalException());
         Assert.assertTrue("Failure callback was not invoked for valid fail() call.", failureCallbackCalled.get());

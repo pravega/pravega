@@ -32,6 +32,7 @@ public interface ReadOnlyStorage {
      * will have to be used for all operations that access this segment.
      * This lock is owned by this Pravega instance
      * and cannot be used by another one.
+     *
      * @param streamSegmentName Name of the StreamSegment to be acquired.
      * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been locked,
      * an exclusive lock acquired for it.

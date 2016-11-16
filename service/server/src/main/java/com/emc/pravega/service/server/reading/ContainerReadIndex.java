@@ -134,8 +134,8 @@ public class ContainerReadIndex implements ReadIndex {
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
-        Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it " +
-                "anymore.");
+        Exceptions.checkArgument(!index.isMerged(), "streamSegmentId",
+                "StreamSegment is merged. Cannot append to it " + "anymore.");
         index.append(offset, data);
     }
 
@@ -147,10 +147,10 @@ public class ContainerReadIndex implements ReadIndex {
 
         StreamSegmentReadIndex targetIndex = getReadIndex(targetStreamSegmentId, true);
         StreamSegmentReadIndex sourceIndex = getReadIndex(sourceStreamSegmentId, true);
-        Exceptions.checkArgument(!targetIndex.isMerged(), "targetStreamSegmentId", "StreamSegment is merged. Cannot " +
-                "access it anymore.");
-        Exceptions.checkArgument(!sourceIndex.isMerged(), "sourceStreamSegmentId", "StreamSegment is merged. Cannot " +
-                "access it anymore.");
+        Exceptions.checkArgument(!targetIndex.isMerged(), "targetStreamSegmentId",
+                "StreamSegment is merged. Cannot " + "access it anymore.");
+        Exceptions.checkArgument(!sourceIndex.isMerged(), "sourceStreamSegmentId",
+                "StreamSegment is merged. Cannot " + "access it anymore.");
         targetIndex.beginMerge(offset, sourceIndex);
         sourceIndex.markMerged();
     }
@@ -169,12 +169,12 @@ public class ContainerReadIndex implements ReadIndex {
     @Override
     public ReadResult read(long streamSegmentId, long offset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        log.debug("{}: read (StreamSegmentId = {}, Offset = {}, MaxLength = {}).", this.traceObjectId,
-                streamSegmentId, offset, maxLength);
+        log.debug("{}: read (StreamSegmentId = {}, Offset = {}, MaxLength = {}).", this.traceObjectId, streamSegmentId,
+                offset, maxLength);
 
         StreamSegmentReadIndex index = getReadIndex(streamSegmentId, true);
-        Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot access it " +
-                "anymore.");
+        Exceptions.checkArgument(!index.isMerged(), "streamSegmentId",
+                "StreamSegment is merged. Cannot access it " + "anymore.");
         return index.read(offset, maxLength, timeout);
     }
 
@@ -197,8 +197,8 @@ public class ContainerReadIndex implements ReadIndex {
 
         // Throw any exception at the end - we want to make sure at least the ones that did have a valid index entry
         // got triggered.
-        Exceptions.checkArgument(missingIds.size() == 0, "streamSegmentIds", "At least one StreamSegmentId does not " +
-                "exist in the metadata: %s", missingIds);
+        Exceptions.checkArgument(missingIds.size() == 0, "streamSegmentIds",
+                "At least one StreamSegmentId does not " + "exist in the metadata: %s", missingIds);
     }
 
     @Override
@@ -237,14 +237,14 @@ public class ContainerReadIndex implements ReadIndex {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!isRecoveryMode(), "Read Index is already in recovery mode.");
         Preconditions.checkNotNull(recoveryMetadataSource, "recoveryMetadataSource");
-        Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(), "Given ContainerMetadata is not in " +
-                "recovery mode.");
-        Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(), "Given" +
-                " ContainerMetadata refers to a different container than this ReadIndex.");
+        Preconditions.checkArgument(recoveryMetadataSource.isRecoveryMode(),
+                "Given ContainerMetadata is not in " + "recovery mode.");
+        Preconditions.checkArgument(this.metadata.getContainerId() == recoveryMetadataSource.getContainerId(),
+                "Given" + " ContainerMetadata refers to a different container than this ReadIndex.");
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
-        assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless we" +
-                " already are in recovery mode";
+        assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless " +
+                "we" + " already are in recovery mode";
         this.preRecoveryMetadata = this.metadata;
         this.metadata = recoveryMetadataSource;
         log.info("{} Enter RecoveryMode.", this.traceObjectId);
@@ -255,18 +255,19 @@ public class ContainerReadIndex implements ReadIndex {
     public void exitRecoveryMode(boolean successfulRecovery) throws DataCorruptionException {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.isRecoveryMode(), "Read Index is not in recovery mode.");
-        assert this.preRecoveryMetadata != null : "preRecoveryMetadata not null, which should only be the case when " +
-                "we are not in recovery mode";
-        Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(), "Cannot take ReadIndex out of recovery: " +
-                "ContainerMetadata is still in recovery mode.");
+        assert this.preRecoveryMetadata != null : "preRecoveryMetadata not null, which should only be the case when "
+                + "we are not in recovery mode";
+        Preconditions.checkState(!this.preRecoveryMetadata.isRecoveryMode(),
+                "Cannot take ReadIndex out of recovery: " + "ContainerMetadata is still in recovery mode.");
 
         if (successfulRecovery) {
             // Validate that the metadata has been properly recovered and that we are still in sync with it.
             for (Map.Entry<Long, StreamSegmentReadIndex> e : this.readIndices.entrySet()) {
                 SegmentMetadata metadata = this.preRecoveryMetadata.getStreamSegmentMetadata(e.getKey());
                 if (metadata == null) {
-                    throw new DataCorruptionException(String.format("ContainerMetadata has no knowledge of " +
-                            "StreamSegment Id %s.", e.getKey()));
+                    throw new DataCorruptionException(
+                            String.format("ContainerMetadata has no knowledge of " + "StreamSegment Id %s.",
+                                    e.getKey()));
                 }
 
                 e.getValue().exitRecoveryMode(metadata);
@@ -307,10 +308,10 @@ public class ContainerReadIndex implements ReadIndex {
 
             // We don't have it, create one.
             SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-            Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId", "StreamSegmentId {} does not exist " +
-                    "in the metadata.", streamSegmentId);
-            Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId", "StreamSegmentId {} exists in " +
-                    "the metadata but is marked as deleted.", streamSegmentId);
+            Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId",
+                    "StreamSegmentId {} does not exist " + "in the metadata.", streamSegmentId);
+            Exceptions.checkArgument(!segmentMetadata.isDeleted(), "streamSegmentId",
+                    "StreamSegmentId {} exists in " + "the metadata but is marked as deleted.", streamSegmentId);
 
             index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cache, this.storage, this.executor,
                     isRecoveryMode());

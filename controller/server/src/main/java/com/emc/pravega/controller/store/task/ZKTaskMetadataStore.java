@@ -50,19 +50,16 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> lock(final Resource resource,
-                                        final TaskData taskData,
-                                        final String owner,
-                                        final String threadId,
-                                        final String oldOwner,
-                                        final String oldThreadId) {
+    public CompletableFuture<Void> lock(final Resource resource, final TaskData taskData, final String owner, final
+    String threadId, final String oldOwner, final String oldThreadId) {
         Preconditions.checkNotNull(resource);
         Preconditions.checkNotNull(taskData);
         Preconditions.checkNotNull(owner);
         Preconditions.checkArgument(!owner.isEmpty());
         Preconditions.checkNotNull(threadId);
         Preconditions.checkArgument(!threadId.isEmpty());
-        Preconditions.checkArgument((oldOwner == null && oldThreadId == null) || (oldOwner != null && oldThreadId != null));
+        Preconditions.checkArgument(
+                (oldOwner == null && oldThreadId == null) || (oldOwner != null && oldThreadId != null));
         Preconditions.checkArgument(oldOwner == null || !oldOwner.isEmpty());
         Preconditions.checkArgument(oldThreadId == null || !oldThreadId.isEmpty());
 
@@ -76,10 +73,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     // if the node successfully got created, locking has succeeded,
                     // else locking has failed.
                     LockData lockData = new LockData(owner, threadId, taskData.serialize());
-                    client.create()
-                            .creatingParentsIfNeeded()
-                            .withMode(CreateMode.PERSISTENT)
-                            .forPath(getTaskPath(resource), lockData.serialize());
+                    client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(
+                            getTaskPath(resource), lockData.serialize());
                     lockAcquired = true;
                 } catch (Exception e) {
                     throw new LockFailedException(resource.getString(), e);
@@ -95,8 +90,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     if (lockData.getHostId().equals(oldOwner) && lockData.getThreadId().equals(oldThreadId)) {
                         lockData = new LockData(owner, threadId, lockData.getTaskData());
 
-                        client.setData().withVersion(stat.getVersion())
-                                .forPath(getTaskPath(resource), lockData.serialize());
+                        client.setData().withVersion(stat.getVersion()).forPath(getTaskPath(resource),
+                                lockData.serialize());
                         lockAcquired = true;
                     }
                 } catch (Exception e) {
@@ -113,9 +108,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> unlock(final Resource resource,
-                                          final String owner,
-                                          final String threadId) {
+    public CompletableFuture<Void> unlock(final Resource resource, final String owner, final String threadId) {
         Preconditions.checkNotNull(resource);
         Preconditions.checkNotNull(owner);
         Preconditions.checkNotNull(threadId);
@@ -130,17 +123,19 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     if (lockData.getHostId().equals(owner) && lockData.getThreadId().equals(threadId)) {
 
                         //Guaranteed Delete
-                        //Solves this edge case: deleting a node can fail due to connection issues. Further, if the node was
-                        //ephemeral, the node will not get auto-deleted as the session is still valid. This can wreak havoc
+                        //Solves this edge case: deleting a node can fail due to connection issues. Further, if the
+                        // node was
+                        //ephemeral, the node will not get auto-deleted as the session is still valid. This can wreak
+                        // havoc
                         //with lock implementations.
-                        //When guaranteed is set, Curator will record failed node deletions and attempt to delete them in the
-                        //background until successful. NOTE: you will still get an exception when the deletion fails. But, you
-                        //can be assured that as long as the CuratorFramework instance is open attempts will be made to delete
+                        //When guaranteed is set, Curator will record failed node deletions and attempt to delete
+                        // them in the
+                        //background until successful. NOTE: you will still get an exception when the deletion fails.
+                        // But, you
+                        //can be assured that as long as the CuratorFramework instance is open attempts will be made
+                        // to delete
                         //the node.
-                        client.delete()
-                                .guaranteed()
-                                .withVersion(stat.getVersion())
-                                .forPath(getTaskPath(resource));
+                        client.delete().guaranteed().withVersion(stat.getVersion()).forPath(getTaskPath(resource));
                     } else {
 
                         log.warn(String.format("Lock not owned by owner %s: thread %s", owner, threadId));
@@ -150,10 +145,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
 
                 } else {
 
-                    client.delete()
-                            .guaranteed()
-                            .withVersion(stat.getVersion())
-                            .forPath(getTaskPath(resource));
+                    client.delete().guaranteed().withVersion(stat.getVersion()).forPath(getTaskPath(resource));
                 }
                 return null;
 
@@ -167,9 +159,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
-                                                         final String owner,
-                                                         final String threadId) {
+    public CompletableFuture<Optional<TaskData>> getTask(final Resource resource, final String owner, final String
+            threadId) {
         Preconditions.checkNotNull(resource);
         Preconditions.checkNotNull(owner);
         Preconditions.checkNotNull(threadId);
@@ -187,7 +178,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     if (lockData.getHostId().equals(owner) && lockData.getThreadId().equals(threadId)) {
                         return Optional.of(TaskData.deserialize(lockData.getTaskData()));
                     } else {
-                        log.debug(String.format("Resource %s not owned by pair (%s, %s)", resource.getString(), owner, threadId));
+                        log.debug(String.format("Resource %s not owned by pair (%s, %s)", resource.getString(), owner,
+                                threadId));
                         return Optional.empty();
                     }
                 }
@@ -209,10 +201,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         return CompletableFuture.supplyAsync(() -> {
             try {
 
-                client.create()
-                        .creatingParentsIfNeeded()
-                        .withMode(CreateMode.PERSISTENT)
-                        .forPath(getHostPath(parent, child));
+                client.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(
+                        getHostPath(parent, child));
 
                 return null;
 
@@ -226,26 +216,22 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> removeChild(final String parent, final TaggedResource child, final boolean deleteEmptyParent) {
+    public CompletableFuture<Void> removeChild(final String parent, final TaggedResource child, final boolean
+            deleteEmptyParent) {
         Preconditions.checkNotNull(parent);
         Preconditions.checkNotNull(child);
 
         return CompletableFuture.supplyAsync(() -> {
             try {
-                client.delete()
-                        .forPath(getHostPath(parent, child));
+                client.delete().forPath(getHostPath(parent, child));
 
                 if (deleteEmptyParent) {
                     // if there are no children for the failed host, remove failed host znode
                     Stat stat = new Stat();
-                    client.getData()
-                            .storingStatIn(stat)
-                            .forPath(getHostPath(parent));
+                    client.getData().storingStatIn(stat).forPath(getHostPath(parent));
 
                     if (stat.getNumChildren() == 0) {
-                        client.delete()
-                                .withVersion(stat.getVersion())
-                                .forPath(getHostPath(parent));
+                        client.delete().withVersion(stat.getVersion()).forPath(getHostPath(parent));
                     }
                 }
                 return null;
@@ -259,7 +245,8 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     //    @Override
-    //    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean deleteEmptyParent) {
+    //    public CompletableFuture<Void> removeChildren(String parent, List<TaggedResource> children, boolean
+    // deleteEmptyParent) {
     //        Preconditions.checkNotNull(parent);
     //        Preconditions.checkNotNull(children);
     //

@@ -27,7 +27,8 @@ public class OperationOnTxNotAllowedException extends RuntimeException {
 
     /**
      * Creates a new instance of OperationOnTxNotAllowedException class.
-     * @param op operation
+     *
+     * @param op   operation
      * @param txid transaction id
      */
     public OperationOnTxNotAllowedException(final String txid, final String op) {

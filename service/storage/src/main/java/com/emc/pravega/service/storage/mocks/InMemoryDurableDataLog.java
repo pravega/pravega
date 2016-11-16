@@ -262,8 +262,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
             synchronized (this.writeLock) {
                 String existingLockOwner = this.writeLock.get();
                 if (existingLockOwner != null) {
-                    throw new DataLogWriterNotPrimaryException("Unable to acquire exclusive write lock because is " +
-                            "already owned by " + clientId);
+                    throw new DataLogWriterNotPrimaryException(
+                            "Unable to acquire exclusive write lock because is " + "already owned by " + clientId);
                 }
 
                 this.writeLock.set(clientId);
@@ -282,8 +282,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
             synchronized (this.writeLock) {
                 String existingLockOwner = this.writeLock.get();
                 if (existingLockOwner == null || !existingLockOwner.equals(clientId)) {
-                    throw new DataLogWriterNotPrimaryException("Unable to release exclusive write lock because the " +
-                            "current client does not own it. Current owner: " + clientId);
+                    throw new DataLogWriterNotPrimaryException(
+                            "Unable to release exclusive write lock because the " + "current client does not own it. " +
+                                    "Current owner: " + clientId);
                 }
 
                 this.writeLock.set(null);
@@ -294,8 +295,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             String existingLockOwner = this.writeLock.get();
             if (existingLockOwner != null && !existingLockOwner.equals(clientId)) {
-                throw new DataLogWriterNotPrimaryException("Unable to perform operation because the write lock is " +
-                        "owned by a different client " + clientId);
+                throw new DataLogWriterNotPrimaryException(
+                        "Unable to perform operation because the write lock is " + "owned by a different client " +
+                                clientId);
             }
         }
     }

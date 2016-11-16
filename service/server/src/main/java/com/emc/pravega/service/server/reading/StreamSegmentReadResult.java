@@ -63,10 +63,10 @@ class StreamSegmentReadResult implements ReadResult {
      */
     StreamSegmentReadResult(long streamSegmentStartOffset, int maxResultLength, NextEntrySupplier getNextItem, String
             traceObjectId) {
-        Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset", "streamSegmentStartOffset" +
-                " must be a non-negative number.");
-        Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength", "maxResultLength must be a non-negative " +
-                "number.");
+        Exceptions.checkArgument(streamSegmentStartOffset >= 0, "streamSegmentStartOffset",
+                "streamSegmentStartOffset" + " must be a non-negative number.");
+        Exceptions.checkArgument(maxResultLength >= 0, "maxResultLength",
+                "maxResultLength must be a non-negative " + "number.");
         Preconditions.checkNotNull(getNextItem, "getNextItem");
 
         this.traceObjectId = traceObjectId;
@@ -102,8 +102,8 @@ class StreamSegmentReadResult implements ReadResult {
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentStartOffset, this
-                .maxResultLength, this.consumedLength);
+        return String.format("Offset = %d, MaxLength = %d, Consumed = %d", this.streamSegmentStartOffset,
+                this.maxResultLength, this.consumedLength);
     }
 
     //endregion
@@ -165,8 +165,8 @@ class StreamSegmentReadResult implements ReadResult {
         Exceptions.checkNotClosed(this.closed, this);
 
         // If the previous entry hasn't finished yet, we cannot proceed.
-        Preconditions.checkState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(), "Cannot request a new" +
-                " entry when the previous one hasn't completed retrieval yet.");
+        Preconditions.checkState(this.lastEntryFuture == null || this.lastEntryFuture.isDone(),
+                "Cannot request a new" + " entry when the previous one hasn't completed retrieval yet.");
         if (this.lastEntryFuture != null && !this.lastEntryFuture.isDone()) {
             this.lastEntryFuture.join();
         }
@@ -183,12 +183,14 @@ class StreamSegmentReadResult implements ReadResult {
         ReadResultEntryBase entry = this.getNextItem.apply(startOffset, remainingLength);
 
         if (entry == null) {
-            assert remainingLength <= 0 : String.format("No ReadResultEntry received when one was expected. Offset " +
-                    "%d, MaxLen %d.", startOffset, remainingLength);
+            assert remainingLength <= 0 : String.format(
+                    "No ReadResultEntry received when one was expected. Offset " + "%d, MaxLen %d.", startOffset,
+                    remainingLength);
             this.lastEntryFuture = null;
         } else {
-            assert entry.getStreamSegmentOffset() == startOffset : String.format("Invalid ReadResultEntry. Expected " +
-                    "offset %d, given %d.", startOffset, entry.getStreamSegmentOffset());
+            assert entry.getStreamSegmentOffset() == startOffset : String.format(
+                    "Invalid ReadResultEntry. Expected " + "offset %d, given %d.", startOffset,
+                    entry.getStreamSegmentOffset());
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // StreamSegment is now sealed and we have requested an offset that is beyond the StreamSegment length.
                 // We cannot continue reading; close the ReadResult and return the appropriate EndOfStream Result Entry.
@@ -208,8 +210,8 @@ class StreamSegmentReadResult implements ReadResult {
             }
         }
 
-        log.trace("{}.ReadResult[{}]: Consumed = {}, MaxLength = {}, Entry = ({}).", this.traceObjectId, this
-                .streamSegmentStartOffset, this.consumedLength, this.maxResultLength, entry);
+        log.trace("{}.ReadResult[{}]: Consumed = {}, MaxLength = {}, Entry = ({}).", this.traceObjectId,
+                this.streamSegmentStartOffset, this.consumedLength, this.maxResultLength, entry);
         return entry;
     }
 

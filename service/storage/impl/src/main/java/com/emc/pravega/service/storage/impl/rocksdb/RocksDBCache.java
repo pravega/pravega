@@ -170,9 +170,7 @@ class RocksDBCache implements Cache {
      * improvement).
      */
     private WriteOptions createWriteOptions() {
-        return new WriteOptions()
-                .setDisableWAL(true)
-                .setSync(false);
+        return new WriteOptions().setDisableWAL(true).setSync(false);
     }
 
     private RocksDB openDatabase() {
@@ -188,9 +186,7 @@ class RocksDBCache implements Cache {
     }
 
     private RuntimeException convert(RocksDBException exception, String message, Object... messageFormatArgs) {
-        String exceptionMessage = String.format(
-                "Unable to %s (CacheId=%s).",
-                String.format(message, messageFormatArgs),
+        String exceptionMessage = String.format("Unable to %s (CacheId=%s).", String.format(message, messageFormatArgs),
                 this.id);
 
         throw new CacheException(exceptionMessage, exception);

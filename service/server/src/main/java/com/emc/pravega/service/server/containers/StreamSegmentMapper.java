@@ -104,8 +104,8 @@ public class StreamSegmentMapper {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
         long streamId = this.containerMetadata.getStreamSegmentId(streamSegmentName);
         if (isValidStreamSegmentId(streamId)) {
-            return FutureHelpers.failedFuture(new StreamSegmentExistsException("Given StreamSegmentName is already " +
-                    "registered internally. Most likely it already exists."));
+            return FutureHelpers.failedFuture(new StreamSegmentExistsException(
+                    "Given StreamSegmentName is already " + "registered internally. Most likely it already exists."));
         }
 
         // Create the StreamSegment, and then assign a Unique Internal Id to it.
@@ -113,11 +113,10 @@ public class StreamSegmentMapper {
         // call
         // to get the same info about the StreamSegmentId.
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.storage
-                .create(streamSegmentName, timer.getRemaining())
-                .thenCompose(si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining()))
-                .thenAccept(id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId,
-                        streamSegmentName, id));
+        return this.storage.create(streamSegmentName, timer.getRemaining()).thenCompose(
+                si -> getOrAssignStreamSegmentId(si.getName(), timer.getRemaining())).thenAccept(
+                id -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName,
+                        id));
     }
 
     /**
@@ -131,7 +130,7 @@ public class StreamSegmentMapper {
      * Transaction StreamSegment.
      * If the operation failed, this will contain the exception that caused the failure.
      * @throws IllegalArgumentException If the given parent StreamSegment cannot have a Transaction (because it is
-     * deleted, sealed, inexistent).
+     *                                  deleted, sealed, inexistent).
      */
     public CompletableFuture<String> createNewTransactionStreamSegment(String parentStreamSegmentName, UUID
             transactionId, Duration timeout) {
@@ -139,8 +138,7 @@ public class StreamSegmentMapper {
                 parentStreamSegmentName);
 
         //We cannot create a Transaction StreamSegment for a what looks like a parent StreamSegment.
-        Exceptions.checkArgument(
-                StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null,
+        Exceptions.checkArgument(StreamSegmentNameUtils.getParentStreamSegmentName(parentStreamSegmentName) == null,
                 "parentStreamSegmentName",
                 "Given Parent StreamSegmentName looks like a Transaction StreamSegment Name. Cannot create a " +
                         "Transaction for a Transaction.");
@@ -151,13 +149,11 @@ public class StreamSegmentMapper {
         if (isValidStreamSegmentId(parentStreamSegmentId)) {
             SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
             if (parentMetadata != null) {
-                Exceptions.checkArgument(
-                        !isValidStreamSegmentId(parentMetadata.getParentId()),
+                Exceptions.checkArgument(!isValidStreamSegmentId(parentMetadata.getParentId()),
                         "parentStreamSegmentName",
-                        "Given Parent StreamSegment is a Transaction StreamSegment. Cannot create a Transaction for a" +
-                                " Transaction.");
-                Exceptions.checkArgument(
-                        !parentMetadata.isDeleted() && !parentMetadata.isSealed(),
+                        "Given Parent StreamSegment is a Transaction StreamSegment. Cannot create a Transaction for " +
+                                "a" + " Transaction.");
+                Exceptions.checkArgument(!parentMetadata.isDeleted() && !parentMetadata.isSealed(),
                         "parentStreamSegmentName",
                         "Given Parent StreamSegment is deleted or sealed. Cannot create a Transaction for it.");
                 parentCheckFuture = CompletableFuture.completedFuture(null);
@@ -170,19 +166,18 @@ public class StreamSegmentMapper {
         if (parentCheckFuture == null) {
             // We were unable to find this StreamSegment in our metadata. Check in Storage. If the parent StreamSegment
             // does not exist, this will throw an exception (and place it on the resulting future).
-            parentCheckFuture = FutureHelpers.toVoid(this.storage.getStreamSegmentInfo(parentStreamSegmentName,
-                    timer.getRemaining()));
+            parentCheckFuture = FutureHelpers.toVoid(
+                    this.storage.getStreamSegmentInfo(parentStreamSegmentName, timer.getRemaining()));
         }
 
-        return parentCheckFuture
-                .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
-                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer
-                        .getRemaining()))
-                .thenApply(id -> {
-                    LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId,
-                            parentStreamSegmentName, transactionName, id);
-                    return transactionName;
-                });
+        return parentCheckFuture.thenCompose(
+                parentInfo -> this.storage.create(transactionName, timer.getRemaining())).thenCompose(
+                transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId,
+                        timer.getRemaining())).thenApply(id -> {
+            LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId,
+                    parentStreamSegmentName, transactionName, id);
+            return transactionName;
+        });
     }
 
     /**
@@ -234,8 +229,8 @@ public class StreamSegmentMapper {
                 // Stand-alone StreamSegment.
                 this.executor.execute(() -> assignStreamSegmentId(streamSegmentName, timeout));
             } else {
-                this.executor.execute(() -> assignTransactionStreamSegmentId(streamSegmentName,
-                        parentStreamSegmentName, timeout));
+                this.executor.execute(
+                        () -> assignTransactionStreamSegmentId(streamSegmentName, parentStreamSegmentName, timeout));
             }
         }
 
@@ -258,19 +253,15 @@ public class StreamSegmentMapper {
         AtomicReference<Long> parentSegmentId = new AtomicReference<>();
 
         // Get info about parent. This also verifies the parent exists.
-        return this
-                .getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining())
-                .thenCompose(id -> {
-                    // Get info about Transaction itself.
-                    parentSegmentId.set(id);
-                    return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
-                })
-                .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer
-                        .getRemaining()))
-                .exceptionally(ex -> {
-                    failAssignment(transactionSegmentName, ex);
-                    throw new CompletionException(ex);
-                });
+        return this.getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining()).thenCompose(id -> {
+            // Get info about Transaction itself.
+            parentSegmentId.set(id);
+            return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
+        }).thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(),
+                timer.getRemaining())).exceptionally(ex -> {
+            failAssignment(transactionSegmentName, ex);
+            throw new CompletionException(ex);
+        });
     }
 
     /**
@@ -295,14 +286,12 @@ public class StreamSegmentMapper {
      */
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        this.storage
-                .open(streamSegmentName)
-                .thenCompose(bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()))
-                .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
-                .exceptionally(ex -> {
-                    failAssignment(streamSegmentName, ex);
-                    throw new CompletionException(ex);
-                });
+        this.storage.open(streamSegmentName).thenCompose(
+                bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining())).thenCompose(
+                streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining())).exceptionally(ex -> {
+            failAssignment(streamSegmentName, ex);
+            throw new CompletionException(ex);
+        });
     }
 
     /**
@@ -329,8 +318,8 @@ public class StreamSegmentMapper {
             parentStreamSegmentId, Duration timeout) {
         if (streamSegmentInfo.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(streamSegmentInfo.getName(), new StreamSegmentNotExistsException("StreamSegment does not " +
-                    "exist."));
+            failAssignment(streamSegmentInfo.getName(),
+                    new StreamSegmentNotExistsException("StreamSegment does not " + "exist."));
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentInfo.getName()));
         }
 
@@ -356,8 +345,8 @@ public class StreamSegmentMapper {
                 logAddResult = this.durableLog.add(op, timeout);
             }
 
-            return logAddResult
-                    .thenApply(seqNo -> completeAssignment(streamSegmentInfo.getName(), mapping.getStreamSegmentId()));
+            return logAddResult.thenApply(
+                    seqNo -> completeAssignment(streamSegmentInfo.getName(), mapping.getStreamSegmentId()));
         }
     }
 

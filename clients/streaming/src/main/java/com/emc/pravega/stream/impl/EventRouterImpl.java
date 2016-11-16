@@ -48,8 +48,9 @@ public class EventRouterImpl implements EventRouter {
 
     @Override
     public void refreshSegmentList() {
-        currentSegments.set(getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream
-                .getStreamName()), RuntimeException::new));
+        currentSegments.set(
+                getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(), stream.getStreamName()),
+                        RuntimeException::new));
     }
 
 }

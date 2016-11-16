@@ -35,14 +35,9 @@ class ReconciliationFailureException extends DataCorruptionException {
      * @param storageInfo     Information about the segment in Storage.
      */
     ReconciliationFailureException(String message, SegmentMetadata segmentMetadata, SegmentProperties storageInfo) {
-        super(String.format(
-                "%s Segment = %s, Storage: Length=%d(%s), Metadata: Length=%d(%s)",
-                message,
-                segmentMetadata.getName(),
-                storageInfo.getLength(),
-                getSealedMessage(storageInfo.isSealed()),
-                segmentMetadata.getStorageLength(),
-                getSealedMessage(segmentMetadata.isSealedInStorage())));
+        super(String.format("%s Segment = %s, Storage: Length=%d(%s), Metadata: Length=%d(%s)", message,
+                segmentMetadata.getName(), storageInfo.getLength(), getSealedMessage(storageInfo.isSealed()),
+                segmentMetadata.getStorageLength(), getSealedMessage(segmentMetadata.isSealedInStorage())));
     }
 
     private static String getSealedMessage(boolean sealed) {

@@ -30,12 +30,10 @@ public class ScalingPolicy implements Serializable {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
-        FIXED_NUM_SEGMENTS,
-        /**
+        FIXED_NUM_SEGMENTS, /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_BYTES,
-        /**
+        BY_RATE_IN_BYTES, /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
         BY_RATE_IN_EVENTS,

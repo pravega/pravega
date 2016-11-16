@@ -137,8 +137,8 @@ public class HDFSStorageTest extends StorageTestBase {
         }
 
         @Override
-        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
-                                              String sourceStreamSegmentName, Duration timeout) {
+        public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
+                sourceStreamSegmentName, Duration timeout) {
             return storage.concat(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout);
         }
 
@@ -158,8 +158,8 @@ public class HDFSStorageTest extends StorageTestBase {
         }
 
         @Override
-        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer,
-                                               int bufferOffset, int length, Duration timeout) {
+        public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int
+                bufferOffset, int length, Duration timeout) {
             return storage.read(streamSegmentName, offset, buffer, bufferOffset, length, timeout);
         }
 

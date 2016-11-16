@@ -136,8 +136,9 @@ class PendingAppendsCollection implements AutoCloseable {
 
         @Override
         public String toString() {
-            return String.format("%s: %s (%s)", this.key, this.context, this.completionFuture.isDone() ? (this
-                    .completionFuture.isCompletedExceptionally() ? "Error" : "Complete") : "Pending");
+            return String.format("%s: %s (%s)", this.key, this.context,
+                    this.completionFuture.isDone() ? (this.completionFuture.isCompletedExceptionally() ? "Error" :
+                            "Complete") : "Pending");
         }
     }
 

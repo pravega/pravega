@@ -43,122 +43,110 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceAsyncImpl(final StreamMetadataStore streamStore,
-                                      final HostControllerStore hostStore,
-                                      final StreamMetadataTasks streamMetadataTasks,
-                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    public ControllerServiceAsyncImpl(final StreamMetadataStore streamStore, final HostControllerStore hostStore,
+                                      final StreamMetadataTasks streamMetadataTasks, final
+                                      StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 
     @Override
-    public void createStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
+    public void createStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws
+            TException {
         log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()),
                 resultHandler);
     }
 
     @Override
-    public void alterStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
+    public void alterStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws
+            TException {
         log.debug("alterStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.alterStream(ModelHelper.encode(streamConfig)), resultHandler);
     }
 
     @Override
-    public void getCurrentSegments(final String scope, final String stream, final AsyncMethodCallback resultHandler) throws TException {
+    public void getCurrentSegments(final String scope, final String stream, final AsyncMethodCallback resultHandler)
+            throws TException {
         log.debug("getCurrentSegments called for stream " + scope + "/" + stream);
         processResult(controllerService.getCurrentSegments(scope, stream), resultHandler);
     }
 
     @Override
-    public void getPositions(final String scope,
-                             final String stream,
-                             final long timestamp,
-                             final int count,
-                             final AsyncMethodCallback resultHandler) throws TException {
+    public void getPositions(final String scope, final String stream, final long timestamp, final int count, final
+    AsyncMethodCallback resultHandler) throws TException {
         log.debug("getPositions called for stream " + scope + "/" + stream);
         processResult(controllerService.getPositions(scope, stream, timestamp, count), resultHandler);
     }
 
     @Override
-    public void updatePositions(final String scope,
-                                final String stream,
-                                final List<Position> positions,
-                                final AsyncMethodCallback resultHandler) throws TException {
+    public void updatePositions(final String scope, final String stream, final List<Position> positions, final
+    AsyncMethodCallback resultHandler) throws TException {
         log.debug("updatePositions called for stream " + scope + "/" + stream);
         processResult(controllerService.updatePositions(scope, stream, positions), resultHandler);
     }
 
     @Override
-    public void scale(final String scope,
-                      final String stream,
-                      final List<Integer> sealedSegments,
-                      final Map<Double, Double> newKeyRanges,
-                      final long scaleTimestamp,
-                      final AsyncMethodCallback resultHandler) throws TException {
+    public void scale(final String scope, final String stream, final List<Integer> sealedSegments, final Map<Double,
+            Double> newKeyRanges, final long scaleTimestamp, final AsyncMethodCallback resultHandler) throws
+            TException {
         log.debug("scale called for stream " + scope + "/" + stream);
-        processResult(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), resultHandler);
+        processResult(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp),
+                resultHandler);
     }
 
     @Override
     public void getURI(final SegmentId segment, final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("getURI called for segment " + segment.getScope() + "/" + segment.getStreamName() + "/" + segment.getNumber());
+        log.debug(
+                "getURI called for segment " + segment.getScope() + "/" + segment.getStreamName() + "/" + segment
+                        .getNumber());
         processResult(controllerService.getURI(segment), resultHandler);
     }
 
     @Override
-    public void isSegmentValid(final String scope,
-                               final String stream,
-                               final int segmentNumber,
-                               final AsyncMethodCallback resultHandler) throws TException {
+    public void isSegmentValid(final String scope, final String stream, final int segmentNumber, final
+    AsyncMethodCallback resultHandler) throws TException {
         log.debug("isSegmentValid called for stream " + scope + "/" + stream + " segment " + segmentNumber);
         processResult(controllerService.isSegmentValid(scope, stream, segmentNumber), resultHandler);
     }
 
     @Override
-    public void createTransaction(final String scope,
-                                  final String stream,
-                                  final AsyncMethodCallback resultHandler) throws TException {
+    public void createTransaction(final String scope, final String stream, final AsyncMethodCallback resultHandler)
+            throws TException {
         log.debug("createTransaction called for stream " + scope + "/" + stream);
         processResult(controllerService.createTransaction(scope, stream), resultHandler);
     }
 
     @Override
-    public void commitTransaction(final String scope,
-                                  final String stream,
-                                  final TxId txid,
-                                  final AsyncMethodCallback resultHandler) throws TException {
+    public void commitTransaction(final String scope, final String stream, final TxId txid, final AsyncMethodCallback
+            resultHandler) throws TException {
         log.debug("commitTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.commitTransaction(scope, stream, txid), resultHandler);
     }
 
     @Override
-    public void dropTransaction(final String scope,
-                                final String stream,
-                                final TxId txid,
-                                final AsyncMethodCallback resultHandler) throws TException {
+    public void dropTransaction(final String scope, final String stream, final TxId txid, final AsyncMethodCallback
+            resultHandler) throws TException {
         log.debug("dropTransaction called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.dropTransaction(scope, stream, txid), resultHandler);
     }
 
     @Override
-    public void checkTransactionStatus(final String scope,
-                                       final String stream,
-                                       final TxId txid,
-                                       final AsyncMethodCallback resultHandler) throws TException {
+    public void checkTransactionStatus(final String scope, final String stream, final TxId txid, final
+    AsyncMethodCallback resultHandler) throws TException {
         log.debug("checkTransactionStatus called for stream " + scope + "/" + stream + " txid=" + txid);
         processResult(controllerService.checkTransactionStatus(scope, stream, txid), resultHandler);
     }
 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
-        result.whenComplete(
-                (value, ex) -> {
-                    if (ex != null) {
-                        resultHandler.onError(new RuntimeException(ex));
-                    } else if (value != null) {
-                        log.debug("result = " + value.toString());
+        result.whenComplete((value, ex) -> {
+            if (ex != null) {
+                resultHandler.onError(new RuntimeException(ex));
+            } else if (value != null) {
+                log.debug("result = " + value.toString());
 
-                        resultHandler.onComplete(value);
-                    }
-                });
+                resultHandler.onComplete(value);
+            }
+        });
     }
 }

@@ -38,7 +38,7 @@ public interface StreamSegmentStore {
      * the add was added. If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the
-     * StreamSegment
+     *                                  StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
     CompletableFuture<Long> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration
@@ -60,7 +60,7 @@ public interface StreamSegmentStore {
      * If the operation failed, the future will be failed with the causing exception.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the StreamSegment Name is invalid (NOTE: this doesn't check if the
-     * StreamSegment
+     *                                  StreamSegment
      *                                  does not exist - that exception will be set in the returned CompletableFuture).
      */
     CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext,

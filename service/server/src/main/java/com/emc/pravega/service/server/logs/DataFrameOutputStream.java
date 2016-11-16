@@ -72,8 +72,8 @@ class DataFrameOutputStream extends OutputStream {
     @Override
     public void write(int b) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is " +
-                "started.");
+        Preconditions.checkState(this.currentFrame != null,
+                "No current frame exists. Most likely no record is " + "started.");
 
         int attemptCount = 0;
         int totalBytesWritten = 0;
@@ -100,14 +100,14 @@ class DataFrameOutputStream extends OutputStream {
     @Override
     public void write(byte[] data, int offset, int length) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is " +
-                "started.");
+        Preconditions.checkState(this.currentFrame != null,
+                "No current frame exists. Most likely no record is " + "started.");
 
         int totalBytesWritten = 0;
         int attemptsWithNoProgress = 0;
         while (totalBytesWritten < length) {
-            int bytesWritten = this.currentFrame.append(new ByteArraySegment(data, offset + totalBytesWritten, length
-                    - totalBytesWritten));
+            int bytesWritten = this.currentFrame.append(
+                    new ByteArraySegment(data, offset + totalBytesWritten, length - totalBytesWritten));
             attemptsWithNoProgress = bytesWritten == 0 ? attemptsWithNoProgress + 1 : 0;
             if (attemptsWithNoProgress > 1) {
                 // We had two consecutive attempts to write to a frame with no progress made.
@@ -226,8 +226,8 @@ class DataFrameOutputStream extends OutputStream {
     }
 
     private void createNewFrame() {
-        Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new " +
-                "frame if we currently have a non-sealed frame.");
+        Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(),
+                "Cannot create a new " + "frame if we currently have a non-sealed frame.");
 
         this.currentFrame = new DataFrame(this.getPreviousFrameSequence.get(), this.maxDataFrameSize);
         this.hasDataInCurrentFrame = false;

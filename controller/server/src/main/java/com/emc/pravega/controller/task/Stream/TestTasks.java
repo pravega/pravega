@@ -41,17 +41,14 @@ public class TestTasks extends TaskBase implements Cloneable {
 
     @Task(name = "test", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<Void> testStreamLock(String scope, String stream) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream},
-                () -> {
-                    try {
-                        Thread.sleep(10000);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                    return  CompletableFuture.completedFuture(null);
-                });
+        return execute(new Resource(scope, stream), new Serializable[]{scope, stream}, () -> {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            return CompletableFuture.completedFuture(null);
+        });
     }
 }

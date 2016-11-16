@@ -65,13 +65,10 @@ public class StorageReaderTests {
         final int defaultReadLength = MIN_SEGMENT_LENGTH - 1;
         final int offsetIncrement = defaultReadLength / 3;
 
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(
+        @Cleanup CloseableExecutorService executor = new CloseableExecutorService(
                 Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
-        @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executor.get());
-        @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
+        @Cleanup InMemoryStorage storage = new InMemoryStorage(executor.get());
+        @Cleanup StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         byte[] segmentData = populateSegment(storage);
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
@@ -79,8 +76,7 @@ public class StorageReaderTests {
         while (readOffset < segmentData.length) {
             int readLength = Math.min(defaultReadLength, segmentData.length - readOffset);
             CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-            StorageReader.Request r = new StorageReader.Request(
-                    readOffset, readLength, requestCompletion::complete,
+            StorageReader.Request r = new StorageReader.Request(readOffset, readLength, requestCompletion::complete,
                     requestCompletion::completeExceptionally, TIMEOUT);
 
             reader.execute(r);
@@ -112,46 +108,36 @@ public class StorageReaderTests {
      */
     @Test
     public void testInvalidRequests() {
-        @Cleanup
-        CloseableExecutorService executor =
-                new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
 
-        @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executor.get());
-        @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
+        @Cleanup InMemoryStorage storage = new InMemoryStorage(executor.get());
+        @Cleanup StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         byte[] segmentData = populateSegment(storage);
 
         // Segment does not exist.
-        AssertExtensions.assertThrows(
-                "Request was not failed when StreamSegment does not exist.",
-                () -> {
-                    SegmentMetadata sm = new StreamSegmentMetadata("foo", 0, 0);
-                    @Cleanup
-                    StorageReader nonExistentReader = new StorageReader(sm, storage, executor.get());
-                    sendRequest(nonExistentReader, 0, 1).join();
-                },
-                ex -> ex instanceof StreamSegmentNotExistsException);
+        AssertExtensions.assertThrows("Request was not failed when StreamSegment does not exist.", () -> {
+            SegmentMetadata sm = new StreamSegmentMetadata("foo", 0, 0);
+            @Cleanup StorageReader nonExistentReader = new StorageReader(sm, storage, executor.get());
+            sendRequest(nonExistentReader, 0, 1).join();
+        }, ex -> ex instanceof StreamSegmentNotExistsException);
 
         // Invalid read offset.
-        AssertExtensions.assertThrows(
-                "Request was not failed when bad offset was provided.",
+        AssertExtensions.assertThrows("Request was not failed when bad offset was provided.",
                 sendRequest(reader, segmentData.length + 1, 1)::join,
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Invalid read length.
-        AssertExtensions.assertThrows(
-                "Request was not failed when bad offset + length was provided.",
+        AssertExtensions.assertThrows("Request was not failed when bad offset + length was provided.",
                 sendRequest(reader, segmentData.length - 1, 2)::join,
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
     private CompletableFuture<StorageReader.Result> sendRequest(StorageReader reader, long offset, int length) {
         CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-        reader.execute(
-                new StorageReader.Request(offset, length, requestCompletion::complete,
-                        requestCompletion::completeExceptionally, TIMEOUT));
+        reader.execute(new StorageReader.Request(offset, length, requestCompletion::complete,
+                requestCompletion::completeExceptionally, TIMEOUT));
 
         return requestCompletion;
     }
@@ -162,23 +148,22 @@ public class StorageReaderTests {
      */
     @Test
     public void testDependents() {
-        @Cleanup
-        CloseableExecutorService executor =
-                new CloseableExecutorService(Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
+        @Cleanup CloseableExecutorService executor = new CloseableExecutorService(
+                Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
 
         TestStorage storage = new TestStorage();
         CompletableFuture<Integer> signal = new CompletableFuture<>();
         AtomicBoolean wasReadInvoked = new AtomicBoolean();
         storage.readImplementation = () -> {
             if (wasReadInvoked.getAndSet(true)) {
-                Assert.fail("Read was invoked multiple times, which is a " +
-                        "likely indicator that the requests were not chained.");
+                Assert.fail(
+                        "Read was invoked multiple times, which is a " + "likely indicator that the requests were not" +
+                                " chained.");
             }
             return signal;
         };
 
-        @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
+        @Cleanup StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         // Create some reads.
         CompletableFuture<StorageReader.Result> c1 = new CompletableFuture<>();
@@ -191,14 +176,10 @@ public class StorageReaderTests {
         signal.completeExceptionally(new IntentionalException());
         Assert.assertTrue("The first read did not fail.", c1.isCompletedExceptionally());
         Assert.assertTrue("The second read did not fail.", c2.isCompletedExceptionally());
-        AssertExtensions.assertThrows(
-                "The first read was not failed with the correct exception.",
-                c1::join,
+        AssertExtensions.assertThrows("The first read was not failed with the correct exception.", c1::join,
                 ex -> ex instanceof IntentionalException);
 
-        AssertExtensions.assertThrows(
-                "The second read was not failed with the correct exception.",
-                c2::join,
+        AssertExtensions.assertThrows("The second read was not failed with the correct exception.", c2::join,
                 ex -> ex instanceof IntentionalException);
     }
 
@@ -208,24 +189,22 @@ public class StorageReaderTests {
     @Test
     public void testAutoCancelRequests() {
         final int readCount = 100;
-        @Cleanup
-        CloseableExecutorService executor = new CloseableExecutorService(
+        @Cleanup CloseableExecutorService executor = new CloseableExecutorService(
                 Executors.newScheduledThreadPool(THREAD_POOL_SIZE));
 
         TestStorage storage = new TestStorage();
         storage.readImplementation = CompletableFuture::new;
         // Just return a Future which we will never complete - simulates a high latency read.
 
-        @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
+        @Cleanup StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executor.get());
 
         // Create some reads.
         HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
 
         for (int i = 0; i < readCount; i++) {
             CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-            StorageReader.Request r = new StorageReader.Request(
-                    i * 10, 9, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
+            StorageReader.Request r = new StorageReader.Request(i * 10, 9, requestCompletion::complete,
+                    requestCompletion::completeExceptionally, TIMEOUT);
 
             reader.execute(r);
             requestCompletions.put(r, requestCompletion);
@@ -244,8 +223,7 @@ public class StorageReaderTests {
                     entry.getValue().isCompletedExceptionally());
             AssertExtensions.assertThrows(
                     "Request was not failed with a CancellationException after close for request " + entry.getKey(),
-                    entry.getValue()::join,
-                    ex -> ex instanceof CancellationException);
+                    entry.getValue()::join, ex -> ex instanceof CancellationException);
         }
     }
 

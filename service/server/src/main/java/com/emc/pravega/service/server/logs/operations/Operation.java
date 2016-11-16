@@ -84,8 +84,8 @@ public abstract class Operation implements LogItem {
      * @throws IllegalArgumentException If the Sequence Number is negative.
      */
     public void setSequenceNumber(long value) {
-        Preconditions.checkState(this.sequenceNumber < 0, "Sequence Number has been previously set for this entry. " +
-                "Cannot set a new one.");
+        Preconditions.checkState(this.sequenceNumber < 0,
+                "Sequence Number has been previously set for this entry. " + "Cannot set a new one.");
         Exceptions.checkArgument(value >= 0, "value", "Sequence Number must be a non-negative number.");
 
         this.sequenceNumber = value;
@@ -141,8 +141,9 @@ public abstract class Operation implements LogItem {
      */
     private void deserialize(OperationHeader header, DataInputStream source) throws SerializationException {
         if (header.operationType != getOperationType()) {
-            throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type. Expected" +
-                    " %d, Found %d.", getOperationType(), header.operationType));
+            throw new SerializationException("Operation.deserialize",
+                    String.format("Invalid Operation Type. Expected" + " %d, Found %d.", getOperationType(),
+                            header.operationType));
         }
 
         try {
@@ -163,8 +164,8 @@ public abstract class Operation implements LogItem {
     void readVersion(DataInputStream source, byte expectedVersion) throws IOException, SerializationException {
         byte version = source.readByte();
         if (version != expectedVersion) {
-            throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()), String
-                    .format("Unsupported version: %d.", version));
+            throw new SerializationException(String.format("%s.deserialize", this.getClass().getSimpleName()),
+                    String.format("Unsupported version: %d.", version));
         }
     }
 
@@ -240,12 +241,12 @@ public abstract class Operation implements LogItem {
                     this.operationType = source.readByte();
                     this.sequenceNumber = source.readLong();
                 } else {
-                    throw new SerializationException("OperationHeader.deserialize", String.format("Unsupported " +
-                            "version: %d.", headerVersion));
+                    throw new SerializationException("OperationHeader.deserialize",
+                            String.format("Unsupported " + "version: %d.", headerVersion));
                 }
             } catch (IOException ex) {
-                throw new SerializationException("OperationHeader.deserialize", "Unable to deserialize Operation " +
-                        "Header", ex);
+                throw new SerializationException("OperationHeader.deserialize",
+                        "Unable to deserialize Operation " + "Header", ex);
             }
         }
 

@@ -276,14 +276,14 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     }
 
     /**
-     * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer,
-     * java.util.concurrent.CompletableFuture)
+     * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer, * java.util.concurrent
+     * .CompletableFuture)
      */
     @Override
     @Synchronized
     public void write(ByteBuffer buff, CompletableFuture<Void> callback) throws SegmentSealedException {
-        checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s", buff
-                .remaining());
+        checkArgument(buff.remaining() <= SegmentOutputStream.MAX_WRITE_SIZE, "Write size too large: %s",
+                buff.remaining());
         ClientConnection connection = getConnection();
         Append append = state.createNewInflightAppend(connectionId, segmentName, buff, callback);
         try {
@@ -300,21 +300,21 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class)
-                .run(() -> {
-            setupConnection();
-            return state.waitForConnection();
-        });
+        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(
+                () -> {
+                    setupConnection();
+                    return state.waitForConnection();
+                });
     }
 
     @Synchronized
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
-                    .thenCompose((PravegaNodeUri uri) -> {
-                        return connectionFactory.establishConnection(uri, responseProcessor);
-                    });
+            CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(
+                    segmentName).thenCompose((PravegaNodeUri uri) -> {
+                return connectionFactory.establishConnection(uri, responseProcessor);
+            });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(connectionId, segmentName);

@@ -95,18 +95,19 @@ interface Stream {
      * @param scaleTimestamp scaling timestamp
      * @return sequence of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments,
-                                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp);
+    CompletableFuture<List<Segment>> scale(final List<Integer> sealedSegments, final List<AbstractMap
+            .SimpleEntry<Double, Double>> newRanges, final long scaleTimestamp);
 
     /**
      * Method to start new transaction creation
+     *
      * @return
      */
     CompletableFuture<UUID> createTransaction();
 
     /**
      * Seal given transaction
+     *
      * @param txId
      * @return
      */
@@ -114,6 +115,7 @@ interface Stream {
 
     /**
      * Returns transaction's status
+     *
      * @param txId
      * @return
      */
@@ -123,6 +125,7 @@ interface Stream {
      * Commits a transaction
      * If already committed, return TxStatus.Committed
      * If dropped, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */
@@ -132,6 +135,7 @@ interface Stream {
      * Commits a transaction
      * If already dropped, return TxStatus.Dropped
      * If committed, throw OperationOnTxNotAllowedException
+     *
      * @param txId
      * @return
      */

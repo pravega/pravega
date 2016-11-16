@@ -64,8 +64,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
     private final Map<Segment, SegmentProducer<Type>> producers = new HashMap<>();
 
     ProducerImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory, EventRouter
-            router, Serializer<Type> serializer,
-                 ProducerConfig config) {
+            router, Serializer<Type> serializer, ProducerConfig config) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -92,21 +91,20 @@ public class ProducerImpl<Type> implements Producer<Type> {
      * retransmitted.
      */
     private List<Event<Type>> setupSegmentProducers() {
-        Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5)
-                .retryingOn(SegmentSealedException.class)
-                .throwingOn(RuntimeException.class)
-                .run(() -> {
-                    Collection<Segment> s = getAndHandleExceptions(controller.getCurrentSegments(stream.getScope(),
-                            stream.getStreamName()), RuntimeException::new).getSegments();
-                    for (Segment segment : s) {
-                        if (!producers.containsKey(segment)) {
-                            SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
-                                    config.getSegmentConfig());
-                            producers.put(segment, new SegmentProducerImpl<>(out, serializer));
-                        }
-                    }
-                    return s;
-                });
+        Collection<Segment> segments = Retry.withExpBackoff(1, 10, 5).retryingOn(
+                SegmentSealedException.class).throwingOn(RuntimeException.class).run(() -> {
+            Collection<Segment> s = getAndHandleExceptions(
+                    controller.getCurrentSegments(stream.getScope(), stream.getStreamName()),
+                    RuntimeException::new).getSegments();
+            for (Segment segment : s) {
+                if (!producers.containsKey(segment)) {
+                    SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
+                            config.getSegmentConfig());
+                    producers.put(segment, new SegmentProducerImpl<>(out, serializer));
+                }
+            }
+            return s;
+        });
         List<Event<Type>> toResend = new ArrayList<>();
 
         Iterator<Entry<Segment, SegmentProducer<Type>>> iter = producers.entrySet().iterator();

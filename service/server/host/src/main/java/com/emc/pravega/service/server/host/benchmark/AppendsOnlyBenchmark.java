@@ -74,8 +74,7 @@ public class AppendsOnlyBenchmark extends Benchmark {
         log("Starting");
         List<TestOutput> results = new ArrayList<>();
         for (TestInput input : INPUTS) {
-            @Cleanup
-            ServiceBuilder serviceBuilder = super.serviceBuilderProvider.get();
+            @Cleanup ServiceBuilder serviceBuilder = super.serviceBuilderProvider.get();
             TestOutput output = runSingleBenchmark(input, serviceBuilder);
             results.add(output);
         }
@@ -116,16 +115,15 @@ public class AppendsOnlyBenchmark extends Benchmark {
             for (String segmentName : segmentNames) {
                 // Do the append.
                 final long startTimeNanos = System.nanoTime();
-                CompletableFuture<Void> completionFuture = store
-                        .append(segmentName, appendData, appendContext, TIMEOUT)
-                        .thenRunAsync(() -> {
-                            // Record latencies when the future is done.
-                            long elapsedNanos = System.nanoTime() - startTimeNanos;
-                            synchronized (result) {
-                                result.totalAppendLength += appendData.length;
-                                result.latencies.add(elapsedNanos / 1000000.0);
-                            }
-                        });
+                CompletableFuture<Void> completionFuture = store.append(segmentName, appendData, appendContext,
+                        TIMEOUT).thenRunAsync(() -> {
+                    // Record latencies when the future is done.
+                    long elapsedNanos = System.nanoTime() - startTimeNanos;
+                    synchronized (result) {
+                        result.totalAppendLength += appendData.length;
+                        result.latencies.add(elapsedNanos / 1000000.0);
+                    }
+                });
                 burstResults.add(completionFuture);
 
                 // Check to see if we need to wait on the recently added appends.
@@ -154,20 +152,10 @@ public class AppendsOnlyBenchmark extends Benchmark {
             int appendCount = result.input.segmentCount * result.input.appendsPerSegment;
             double mbps = (double) result.totalAppendLength / ONE_MB / (result.totalDurationNanos / 1000.0 / 1000 /
                     1000);
-            printResultLine(
-                    result.input.segmentCount,
-                    appendCount,
-                    result.input.appendSize,
-                    result.input.burstSize,
-                    mbps,
-                    result.latencies.min(),
-                    result.latencies.max(),
-                    result.latencies.avg(),
-                    result.latencies.percentile(50),
-                    result.latencies.percentile(90),
-                    result.latencies.percentile(95),
-                    result.latencies.percentile(99),
-                    result.latencies.percentile(99.9));
+            printResultLine(result.input.segmentCount, appendCount, result.input.appendSize, result.input.burstSize,
+                    mbps, result.latencies.min(), result.latencies.max(), result.latencies.avg(),
+                    result.latencies.percentile(50), result.latencies.percentile(90), result.latencies.percentile(95),
+                    result.latencies.percentile(99), result.latencies.percentile(99.9));
         }
     }
 
@@ -188,8 +176,8 @@ public class AppendsOnlyBenchmark extends Benchmark {
 
         @Override
         public String toString() {
-            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input, (double) this.totalAppendLength
-                    / ONE_MB / (this.totalDurationNanos / 1000000000), this.latencies);
+            return String.format("%s, Tput = %.1f MB/s, Latencies = %s", this.input,
+                    (double) this.totalAppendLength / ONE_MB / (this.totalDurationNanos / 1000000000), this.latencies);
         }
 
         @Override

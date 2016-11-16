@@ -63,8 +63,8 @@ public class DataFrameBuilderTests {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (TestLogItem item : records) {
                     b.append(item);
@@ -77,13 +77,14 @@ public class DataFrameBuilderTests {
             for (int i = 0; i < commitFrames.size(); i++) {
                 DataFrameBuilder.DataFrameCommitArgs ca = commitFrames.get(i);
                 if (previousCommitArgs != null) {
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs" +
-                            ".getLastFullySerializedSequenceNumber() is not monotonically increasing.",
-                            previousCommitArgs.getLastFullySerializedSequenceNumber(), ca
-                                    .getLastFullySerializedSequenceNumber());
-                    AssertExtensions.assertGreaterThanOrEqual("DataFrameCommitArgs.getLastStartedSequenceNumber() is " +
-                            "not monotonically increasing.", previousCommitArgs.getLastStartedSequenceNumber(), ca
-                            .getLastStartedSequenceNumber());
+                    AssertExtensions.assertGreaterThanOrEqual(
+                            "DataFrameCommitArgs" + ".getLastFullySerializedSequenceNumber() is not monotonically " +
+                                    "increasing.",
+                            previousCommitArgs.getLastFullySerializedSequenceNumber(),
+                            ca.getLastFullySerializedSequenceNumber());
+                    AssertExtensions.assertGreaterThanOrEqual(
+                            "DataFrameCommitArgs.getLastStartedSequenceNumber() is " + "not monotonically increasing.",
+                            previousCommitArgs.getLastStartedSequenceNumber(), ca.getLastStartedSequenceNumber());
                 }
 
                 previousCommitArgs = ca;
@@ -122,8 +123,8 @@ public class DataFrameBuilderTests {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
@@ -144,8 +145,8 @@ public class DataFrameBuilderTests {
             List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload()));
 
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
-            DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices, r -> new ByteArraySegment(r
-                    .getFullSerialization()));
+            DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices,
+                    r -> new ByteArraySegment(r.getFullSerialization()));
         }
     }
 
@@ -169,11 +170,9 @@ public class DataFrameBuilderTests {
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE)) {
             dataLog.initialize(TIMEOUT);
 
-            ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(
-                    count -> count % failSyncEvery == 0,
+            ErrorInjector<Exception> syncErrorInjector = new ErrorInjector<>(count -> count % failSyncEvery == 0,
                     () -> new Exception("intentional sync"));
-            ErrorInjector<Exception> asyncErrorInjector = new ErrorInjector<>(
-                    count -> count % failAsyncEvery == 0,
+            ErrorInjector<Exception> asyncErrorInjector = new ErrorInjector<>(count -> count % failAsyncEvery == 0,
                     () -> new Exception("intentional async"));
             dataLog.setAppendErrorInjectors(syncErrorInjector, asyncErrorInjector);
 
@@ -196,8 +195,8 @@ public class DataFrameBuilderTests {
                 expectedError = ExceptionHelpers.getRealException(expectedError);
 
                 Assert.assertNotNull(String.format("Unexpected error occurred upon commit. %s", ex), expectedError);
-                Assert.assertEquals("Unexpected error occurred upon commit.", expectedError, ExceptionHelpers
-                        .getRealException(ex));
+                Assert.assertEquals("Unexpected error occurred upon commit.", expectedError,
+                        ExceptionHelpers.getRealException(ex));
                 failCount.incrementAndGet();
 
                 // Need to indicate that all LogItems since the last one committed until the one currently executing
@@ -220,16 +219,16 @@ public class DataFrameBuilderTests {
 
             // Check the correctness of the commit callback.
             AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, successCommits.size());
-            AssertExtensions.assertGreaterThan("Not enough LogItems were failed.", records.size() /
-                    Math.max(failAsyncEvery, failSyncEvery), failedIndices.size());
+            AssertExtensions.assertGreaterThan("Not enough LogItems were failed.",
+                    records.size() / Math.max(failAsyncEvery, failSyncEvery), failedIndices.size());
 
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be
             // reconstructed.
             List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload()));
 
             Assert.assertEquals("Unexpected number of frames generated.", successCommits.size(), frames.size());
-            DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices, r -> new ByteArraySegment(r
-                    .getFullSerialization()));
+            DataFrameTestHelpers.checkReadRecords(frames, records, failedIndices,
+                    r -> new ByteArraySegment(r.getFullSerialization()));
         }
     }
 
@@ -246,8 +245,8 @@ public class DataFrameBuilderTests {
             ArrayList<TestLogItem> records = DataFrameTestHelpers.generateLogItems(2, SMALL_RECORD_MIN_SIZE,
                     SMALL_RECORD_MAX_SIZE, 0);
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (TestLogItem item : records) {
                     b.append(item);

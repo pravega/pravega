@@ -65,8 +65,8 @@ public class StorageWriterFactory implements WriterFactory {
     @Override
     public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex
             readIndex, Cache cache) {
-        Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(), "Given " +
-                "containerMetadata and operationLog have different Container Ids.");
+        Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(),
+                "Given " + "containerMetadata and operationLog have different Container Ids.");
         Storage storage = this.storageFactory.getStorageAdapter();
         WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex, cache);
         return new StorageWriter(this.config, dataSource, storage, this.executor);

@@ -113,8 +113,8 @@ public class DurableLog extends AbstractService implements OperationLog {
                 this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog,
                 checkpointPolicy);
-        this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler,
-                this::queueFailedHandler), this.executor);
+        this.operationProcessor.addListener(
+                new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
     }
@@ -222,8 +222,8 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public CompletableFuture<Void> truncate(long upToSequenceNumber, Duration timeout) {
         ensureRunning();
-        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber), "Invalid Truncation " +
-                "Point. Must refer to a MetadataCheckpointOperation.");
+        Preconditions.checkArgument(this.metadata.isValidTruncationPoint(upToSequenceNumber),
+                "Invalid Truncation " + "Point. Must refer to a MetadataCheckpointOperation.");
 
         // The SequenceNumber we were given points directly to a MetadataCheckpointOperation. We must not remove it!
         // Instead, it must be the first operation that does survive, so we need to adjust our SeqNo to the one just
@@ -241,15 +241,13 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.info("{}: Truncate (OperationSequenceNumber = {}, DataFrameAddress = {}).", this.traceObjectId,
                 upToSequenceNumber, truncationFrameAddress);
 
-        return this.durableDataLog
-                .truncate(truncationFrameAddress, timer.getRemaining())
-                .thenRun(() -> {
-                    // Truncate InMemory Transaction Log.
-                    this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= actualTruncationSequenceNumber);
+        return this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()).thenRun(() -> {
+            // Truncate InMemory Transaction Log.
+            this.inMemoryOperationLog.truncate(e -> e.getSequenceNumber() <= actualTruncationSequenceNumber);
 
-                    // Remove old truncation markers.
-                    this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
-                });
+            // Remove old truncation markers.
+            this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
+        });
     }
 
     @Override
@@ -257,8 +255,8 @@ public class DurableLog extends AbstractService implements OperationLog {
         ensureRunning();
         log.debug("{}: Read (AfterSequenceNumber = {}, MaxCount = {}).", this.traceObjectId, afterSequenceNumber,
                 maxCount);
-        Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(e -> e.getSequenceNumber() >
-                afterSequenceNumber, maxCount);
+        Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(
+                e -> e.getSequenceNumber() > afterSequenceNumber, maxCount);
         if (logReadResult.hasNext()) {
             // Data is readily available.
             return CompletableFuture.completedFuture(logReadResult);
@@ -283,8 +281,9 @@ public class DurableLog extends AbstractService implements OperationLog {
                 // entering the synchronized block above); re-issue the read and return the result.
                 logReadResult = this.inMemoryOperationLog.read(e -> e.getSequenceNumber() > afterSequenceNumber,
                         maxCount);
-                assert logReadResult.hasNext() : String.format("Unable to read anything after SeqNo %d, even though " +
-                        "metadata indicates SeqNo == %d", afterSequenceNumber, metadataSeqNo);
+                assert logReadResult.hasNext() : String.format(
+                        "Unable to read anything after SeqNo %d, even though " + "metadata indicates SeqNo == %d",
+                        afterSequenceNumber, metadataSeqNo);
                 result = CompletableFuture.completedFuture(logReadResult);
             }
 
@@ -298,8 +297,8 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private boolean performRecovery() throws Exception {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
-        Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a " +
-                "'%s' state.", State.STARTING);
+        Preconditions.checkState(state() == State.STARTING,
+                "Cannot perform recovery if the DurableLog is not in a " + "'%s' state.", State.STARTING);
 
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "performRecovery");
         TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
@@ -363,23 +362,28 @@ public class DurableLog extends AbstractService implements OperationLog {
                 readResult = reader.getNext();
                 if (readResult == null) {
                     // We have reached the end and have not found any MetadataCheckpointOperations.
-                    log.warn("{}: Reached the end of the DataFrameLog and could not find any " +
-                            "MetadataCheckpointOperations after reading {} Operations and {} Data Frames.", this
-                            .traceObjectId, skippedOperationCount, skippedDataFramesCount);
+                    log.warn(
+                            "{}: Reached the end of the DataFrameLog and could not find any " +
+                                    "MetadataCheckpointOperations after reading {} Operations and {} Data Frames.",
+                            this.traceObjectId, skippedOperationCount, skippedDataFramesCount);
                     break;
                 } else if (readResult.getItem() instanceof MetadataCheckpointOperation) {
                     // We found a checkpoint. Start recovering from here.
-                    log.info("{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data " +
-                            "Frames).", this.traceObjectId, readResult.getItem().getSequenceNumber(),
-                            skippedOperationCount, skippedDataFramesCount);
+                    log.info(
+                            "{}: Starting recovery from Sequence Number {} (skipped {} Operations and {} Data " +
+                                    "Frames).",
+                            this.traceObjectId, readResult.getItem().getSequenceNumber(), skippedOperationCount,
+                            skippedDataFramesCount);
                     break;
                 } else if (readResult.isLastFrameEntry()) {
                     skippedDataFramesCount++;
                 }
 
                 skippedOperationCount++;
-                log.debug("{}: Not recovering operation because no MetadataCheckpointOperation encountered so far " +
-                        "({}).", this.traceObjectId, readResult.getItem());
+                log.debug(
+                        "{}: Not recovering operation because no MetadataCheckpointOperation encountered so far " + "" +
+                                "({}).",
+                        this.traceObjectId, readResult.getItem());
             }
 
             // Now continue with the recovery from here.
@@ -412,8 +416,8 @@ public class DurableLog extends AbstractService implements OperationLog {
             metadataUpdater.acceptOperation(operation);
         } catch (StreamSegmentException | MetadataUpdateException ex) {
             // Metadata updates failures should not happen during recovery.
-            throw new DataCorruptionException(String.format("Unable to update metadata for Log Operation %s",
-                    operation), ex);
+            throw new DataCorruptionException(
+                    String.format("Unable to update metadata for Log Operation %s", operation), ex);
         }
 
         // Update in-memory structures.
@@ -457,19 +461,20 @@ public class DurableLog extends AbstractService implements OperationLog {
     private void queueStoppedHandler() {
         if (state() != State.STOPPING && state() != State.FAILED) {
             // The Queue Processor stopped but we are not in a stopping phase. We need to shut down right away.
-            log.warn("{}: QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping. " +
-                    "Shutting down DurableLog.", this.traceObjectId);
-            this.stopException.set(new StreamingException("QueueProcessor stopped unexpectedly (no error) but " +
-                    "DurableLog was not currently stopping."));
+            log.warn(
+                    "{}: QueueProcessor stopped unexpectedly (no error) but DurableLog was not currently stopping. "
+                            + "Shutting down DurableLog.",
+                    this.traceObjectId);
+            this.stopException.set(new StreamingException(
+                    "QueueProcessor stopped unexpectedly (no error) but " + "DurableLog was not currently stopping."));
             stopAsync();
         }
     }
 
     private CompletableFuture<Void> queueMetadataCheckpoint() {
         log.info("{}: MetadataCheckpointOperation queued.", this.traceObjectId);
-        return this.operationProcessor
-                .process(new MetadataCheckpointOperation())
-                .thenAccept(seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));
+        return this.operationProcessor.process(new MetadataCheckpointOperation()).thenAccept(
+                seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));
     }
 
     private void unregisterTailRead(TailRead tailRead) {
@@ -488,15 +493,15 @@ public class DurableLog extends AbstractService implements OperationLog {
             long seqNo = this.metadata.getOperationSequenceNumber();
             List<TailRead> toTrigger;
             synchronized (this.tailReads) {
-                toTrigger = this.tailReads.stream().filter(e -> e.afterSequenceNumber < seqNo).collect(Collectors
-                        .toList());
+                toTrigger = this.tailReads.stream().filter(e -> e.afterSequenceNumber < seqNo).collect(
+                        Collectors.toList());
             }
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
                 try {
-                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(o -> o.getSequenceNumber() >
-                            tr.afterSequenceNumber, tr.maxCount);
+                    Iterator<Operation> logReadResult = this.inMemoryOperationLog.read(
+                            o -> o.getSequenceNumber() > tr.afterSequenceNumber, tr.maxCount);
                     tr.future.complete(logReadResult);
                 } catch (Throwable ex) {
                     if (ExceptionHelpers.mustRethrow(ex)) {

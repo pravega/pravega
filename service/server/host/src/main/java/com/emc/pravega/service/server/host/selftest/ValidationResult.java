@@ -119,13 +119,13 @@ class ValidationResult {
     @Override
     public String toString() {
         if (isFailed()) {
-            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset, this
-                    .failureMessage);
+            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset,
+                    this.failureMessage);
         } else if (isMoreDataNeeded()) {
             return String.format("More data needed (Source=%s, Offset=%d)", this.source, this.segmentOffset);
         } else {
-            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset, this
-                    .length);
+            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset,
+                    this.length);
         }
     }
 

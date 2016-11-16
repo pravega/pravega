@@ -21,11 +21,7 @@ import org.apache.commons.lang.NotImplementedException;
 
 public class StreamStoreFactory {
     public enum StoreType {
-        InMemory,
-        Zookeeper,
-        ECS,
-        S3,
-        HDFS
+        InMemory, Zookeeper, ECS, S3, HDFS
     }
 
     public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {

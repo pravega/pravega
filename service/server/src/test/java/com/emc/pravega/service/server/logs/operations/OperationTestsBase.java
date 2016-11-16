@@ -50,8 +50,8 @@ public abstract class OperationTestsBase<T extends Operation> {
         int iteration = 0;
         while (iteration < MAX_CONFIG_ITERATIONS && isPreSerializationConfigRequired(baseOp)) {
             iteration++;
-            trySerialize(baseOp, "Serialization was possible without completing all necessary pre-serialization steps" +
-                    ".");
+            trySerialize(baseOp,
+                    "Serialization was possible without completing all necessary pre-serialization steps" + ".");
             configurePreSerialization(baseOp, random);
         }
 
@@ -92,8 +92,7 @@ public abstract class OperationTestsBase<T extends Operation> {
     }
 
     private void trySerialize(T op, String message) {
-        AssertExtensions.assertThrows(message,
-                () -> op.serialize(new ByteArrayOutputStream()),
+        AssertExtensions.assertThrows(message, () -> op.serialize(new ByteArrayOutputStream()),
                 ex -> ex instanceof IllegalStateException);
     }
 }

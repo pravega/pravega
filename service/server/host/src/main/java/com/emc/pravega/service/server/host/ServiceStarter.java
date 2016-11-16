@@ -83,8 +83,8 @@ public final class ServiceStarter {
         System.out.println("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
-        this.listener = new PravegaConnectionListener(false, this.serviceConfig.getConfig(ServiceConfig::new)
-                .getListeningPort(), service);
+        this.listener = new PravegaConnectionListener(false,
+                this.serviceConfig.getConfig(ServiceConfig::new).getListeningPort(), service);
         this.listener.startListening();
         System.out.println("LogServiceConnectionListener started successfully.");
     }

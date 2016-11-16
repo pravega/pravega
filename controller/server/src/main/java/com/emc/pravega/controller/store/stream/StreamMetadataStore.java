@@ -36,14 +36,13 @@ public interface StreamMetadataStore {
     /**
      * Creates a new stream with the given name and configuration.
      *
-     * @param name          stream name.
-     * @param configuration stream configuration.
+     * @param name            stream name.
+     * @param configuration   stream configuration.
      * @param createTimestamp stream creation timestamp.
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String name,
-                                            final StreamConfiguration configuration,
-                                            final long createTimestamp);
+    CompletableFuture<Boolean> createStream(final String name, final StreamConfiguration configuration, final long
+            createTimestamp);
 
     /**
      * Updates the configuration of an existing stream.
@@ -64,7 +63,8 @@ public interface StreamMetadataStore {
 
     /**
      * Get Segment.
-     *  @param name   stream name.
+     *
+     * @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
@@ -95,8 +95,7 @@ public interface StreamMetadataStore {
      * @param currentSegments   current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
-                                                            final Set<Integer> completedSegments,
+    CompletableFuture<List<SegmentFutures>> getNextSegments(final String name, final Set<Integer> completedSegments,
                                                             final List<SegmentFutures> currentSegments);
 
     /**
@@ -104,15 +103,14 @@ public interface StreamMetadataStore {
      *
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
-     * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
+     * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the
+     *                       stream
      * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    CompletableFuture<List<Segment>> scale(final String name,
-                                           final List<Integer> sealedSegments,
-                                           final List<SimpleEntry<Double, Double>> newRanges,
-                                           final long scaleTimestamp);
+    CompletableFuture<List<Segment>> scale(final String name, final List<Integer> sealedSegments, final
+    List<SimpleEntry<Double, Double>> newRanges, final long scaleTimestamp);
 
     /**
      * Method to create a new transaction on a stream.

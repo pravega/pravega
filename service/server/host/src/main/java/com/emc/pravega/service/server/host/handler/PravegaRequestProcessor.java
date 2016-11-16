@@ -179,12 +179,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(segmentName, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(),
-                        true,
-                        properties.isSealed(),
-                        properties.isDeleted(),
-                        properties.getLastModified().getTime(),
-                        properties.getLength());
+                StreamSegmentInfo result = new StreamSegmentInfo(properties.getName(), true, properties.isSealed(),
+                        properties.isDeleted(), properties.getLastModified().getTime(), properties.getLength());
                 connection.send(result);
             } else {
                 connection.send(new StreamSegmentInfo(segmentName, false, true, true, 0, 0));
@@ -198,22 +194,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void getTransactionInfo(GetTransactionInfo request) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request
-                .getTxid());
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(),
+                request.getTxid());
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                TransactionInfo result = new TransactionInfo(request.getSegment(),
-                        request.getTxid(),
-                        transactionName,
-                        !properties.isDeleted(),
-                        properties.isSealed(),
-                        properties.getLastModified().getTime(),
+                TransactionInfo result = new TransactionInfo(request.getSegment(), request.getTxid(), transactionName,
+                        !properties.isDeleted(), properties.isSealed(), properties.getLastModified().getTime(),
                         properties.getLength());
                 connection.send(result);
             } else {
-                connection.send(new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false,
-                        true, 0, 0));
+                connection.send(
+                        new TransactionInfo(request.getSegment(), request.getTxid(), transactionName, false, true, 0,
+                                0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
@@ -274,8 +267,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void commitTransaction(CommitTransaction commitTx) {
-        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx
-                .getTxid());
+        String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(),
+                commitTx.getTxid());
         segmentStore.sealStreamSegment(transactionName, TIMEOUT).thenApply((Long length) -> {
             segmentStore.mergeTransaction(transactionName, TIMEOUT).thenApply((Long offset) -> {
                 connection.send(new TransactionCommitted(commitTx.getSegment(), commitTx.getTxid()));

@@ -104,12 +104,10 @@ class DataFrameTestHelpers {
             while ((entry = reader.getNext()) != null) {
 
                 // General DataFrameEntry validation.
-                Assert.assertNotNull("Received a null entry even though hasNext() returned true." +
-                        state.getPosition(), entry);
-                Assert.assertEquals(
-                        "Unexpected value returned by getDataFrameAddress(). " + state.getPosition(),
-                        dataFrame.getAddress(),
-                        entry.getDataFrameAddress());
+                Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(),
+                        entry);
+                Assert.assertEquals("Unexpected value returned by getDataFrameAddress(). " + state.getPosition(),
+                        dataFrame.getAddress(), entry.getDataFrameAddress());
 
                 if (entry.isFirstRecordEntry()) {
                     state.clearCurrentRecordEntries();
@@ -130,34 +128,34 @@ class DataFrameTestHelpers {
                     ByteArraySegment currentRecord = recordConverter.apply(records.get(nextGoodRecordIndex));
                     AssertExtensions.assertLessThanOrEqual(
                             "Accumulated entries have more bytes than the current record has." + state.getPosition(),
-                            currentRecord.getLength(),
-                            state.getCurrentRecordEntriesSize());
+                            currentRecord.getLength(), state.getCurrentRecordEntriesSize());
 
                     int recordOffset = 0;
                     for (DataFrame.DataFrameEntry recordEntry : state.getCurrentRecordEntries()) {
                         ByteArraySegment entryData = recordEntry.getData();
                         for (int i = 0; i < entryData.getLength(); i++) {
                             if (currentRecord.get(recordOffset) != entryData.get(i)) {
-                                Assert.fail(String.format("Unexpected entry contents. FrameIndex = %d, RecordIndex = " +
-                                        "%d, EntryNumberInRecord = %d.", state.getFrameIndex(), state
-                                        .getNextGoodRecordIndex(), i));
+                                Assert.fail(String.format(
+                                        "Unexpected entry contents. FrameIndex = %d, RecordIndex = " + "%d, " +
+                                                "EntryNumberInRecord = %d.",
+                                        state.getFrameIndex(), state.getNextGoodRecordIndex(), i));
                             }
 
                             recordOffset++;
                         }
                     }
 
-                    Assert.assertEquals("isLastRecordEntry() indicates true but there are bytes remaining to be read " +
-                            "in the record.", currentRecord.getLength(), recordOffset);
+                    Assert.assertEquals(
+                            "isLastRecordEntry() indicates true but there are bytes remaining to be read " + "in the " +
+                                    "record.",
+                            currentRecord.getLength(), recordOffset);
                     state.clearCurrentRecordEntries();
                 }
             }
 
             // Verify the accuracy of isLastEntryInDataFrame() - if it's true, then hasNext() should be false.
-            Assert.assertEquals(
-                    "Unexpected value for isLastEntryInDataFrame()." + state.getPosition(),
-                    reader.getNext() == null,
-                    isLastEntryInFrame);
+            Assert.assertEquals("Unexpected value for isLastEntryInDataFrame()." + state.getPosition(),
+                    reader.getNext() == null, isLastEntryInFrame);
 
             state.moveToNextFrame();
         }

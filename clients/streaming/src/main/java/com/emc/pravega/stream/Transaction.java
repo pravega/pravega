@@ -33,10 +33,7 @@ import java.io.Serializable;
  */
 public interface Transaction<Type> extends Serializable {
     enum Status {
-        OPEN,
-        SEALED,
-        COMMITTED,
-        DROPPED
+        OPEN, SEALED, COMMITTED, DROPPED
     }
 
     /**

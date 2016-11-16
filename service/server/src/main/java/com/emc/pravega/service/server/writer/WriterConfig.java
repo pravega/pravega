@@ -168,8 +168,8 @@ public class WriterConfig extends ComponentConfig {
     protected void refresh() throws ConfigurationException {
         this.flushThresholdBytes = getInt32Property(PROPERTY_FLUSH_THRESHOLD_BYTES, DEFAULT_FLUSH_THRESHOLD_BYTES);
         if (this.flushThresholdBytes < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.",
-                    PROPERTY_FLUSH_THRESHOLD_BYTES));
+            throw new ConfigurationException(
+                    String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
         }
 
         long flushThresholdMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
@@ -180,15 +180,15 @@ public class WriterConfig extends ComponentConfig {
         this.maxItemsToReadAtOnce = getInt32Property(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE,
                 DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.",
-                    PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
+            throw new ConfigurationException(
+                    String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
         }
 
         long minReadTimeoutMillis = getInt64Property(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
         long maxReadTimeoutMillis = getInt64Property(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
         if (minReadTimeoutMillis < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.",
-                    PROPERTY_MIN_READ_TIMEOUT_MILLIS));
+            throw new ConfigurationException(
+                    String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
         }
 
         if (minReadTimeoutMillis > maxReadTimeoutMillis) {

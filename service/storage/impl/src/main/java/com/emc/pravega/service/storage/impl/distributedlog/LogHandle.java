@@ -172,24 +172,26 @@ class LogHandle implements AutoCloseable {
             // 1. Someone else currently holds the exclusive write lock.
             // 2. Someone else held the exclusive write lock, crashed, and ZooKeeper did not figure it out yet (due
             // to a long Session Timeout).
-            throw new DataLogWriterNotPrimaryException(String.format("Unable to acquire exclusive Writer for log '%s'" +
-                    ".", logName), ex);
+            throw new DataLogWriterNotPrimaryException(
+                    String.format("Unable to acquire exclusive Writer for log '%s'" + ".", logName), ex);
         } catch (IOException ex) {
             // Log does not exist or some other issue happened. Note that LogNotFoundException inherits from
             // IOException, so it's also handled here.
-            throw new DataLogNotAvailableException(String.format("Unable to create DistributedLogManager for log '%s'" +
-                    ".", logName), ex);
+            throw new DataLogNotAvailableException(
+                    String.format("Unable to create DistributedLogManager for log '%s'" + ".", logName), ex);
         } catch (Exception ex) {
             // General exception, configuration issue, etc.
-            throw new DataLogInitializationException(String.format("Unable to create DistributedLogManager for log " +
-                    "'%s'.", logName), ex);
+            throw new DataLogInitializationException(
+                    String.format("Unable to create DistributedLogManager for log " + "'%s'.", logName), ex);
         } finally {
             if (!success) {
                 try {
                     close();
                 } catch (Exception ex) {
-                    log.error("Unable to cleanup resources after the failed attempt to create a LogHandle for '{}'. " +
-                            "{}", logName, ex);
+                    log.error(
+                            "Unable to cleanup resources after the failed attempt to create a LogHandle for '{}'. " +
+                                    "{}",
+                            logName, ex);
                 }
             }
         }
@@ -199,8 +201,8 @@ class LogHandle implements AutoCloseable {
         } catch (LogEmptyException ex) {
             this.lastTransactionId.set(0);
         } catch (Exception ex) {
-            throw new DataLogInitializationException(String.format("Unable to determine last transaction Id for log " +
-                    "'%s'.", logName), ex);
+            throw new DataLogInitializationException(
+                    String.format("Unable to determine last transaction Id for log " + "'%s'.", logName), ex);
         }
 
         log.info("{}: Initialized (LastTransactionId = {}).", this.logName, this.lastTransactionId);
@@ -248,8 +250,9 @@ class LogHandle implements AutoCloseable {
 
             buffer = new byte[dataLength];
             int bytesRead = StreamHelpers.readAll(data, buffer, 0, buffer.length);
-            assert bytesRead == buffer.length : String.format("StreamHelpers.ReadAll did not read entire input stream" +
-                    ". Expected %d, Actual %d.", buffer.length, bytesRead);
+            assert bytesRead == buffer.length : String.format(
+                    "StreamHelpers.ReadAll did not read entire input stream" + ". Expected %d, Actual %d.",
+                    buffer.length, bytesRead);
         } catch (IOException ex) {
             return FutureHelpers.failedFuture(ex);
         }
@@ -347,8 +350,8 @@ class LogHandle implements AutoCloseable {
                     // General write failure; try again.
                     wrapException = new WriteFailureException("Unable to write data to DistributedLog.", cause);
                 } else if (cause instanceof LockingException) {
-                    wrapException = new DataLogWriterNotPrimaryException("LogHandle is not exclusive writer for " +
-                            "DistributedLog log.", cause);
+                    wrapException = new DataLogWriterNotPrimaryException(
+                            "LogHandle is not exclusive writer for " + "DistributedLog log.", cause);
                 } else if (cause instanceof LogRecordTooLongException) {
                     // User error. Record is too long.
                     wrapException = new WriteTooLongException(cause);
@@ -401,8 +404,8 @@ class LogHandle implements AutoCloseable {
                 }
 
                 this.lastTransactionId = baseRecord.getTransactionId();
-                log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this
-                        .lastTransactionId, baseRecord.getPayload().length);
+                log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId,
+                        this.lastTransactionId, baseRecord.getPayload().length);
                 return new ReadItem(baseRecord);
             } catch (IOException ex) {
                 // TODO: need to hook up a retry policy here.

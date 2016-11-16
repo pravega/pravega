@@ -28,18 +28,12 @@ import lombok.Cleanup;
 public class StartConsumer {
 
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                "localhost",
+        @Cleanup MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE, "localhost",
                 StartLocalService.PORT);
         Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 
-        @Cleanup
-        Consumer<String> consumer = stream
-                .createConsumer(new JavaSerializer<>(),
-                        new ConsumerConfig(),
-                        streamManager.getInitialPosition(StartLocalService.STREAM_NAME),
-                        null);
+        @Cleanup Consumer<String> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(),
+                streamManager.getInitialPosition(StartLocalService.STREAM_NAME), null);
         for (int i = 0; i < 20; i++) {
             String event = consumer.getNextEvent(60000);
             System.err.println("Read event: " + event);

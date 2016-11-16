@@ -114,10 +114,8 @@ public class BlockingDrainingQueueTests {
         completionFuture.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Verify result.
-        AssertExtensions.assertThrows(
-                "Future was not cancelled with the correct exception.",
-                () -> resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
-                ex -> ex instanceof InterruptedException);
+        AssertExtensions.assertThrows("Future was not cancelled with the correct exception.",
+                () -> resultSet.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS), ex -> ex instanceof InterruptedException);
 
         Assert.assertNull("Queue returned an item even if it got closed.", result.get());
         Assert.assertEquals("Queue.close() returned an item even though it was empty.", 0, queueContents.size());

@@ -81,8 +81,8 @@ public class OperationFactory implements LogItemFactory<Operation> {
                 SerializationException {
             OperationConstructor constructor = constructors.get(header.operationType);
             if (constructor == null) {
-                throw new SerializationException("Operation.deserialize", String.format("Invalid Operation Type %d.",
-                        header.operationType));
+                throw new SerializationException("Operation.deserialize",
+                        String.format("Invalid Operation Type %d.", header.operationType));
             }
 
             return constructor.apply(header, source);

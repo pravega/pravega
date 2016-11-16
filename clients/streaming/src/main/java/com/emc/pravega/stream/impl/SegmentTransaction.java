@@ -36,7 +36,7 @@ public interface SegmentTransaction<Type> {
      * After this the transaction can be committed.
      *
      * @throws TxFailedException Not all of the items could be persisted because the transaction has failed. (Timed
-     * out or dropped)
+     *                           out or dropped)
      */
     void flush() throws TxFailedException;
 }

@@ -94,8 +94,8 @@ class ReadIndexEntry {
 
     @Override
     public String toString() {
-        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length, this
-                .generation);
+        return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, this.length,
+                this.generation);
     }
 
     //endregion

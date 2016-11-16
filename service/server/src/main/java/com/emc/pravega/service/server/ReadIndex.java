@@ -35,9 +35,9 @@ public interface ReadIndex extends AutoCloseable {
      *                        of the StreamSegment as it exists in the ReadIndex.
      * @param data            The data to append.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in
-     * ReadIndex).
+     *                                  ReadIndex).
      * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the
-     * StreamSegment.
+     *                                  StreamSegment.
      */
     void append(long streamSegmentId, long offset, byte[] data);
 
@@ -59,7 +59,7 @@ public interface ReadIndex extends AutoCloseable {
      *                              The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
      * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in
-     * ReadIndex).
+     *                                  ReadIndex).
      * @throws IllegalArgumentException If the offset + SourceStreamSegment.length exceeds the metadata DurableLogLength
      *                                  of the target StreamSegment.
      */
@@ -96,7 +96,7 @@ public interface ReadIndex extends AutoCloseable {
      * Clears the entire contents of the ReadIndex.
      *
      * @throws IllegalStateException If the operation cannot be performed due to the current state of the system (for
-     * example,
+     *                               example,
      *                               if the system is in Recovery Mode).
      */
     void clear();

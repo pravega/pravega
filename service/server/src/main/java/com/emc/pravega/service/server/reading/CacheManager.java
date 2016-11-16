@@ -226,9 +226,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
             if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this
                     .currentGeneration) {
-                log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, " +
-                        "OldestGeneration = {}.", TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this
-                        .oldestGeneration);
+                log.warn(
+                        "{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, " +
+                                "OldestGeneration = {}.",
+                        TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
 
             minGeneration = Math.min(minGeneration, clientStatus.oldestGeneration);
@@ -297,8 +298,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return currentStatus.getSize() > this.policy.getMaxSize()
-                || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
+        return currentStatus.getSize() > this.policy.getMaxSize() || currentStatus.getOldestGeneration() <
+                getOldestPermissibleGeneration();
     }
 
     private int getOldestPermissibleGeneration() {
@@ -313,10 +314,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     private void logCurrentStatus(CacheStatus status) {
         log.info("{} Current Generation = {}, Oldest Generation = {}, Clients = {},  CacheSize = {} MB",
-                TRACE_OBJECT_ID,
-                this.currentGeneration,
-                this.oldestGeneration,
-                this.clients.size(),
+                TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, this.clients.size(),
                 status.getSize() / 1048576);
     }
 
@@ -364,8 +362,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         CacheStatus(long size, int oldestGeneration, int newestGeneration) {
             Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
             Preconditions.checkArgument(oldestGeneration >= 0, "oldestGeneration must be a non-negative number");
-            Preconditions.checkArgument(newestGeneration >= oldestGeneration, "newestGeneration must be larger than " +
-                    "or equal to oldestGeneration");
+            Preconditions.checkArgument(newestGeneration >= oldestGeneration,
+                    "newestGeneration must be larger than " + "or equal to oldestGeneration");
             this.size = size;
             this.oldestGeneration = oldestGeneration;
             this.newestGeneration = newestGeneration;

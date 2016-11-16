@@ -36,8 +36,7 @@ public class ExceptionHelpers {
      * @return True if a fatal error which must be rethrown, false otherwise (it can be handled in a catch block).
      */
     public static boolean mustRethrow(Throwable ex) {
-        return ex instanceof OutOfMemoryError
-                || ex instanceof StackOverflowError;
+        return ex instanceof OutOfMemoryError || ex instanceof StackOverflowError;
     }
 
     /**
@@ -57,9 +56,7 @@ public class ExceptionHelpers {
     }
 
     private static boolean canInspectCause(Throwable ex) {
-        return ex instanceof CompletionException
-                || ex instanceof ExecutionException
-                || ex instanceof IOException
-                || ex instanceof RuntimeStreamingException;
+        return ex instanceof CompletionException || ex instanceof ExecutionException || ex instanceof IOException ||
+                ex instanceof RuntimeStreamingException;
     }
 }

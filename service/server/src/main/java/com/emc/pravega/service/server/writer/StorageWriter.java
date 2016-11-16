@@ -175,18 +175,11 @@ class StorageWriter extends AbstractService implements Writer {
         // 3. Load data into SegmentAggregators.
         // 4. Flush eligible SegmentAggregators.
         // 5. Acknowledge (truncate).
-        this.runTask = FutureHelpers.loop(
-                this::canRun,
-                () -> FutureHelpers
-                        .delayedFuture(getIterationStartDelay(), this.executor)
-                        .thenAccept(this::beginIteration)
-                        .thenCompose(this::readData)
-                        .thenAcceptAsync(this::processReadResult, this.executor)
-                        .thenCompose(this::flush)
-                        .thenCompose(this::acknowledge)
-                        .exceptionally(this::iterationErrorHandler)
-                        .thenAccept(this::endIteration),
-                this.executor);
+        this.runTask = FutureHelpers.loop(this::canRun,
+                () -> FutureHelpers.delayedFuture(getIterationStartDelay(), this.executor).thenAccept(
+                        this::beginIteration).thenCompose(this::readData).thenAcceptAsync(this::processReadResult,
+                        this.executor).thenCompose(this::flush).thenCompose(this::acknowledge).exceptionally(
+                        this::iterationErrorHandler).thenAccept(this::endIteration), this.executor);
     }
 
     private boolean canRun() {
@@ -199,8 +192,8 @@ class StorageWriter extends AbstractService implements Writer {
     }
 
     private void endIteration(Void ignored) {
-        logStageEvent("Finish", "Elapsed " + this.state.getElapsedSinceIterationStart(this.stopwatch).toMillis() +
-                "ms");
+        logStageEvent("Finish",
+                "Elapsed " + this.state.getElapsedSinceIterationStart(this.stopwatch).toMillis() + "ms");
     }
 
     private Void iterationErrorHandler(Throwable ex) {
@@ -214,8 +207,8 @@ class StorageWriter extends AbstractService implements Writer {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering
             // anything else.
-            log.info("{}: StorageWriter intercepted {} while shutting down.", this.traceObjectId, ExceptionHelpers
-                    .getRealException(ex).getClass().getSimpleName());
+            log.info("{}: StorageWriter intercepted {} while shutting down.", this.traceObjectId,
+                    ExceptionHelpers.getRealException(ex).getClass().getSimpleName());
             return null;
         }
 
@@ -244,25 +237,23 @@ class StorageWriter extends AbstractService implements Writer {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "readData");
         try {
             Duration readTimeout = getReadTimeout();
-            return this.dataSource
-                    .read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(), readTimeout)
-                    .thenApply(result -> {
-                        LoggerHelpers.traceLeave(log, this.traceObjectId, "readData", traceId);
-                        return result;
-                    })
-                    .exceptionally(ex -> {
-                        ex = ExceptionHelpers.getRealException(ex);
-                        if (ex instanceof TimeoutException) {
-                            // TimeoutExceptions are acceptable for Reads. In that case we just return null as
-                            // opposed from
-                            // killing the entire Iteration. Even if we were unable to read, we may still need to flush
-                            // in this iteration or do other tasks.
-                            logErrorHandled(ex);
-                            return null;
-                        } else {
-                            throw new CompletionException(ex);
-                        }
-                    });
+            return this.dataSource.read(this.state.getLastReadSequenceNumber(), this.config.getMaxItemsToReadAtOnce(),
+                    readTimeout).thenApply(result -> {
+                LoggerHelpers.traceLeave(log, this.traceObjectId, "readData", traceId);
+                return result;
+            }).exceptionally(ex -> {
+                ex = ExceptionHelpers.getRealException(ex);
+                if (ex instanceof TimeoutException) {
+                    // TimeoutExceptions are acceptable for Reads. In that case we just return null as
+                    // opposed from
+                    // killing the entire Iteration. Even if we were unable to read, we may still need to flush
+                    // in this iteration or do other tasks.
+                    logErrorHandled(ex);
+                    return null;
+                } else {
+                    throw new CompletionException(ex);
+                }
+            });
         } catch (Throwable ex) {
             // This is for synchronous exceptions.
             Throwable realEx = ExceptionHelpers.getRealException(ex);
@@ -297,8 +288,9 @@ class StorageWriter extends AbstractService implements Writer {
 
                 // Verify that the Operation we got is in the correct order (check Sequence Number).
                 if (op.getSequenceNumber() <= this.state.getLastReadSequenceNumber()) {
-                    throw new DataCorruptionException(String.format("Operation '%s' has a sequence number that is " +
-                            "lower than the previous one (%d).", op, this.state.getLastReadSequenceNumber()));
+                    throw new DataCorruptionException(String.format(
+                            "Operation '%s' has a sequence number that is " + "lower than the previous one (%d).", op,
+                            this.state.getLastReadSequenceNumber()));
                 }
 
                 if (op instanceof MetadataOperation) {
@@ -330,8 +322,8 @@ class StorageWriter extends AbstractService implements Writer {
             // We don't care about the contents of the operation, we just need to verify that it is correctly mapped
             // to a Valid Truncation Point.
             if (!this.dataSource.isValidTruncationPoint(op.getSequenceNumber())) {
-                throw new DataCorruptionException(String.format("Operation '%s' does not correspond to a valid " +
-                        "Truncation Point in the metadata.", op));
+                throw new DataCorruptionException(String.format(
+                        "Operation '%s' does not correspond to a valid " + "Truncation Point in the metadata.", op));
             }
         }
     }
@@ -355,22 +347,18 @@ class StorageWriter extends AbstractService implements Writer {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "flush");
 
         // Flush everything we can flush.
-        val flushFutures = this.aggregators.values().stream()
-                .filter(SegmentAggregator::mustFlush)
-                .map(a -> a.flush(this.config.getFlushTimeout(), this.executor))
-                .collect(Collectors.toList());
+        val flushFutures = this.aggregators.values().stream().filter(SegmentAggregator::mustFlush).map(
+                a -> a.flush(this.config.getFlushTimeout(), this.executor)).collect(Collectors.toList());
 
-        return FutureHelpers
-                .allOfWithResults(flushFutures)
-                .thenAccept(flushResults -> {
-                    FlushStageResult result = new FlushStageResult();
-                    flushResults.forEach(result::withFlushResult);
-                    if (result.getFlushedBytes() + result.getMergedBytes() + result.count > 0) {
-                        logStageEvent("Flush", result);
-                    }
+        return FutureHelpers.allOfWithResults(flushFutures).thenAccept(flushResults -> {
+            FlushStageResult result = new FlushStageResult();
+            flushResults.forEach(result::withFlushResult);
+            if (result.getFlushedBytes() + result.getMergedBytes() + result.count > 0) {
+                logStageEvent("Flush", result);
+            }
 
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId);
-                });
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "flush", traceId);
+        });
     }
 
     /**
@@ -378,10 +366,8 @@ class StorageWriter extends AbstractService implements Writer {
      */
     private void cleanup() {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "cleanup");
-        val toRemove = this.aggregators.values().stream()
-                .filter(SegmentAggregator::isClosed)
-                .map(a -> a.getMetadata().getId())
-                .collect(Collectors.toList());
+        val toRemove = this.aggregators.values().stream().filter(SegmentAggregator::isClosed).map(
+                a -> a.getMetadata().getId()).collect(Collectors.toList());
         toRemove.forEach(this.aggregators::remove);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "cleanup", traceId, toRemove.size());
     }
@@ -397,13 +383,11 @@ class StorageWriter extends AbstractService implements Writer {
         long ackSequenceNumber = this.dataSource.getClosestValidTruncationPoint(highestCommittedSeqNo);
         if (ackSequenceNumber > this.state.getLastTruncatedSequenceNumber()) {
             // Issue the truncation and update the state (when done).
-            return this.dataSource
-                    .acknowledge(ackSequenceNumber, this.config.getAckTimeout())
-                    .thenRun(() -> {
-                        this.state.setLastTruncatedSequenceNumber(ackSequenceNumber);
-                        logStageEvent("Acknowledged", "SeqNo=" + ackSequenceNumber);
-                        LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, ackSequenceNumber);
-                    });
+            return this.dataSource.acknowledge(ackSequenceNumber, this.config.getAckTimeout()).thenRun(() -> {
+                this.state.setLastTruncatedSequenceNumber(ackSequenceNumber);
+                logStageEvent("Acknowledged", "SeqNo=" + ackSequenceNumber);
+                LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, ackSequenceNumber);
+            });
         } else {
             // Nothing to do.
             LoggerHelpers.traceLeave(log, this.traceObjectId, "acknowledge", traceId, Operation.NO_SEQUENCE_NUMBER);
@@ -428,8 +412,9 @@ class StorageWriter extends AbstractService implements Writer {
             // We do not yet have this aggregator. First, get its metadata.
             UpdateableSegmentMetadata segmentMetadata = this.dataSource.getStreamSegmentMetadata(streamSegmentId);
             if (segmentMetadata == null) {
-                throw new DataCorruptionException(String.format("No StreamSegment with id '%d' is registered in the " +
-                        "metadata.", streamSegmentId));
+                throw new DataCorruptionException(
+                        String.format("No StreamSegment with id '%d' is registered in the " + "metadata.",
+                                streamSegmentId));
             }
 
             // Then create the aggregator.
@@ -442,8 +427,8 @@ class StorageWriter extends AbstractService implements Writer {
     }
 
     private boolean isCriticalError(Throwable ex) {
-        return ExceptionHelpers.mustRethrow(ex)
-                || ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
+        return ExceptionHelpers.mustRethrow(ex) || ExceptionHelpers.getRealException(
+                ex) instanceof DataCorruptionException;
     }
 
     /**
@@ -462,8 +447,9 @@ class StorageWriter extends AbstractService implements Writer {
                 break;
             }
 
-            timeMillis = MathHelpers.minMax(this.config.getFlushThresholdTime().minus(a.getElapsedSinceLastFlush())
-                    .toMillis(), minTimeMillis, timeMillis);
+            timeMillis = MathHelpers.minMax(
+                    this.config.getFlushThresholdTime().minus(a.getElapsedSinceLastFlush()).toMillis(), minTimeMillis,
+                    timeMillis);
         }
 
         return Duration.ofMillis(timeMillis);
@@ -552,8 +538,8 @@ class StorageWriter extends AbstractService implements Writer {
 
         @Override
         public String toString() {
-            return String.format("Count=%d, Bytes=%d, LastReadSN=%d", this.count, this.bytes, this.state
-                    .getLastReadSequenceNumber());
+            return String.format("Count=%d, Bytes=%d, LastReadSN=%d", this.count, this.bytes,
+                    this.state.getLastReadSequenceNumber());
         }
     }
 

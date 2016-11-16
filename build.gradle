@@ -117,7 +117,7 @@ project('service:storage:impl') {
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')
-	testCompile files(project(':service:storage').sourceSets.test.output)
+        testCompile files(project(':service:storage').sourceSets.test.output)
     }
 }
 

@@ -184,7 +184,7 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      *
      * @throws InterruptedException    If the current thread has been interrupted (externally).
      * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually
-     * indicates corruption).
+     *                                 indicates corruption).
      */
 
     private void runOnce() throws DataCorruptionException, InterruptedException {
@@ -198,8 +198,8 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
                 // In the happy case, this loop is only executed once. But we need the bigger while loop in case we
                 // encountered a non-fatal exception. There is no point in failing the whole set of operations if only
                 // one set failed.
-                state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this
-                        .traceObjectId);
+                state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy,
+                        this.traceObjectId);
                 DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog,
                         state::commit, state::fail);
                 for (; currentIndex < operations.size(); currentIndex++) {
@@ -382,14 +382,14 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
          * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the
-         * In-Memory log.
+         *                                 In-Memory log.
          */
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
-            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs
-                    .getLogAddress());
+            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(),
+                    commitArgs.getLogAddress());
             this.metadataUpdater.commit();
 
             // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we

@@ -96,19 +96,17 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture
-                .supplyAsync(() -> {
-                    synchronized (this.lock) {
-                        if (this.streamSegments.containsKey(streamSegmentName)) {
-                            throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
-                        }
+        return CompletableFuture.supplyAsync(() -> {
+            synchronized (this.lock) {
+                if (this.streamSegments.containsKey(streamSegmentName)) {
+                    throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
+                }
 
-                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.executor);
-                        this.streamSegments.put(streamSegmentName, data);
-                        return data;
-                    }
-                }, this.executor)
-                .thenCompose(StreamSegmentData::getInfo);
+                StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.executor);
+                this.streamSegments.put(streamSegmentName, data);
+                return data;
+            }
+        }, this.executor).thenCompose(StreamSegmentData::getInfo);
     }
 
     @Override
@@ -126,8 +124,8 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
                                          Duration timeout) {
-        CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
-                .thenCompose(ssd -> ssd.write(offset, data, length));
+        CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName).thenCompose(
+                ssd -> ssd.write(offset, data, length));
         result.thenRunAsync(() -> fireOffsetTriggers(streamSegmentName, offset + length), this.executor);
         return result;
     }
@@ -135,22 +133,21 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
                                            int length, Duration timeout) {
-        return getStreamSegmentData(streamSegmentName)
-                .thenCompose(ssd -> ssd.read(offset, buffer, bufferOffset, length));
+        return getStreamSegmentData(streamSegmentName).thenCompose(
+                ssd -> ssd.read(offset, buffer, bufferOffset, length));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        CompletableFuture<SegmentProperties> result = getStreamSegmentData(streamSegmentName)
-                .thenCompose(StreamSegmentData::markSealed);
+        CompletableFuture<SegmentProperties> result = getStreamSegmentData(streamSegmentName).thenCompose(
+                StreamSegmentData::markSealed);
         result.thenRunAsync(() -> fireSealTrigger(streamSegmentName));
         return result;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return getStreamSegmentData(streamSegmentName)
-                .thenCompose(StreamSegmentData::getInfo);
+        return getStreamSegmentData(streamSegmentName).thenCompose(StreamSegmentData::getInfo);
     }
 
     @Override
@@ -163,13 +160,13 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
-                                          Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
+            sourceStreamSegmentName, Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
-        CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
-                .thenCompose(v -> targetData.join().concat(sourceData.join(), offset))
-                .thenCompose(v -> delete(sourceStreamSegmentName, timeout));
+        CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData).thenCompose(
+                v -> targetData.join().concat(sourceData.join(), offset)).thenCompose(
+                v -> delete(sourceStreamSegmentName, timeout));
         result.thenRunAsync(() -> {
             fireOffsetTriggers(targetStreamSegmentName, targetData.join().getInfo().join().getLength());
             fireSealTrigger(sourceStreamSegmentName);
@@ -180,30 +177,28 @@ public class InMemoryStorage implements Storage {
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture
-                .runAsync(() -> {
-                    synchronized (this.lock) {
-                        if (!this.streamSegments.containsKey(streamSegmentName)) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                        }
-                        this.streamSegments.remove(streamSegmentName);
-                    }
-                }, this.executor);
+        return CompletableFuture.runAsync(() -> {
+            synchronized (this.lock) {
+                if (!this.streamSegments.containsKey(streamSegmentName)) {
+                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                }
+                this.streamSegments.remove(streamSegmentName);
+            }
+        }, this.executor);
     }
 
     private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
         Exceptions.checkNotClosed(this.closed, this);
-        return CompletableFuture
-                .supplyAsync(() -> {
-                    synchronized (this.lock) {
-                        StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
-                        if (data == null) {
-                            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                        }
+        return CompletableFuture.supplyAsync(() -> {
+            synchronized (this.lock) {
+                StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
+                if (data == null) {
+                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                }
 
-                        return data;
-                    }
-                }, this.executor);
+                return data;
+            }
+        }, this.executor);
     }
 
     //endregion
@@ -241,13 +236,12 @@ public class InMemoryStorage implements Storage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we already exceed the trigger threshold.
-            getStreamSegmentInfo(segmentName, timeout)
-                    .thenAccept(sp -> {
-                        // We already exceeded this offset.
-                        if (sp.getLength() >= offset) {
-                            fireOffsetTriggers(segmentName, sp.getLength());
-                        }
-                    });
+            getStreamSegmentInfo(segmentName, timeout).thenAccept(sp -> {
+                // We already exceeded this offset.
+                if (sp.getLength() >= offset) {
+                    fireOffsetTriggers(segmentName, sp.getLength());
+                }
+            });
         }
 
         return result;
@@ -276,12 +270,11 @@ public class InMemoryStorage implements Storage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we are already sealed.
-            getStreamSegmentInfo(segmentName, timeout)
-                    .thenAccept(sp -> {
-                        if (sp.isSealed()) {
-                            fireSealTrigger(segmentName);
-                        }
-                    });
+            getStreamSegmentInfo(segmentName, timeout).thenAccept(sp -> {
+                if (sp.isSealed()) {
+                    fireSealTrigger(segmentName);
+                }
+            });
         }
 
         return result;
@@ -319,8 +312,8 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.executor);
         result.whenComplete((r, ex) -> {
             synchronized (this.offsetTriggers) {
-                HashMap<Long, CompletableFuture<Void>> segmentTriggers =
-                        this.offsetTriggers.getOrDefault(segmentName, null);
+                HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName,
+                        null);
                 if (segmentTriggers != null) {
                     segmentTriggers.remove(minSize);
 
@@ -410,8 +403,9 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<Void> concat(StreamSegmentData other, long offset) {
             return CompletableFuture.runAsync(() -> {
                 synchronized (other.lock) {
-                    Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not " +
-                            "sealed.", other.name, this.name);
+                    Preconditions.checkState(other.sealed,
+                            "Cannot concat segment '%s' into '%s' because it is not " + "sealed.", other.name,
+                            this.name);
                     synchronized (this.lock) {
                         if (offset != this.length) {
                             throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
@@ -433,8 +427,8 @@ public class InMemoryStorage implements Storage {
 
         CompletableFuture<SegmentProperties> getInfo() {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this
-                        .sealed, false, new Date()));
+                return CompletableFuture.completedFuture(
+                        new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date()));
             }
         }
 

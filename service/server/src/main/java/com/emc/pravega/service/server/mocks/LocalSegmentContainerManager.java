@@ -71,8 +71,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
             segmentToContainerMapper) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
-        Exceptions.checkArgument(containerRegistry.getContainerCount() == 0, "containerRegistry", "containerRegistry " +
-                "already has containers registered.");
+        Exceptions.checkArgument(containerRegistry.getContainerCount() == 0, "containerRegistry",
+                "containerRegistry " + "already has containers registered.");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
@@ -110,14 +110,12 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         ensureNotClosed();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int containerId = 0;
-             containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
-            futures.add(this.registry.startContainer(containerId, timer.getRemaining())
-                                .thenAccept(this::registerHandle));
+        for (int containerId = 0; containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
+            futures.add(
+                    this.registry.startContainer(containerId, timer.getRemaining()).thenAccept(this::registerHandle));
         }
 
-        return FutureHelpers.allOf(futures)
-                .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        return FutureHelpers.allOf(futures).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
     }
 
     //endregion
@@ -126,8 +124,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
     private void unregisterHandle(ContainerHandle handle) {
         synchronized (this.handles) {
-            assert this.handles.containsKey(handle.getContainerId()) : "found unregistered handle " + handle
-                    .getContainerId();
+            assert this.handles.containsKey(
+                    handle.getContainerId()) : "found unregistered handle " + handle.getContainerId();
             this.handles.remove(handle.getContainerId());
         }
 
@@ -137,8 +135,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     private void registerHandle(ContainerHandle handle) {
         assert handle != null : "handle is null.";
         synchronized (this.handles) {
-            assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle
-                    .getContainerId();
+            assert !this.handles.containsKey(
+                    handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
             this.handles.put(handle.getContainerId(), handle);
 
             handle.setContainerStoppedListener(id -> {

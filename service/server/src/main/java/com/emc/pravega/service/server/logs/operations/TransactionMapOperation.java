@@ -83,8 +83,8 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
      * @param value The Segment Id to set.
      */
     public void setStreamSegmentId(long value) {
-        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has" +
-                " already been assigned for this operation.");
+        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "StreamSegmentId has" + " already been assigned for this operation.");
         Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
     }
@@ -146,14 +146,10 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
 
     @Override
     public String toString() {
-        return String.format(
-                "%s, Id = %s, ParentId = %s, Name = %s, Length = %d, Sealed = %s",
-                super.toString(),
+        return String.format("%s, Id = %s, ParentId = %s, Name = %s, Length = %d, Sealed = %s", super.toString(),
                 toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
-                toString(getParentStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
-                getStreamSegmentName(),
-                getLength(),
-                isSealed());
+                toString(getParentStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID), getStreamSegmentName(),
+                getLength(), isSealed());
     }
 
     //endregion

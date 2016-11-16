@@ -116,8 +116,8 @@ public final class LoggerHelpers {
             log.trace("{}: LEAVE {}#{} (elapsed={}us).", objectId, method, traceEnterId,
                     ELAPSED_MICRO.apply(traceEnterId));
         } else {
-            log.trace("{}: LEAVE {}#{}: {} (elapsed={}us).", objectId, method, traceEnterId, args, ELAPSED_MICRO
-                    .apply(traceEnterId));
+            log.trace("{}: LEAVE {}#{}: {} (elapsed={}us).", objectId, method, traceEnterId, args,
+                    ELAPSED_MICRO.apply(traceEnterId));
         }
     }
 }

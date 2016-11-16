@@ -59,8 +59,8 @@ class TruncateableArray implements ArrayView {
 
     @Override
     public byte get(int index) {
-        Preconditions.checkPositionIndex(index, this.length, "index must be non-negative and less than the length of " +
-                "the array.");
+        Preconditions.checkPositionIndex(index, this.length,
+                "index must be non-negative and less than the length of " + "the array.");
 
         // Adjust the index based on the first entry offset.
         index += this.offset;
@@ -169,8 +169,8 @@ class TruncateableArray implements ArrayView {
      * @param truncationLength The number of bytes to truncate.
      */
     void truncate(int truncationLength) {
-        Preconditions.checkPositionIndex(truncationLength, this.length, "trimLength must be non-negative and less " +
-                "than the length of the array.");
+        Preconditions.checkPositionIndex(truncationLength, this.length,
+                "trimLength must be non-negative and less " + "than the length of the array.");
         this.length -= truncationLength;
 
         while (this.arrays.size() > 0 && truncationLength > 0) {

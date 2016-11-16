@@ -34,8 +34,8 @@ class ValidationException extends Exception {
      * @param validationResult The ValidationResult that triggered this.
      */
     ValidationException(String segmentName, ValidationResult validationResult) {
-        super(String.format("Segment = %s, Offset = %s, Reason = %s", segmentName,
-                validationResult.getSegmentOffset(), validationResult.getFailureMessage()));
+        super(String.format("Segment = %s, Offset = %s, Reason = %s", segmentName, validationResult.getSegmentOffset(),
+                validationResult.getFailureMessage()));
         this.segmentName = segmentName;
     }
 }

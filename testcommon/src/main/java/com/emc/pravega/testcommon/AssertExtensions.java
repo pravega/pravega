@@ -140,14 +140,9 @@ public class AssertExtensions {
         // of these args are out of bounds.
         for (int i = 0; i < length; i++) {
             if (array1[i + offset1] != array2[i + offset2]) {
-                Assert.fail(String.format(
-                        "%s Arrays differ at check-offset %d. Array1[%d]=%d, Array2[%d]=%d.",
-                        message,
-                        i,
-                        offset1 + i,
-                        array1[i + offset1],
-                        offset2 + i,
-                        array2[i + offset2]));
+                Assert.fail(
+                        String.format("%s Arrays differ at check-offset %d. Array1[%d]=%d, Array2[%d]=%d.", message, i,
+                                offset1 + i, array1[i + offset1], offset2 + i, array2[i + offset2]));
             }
         }
     }
@@ -169,8 +164,9 @@ public class AssertExtensions {
             int b2 = s2.read();
             if (b1 != b2) {
                 // This also includes the case when one stream ends prematurely.
-                Assert.fail(String.format("%s InputStreams differ at index %d. Expected %d, actual %d.", message,
-                        readSoFar, b1, b2));
+                Assert.fail(
+                        String.format("%s InputStreams differ at index %d. Expected %d, actual %d.", message, readSoFar,
+                                b1, b2));
             }
 
             readSoFar++;
@@ -267,8 +263,9 @@ public class AssertExtensions {
      * @param actual   The smaller value.
      */
     public static void assertLessThanOrEqual(String message, long expected, long actual) {
-        Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected,
-                actual), expected >= actual);
+        Assert.assertTrue(
+                String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected, actual),
+                expected >= actual);
     }
 
     /**
@@ -291,8 +288,9 @@ public class AssertExtensions {
      * @param actual   The larger value.
      */
     public static void assertGreaterThanOrEqual(String message, long expected, long actual) {
-        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected,
-                actual), expected <= actual);
+        Assert.assertTrue(
+                String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected, actual),
+                expected <= actual);
     }
 
     /**

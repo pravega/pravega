@@ -38,8 +38,7 @@ public class InMemoryCacheTests {
 
     @Test
     public void testFunctionality() {
-        @Cleanup
-        InMemoryCache cache = new InMemoryCache(CACHE_ID);
+        @Cleanup InMemoryCache cache = new InMemoryCache(CACHE_ID);
 
         // Populate the cache.
         forAllCombinations(key -> cache.insert(key, getData(key)));
@@ -53,8 +52,8 @@ public class InMemoryCacheTests {
 
         // Remove from the cache.
         forAllCombinations(cache::remove);
-        forAllCombinations(key -> Assert.assertNull("Cache still had contents even after key removal.",
-                cache.get(key)));
+        forAllCombinations(
+                key -> Assert.assertNull("Cache still had contents even after key removal.", cache.get(key)));
     }
 
     private void forAllCombinations(Consumer<CacheKey> consumer) {

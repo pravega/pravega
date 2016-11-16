@@ -76,7 +76,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
 
     @Override
     public SegmentContainer createStreamSegmentContainer(int containerId) {
-        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory, this
-                .readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executor);
+        return new StreamSegmentContainer(containerId, this.metadataRepository, this.operationLogFactory,
+                this.readIndexFactory, this.writerFactory, this.storageFactory, this.cacheFactory, this.executor);
     }
 }

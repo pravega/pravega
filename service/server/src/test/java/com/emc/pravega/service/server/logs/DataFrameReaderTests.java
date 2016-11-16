@@ -73,8 +73,8 @@ public class DataFrameReaderTests {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (int i = 0; i < records.size(); i++) {
                     try {
@@ -105,8 +105,8 @@ public class DataFrameReaderTests {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (int i = 0; i < records.size(); i++) {
                     b.append(records.get(i));
@@ -144,8 +144,8 @@ public class DataFrameReaderTests {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (int i = 0; i < records.size(); i++) {
                     b.append(records.get(i));
@@ -180,8 +180,8 @@ public class DataFrameReaderTests {
             dataLog.initialize(TIMEOUT);
 
             ArrayList<DataFrameBuilder.DataFrameCommitArgs> commitFrames = new ArrayList<>();
-            Consumer<Throwable> errorCallback = ex -> Assert.fail(String.format("Unexpected error occurred upon " +
-                    "commit. %s", ex));
+            Consumer<Throwable> errorCallback = ex -> Assert.fail(
+                    String.format("Unexpected error occurred upon " + "commit. %s", ex));
             try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, commitFrames::add, errorCallback)) {
                 for (int i = 0; i < records.size(); i++) {
                     b.append(records.get(i));
@@ -191,8 +191,7 @@ public class DataFrameReaderTests {
             TestLogItemFactory logItemFactory = new TestLogItemFactory();
 
             // Test 1: Initial call to getReader.
-            ErrorInjector<Exception> getReaderErrorInjector = new ErrorInjector<>(
-                    count -> true, // Fail every time.
+            ErrorInjector<Exception> getReaderErrorInjector = new ErrorInjector<>(count -> true, // Fail every time.
                     () -> new DataLogNotAvailableException("intentional getReader exception"));
             dataLog.setReadErrorInjectors(getReaderErrorInjector, null);
             AssertExtensions.assertThrows(
@@ -201,8 +200,7 @@ public class DataFrameReaderTests {
                     ex -> ExceptionHelpers.getRealException(ex) == getReaderErrorInjector.getLastCycleException());
 
             // Test 2: Failures during getNext().
-            ErrorInjector<Exception> readErrorInjector = new ErrorInjector<>(
-                    count -> count % failReadSyncEvery == 0,
+            ErrorInjector<Exception> readErrorInjector = new ErrorInjector<>(count -> count % failReadSyncEvery == 0,
                     () -> new DataLogNotAvailableException("intentional getNext exception"));
             dataLog.setReadErrorInjectors(null, readErrorInjector);
             testReadWithException(dataLog, logItemFactory, ex -> ex == readErrorInjector.getLastCycleException());
@@ -262,8 +260,9 @@ public class DataFrameReaderTests {
             TestLogItem actual = actualItems.get(actualIndex);
             Assert.assertEquals("Unexpected Sequence Number.", expected.getSequenceNumber(),
                     actual.getSequenceNumber());
-            Assert.assertArrayEquals(String.format("Unexpected read data (Sequence Number = %d).", expected
-                    .getSequenceNumber()), expected.getData(), actual.getData());
+            Assert.assertArrayEquals(
+                    String.format("Unexpected read data (Sequence Number = %d).", expected.getSequenceNumber()),
+                    expected.getData(), actual.getData());
             actualIndex++;
         }
     }

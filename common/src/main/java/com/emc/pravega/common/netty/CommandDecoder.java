@@ -132,8 +132,9 @@ public class CommandDecoder extends ByteToMessageDecoder {
             ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
             WireCommand cmd = parseCommand(dataRemainingInBlock);
             if (!(cmd.getType() == PARTIAL_EVENT || cmd.getType() == PADDING)) {
-                throw new InvalidMessageException("Found " + cmd.getType()
-                        + " at end of append block but was expecting a partialEvent or padding.");
+                throw new InvalidMessageException(
+                        "Found " + cmd.getType() + " at end of append block but was expecting a partialEvent or " +
+                                "padding.");
             }
             if (cmd.getType() == PADDING && blockEnd.getData().readableBytes() != 0) {
                 throw new InvalidMessageException("Unexpected data in BlockEnd");
@@ -154,8 +155,7 @@ public class CommandDecoder extends ByteToMessageDecoder {
 
     @VisibleForTesting
     public WireCommand parseCommand(ByteBuf in) throws IOException {
-        @Cleanup
-        ByteBufInputStream is = new ByteBufInputStream(in);
+        @Cleanup ByteBufInputStream is = new ByteBufInputStream(in);
         int readableBytes = in.readableBytes();
         if (readableBytes < TYPE_PLUS_LENGTH_SIZE) {
             throw new InvalidMessageException("Not enough bytes to read.");

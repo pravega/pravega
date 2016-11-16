@@ -85,8 +85,9 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
                 throw new InvalidMessageException("Sending appends without setting up the append.");
             }
             if (append.getEventNumber() <= session.lastEventNumber) {
-                throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-                        + " following: " + session.lastEventNumber);
+                throw new InvalidMessageException(
+                        "Events written out of order. Received: " + append.getEventNumber() + " following: " +
+                                session.lastEventNumber);
             }
             Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
                     "Bug in CommandEncoder.encode, block is too small.");
@@ -110,14 +111,12 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
                 byte[] serializedMessage = serializeMessage(new Event(data));
                 int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
                 ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
-                ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
-                        bytesInBlock,
+                ByteBuf dataRemainging = wrappedBuffer(serializedMessage, bytesInBlock,
                         serializedMessage.length - bytesInBlock);
                 writeMessage(new PartialEvent(dataInsideBlock), out);
-                writeMessage(new AppendBlockEnd(session.id,
-                        session.lastEventNumber,
-                        APPEND_BLOCK_SIZE - bytesLeftInBlock,
-                        dataRemainging), out);
+                writeMessage(
+                        new AppendBlockEnd(session.id, session.lastEventNumber, APPEND_BLOCK_SIZE - bytesLeftInBlock,
+                                dataRemainging), out);
                 bytesLeftInBlock = 0;
             }
         } else if (msg instanceof SetupAppend) {
@@ -135,10 +134,9 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
-            writeMessage(new AppendBlockEnd(session.id,
-                    session.lastEventNumber,
-                    APPEND_BLOCK_SIZE - bytesLeftInBlock,
-                    null), out);
+            writeMessage(
+                    new AppendBlockEnd(session.id, session.lastEventNumber, APPEND_BLOCK_SIZE - bytesLeftInBlock, null),
+                    out);
             bytesLeftInBlock = 0;
         }
         segmentBeingAppendedTo = null;

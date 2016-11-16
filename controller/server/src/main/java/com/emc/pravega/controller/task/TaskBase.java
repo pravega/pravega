@@ -33,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
  * TaskBase contains the following.
  * 1. Environment variables used by tasks.
  * 2. Wrapper method that has boilerplate code for locking, persisting task data and executing the task
- *
+ * <p>
  * Actual tasks are implemented in sub-classes of TaskBase and annotated with @Task annotation.
  */
 @Slf4j
@@ -90,13 +90,14 @@ public class TaskBase implements Cloneable {
     /**
      * Wrapper method that initially obtains lock then executes the passed method, and finally releases lock.
      *
-     * @param resource resource to be updated by the task.
+     * @param resource   resource to be updated by the task.
      * @param parameters method parameters.
-     * @param operation lambda operation that is the actual task.
-     * @param <T> type parameter of return value of operation to be executed.
+     * @param operation  lambda operation that is the actual task.
+     * @param <T>        type parameter of return value of operation to be executed.
      * @return return value of task execution.
      */
-    public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
+    public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final
+    FutureOperation<T> operation) {
         final String tag = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);
         final CompletableFuture<T> result = new CompletableFuture<>();
@@ -112,31 +113,27 @@ public class TaskBase implements Cloneable {
                 // After storing that fact, lock the resource, execute task and unlock the resource
                 .thenCompose(x -> executeTask(resource, taskData, tag, operation))
                 // finally delete the resource child created under the controller's HostId
-                .whenComplete((value, e) ->
-                    taskMetadataStore.removeChild(context.hostId, taggedResource, true)
-                            .whenComplete((innerValue, innerE) -> {
-                                // ignore the result of removeChile operations, since it is an optimization
-                                if (e != null) {
-                                    result.completeExceptionally(e);
-                                } else {
-                                    result.complete(value);
-                                }
-                            })
-                );
+                .whenComplete(
+                        (value, e) -> taskMetadataStore.removeChild(context.hostId, taggedResource, true).whenComplete(
+                                (innerValue, innerE) -> {
+                                    // ignore the result of removeChile operations, since it is an optimization
+                                    if (e != null) {
+                                        result.completeExceptionally(e);
+                                    } else {
+                                        result.complete(value);
+                                    }
+                                }));
 
         return result;
     }
 
-    private <T> CompletableFuture<T> executeTask(final Resource resource,
-                                                 final TaskData taskData,
-                                                 final String tag,
+    private <T> CompletableFuture<T> executeTask(final Resource resource, final TaskData taskData, final String tag,
                                                  final FutureOperation<T> operation) {
         final CompletableFuture<T> result = new CompletableFuture<>();
 
         final CompletableFuture<Void> lockResult = new CompletableFuture<>();
 
-        taskMetadataStore
-                .lock(resource, taskData, context.hostId, tag, context.oldHostId, context.oldTag)
+        taskMetadataStore.lock(resource, taskData, context.hostId, tag, context.oldHostId, context.oldTag)
 
                 // On acquiring lock, the following invariants hold
                 // Invariant 1. No other thread within any controller process is running an update task on the resource
@@ -171,19 +168,20 @@ public class TaskBase implements Cloneable {
                     } else {
                         // If lock was obtained, irrespective of result of operation execution,
                         // release lock before completing operation.
-                        log.debug("Host={}, Tag={} completed executing task on resource {}", context.hostId, tag, resource);
-                        taskMetadataStore.unlock(resource, context.hostId, tag)
-                                .whenComplete((innerValue, innerE) -> {
-                                    log.debug("Host={}, Tag={} unlock attempt completed on resource {}", context.hostId, tag, resource);
-                                    // If lock was acquired above, unlock operation retries until it is released.
-                                    // It throws exception only if non-lock holder tries to release it.
-                                    // Hence ignore result of unlock operation and complete future with previous result.
-                                    if (e != null) {
-                                        result.completeExceptionally(e);
-                                    } else {
-                                        result.complete(value);
-                                    }
-                                });
+                        log.debug("Host={}, Tag={} completed executing task on resource {}", context.hostId, tag,
+                                resource);
+                        taskMetadataStore.unlock(resource, context.hostId, tag).whenComplete((innerValue, innerE) -> {
+                            log.debug("Host={}, Tag={} unlock attempt completed on resource {}", context.hostId, tag,
+                                    resource);
+                            // If lock was acquired above, unlock operation retries until it is released.
+                            // It throws exception only if non-lock holder tries to release it.
+                            // Hence ignore result of unlock operation and complete future with previous result.
+                            if (e != null) {
+                                result.completeExceptionally(e);
+                            } else {
+                                result.complete(value);
+                            }
+                        });
                     }
                 });
         return result;
@@ -191,12 +189,10 @@ public class TaskBase implements Cloneable {
 
     private CompletableFuture<Void> removeOldHostChild(final String tag) {
         if (context.oldHostId != null && !context.oldHostId.isEmpty()) {
-            log.debug("Host={}, Tag={} removing child <{}, {}> of {}",
-                    context.hostId, tag, context.oldResource, context.oldTag, context.oldHostId);
-            return taskMetadataStore.removeChild(
-                    context.oldHostId,
-                    new TaggedResource(context.oldTag, context.oldResource),
-                    true);
+            log.debug("Host={}, Tag={} removing child <{}, {}> of {}", context.hostId, tag, context.oldResource,
+                    context.oldTag, context.oldHostId);
+            return taskMetadataStore.removeChild(context.oldHostId,
+                    new TaggedResource(context.oldTag, context.oldResource), true);
         } else {
             return CompletableFuture.completedFuture(null);
         }

@@ -45,8 +45,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     private final Map<FutureSegment, Long> futureOwnedSegments = new HashMap<>();
 
     ConsumerImpl(Stream stream, SegmentInputStreamFactory inputStreamFactory, Serializer<Type> deserializer,
-                 PositionInternal position,
-                 Orderer<Type> orderer, RateChangeListener rateChangeListener, ConsumerConfig config) {
+                 PositionInternal position, Orderer<Type> orderer, RateChangeListener rateChangeListener,
+                 ConsumerConfig config) {
         this.deserializer = deserializer;
         this.stream = stream;
         this.inputStreamFactory = inputStreamFactory;
@@ -77,8 +77,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
         consumers.remove(oldSegment);
         completedSegments.put(oldSegment.getSegmentId(), oldSegment.getOffset());
         Segment oldLogId = oldSegment.getSegmentId();
-        Optional<FutureSegment> replacment = futureOwnedSegments.keySet().stream().filter(future -> future
-                .getPrecedingNumber() == oldLogId.getSegmentNumber()).findAny();
+        Optional<FutureSegment> replacment = futureOwnedSegments.keySet().stream().filter(
+                future -> future.getPrecedingNumber() == oldLogId.getSegmentNumber()).findAny();
         if (replacment.isPresent()) {
             FutureSegment segmentId = replacment.get();
             Long position = futureOwnedSegments.remove(segmentId);
@@ -95,8 +95,8 @@ public class ConsumerImpl<Type> implements Consumer<Type> {
     @Override
     public Position getPosition() {
         synchronized (consumers) {
-            Map<Segment, Long> positions = consumers.stream()
-                    .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
+            Map<Segment, Long> positions = consumers.stream().collect(
+                    Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
             positions.putAll(completedSegments);
             return new PositionImpl(positions, futureOwnedSegments);
         }

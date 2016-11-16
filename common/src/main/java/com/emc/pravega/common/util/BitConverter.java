@@ -31,12 +31,7 @@ public final class BitConverter {
      * @return The number of bytes written.
      */
     public static int writeInt(ArrayView target, int offset, int value) {
-        target.setSequence(
-                offset,
-                (byte) (value >>> 24),
-                (byte) (value >>> 16),
-                (byte) (value >>> 8),
-                (byte) value);
+        target.setSequence(offset, (byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) value);
         return Integer.BYTES;
     }
 
@@ -64,10 +59,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static int readInt(byte[] source, int position) {
-        return (source[position] & 0xFF) << 24
-                | (source[position + 1] & 0xFF) << 16
-                | (source[position + 2] & 0xFF) << 8
-                | (source[position + 3] & 0xFF);
+        return (source[position] & 0xFF) << 24 | (source[position + 1] & 0xFF) << 16 | (source[position + 2] & 0xFF)
+                << 8 | (source[position + 3] & 0xFF);
     }
 
     /**
@@ -78,10 +71,8 @@ public final class BitConverter {
      * @return The read number.
      */
     public static int readInt(ArrayView source, int position) {
-        return (source.get(position) & 0xFF) << 24
-                | (source.get(position + 1) & 0xFF) << 16
-                | (source.get(position + 2) & 0xFF) << 8
-                | (source.get(position + 3) & 0xFF);
+        return (source.get(position) & 0xFF) << 24 | (source.get(position + 1) & 0xFF) << 16 | (source.get(
+                position + 2) & 0xFF) << 8 | (source.get(position + 3) & 0xFF);
     }
 
     /**
@@ -93,15 +84,8 @@ public final class BitConverter {
      * @return The number of bytes written.
      */
     public static int writeLong(ArrayView target, int offset, long value) {
-        target.setSequence(
-                offset,
-                (byte) (value >>> 56),
-                (byte) (value >>> 48),
-                (byte) (value >>> 40),
-                (byte) (value >>> 32),
-                (byte) (value >>> 24),
-                (byte) (value >>> 16),
-                (byte) (value >>> 8),
+        target.setSequence(offset, (byte) (value >>> 56), (byte) (value >>> 48), (byte) (value >>> 40),
+                (byte) (value >>> 32), (byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8),
                 (byte) value);
         return Long.BYTES;
     }
@@ -134,14 +118,11 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readLong(ArrayView source, int position) {
-        return (long) (source.get(position) & 0xFF) << 56
-                | (long) (source.get(position + 1) & 0xFF) << 48
-                | (long) (source.get(position + 2) & 0xFF) << 40
-                | (long) (source.get(position + 3) & 0xFF) << 32
-                | (long) (source.get(position + 4) & 0xFF) << 24
-                | (source.get(position + 5) & 0xFF) << 16
-                | (source.get(position + 6) & 0xFF) << 8
-                | (source.get(position + 7) & 0xFF);
+        return (long) (source.get(position) & 0xFF) << 56 | (long) (source.get(
+                position + 1) & 0xFF) << 48 | (long) (source.get(position + 2) & 0xFF) << 40 | (long) (source.get(
+                position + 3) & 0xFF) << 32 | (long) (source.get(position + 4) & 0xFF) << 24 | (source.get(
+                position + 5) & 0xFF) << 16 | (source.get(position + 6) & 0xFF) << 8 | (source.get(
+                position + 7) & 0xFF);
     }
 
     /**
@@ -152,13 +133,9 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readLong(byte[] source, int position) {
-        return (long) (source[position] & 0xFF) << 56
-                | (long) (source[position + 1] & 0xFF) << 48
-                | (long) (source[position + 2] & 0xFF) << 40
-                | (long) (source[position + 3] & 0xFF) << 32
-                | (long) (source[position + 4] & 0xFF) << 24
-                | (source[position + 5] & 0xFF) << 16
-                | (source[position + 6] & 0xFF) << 8
-                | (source[position + 7] & 0xFF);
+        return (long) (source[position] & 0xFF) << 56 | (long) (source[position + 1] & 0xFF) << 48 | (long)
+                (source[position + 2] & 0xFF) << 40 | (long) (source[position + 3] & 0xFF) << 32 | (long)
+                (source[position + 4] & 0xFF) << 24 | (source[position + 5] & 0xFF) << 16 | (source[position + 6] &
+                0xFF) << 8 | (source[position + 7] & 0xFF);
     }
 }

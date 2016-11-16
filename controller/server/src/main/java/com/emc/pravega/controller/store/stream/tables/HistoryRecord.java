@@ -35,8 +35,7 @@ import java.util.Optional;
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
  * Row : [eventTime, List-of-active-segment-numbers]
- */
-public class HistoryRecord {
+*/ public class HistoryRecord {
     private final int endOfRowPointer;
     private final long eventTime;
     private final List<Integer> segments;
@@ -54,13 +53,10 @@ public class HistoryRecord {
             return Optional.empty();
         }
 
-        final int rowEndOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
-                offset,
-                offset + (Integer.SIZE / 8)));
+        final int rowEndOffset = Utilities.toInt(
+                ArrayUtils.subarray(historyTable, offset, offset + (Integer.SIZE / 8)));
 
-        return Optional.of(parse(ArrayUtils.subarray(historyTable,
-                offset,
-                rowEndOffset + 1)));
+        return Optional.of(parse(ArrayUtils.subarray(historyTable, offset, rowEndOffset + 1)));
     }
 
     public static Optional<HistoryRecord> readLatestRecord(final byte[] historyTable) {
@@ -68,9 +64,8 @@ public class HistoryRecord {
             return Optional.empty();
         }
 
-        final int lastRowStartOffset = Utilities.toInt(ArrayUtils.subarray(historyTable,
-                historyTable.length - (Integer.SIZE / 8),
-                historyTable.length));
+        final int lastRowStartOffset = Utilities.toInt(
+                ArrayUtils.subarray(historyTable, historyTable.length - (Integer.SIZE / 8), historyTable.length));
 
         return readRecord(historyTable, lastRowStartOffset);
     }
@@ -85,15 +80,12 @@ public class HistoryRecord {
         }
     }
 
-    public static Optional<HistoryRecord> fetchPrevious(final HistoryRecord record,
-                                                        final byte[] historyTable) {
+    public static Optional<HistoryRecord> fetchPrevious(final HistoryRecord record, final byte[] historyTable) {
         if (record.getStartOfRowPointer() == 0) {
             return Optional.empty();
         } else {
-            final int rowStartOffset = Utilities.toInt(
-                    org.apache.commons.lang3.ArrayUtils.subarray(historyTable,
-                            record.getStartOfRowPointer() - (Integer.SIZE / 8),
-                            record.getStartOfRowPointer()));
+            final int rowStartOffset = Utilities.toInt(org.apache.commons.lang3.ArrayUtils.subarray(historyTable,
+                    record.getStartOfRowPointer() - (Integer.SIZE / 8), record.getStartOfRowPointer()));
 
             return HistoryRecord.readRecord(historyTable, rowStartOffset);
         }
@@ -101,11 +93,11 @@ public class HistoryRecord {
 
     private static HistoryRecord parse(final byte[] b) {
         final int endOfRowPtr = Utilities.toInt(ArrayUtils.subarray(b, 0, Integer.SIZE / 8));
-        final long eventTime = Utilities.toLong(ArrayUtils.subarray(b, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8));
+        final long eventTime = Utilities.toLong(
+                ArrayUtils.subarray(b, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8));
 
-        final List<Integer> segments = extractSegments(ArrayUtils.subarray(b,
-                (Integer.SIZE + Long.SIZE) / 8,
-                b.length - (Integer.SIZE / 8)));
+        final List<Integer> segments = extractSegments(
+                ArrayUtils.subarray(b, (Integer.SIZE + Long.SIZE) / 8, b.length - (Integer.SIZE / 8)));
 
         final int startOfRowPtr = Utilities.toInt(ArrayUtils.subarray(b, b.length - (Integer.SIZE / 8), b.length));
 

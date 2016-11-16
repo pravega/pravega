@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * When ever ownership change happens, the new node renames the file representing the
  * segment to <segment-name>_<owner_host_id>.
  * This is done by the open call.
- *
+ * <p>
  * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
 @Slf4j
@@ -78,25 +78,15 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(() -> createSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), this.executor);
     }
 
 
     SegmentProperties createSync(String streamSegmentName, Duration timeout) throws IOException {
         fileSystem.create(new Path(this.getOwnedSegmentFullPath(streamSegmentName)),
-                new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
-                false,
-                0,
-                this.serviceBuilderConfig.getReplication(),
-                this.serviceBuilderConfig.getBlockSize(),
-                null).close();
-        return new StreamSegmentInformation(streamSegmentName,
-                0,
-                false,
-                false,
-                new Date()
-        );
+                new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE), false, 0,
+                this.serviceBuilderConfig.getReplication(), this.serviceBuilderConfig.getBlockSize(), null).close();
+        return new StreamSegmentInformation(streamSegmentName, 0, false, false, new Date());
     }
 
     /**
@@ -107,11 +97,8 @@ public class HDFSStorage implements Storage {
      * @param streamSegmentName The name of the segment
      */
     private SegmentProperties changeNameInSegmentProperties(SegmentProperties properties, String streamSegmentName) {
-        return new StreamSegmentInformation(streamSegmentName,
-                properties.getLength(),
-                properties.isSealed(),
-                properties.isDeleted(),
-                properties.getLastModified());
+        return new StreamSegmentInformation(streamSegmentName, properties.getLength(), properties.isSealed(),
+                properties.isDeleted(), properties.getLastModified());
     }
 
     /**
@@ -137,11 +124,9 @@ public class HDFSStorage implements Storage {
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
         return FutureHelpers.runAsyncTranslateException(() -> {
-                    openSync(streamSegmentName);
-                    return null;
-                },
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                executor);
+            openSync(streamSegmentName);
+            return null;
+        }, e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), executor);
     }
 
     /**
@@ -149,7 +134,6 @@ public class HDFSStorage implements Storage {
      * <p>
      * List the file that represents the segment. This may be owned by some other node.
      * Rename the file to the current node.
-     *
      */
     private void openSync(String streamSegmentName) throws IOException, StreamSegmentNotExistsException {
 
@@ -162,14 +146,12 @@ public class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(String streamSegmentName, long offset,
-                                         InputStream data, int length, Duration timeout) {
+    public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length,
+                                         Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
-                () ->  writeSync(streamSegmentName, offset, length, data, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+                () -> writeSync(streamSegmentName, offset, length, data, timeout),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), this.executor);
     }
-
 
 
     private Void writeSync(String streamSegmentName, long offset, int length, InputStream data, Duration timeout)
@@ -185,44 +167,32 @@ public class HDFSStorage implements Storage {
     }
 
 
-
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        return FutureHelpers.runAsyncTranslateException(
-                () -> sealSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                executor);
+        return FutureHelpers.runAsyncTranslateException(() -> sealSync(streamSegmentName, timeout),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), executor);
     }
 
     SegmentProperties sealSync(String streamSegmentName, Duration timeout) throws IOException {
-        fileSystem.setPermission(
-                new Path(this.getOwnedSegmentFullPath(streamSegmentName)),
-                new FsPermission(
-                        FsAction.READ,
-                        FsAction.READ,
-                        FsAction.READ
-                )
-        );
+        fileSystem.setPermission(new Path(this.getOwnedSegmentFullPath(streamSegmentName)),
+                new FsPermission(FsAction.READ, FsAction.READ, FsAction.READ));
         return this.getStreamSegmentInfoSync(streamSegmentName, timeout);
     }
 
     SegmentProperties getStreamSegmentInfoSync(String streamSegmentName, Duration timeout) throws IOException {
         FileStatus[] status = fileSystem.globStatus(new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
-        return new StreamSegmentInformation(streamSegmentName,
-                status[0].getLen(),
-                status[0].getPermission().getUserAction() == FsAction.READ,
-                false,
+        return new StreamSegmentInformation(streamSegmentName, status[0].getLen(),
+                status[0].getPermission().getUserAction() == FsAction.READ, false,
                 new Date(status[0].getModificationTime()));
 
     }
 
     @Override
-    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset,
-                                          String sourceStreamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String
+            sourceStreamSegmentName, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(targetStreamSegmentName, e),
-                executor);
+                e -> HDFSExceptionHelpers.translateFromException(targetStreamSegmentName, e), executor);
     }
 
     Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout)
@@ -243,19 +213,15 @@ public class HDFSStorage implements Storage {
             throw new BadOffsetException(targetStreamSegmentName, offset, status[0].getLen());
         }
         fileSystem.concat(new Path(this.getOwnedSegmentFullPath(targetStreamSegmentName)),
-                new Path[]{
-                        new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName))
-                });
+                new Path[]{new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName))});
         return null;
     }
 
 
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        return FutureHelpers.runAsyncTranslateException(
-                () -> deleteSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                executor);
+        return FutureHelpers.runAsyncTranslateException(() -> deleteSync(streamSegmentName, timeout),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), executor);
     }
 
 
@@ -284,26 +250,24 @@ public class HDFSStorage implements Storage {
 
 
     @Override
-    public CompletableFuture<Integer> read(String streamSegmentName, long offset,
-                                           byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset,
+                                           int length, Duration timeout) {
         return FutureHelpers.runAsyncTranslateException(
                 () -> readSync(streamSegmentName, offset, buffer, bufferOffset, length, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                executor);
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), executor);
     }
 
     /**
      * Finds the file containing the given offset for the given segment.
      * Reads from that file.
      */
-    private Integer readSync(String streamSegmentName, long offset, byte[] buffer,
-                             int bufferOffset, int length, Duration timeout) throws IOException {
-        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset+length) {
+    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length,
+                             Duration timeout) throws IOException {
+        if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException();
         }
         FSDataInputStream stream = fileSystem.open(new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
-        int retVal = stream.read(offset,
-                buffer, bufferOffset, length);
+        int retVal = stream.read(offset, buffer, bufferOffset, length);
         if (retVal < 0) {
             // -1 is usually a code for invalid args; check to see if we were supplied with an
             // offset that exceeds the length of the segment.
@@ -319,21 +283,15 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return FutureHelpers.runAsyncTranslateException(
-                () ->  this.getStreamSegmentInfoSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                executor);
+        return FutureHelpers.runAsyncTranslateException(() -> this.getStreamSegmentInfoSync(streamSegmentName, timeout),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), executor);
     }
-
-
 
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return FutureHelpers.runAsyncTranslateException(
-                () -> existsSync(streamSegmentName, timeout),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                executor);
+        return FutureHelpers.runAsyncTranslateException(() -> existsSync(streamSegmentName, timeout),
+                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e), executor);
     }
 
     private Boolean existsSync(String streamSegmentName, Duration timeout) throws IOException {

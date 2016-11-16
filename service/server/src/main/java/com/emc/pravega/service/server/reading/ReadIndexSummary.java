@@ -52,8 +52,8 @@ class ReadIndexSummary {
      * @param generation The generation to set.
      */
     synchronized void setCurrentGeneration(int generation) {
-        Preconditions.checkArgument(generation >= this.currentGeneration, "New generation must be at least the value " +
-                "of the previous one.");
+        Preconditions.checkArgument(generation >= this.currentGeneration,
+                "New generation must be at least the value " + "of the previous one.");
         this.currentGeneration = generation;
     }
 

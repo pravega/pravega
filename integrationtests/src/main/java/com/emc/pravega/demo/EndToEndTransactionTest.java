@@ -41,16 +41,13 @@ public class EndToEndTransactionTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize(Duration.ofMinutes(1)).get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, StartLocalService.PORT, store);
         server.startListening();
 
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE, controller);
+        @Cleanup MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE, controller);
         Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
 
         for (int i = 0; i < 1; i++) {

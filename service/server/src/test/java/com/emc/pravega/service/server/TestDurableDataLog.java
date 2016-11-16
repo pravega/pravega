@@ -79,22 +79,20 @@ public class TestDurableDataLog implements DurableDataLog {
     @Override
     public CompletableFuture<LogAddress> append(InputStream data, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.appendSyncErrorInjector);
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector)
-                .thenCompose(v -> this.wrappedLog.append(data, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.appendAsyncErrorInjector).thenCompose(
+                v -> this.wrappedLog.append(data, timeout));
     }
 
     @Override
     public CompletableFuture<Boolean> truncate(LogAddress upToAddress, Duration timeout) {
         Consumer<LogAddress> truncateCallback = this.truncateCallback;
-        return this.wrappedLog
-                .truncate(upToAddress, timeout)
-                .thenApply(result -> {
-                    if (result && truncateCallback != null) {
-                        truncateCallback.accept(upToAddress);
-                    }
+        return this.wrappedLog.truncate(upToAddress, timeout).thenApply(result -> {
+            if (result && truncateCallback != null) {
+                truncateCallback.accept(upToAddress);
+            }
 
-                    return result;
-                });
+            return result;
+        });
     }
 
     @Override
@@ -175,8 +173,7 @@ public class TestDurableDataLog implements DurableDataLog {
      */
     public <T> List<T> getAllEntries(FunctionWithException<ReadItem, T> converter) throws Exception {
         ArrayList<T> result = new ArrayList<>();
-        @Cleanup
-        CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
+        @Cleanup CloseableIterator<ReadItem, DurableDataLogException> reader = this.wrappedLog.getReader(-1);
         while (true) {
             DurableDataLog.ReadItem readItem = reader.getNext();
             if (readItem == null) {

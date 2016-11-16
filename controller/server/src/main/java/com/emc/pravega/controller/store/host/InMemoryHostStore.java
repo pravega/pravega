@@ -47,8 +47,8 @@ public class InMemoryHostStore implements HostControllerStore {
 
     @Override
     public Host getHostForContainer(int containerId) {
-        Optional<Host> hosts = hostContainerMap.entrySet().stream()
-                .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
+        Optional<Host> hosts = hostContainerMap.entrySet().stream().filter(x -> x.getValue().contains(containerId)).map(
+                x -> x.getKey()).findAny();
         if (hosts.isPresent()) {
             return hosts.get();
         } else {

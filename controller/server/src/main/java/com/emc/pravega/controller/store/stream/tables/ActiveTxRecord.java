@@ -32,7 +32,8 @@ public class ActiveTxRecord {
     public static ActiveTxRecord parse(final byte[] bytes) {
         final long txCreationTimestamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
 
-        final TxStatus status = TxStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
+        final TxStatus status = TxStatus.values()[Utilities.toInt(
+                ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
 
         return new ActiveTxRecord(txCreationTimestamp, status);
     }

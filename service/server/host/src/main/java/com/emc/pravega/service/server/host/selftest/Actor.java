@@ -95,9 +95,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
-        this.runTask = FutureHelpers
-                .delayedFuture(INITIAL_DELAY, this.executorService)
-                .thenCompose(v -> run());
+        this.runTask = FutureHelpers.delayedFuture(INITIAL_DELAY, this.executorService).thenCompose(v -> run());
         this.runTask.whenComplete((r, ex) -> stopAsync());
     }
 

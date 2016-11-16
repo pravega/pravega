@@ -65,41 +65,38 @@ public class TaskSweeper {
      * a trigger to invoke this method with one of the dead hostId.
      * <p>
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
+     *
      * @param oldHostId old host id
      * @return
      */
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
-        return FutureHelpers.doWhileLoop(
-                () -> executeHostTask(oldHostId),
-                x -> x != null);
+        return FutureHelpers.doWhileLoop(() -> executeHostTask(oldHostId), x -> x != null);
     }
 
     public CompletableFuture<Result> executeHostTask(final String oldHostId) {
 
         // Get a random child TaggedResource of oldHostId node and attempt to execute corresponding task
-        return taskMetadataStore.getRandomChild(oldHostId)
-                .thenCompose(taggedResourceOption -> {
+        return taskMetadataStore.getRandomChild(oldHostId).thenCompose(taggedResourceOption -> {
 
-                    if (!taggedResourceOption.isPresent()) {
+            if (!taggedResourceOption.isPresent()) {
 
-                        log.debug("Host={} fetched no child of {}", this.hostId, oldHostId);
-                        // Invariant: If no taggedResources were found, it is safe to delete oldHostId node.
-                        // Moreover, no need to get any more children, hence return null.
-                        return taskMetadataStore.removeNode(oldHostId)
-                                .thenApply(x -> null);
+                log.debug("Host={} fetched no child of {}", this.hostId, oldHostId);
+                // Invariant: If no taggedResources were found, it is safe to delete oldHostId node.
+                // Moreover, no need to get any more children, hence return null.
+                return taskMetadataStore.removeNode(oldHostId).thenApply(x -> null);
 
-                    } else {
+            } else {
 
-                        TaggedResource taggedResource = taggedResourceOption.get();
-                        log.debug("Host={} processing child <{}, {}> of {}",
-                                this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
-                        // Fetch task corresponding to resourceTag.resource owned by (oldHostId, resourceTag.threadId)
-                        // and compete to execute it to completion.
-                        return executeResourceTask(oldHostId, taggedResource);
+                TaggedResource taggedResource = taggedResourceOption.get();
+                log.debug("Host={} processing child <{}, {}> of {}", this.hostId, taggedResource.getResource(),
+                        taggedResource.getTag(), oldHostId);
+                // Fetch task corresponding to resourceTag.resource owned by (oldHostId, resourceTag.threadId)
+                // and compete to execute it to completion.
+                return executeResourceTask(oldHostId, taggedResource);
 
-                    }
-                });
+            }
+        });
     }
 
     public CompletableFuture<Result> executeResourceTask(final String oldHostId, final TaggedResource taggedResource) {
@@ -113,33 +110,32 @@ public class TaskSweeper {
         // Else
         //     It is safe to delete the taggedResource child under oldHostId, since there is no pending task on
         //     resource taggedResource.resource and owned by (oldHostId, taggedResource.threadId).
-        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag())
-                .whenComplete((taskData, ex) -> {
+        taskMetadataStore.getTask(taggedResource.getResource(), oldHostId, taggedResource.getTag()).whenComplete(
+                (taskData, ex) -> {
                     if (taskData != null && taskData.isPresent()) {
 
-                        log.debug("Host={} found task for child <{}, {}> of {}",
-                                this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
-                        execute(oldHostId, taskData.get(), taggedResource)
-                                .whenComplete((value, e) -> result.complete(new Result(taggedResource, value, e)));
+                        log.debug("Host={} found task for child <{}, {}> of {}", this.hostId,
+                                taggedResource.getResource(), taggedResource.getTag(), oldHostId);
+                        execute(oldHostId, taskData.get(), taggedResource).whenComplete(
+                                (value, e) -> result.complete(new Result(taggedResource, value, e)));
 
                     } else {
 
                         if (taskData != null) {
 
-                            log.debug("Host={} found no task for child <{}, {}> of {}. Removing child.",
-                                    this.hostId, taggedResource.getResource(), taggedResource.getTag(), oldHostId);
+                            log.debug("Host={} found no task for child <{}, {}> of {}. Removing child.", this.hostId,
+                                    taggedResource.getResource(), taggedResource.getTag(), oldHostId);
                             // taskData.isPresent() is false
                             // If no task was found for the taggedResource.resource owned by
                             // (oldHostId, taggedResource.threadId), then either of the following holds
                             // 1. Old host died immediately after creating the child taggedResource under oldHostId, or
                             // 2. Some host grabbed the task owned by (oldHostId, taggedResource.threadId).
                             // Invariant: In either case it is safe to delete taggedResource under oldHostId node.
-                            taskMetadataStore.removeChild(oldHostId, taggedResource, true)
-                                    .whenComplete((value, e) -> {
-                                        // Ignore the result of remove child operation.
-                                        // Even if it fails, ignore it, as it is an optimization anyways.
-                                        result.complete(new Result(taggedResource, null, ex));
-                                    });
+                            taskMetadataStore.removeChild(oldHostId, taggedResource, true).whenComplete((value, e) -> {
+                                // Ignore the result of remove child operation.
+                                // Even if it fails, ignore it, as it is an optimization anyways.
+                                result.complete(new Result(taggedResource, null, ex));
+                            });
 
                         } else {
 
@@ -161,10 +157,11 @@ public class TaskSweeper {
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
-    public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource taggedResource) {
+    public CompletableFuture<Object> execute(final String oldHostId, final TaskData taskData, final TaggedResource
+            taggedResource) {
 
-        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}",
-                this.hostId, taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
+        log.debug("Host={} attempting to execute task {} for child <{}, {}> of {}", this.hostId,
+                taskData.getMethodName(), taggedResource.getResource(), taggedResource.getTag(), oldHostId);
         try {
 
             String key = getKey(taskData.getMethodName(), taskData.getMethodVersion());
@@ -176,7 +173,8 @@ public class TaskSweeper {
                 o.setContext(new Context(hostId, oldHostId, taggedResource.getTag(), taggedResource.getResource()));
 
                 // finally execute the task by invoking corresponding method and return its result
-                return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
+                return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o,
+                        (Object[]) taskData.getParameters());
 
             } else {
                 throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));

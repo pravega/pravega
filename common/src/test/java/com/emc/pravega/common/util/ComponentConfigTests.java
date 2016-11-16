@@ -81,8 +81,8 @@ public class ComponentConfigTests {
     public void testGetBooleanProperty() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, ComponentConfig::getBooleanProperty, value -> value.equalsIgnoreCase("true") || value
-                .equalsIgnoreCase("false"));
+        testData(props, ComponentConfig::getBooleanProperty,
+                value -> value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false"));
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator)
@@ -101,19 +101,18 @@ public class ComponentConfigTests {
                         String actualValue = methodToTest.apply(config, propName).toString();
                         Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
                     } else {
-                        AssertExtensions.assertThrows(
-                                String.format("ComponentConfig returned property and interpreted it with the wrong " +
-                                        "type. PropertyName: %s, Value: %s.", fullyQualifiedPropertyName,
-                                        expectedValue),
-                                () -> methodToTest.apply(config, propName),
+                        AssertExtensions.assertThrows(String.format(
+                                "ComponentConfig returned property and interpreted it with the wrong " + "type. " +
+                                        "PropertyName: %s, Value: %s.",
+                                fullyQualifiedPropertyName, expectedValue), () -> methodToTest.apply(config, propName),
                                 ex -> !(ex instanceof MissingPropertyException));
                     }
                 } else {
                     // This is a different component. Make sure it is not included here.
-                    AssertExtensions.assertThrows(
-                            String.format("ComponentConfig returned property that was for a different component. " +
-                                    "PropertyName: %s, Value: %s.", fullyQualifiedPropertyName, expectedValue),
-                            () -> methodToTest.apply(config, propName),
+                    AssertExtensions.assertThrows(String.format(
+                            "ComponentConfig returned property that was for a different component. " + "PropertyName:" +
+                                    " %s, Value: %s.",
+                            fullyQualifiedPropertyName, expectedValue), () -> methodToTest.apply(config, propName),
                             ex -> ex instanceof MissingPropertyException);
                 }
             }
@@ -125,8 +124,8 @@ public class ComponentConfigTests {
         for (int componentId = 0; componentId < ComponentConfigTests.COMPONENT_COUNT; componentId++) {
             String componentCode = getComponentCode(componentId);
             for (Function<Integer, String> gf : ComponentConfigTests.GENERATOR_FUNCTIONS) {
-                populateSingleTypeData(props, componentCode, propertyId, ComponentConfigTests
-                        .PROPERTY_OF_TYPE_PER_COMPONENT_COUNT, gf);
+                populateSingleTypeData(props, componentCode, propertyId,
+                        ComponentConfigTests.PROPERTY_OF_TYPE_PER_COMPONENT_COUNT, gf);
                 propertyId += ComponentConfigTests.PROPERTY_OF_TYPE_PER_COMPONENT_COUNT;
             }
         }
@@ -155,8 +154,9 @@ public class ComponentConfigTests {
     private static int getPropertyId(String fullyQualifiedPropertyName) {
         int pos = fullyQualifiedPropertyName.indexOf(PROPERTY_PREFIX);
         if (pos < 0) {
-            Assert.fail("Internal test error: Unable to determine property if from property name " +
-                    fullyQualifiedPropertyName);
+            Assert.fail(
+                    "Internal test error: Unable to determine property if from property name " +
+                            fullyQualifiedPropertyName);
         }
 
         return Integer.parseInt(fullyQualifiedPropertyName.substring(pos + PROPERTY_PREFIX.length()));

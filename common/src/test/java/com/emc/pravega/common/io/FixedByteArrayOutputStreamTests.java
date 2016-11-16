@@ -56,15 +56,11 @@ public class FixedByteArrayOutputStreamTests {
             Arrays.fill(secondHalf, (byte) secondHalfFillValue);
             os.write(secondHalf);
 
-            AssertExtensions.assertThrows(
-                    "write(byte) allowed writing beyond the end of the stream.",
-                    () -> os.write(255),
-                    ex -> ex instanceof IOException);
+            AssertExtensions.assertThrows("write(byte) allowed writing beyond the end of the stream.",
+                    () -> os.write(255), ex -> ex instanceof IOException);
 
-            AssertExtensions.assertThrows(
-                    "write(byte[]) allowed writing beyond the end of the stream.",
-                    () -> os.write(new byte[10]),
-                    ex -> ex instanceof IOException);
+            AssertExtensions.assertThrows("write(byte[]) allowed writing beyond the end of the stream.",
+                    () -> os.write(new byte[10]), ex -> ex instanceof IOException);
         }
 
         for (int i = 0; i < buffer.length; i++) {

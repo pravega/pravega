@@ -111,7 +111,7 @@ public class MockController implements Controller {
             }
         };
         ClientConnection connection = getAndHandleExceptions(connectionFactory.establishConnection(uri, replyProcessor),
-                                                             RuntimeException::new);
+                RuntimeException::new);
         try {
             connection.send(new WireCommands.CreateSegment(name));
         } catch (ConnectionFailedException e) {
@@ -152,7 +152,9 @@ public class MockController implements Controller {
                 result.completeExceptionally(new TxFailedException("Transaction already dropped."));
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(
+                new CommitTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId),
+                replyProcessor);
         return result;
     }
 
@@ -181,7 +183,9 @@ public class MockController implements Controller {
                 result.complete(TransactionStatus.SUCCESS);
             }
         };
-        sendRequestOverNewConnection(new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(
+                new DropTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId),
+                replyProcessor);
         return result;
     }
 
@@ -211,13 +215,16 @@ public class MockController implements Controller {
                 result.complete(txId);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId), replyProcessor);
+        sendRequestOverNewConnection(
+                new CreateTransaction(Segment.getQualifiedName(stream.getScope(), stream.getStreamName(), 0), txId),
+                replyProcessor);
         return result;
     }
 
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return CompletableFuture.completedFuture(ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(), stream.getStreamName())));
+        return CompletableFuture.completedFuture(
+                ImmutableList.<PositionInternal>of(getInitialPosition(stream.getScope(), stream.getStreamName())));
     }
 
     @Override
@@ -238,10 +245,11 @@ public class MockController implements Controller {
     private PositionImpl getInitialPosition(String scope, String stream) {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
-    
+
     private void sendRequestOverNewConnection(Request request, ReplyProcessor replyProcessor) {
-        ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
+        ClientConnection connection = getAndHandleExceptions(
+                connectionFactory.establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor),
+                RuntimeException::new);
         try {
             connection.send(request);
         } catch (ConnectionFailedException e) {

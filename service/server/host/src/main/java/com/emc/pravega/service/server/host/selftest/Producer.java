@@ -75,10 +75,7 @@ class Producer extends Actor {
     @Override
     protected CompletableFuture<Void> run() {
         this.canContinue.set(true);
-        return FutureHelpers.loop(
-                this::canLoop,
-                this::runOneIteration,
-                this.executorService);
+        return FutureHelpers.loop(this::canLoop, this::runOneIteration, this.executorService);
     }
 
     @Override
@@ -105,16 +102,14 @@ class Producer extends Actor {
         }
 
         this.iterationCount.incrementAndGet();
-        return executeOperation(op)
-                .exceptionally(ex -> {
-                    // Log & throw every exception.
-                    ex = ExceptionHelpers.getRealException(ex);
-                    TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
-                    this.canContinue.set(false);
-                    op.failed(ex);
-                    throw new CompletionException(ex);
-                })
-                .thenRun(op::completed);
+        return executeOperation(op).exceptionally(ex -> {
+            // Log & throw every exception.
+            ex = ExceptionHelpers.getRealException(ex);
+            TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
+            this.canContinue.set(false);
+            op.failed(ex);
+            throw new CompletionException(ex);
+        }).thenRun(op::completed);
     }
 
     /**
@@ -133,18 +128,18 @@ class Producer extends Actor {
         switch (operation.getType()) {
             case CreateTransaction:
                 // Create the Transaction, then record it's name in the operation's result.
-                return this.store.createTransaction(operation.getTarget(), timer.getRemaining())
-                        .thenAccept(operation::setResult);
+                return this.store.createTransaction(operation.getTarget(), timer.getRemaining()).thenAccept(
+                        operation::setResult);
             case MergeTransaction:
                 // Seal & Merge the Transaction.
-                return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
-                        .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
+                return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining()).thenCompose(
+                        v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
             case Append:
                 // Generate some random data, then append it.
                 byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
                 AppendContext context = new AppendContext(this.clientId, this.iterationCount.get());
-                return this.store.append(operation.getTarget(), appendContent, context, timer.getRemaining())
-                        .exceptionally(ex -> attemptReconcile(ex, operation, timer));
+                return this.store.append(operation.getTarget(), appendContent, context,
+                        timer.getRemaining()).exceptionally(ex -> attemptReconcile(ex, operation, timer));
             case Seal:
                 // Seal the segment.
                 return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
@@ -162,8 +157,8 @@ class Producer extends Actor {
             if (!reconciled) {
                 // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
                 try {
-                    SegmentProperties sp = this.store.getStreamSegmentInfo(operation.getTarget(), timer.getRemaining())
-                            .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
+                    SegmentProperties sp = this.store.getStreamSegmentInfo(operation.getTarget(),
+                            timer.getRemaining()).get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
                     reconciled = sp.isSealed() || sp.isDeleted();
                 } catch (Throwable ex2) {
                     ex2 = ExceptionHelpers.getRealException(ex2);
@@ -180,9 +175,8 @@ class Producer extends Actor {
     }
 
     private boolean isPossibleEndOfSegment(Throwable ex) {
-        return ex instanceof StreamSegmentSealedException
-                || ex instanceof StreamSegmentNotExistsException
-                || ex instanceof StreamSegmentMergedException;
+        return ex instanceof StreamSegmentSealedException || ex instanceof StreamSegmentNotExistsException || ex
+                instanceof StreamSegmentMergedException;
     }
 
     //endregion

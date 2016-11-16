@@ -30,7 +30,7 @@ import java.util.Optional;
  * Segment table is chunked into multiple files, each containing #SEGMENT_CHUNK_SIZE records.
  * New segment chunk-name is highest-chunk-name + 1
  * Row: [segment-number, segment-creation-time, routing-key-floor-inclusive, routing-key-ceiling-exclusive]
- */
+*/
 public class SegmentRecord {
     public static final int SEGMENT_RECORD_SIZE = (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8;
     public static final int SEGMENT_CHUNK_SIZE = 100000;
@@ -54,8 +54,10 @@ public class SegmentRecord {
 
         return new SegmentRecord(Utilities.toInt(ArrayUtils.subarray(bytes, 0, Integer.SIZE / 8)),
                 Utilities.toLong(ArrayUtils.subarray(bytes, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8)),
-                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8)),
-                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8)));
+                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE) / 8,
+                        (Integer.SIZE + Long.SIZE + Double.SIZE) / 8)), Utilities.toDouble(
+                ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8,
+                        (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8)));
     }
 
     public byte[] toByteArray() {

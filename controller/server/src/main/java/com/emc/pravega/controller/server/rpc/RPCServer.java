@@ -71,11 +71,9 @@ public class RPCServer {
             TNonblockingServerSocket socket = new TNonblockingServerSocket(SERVER_PORT);
 
             TThreadedSelectorServer.Args config = new TThreadedSelectorServer.Args(socket);
-            config.processor(processor)
-                    .transportFactory(new TFramedTransport.Factory())
-                    .protocolFactory(new TBinaryProtocol.Factory())
-                    .workerThreads(SERVER_WORKER_THREAD_COUNT)
-                    .selectorThreads(SERVER_SELECTOR_THREAD_COUNT);
+            config.processor(processor).transportFactory(new TFramedTransport.Factory()).protocolFactory(
+                    new TBinaryProtocol.Factory()).workerThreads(SERVER_WORKER_THREAD_COUNT).selectorThreads(
+                    SERVER_SELECTOR_THREAD_COUNT);
 
             TServer server = new TThreadedSelectorServer(config);
             log.info("Starting Controller Server (Threaded Selector Server) on port {}", SERVER_PORT);

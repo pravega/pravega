@@ -68,8 +68,8 @@ class StorageReader implements AutoCloseable {
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata
-                .getId());
+        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(),
+                segmentMetadata.getId());
         this.segmentName = segmentMetadata.getName();
         this.storage = storage;
         this.executor = executor;
@@ -141,12 +141,11 @@ class StorageReader implements AutoCloseable {
     private void executeStorageRead(Request request) {
         try {
             byte[] buffer = new byte[request.length];
-            CompletableFuture<Void> future = this.storage
-                    .read(this.segmentName, request.offset, buffer, 0, buffer.length, request.getTimeout())
-                    .thenAcceptAsync(bytesRead -> {
-                        ByteArraySegment segment = new ByteArraySegment(buffer, 0, bytesRead);
-                        request.complete(segment);
-                    }, this.executor);
+            CompletableFuture<Void> future = this.storage.read(this.segmentName, request.offset, buffer, 0,
+                    buffer.length, request.getTimeout()).thenAcceptAsync(bytesRead -> {
+                ByteArraySegment segment = new ByteArraySegment(buffer, 0, bytesRead);
+                request.complete(segment);
+            }, this.executor);
 
             // If anything happened with the read (or our handling of it), fail the request.
             FutureHelpers.exceptionListener(future, request::fail);
@@ -182,8 +181,8 @@ class StorageReader implements AutoCloseable {
             this.pendingRequests.remove(request.getOffset());
         }
 
-        log.debug("{}: StorageRead.Finalize {}, Success = {}", this.traceObjectId, request, !request.resultFuture
-                .isCompletedExceptionally());
+        log.debug("{}: StorageRead.Finalize {}, Success = {}", this.traceObjectId, request,
+                !request.resultFuture.isCompletedExceptionally());
     }
 
     /**
@@ -327,8 +326,8 @@ class StorageReader implements AutoCloseable {
          * @param request The request to add as a dependent.
          */
         void addDependent(Request request) {
-            Preconditions.checkArgument(isSubRequest(this, request), "Given Request does is not a sub-request of this" +
-                    " one.");
+            Preconditions.checkArgument(isSubRequest(this, request),
+                    "Given Request does is not a sub-request of this" + " one.");
             this.resultFuture.thenRun(() -> request.complete(this));
             FutureHelpers.exceptionListener(this.resultFuture, request::fail);
         }
@@ -340,8 +339,8 @@ class StorageReader implements AutoCloseable {
          * @throws IllegalArgumentException If the new interval is outside of the original request interval.
          */
         private void adjustLength(int newLength) {
-            Preconditions.checkArgument(newLength >= 0 && newLength <= this.length, "length is outside of the " +
-                    "original request bounds.");
+            Preconditions.checkArgument(newLength >= 0 && newLength <= this.length,
+                    "length is outside of the " + "original request bounds.");
             this.length = newLength;
         }
 
@@ -370,8 +369,8 @@ class StorageReader implements AutoCloseable {
         private void complete(Request source) {
             Preconditions.checkState(!isDone(), "This Request is already completed.");
             Preconditions.checkArgument(source.isDone(), "Given request is not completed.");
-            Preconditions.checkArgument(isSubRequest(source, this), "This Request is not a sub-request of the given " +
-                    "one.");
+            Preconditions.checkArgument(isSubRequest(source, this),
+                    "This Request is not a sub-request of the given " + "one.");
 
             try {
                 // Get the source Request's result, slice it and return the sub-segment that this request maps to.
@@ -419,8 +418,8 @@ class StorageReader implements AutoCloseable {
          * @return True if innerRequest can be fulfilled with the result from outerRequest, false otherwise.
          */
         private static boolean isSubRequest(Request outerRequest, Request innerRequest) {
-            return innerRequest.getOffset() >= outerRequest.getOffset()
-                    && innerRequest.getEndOffset() <= outerRequest.getEndOffset();
+            return innerRequest.getOffset() >= outerRequest.getOffset() && innerRequest.getEndOffset() <=
+                    outerRequest.getEndOffset();
         }
 
         //endregion

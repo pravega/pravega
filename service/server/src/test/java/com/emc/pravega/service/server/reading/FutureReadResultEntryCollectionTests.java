@@ -40,8 +40,7 @@ public class FutureReadResultEntryCollectionTests {
      */
     @Test
     public void testPollEntries() {
-        @Cleanup
-        FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
+        @Cleanup FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
         List<FutureReadResultEntry> entries = generateEntries();
         entries.forEach(c::add);
 
@@ -76,8 +75,7 @@ public class FutureReadResultEntryCollectionTests {
      */
     @Test
     public void testCancelAll() {
-        @Cleanup
-        FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
+        @Cleanup FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
         List<FutureReadResultEntry> entries = generateEntries();
         entries.forEach(c::add);
         c.cancelAll();

@@ -119,8 +119,8 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         Exceptions.checkNotClosed(this.closed, this);
 
         // Check if container exists
-        Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %d is already " +
-                "registered.", containerId);
+        Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId",
+                "Container %d is already " + "registered.", containerId);
 
         // If not, create one and register it.
         ContainerWithHandle newContainer = new ContainerWithHandle(
@@ -136,17 +136,15 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
 
         // Attempt to Start the container, but first, attach a shutdown listener so we know to unregister it when
         // it's stopped.
-        ServiceShutdownListener shutdownListener = new ServiceShutdownListener(
-                () -> unregisterContainer(newContainer),
+        ServiceShutdownListener shutdownListener = new ServiceShutdownListener(() -> unregisterContainer(newContainer),
                 ex -> handleContainerFailure(newContainer, ex));
         newContainer.container.addListener(shutdownListener, this.executor);
         newContainer.container.startAsync();
 
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    newContainer.container.awaitRunning();
-                    return newContainer.handle;
-                }, this.executor);
+        return CompletableFuture.supplyAsync(() -> {
+            newContainer.container.awaitRunning();
+            return newContainer.handle;
+        }, this.executor);
     }
 
     @Override
@@ -197,8 +195,8 @@ public class StreamSegmentContainerRegistry implements SegmentContainerRegistry 
         public final SegmentContainerHandle handle;
 
         ContainerWithHandle(SegmentContainer container, SegmentContainerHandle handle) {
-            assert container.getId() == handle.getContainerId() : "Mismatch between container id and handle container" +
-                    " id.";
+            assert container.getId() == handle.getContainerId() : "Mismatch between container id and handle " +
+                    "container" + " id.";
             this.container = container;
             this.handle = handle;
         }

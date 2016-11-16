@@ -29,14 +29,11 @@ import lombok.Cleanup;
 public class StartProducer {
 
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE,
-                "localhost",
+        @Cleanup MockStreamManager streamManager = new MockStreamManager(StartLocalService.SCOPE, "localhost",
                 StartLocalService.PORT);
         Stream stream = streamManager.createStream(StartLocalService.STREAM_NAME, null);
 
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional Publish \n";

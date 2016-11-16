@@ -40,8 +40,7 @@ public class Playground {
 
         RocksDBConfig config = new RocksDBConfig(PropertyBag.create());
 
-        @Cleanup
-        RocksDBCacheFactory factory = new RocksDBCacheFactory(config);
+        @Cleanup RocksDBCacheFactory factory = new RocksDBCacheFactory(config);
         factory.initialize(true);
         final String cacheId = "MockCache";
         Cache cache = factory.getCache(cacheId);

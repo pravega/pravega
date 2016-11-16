@@ -221,8 +221,7 @@ public final class ServiceBuilder implements AutoCloseable {
      * @param timeout Timeout for the operation.
      */
     public CompletableFuture<Void> initialize(Duration timeout) {
-        return getSingleton(this.containerManager, this.segmentContainerManagerCreator)
-                .initialize(timeout);
+        return getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize(timeout);
     }
 
     /**
@@ -294,8 +293,8 @@ public final class ServiceBuilder implements AutoCloseable {
 
     private static <T> Function<ComponentSetup, T> notConfiguredCreator(Class c) {
         return ignored -> {
-            throw new IllegalStateException("ServiceBuilder not properly configured. Missing supplier for: " + c
-                    .getName());
+            throw new IllegalStateException(
+                    "ServiceBuilder not properly configured. Missing supplier for: " + c.getName());
         };
     }
 
@@ -325,13 +324,12 @@ public final class ServiceBuilder implements AutoCloseable {
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig config) {
         ServiceBuilder serviceBuilder = new ServiceBuilder(config);
-        return serviceBuilder
-                .withCacheFactory(setup -> new InMemoryCacheFactory())
-                .withContainerManager(setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(), setup
-                        .getSegmentToContainerMapper()))
-                .withMetadataRepository(setup -> new InMemoryMetadataRepository())
-                .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
-                .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory());
+        return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory()).withContainerManager(
+                setup -> new LocalSegmentContainerManager(setup.getContainerRegistry(),
+                        setup.getSegmentToContainerMapper())).withMetadataRepository(
+                setup -> new InMemoryMetadataRepository()).withStorageFactory(
+                setup -> new InMemoryStorageFactory(setup.getExecutor())).withDataLogFactory(
+                setup -> new InMemoryDurableDataLogFactory());
     }
 
     //endregion

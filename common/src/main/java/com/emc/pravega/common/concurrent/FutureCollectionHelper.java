@@ -52,18 +52,17 @@ public class FutureCollectionHelper {
         Preconditions.checkNotNull(input);
 
         List<CompletableFuture<Boolean>> future = input.stream().map(predicate::apply).collect(Collectors.toList());
-        return sequence(future).thenApply(
-                booleanList -> {
-                    List<T> result = new ArrayList<>();
-                    int i = 0;
-                    for (T elem : input) {
-                        if (booleanList.get(i)) {
-                            result.add(elem);
-                        }
-                        i++;
-                    }
-                    return result;
-                });
+        return sequence(future).thenApply(booleanList -> {
+            List<T> result = new ArrayList<>();
+            int i = 0;
+            for (T elem : input) {
+                if (booleanList.get(i)) {
+                    result.add(elem);
+                }
+                i++;
+            }
+            return result;
+        });
     }
 
     /**
@@ -77,27 +76,20 @@ public class FutureCollectionHelper {
      * @return A future list.
      */
     public static <T> CompletableFuture<List<T>> sequence(List<CompletableFuture<T>> futures) {
-        CompletableFuture<Void> allDoneFuture =
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[futures.size()]));
-        return allDoneFuture.thenApply(v ->
-                        futures.stream()
-                                .map(CompletableFuture::join)
-                                .collect(Collectors.<T>toList())
-        );
+        CompletableFuture<Void> allDoneFuture = CompletableFuture.allOf(
+                futures.toArray(new CompletableFuture[futures.size()]));
+        return allDoneFuture.thenApply(
+                v -> futures.stream().map(CompletableFuture::join).collect(Collectors.<T>toList()));
     }
 
     public static <T, U> CompletableFuture<Map<T, U>> sequenceMap(Map<T, CompletableFuture<U>> futureMap) {
-        return CompletableFuture.allOf(futureMap.values().toArray(new CompletableFuture[futureMap.size()]))
-                .thenApply(x ->
-                                futureMap.entrySet().stream()
-                                        .map(y -> {
-                                            try {
-                                                return new AbstractMap.SimpleEntry<T, U>(y.getKey(), y.getValue().get());
-                                            } catch (Exception e) {
-                                                throw new RuntimeException(e);
-                                            }
-                                        })
-                                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                );
+        return CompletableFuture.allOf(futureMap.values().toArray(new CompletableFuture[futureMap.size()])).thenApply(
+                x -> futureMap.entrySet().stream().map(y -> {
+                    try {
+                        return new AbstractMap.SimpleEntry<T, U>(y.getKey(), y.getValue().get());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 }

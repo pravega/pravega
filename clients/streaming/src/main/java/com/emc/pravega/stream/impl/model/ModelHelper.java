@@ -65,25 +65,25 @@ public final class ModelHelper {
 
     public static final com.emc.pravega.stream.impl.FutureSegment encode(final SegmentId segment, int previous) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(), segment.getNumber(), previous);
+        return new com.emc.pravega.stream.impl.FutureSegment(segment.getScope(), segment.getStreamName(),
+                segment.getNumber(), previous);
     }
 
     public static final ScalingPolicy encode(final com.emc.pravega.controller.stream.api.v1.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "ScalingPolicy");
-        return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()), policy.getTargetRate(), policy.getScaleFactor(),
-                policy.getMinNumSegments());
+        return new ScalingPolicy(ScalingPolicy.Type.valueOf(policy.getType().name()), policy.getTargetRate(),
+                policy.getScaleFactor(), policy.getMinNumSegments());
     }
 
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "StreamConfig");
-        return new StreamConfigurationImpl(config.getScope(),
-                config.getName(),
-                encode(config.getPolicy()));
+        return new StreamConfigurationImpl(config.getScope(), config.getName(), encode(config.getPolicy()));
     }
 
     public static final PositionImpl encode(final Position position) {
         Preconditions.checkNotNull(position, "Position");
-        return new PositionImpl(encodeSegmentMap(position.getOwnedSegments()), encodeFutureSegmentMap(position.getFutureOwnedSegments()));
+        return new PositionImpl(encodeSegmentMap(position.getOwnedSegments()),
+                encodeFutureSegmentMap(position.getFutureOwnedSegments()));
     }
 
     public static com.emc.pravega.common.netty.PravegaNodeUri encode(NodeUri uri) {
@@ -91,11 +91,8 @@ public final class ModelHelper {
     }
 
     public static List<AbstractMap.SimpleEntry<Double, Double>> encode(Map<Double, Double> keyRanges) {
-        return keyRanges
-                .entrySet()
-                .stream()
-                .map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue()))
-                .collect(Collectors.toList());
+        return keyRanges.entrySet().stream().map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue())).collect(
+                Collectors.toList());
     }
 
     public static Transaction.Status encode(TxState status, String logString) {
@@ -127,23 +124,22 @@ public final class ModelHelper {
 
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "Segment");
-        return new SegmentId().setScope(segment.getScope()).setStreamName(segment.getStreamName())
-                .setNumber(segment.getSegmentNumber());
+        return new SegmentId().setScope(segment.getScope()).setStreamName(segment.getStreamName()).setNumber(
+                segment.getSegmentNumber());
 
     }
 
     public static final com.emc.pravega.controller.stream.api.v1.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "Policy");
-        return new com.emc.pravega.controller.stream.api.v1.ScalingPolicy()
-                .setType(ScalingPolicyType.valueOf(policyModel.getType().name())).setTargetRate(policyModel.getTargetRate())
-                .setScaleFactor(policyModel.getScaleFactor()).setMinNumSegments(policyModel.getMinNumSegments());
+        return new com.emc.pravega.controller.stream.api.v1.ScalingPolicy().setType(
+                ScalingPolicyType.valueOf(policyModel.getType().name())).setTargetRate(
+                policyModel.getTargetRate()).setScaleFactor(policyModel.getScaleFactor()).setMinNumSegments(
+                policyModel.getMinNumSegments());
     }
 
     public static final StreamConfig decode(final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "StreamConfiguration");
-        return new StreamConfig(configModel.getScope(),
-                configModel.getName(),
-                decode(configModel.getScalingPolicy()));
+        return new StreamConfig(configModel.getScope(), configModel.getName(), decode(configModel.getScalingPolicy()));
     }
 
     public static final Position decode(final PositionInternal position) {
@@ -165,16 +161,20 @@ public final class ModelHelper {
         return result;
     }
 
-    private static Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(final Map<FutureSegment, Long> map) {
+    private static Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(final
+                                                                                               Map<FutureSegment,
+                                                                                                       Long> map) {
         Preconditions.checkNotNull(map);
         HashMap<com.emc.pravega.stream.impl.FutureSegment, Long> result = new HashMap<>();
         for (Entry<FutureSegment, Long> entry : map.entrySet()) {
-            result.put(encode(entry.getKey().getFutureSegment(), entry.getKey().getPrecedingSegment().getNumber()), entry.getValue());
+            result.put(encode(entry.getKey().getFutureSegment(), entry.getKey().getPrecedingSegment().getNumber()),
+                    entry.getValue());
         }
         return result;
     }
 
-    private static Map<FutureSegment, Long> decodeFutureSegmentMap(final Map<com.emc.pravega.stream.impl.FutureSegment, Long> map) {
+    private static Map<FutureSegment, Long> decodeFutureSegmentMap(final Map<com.emc.pravega.stream.impl
+            .FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
         HashMap<FutureSegment, Long> result = new HashMap<>();
         for (Entry<com.emc.pravega.stream.impl.FutureSegment, Long> entry : map.entrySet()) {
@@ -182,7 +182,8 @@ public final class ModelHelper {
             String streamName = entry.getKey().getStreamName();
             int newNumber = entry.getKey().getSegmentNumber();
             int oldNumber = entry.getKey().getPrecedingNumber();
-            result.put(new FutureSegment(new SegmentId(scope, streamName, newNumber), new SegmentId(scope, streamName, oldNumber)), entry.getValue());
+            result.put(new FutureSegment(new SegmentId(scope, streamName, newNumber),
+                    new SegmentId(scope, streamName, oldNumber)), entry.getValue());
         }
         return result;
     }

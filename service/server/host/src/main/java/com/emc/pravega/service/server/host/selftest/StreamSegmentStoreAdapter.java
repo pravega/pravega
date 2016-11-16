@@ -65,19 +65,16 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
-        this.serviceBuilder = ServiceBuilder
-                .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> {
-                    RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
-                    factory.initialize(true); // Always clear/reset the cache before every test.
-                    return factory;
-                })
-                .withStorageFactory(setup -> {
-                    VerificationStorage.Factory factory = new VerificationStorage.Factory(
-                            new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
-                    this.storage.set((VerificationStorage) factory.getStorageAdapter());
-                    return factory;
-                });
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(builderConfig).withCacheFactory(setup -> {
+            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
+            factory.initialize(true); // Always clear/reset the cache before every test.
+            return factory;
+        }).withStorageFactory(setup -> {
+            VerificationStorage.Factory factory = new VerificationStorage.Factory(
+                    new InMemoryStorageFactory(setup.getExecutor()).getStorageAdapter());
+            this.storage.set((VerificationStorage) factory.getStorageAdapter());
+            return factory;
+        });
     }
 
     //endregion
@@ -101,12 +98,11 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
-        return this.serviceBuilder.initialize(timeout)
-                .thenRun(() -> {
-                    this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
-                    this.initialized.set(true);
-                    TestLogger.log(LOG_ID, "Up and running.");
-                });
+        return this.serviceBuilder.initialize(timeout).thenRun(() -> {
+            this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
+            this.initialized.set(true);
+            TestLogger.log(LOG_ID, "Up and running.");
+        });
     }
 
     @Override

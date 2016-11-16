@@ -80,14 +80,13 @@ class LogTestHelpers {
      */
     static HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata
             containerMetadata, OperationLog durableLog, Storage storage) {
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool
-                .commonPool());
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage,
+                ForkJoinPool.commonPool());
         HashSet<Long> result = new HashSet<>();
         for (int i = 0; i < streamSegmentCount; i++) {
             String name = getStreamSegmentName(i);
-            long streamSegmentId = mapper
-                    .createNewStreamSegment(name, Duration.ZERO)
-                    .thenCompose((v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
+            long streamSegmentId = mapper.createNewStreamSegment(name, Duration.ZERO).thenCompose(
+                    (v) -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
             result.add(streamSegmentId);
         }
 
@@ -99,20 +98,20 @@ class LogTestHelpers {
      */
     static AbstractMap<Long, Long> createTransactionsInMetadata(HashSet<Long> streamSegmentIds, int
             transactionsPerStreamSegment, UpdateableContainerMetadata containerMetadata) {
-        assert transactionsPerStreamSegment <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " " +
-                "Transactions per StreamSegment for this test.";
+        assert transactionsPerStreamSegment <= MAX_SEGMENT_COUNT : "cannot have more than " + MAX_SEGMENT_COUNT + " "
+                + "Transactions per StreamSegment for this test.";
         HashMap<Long, Long> result = new HashMap<>();
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
                 long transactionId = getTransactionId(streamSegmentId, i);
-                assert result.put(transactionId, streamSegmentId) == null : "duplicate TransactionId generated: " +
-                        transactionId;
-                assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) " +
-                        "generated: " + transactionId;
-                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID
-                        .randomUUID());
+                assert result.put(transactionId,
+                        streamSegmentId) == null : "duplicate TransactionId generated: " + transactionId;
+                assert !streamSegmentIds.contains(
+                        transactionId) : "duplicate StreamSegmentId (Transaction) " + "generated: " + transactionId;
+                String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                        UUID.randomUUID());
                 UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName,
                         transactionId, streamSegmentId);
                 transactionMetadata.setDurableLogLength(0);
@@ -127,15 +126,14 @@ class LogTestHelpers {
             transactionsPerStreamSegment, ContainerMetadata containerMetadata, OperationLog durableLog, Storage
             storage) {
         HashMap<Long, Long> result = new HashMap<>();
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage, ForkJoinPool
-                .commonPool());
+        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, storage,
+                ForkJoinPool.commonPool());
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
-                long transactionId = mapper
-                        .createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(), Duration.ZERO)
-                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
+                long transactionId = mapper.createNewTransactionStreamSegment(streamSegmentName, UUID.randomUUID(),
+                        Duration.ZERO).thenCompose(v -> mapper.getOrAssignStreamSegmentId(v, Duration.ZERO)).join();
                 result.put(transactionId, streamSegmentId);
             }
         }
@@ -161,8 +159,8 @@ class LogTestHelpers {
         int appendId = 0;
         for (long streamSegmentId : streamSegmentIds) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId), new
-                        AppendContext(UUID.randomUUID(), i)));
+                result.add(new StreamSegmentAppendOperation(streamSegmentId, generateAppendData(appendId),
+                        new AppendContext(UUID.randomUUID(), i)));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
@@ -170,8 +168,8 @@ class LogTestHelpers {
 
         for (long transactionId : transactionIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
-                result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId), new
-                        AppendContext(UUID.randomUUID(), i)));
+                result.add(new StreamSegmentAppendOperation(transactionId, generateAppendData(appendId),
+                        new AppendContext(UUID.randomUUID(), i)));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
                 appendId++;
             }
@@ -215,17 +213,15 @@ class LogTestHelpers {
 
             if (o.operation instanceof StreamSegmentAppendOperation) {
                 StreamSegmentAppendOperation appendOperation = (StreamSegmentAppendOperation) o.operation;
-                result.put(
-                        appendOperation.getStreamSegmentId(),
-                        result.getOrDefault(appendOperation.getStreamSegmentId(), 0) + appendOperation.getData()
-                                .length);
+                result.put(appendOperation.getStreamSegmentId(),
+                        result.getOrDefault(appendOperation.getStreamSegmentId(),
+                                0) + appendOperation.getData().length);
             } else if (o.operation instanceof MergeTransactionOperation) {
                 MergeTransactionOperation mergeOperation = (MergeTransactionOperation) o.operation;
 
-                result.put(
-                        mergeOperation.getStreamSegmentId(),
-                        result.getOrDefault(mergeOperation.getStreamSegmentId(), 0) +
-                                result.getOrDefault(mergeOperation.getTransactionSegmentId(), 0));
+                result.put(mergeOperation.getStreamSegmentId(),
+                        result.getOrDefault(mergeOperation.getStreamSegmentId(), 0) + result.getOrDefault(
+                                mergeOperation.getTransactionSegmentId(), 0));
                 result.remove(mergeOperation.getTransactionSegmentId());
             }
         }
@@ -259,15 +255,15 @@ class LogTestHelpers {
                 segmentContents.add(new ByteArrayInputStream(appendOperation.getData()));
             } else if (o.operation instanceof MergeTransactionOperation) {
                 MergeTransactionOperation mergeOperation = (MergeTransactionOperation) o.operation;
-                List<ByteArrayInputStream> targetSegmentContents = partialContents.get(mergeOperation
-                        .getStreamSegmentId());
+                List<ByteArrayInputStream> targetSegmentContents = partialContents.get(
+                        mergeOperation.getStreamSegmentId());
                 if (targetSegmentContents == null) {
                     targetSegmentContents = new ArrayList<>();
                     partialContents.put(mergeOperation.getStreamSegmentId(), targetSegmentContents);
                 }
 
-                List<ByteArrayInputStream> sourceSegmentContents = partialContents.get(mergeOperation
-                        .getTransactionSegmentId());
+                List<ByteArrayInputStream> sourceSegmentContents = partialContents.get(
+                        mergeOperation.getTransactionSegmentId());
                 targetSegmentContents.addAll(sourceSegmentContents);
                 partialContents.remove(mergeOperation.getTransactionSegmentId());
             }
@@ -319,8 +315,7 @@ class LogTestHelpers {
 
         @Override
         public String toString() {
-            return String.format(
-                    "(%s) %s",
+            return String.format("(%s) %s",
                     this.completion.isDone() ? (this.completion.isCompletedExceptionally() ? "Error" : "Complete") :
                             "Not Completed",
                     this.operation);

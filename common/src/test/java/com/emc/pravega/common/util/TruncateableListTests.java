@@ -103,8 +103,8 @@ public class TruncateableListTests {
 
         // Truncate the same 25% of items - verify no change.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT
-                / 4, list.size());
+        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.",
+                ITEM_COUNT - ITEM_COUNT / 4, list.size());
         checkRange("Re-truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate all items.
@@ -136,10 +136,8 @@ public class TruncateableListTests {
         truncateIterator.next(); // Read 1 value
         list.truncate(i -> i < 10);
         Assert.assertFalse("Unexpected value from hasNext when list has been truncated.", truncateIterator.hasNext());
-        AssertExtensions.assertThrows(
-                "Unexpected behavior from next() when current element has been truncated.",
-                truncateIterator::next,
-                ex -> ex instanceof NoSuchElementException);
+        AssertExtensions.assertThrows("Unexpected behavior from next() when current element has been truncated.",
+                truncateIterator::next, ex -> ex instanceof NoSuchElementException);
 
         // Test when we do a truncation between calls to hasNext() and next().
         // This is always a possibility. If the list gets truncated between calls to hasNext() and next(), we cannot
@@ -151,9 +149,8 @@ public class TruncateableListTests {
         list.truncate(i -> i < 20);
         AssertExtensions.assertThrows(
                 "Unexpected behavior from next() when current element has been truncated (after hasNext() and before " +
-                        "next()).",
-                midTruncateIterator::next,
-                ex -> ex instanceof NoSuchElementException);
+                        "" + "next()).",
+                midTruncateIterator::next, ex -> ex instanceof NoSuchElementException);
     }
 
     /**

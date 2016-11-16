@@ -91,9 +91,10 @@ public class DurableLogConfig extends ComponentConfig {
                 DEFAULT_MIN_COMMIT_COUNT);
         this.checkpointCommitCountThreshold = getInt32Property(PROPERTY_CHECKPOINT_COMMIT_COUNT, DEFAULT_COMMIT_COUNT);
         if (this.checkpointMinCommitCount > this.checkpointCommitCountThreshold) {
-            throw new InvalidPropertyValueException(String.format("Property '%s' (%d) cannot be larger than Property " +
-                    "'%s' (%d).", PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount,
-                    PROPERTY_CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
+            throw new InvalidPropertyValueException(
+                    String.format("Property '%s' (%d) cannot be larger than Property " + "'%s' (%d).",
+                            PROPERTY_CHECKPOINT_MIN_COMMIT_COUNT, this.checkpointMinCommitCount,
+                            PROPERTY_CHECKPOINT_COMMIT_COUNT, this.checkpointCommitCountThreshold));
         }
 
         this.checkpointTotalCommitLengthThreshold = getInt64Property(PROPERTY_CHECKPOINT_TOTAL_COMMIT_LENGTH,

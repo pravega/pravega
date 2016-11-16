@@ -162,14 +162,10 @@ public class Consumer extends Actor {
                 additionalMessage = String.format(additionalMessage, additionalMessageFormatArgs);
             }
 
-            TestLogger.log(stepName, "Segment=%s, ReadBuffer=%s (+%s), TailRead=%s, CatchupRead=%s, StorageRead=%s, " +
-                            "%s.",
-                    this.segmentName,
-                    this.readBufferSegmentOffset,
-                    this.readBuffer.getLength(),
-                    this.tailReadValidatedOffset,
-                    this.catchupReadValidatedOffset,
-                    this.storageReadValidatedOffset,
+            TestLogger.log(stepName,
+                    "Segment=%s, ReadBuffer=%s (+%s), TailRead=%s, CatchupRead=%s, StorageRead=%s, " + "%s.",
+                    this.segmentName, this.readBufferSegmentOffset, this.readBuffer.getLength(),
+                    this.tailReadValidatedOffset, this.catchupReadValidatedOffset, this.storageReadValidatedOffset,
                     additionalMessage);
         }
     }
@@ -180,16 +176,14 @@ public class Consumer extends Actor {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         // Register an update listener with the storage.
-        val listener = new VerificationStorage.SegmentUpdateListener(
-                this.segmentName,
-                (length, sealed) -> {
-                    try {
-                        storageSegmentChangedHandler(length, sealed, result);
-                    } catch (Throwable ex) {
-                        result.completeExceptionally(ex); // Make sure we catch exceptions; otherwise this will be
-                        // stuck in a loop forever.
-                    }
-                });
+        val listener = new VerificationStorage.SegmentUpdateListener(this.segmentName, (length, sealed) -> {
+            try {
+                storageSegmentChangedHandler(length, sealed, result);
+            } catch (Throwable ex) {
+                result.completeExceptionally(ex); // Make sure we catch exceptions; otherwise this will be
+                // stuck in a loop forever.
+            }
+        });
         this.store.getStorageAdapter().registerListener(listener);
 
         // Make sure the listener is closed (and thus unregistered) when we are done, whether successfully or not.
@@ -237,30 +231,28 @@ public class Consumer extends Actor {
 
         // Execute a Storage Read, then validate that the read data matches what was in there.
         byte[] storageReadBuffer = new byte[length];
-        this.store.getStorageAdapter()
-                .read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout())
-                .thenAccept(l -> {
-                    ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer,
-                            segmentStartOffset);
-                    validationResult.setSource(SOURCE_STORAGE_READ);
-                    if (!validationResult.isSuccess()) {
-                        validationFailed(validationResult);
-                        return;
-                    }
+        this.store.getStorageAdapter().read(this.segmentName, segmentStartOffset, storageReadBuffer, 0, length,
+                this.config.getTimeout()).thenAccept(l -> {
+            ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer,
+                    segmentStartOffset);
+            validationResult.setSource(SOURCE_STORAGE_READ);
+            if (!validationResult.isSuccess()) {
+                validationFailed(validationResult);
+                return;
+            }
 
-                    // After a successful validation, update the state and truncate the buffer.
-                    synchronized (this.lock) {
-                        this.storageReadValidatedOffset = segmentLength;
-                        truncateBuffer();
-                    }
+            // After a successful validation, update the state and truncate the buffer.
+            synchronized (this.lock) {
+                this.storageReadValidatedOffset = segmentLength;
+                truncateBuffer();
+            }
 
-                    logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
-                })
-                .whenComplete((r, ex) -> {
-                    if (ex != null) {
-                        processingFuture.completeExceptionally(ex);
-                    }
-                });
+            logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
+        }).whenComplete((r, ex) -> {
+            if (ex != null) {
+                processingFuture.completeExceptionally(ex);
+            }
+        });
     }
 
     private ValidationResult validateStorageRead(InputStream expectedData, byte[] storageReadBuffer, long
@@ -270,8 +262,9 @@ public class Consumer extends Actor {
                 byte expected = (byte) expectedData.read();
                 if (expected != storageReadBuffer[i]) {
                     // This also includes the case when one stream ends prematurely.
-                    val result = ValidationResult.failed(String.format("Corrupted data at Segment offset %s. Expected" +
-                            " '%s', found '%s'.", segmentOffset + i, expected, storageReadBuffer[i]));
+                    val result = ValidationResult.failed(
+                            String.format("Corrupted data at Segment offset %s. Expected" + " '%s', found '%s'.",
+                                    segmentOffset + i, expected, storageReadBuffer[i]));
                     result.setSegmentOffset(segmentOffset + i);
                     return result;
                 }
@@ -289,29 +282,25 @@ public class Consumer extends Actor {
 
     private CompletableFuture<Void> processStoreReads() {
         val entryHandler = new ReadResultEntryHandler(this.config, this::processTailRead, this::canRun, this::fail);
-        return FutureHelpers.loop(
-                this::canRun,
-                () -> this.store
-                        .read(this.segmentName, entryHandler.getCurrentOffset(), Integer.MAX_VALUE, READ_TIMEOUT)
-                        .thenComposeAsync(readResult -> {
-                            // Create a future that we will immediately return.
-                            CompletableFuture<Void> processComplete = new CompletableFuture<>();
+        return FutureHelpers.loop(this::canRun,
+                () -> this.store.read(this.segmentName, entryHandler.getCurrentOffset(), Integer.MAX_VALUE,
+                        READ_TIMEOUT).thenComposeAsync(readResult -> {
+                    // Create a future that we will immediately return.
+                    CompletableFuture<Void> processComplete = new CompletableFuture<>();
 
-                            // Create an AsyncReadResultProcessor and make sure that when it ends, we complete the
-                            // future.
-                            AsyncReadResultProcessor rrp = new AsyncReadResultProcessor(readResult, entryHandler,
-                                    this.executorService);
-                            rrp.addListener(
-                                    new ServiceShutdownListener(() -> processComplete.complete(null),
-                                            processComplete::completeExceptionally),
-                                    this.executorService);
+                    // Create an AsyncReadResultProcessor and make sure that when it ends, we complete the
+                    // future.
+                    AsyncReadResultProcessor rrp = new AsyncReadResultProcessor(readResult, entryHandler,
+                            this.executorService);
+                    rrp.addListener(new ServiceShutdownListener(() -> processComplete.complete(null),
+                            processComplete::completeExceptionally), this.executorService);
 
-                            // Start the processor.
-                            rrp.startAsync().awaitRunning();
-                            return processComplete;
-                        }, this.executorService)
-                        .thenCompose(v -> this.store.getStreamSegmentInfo(this.segmentName, this.config.getTimeout()))
-                        .handle((r, ex) -> {
+                    // Start the processor.
+                    rrp.startAsync().awaitRunning();
+                    return processComplete;
+                }, this.executorService).thenCompose(
+                        v -> this.store.getStreamSegmentInfo(this.segmentName, this.config.getTimeout())).handle(
+                        (r, ex) -> {
                             if (ex != null) {
                                 ex = ExceptionHelpers.getRealException(ex);
                                 if (ex instanceof StreamSegmentNotExistsException) {
@@ -327,16 +316,15 @@ public class Consumer extends Actor {
                             }
 
                             return null;
-                        }),
-                this.executorService);
+                        }), this.executorService);
     }
 
     private void processTailRead(InputStream data, long segmentOffset, int length) {
         synchronized (this.lock) {
             // Verify that append data blocks are contiguous.
             if (this.readBufferSegmentOffset >= 0) {
-                Preconditions.checkArgument(segmentOffset == this.readBufferSegmentOffset +
-                        this.readBuffer.getLength());
+                Preconditions.checkArgument(
+                        segmentOffset == this.readBufferSegmentOffset + this.readBuffer.getLength());
             } else {
                 this.readBufferSegmentOffset = segmentOffset;
             }
@@ -399,8 +387,8 @@ public class Consumer extends Actor {
             expectedData = this.readBuffer.getReader(bufferOffset, length);
         }
 
-        this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout())
-                .thenAcceptAsync(readResult -> {
+        this.store.read(this.segmentName, segmentStartOffset, length, this.config.getTimeout()).thenAcceptAsync(
+                readResult -> {
                     try {
                         ValidationResult validationResult = validateCatchupRead(readResult, expectedData,
                                 segmentStartOffset, length);
@@ -429,23 +417,27 @@ public class Consumer extends Actor {
             ReadResultEntry entry;
             if (!readResult.hasNext() || (entry = readResult.next()) == null) {
                 // Reached a premature end of the ReadResult.
-                result = ValidationResult.failed(String.format("Reached the end of the catch-up ReadResult, but " +
-                        "expecting %s more bytes to be read.", length));
+                result = ValidationResult.failed(String.format(
+                        "Reached the end of the catch-up ReadResult, but " + "expecting %s more bytes to be read.",
+                        length));
             } else if (entry.getStreamSegmentOffset() != segmentOffset) {
                 // Something is not right.
-                result = ValidationResult.failed(String.format("Invalid ReadResultEntry offset. Expected %s, Actual " +
-                        "%s (%s bytes remaining).", segmentOffset, entry.getStreamSegmentOffset(), length));
+                result = ValidationResult.failed(String.format(
+                        "Invalid ReadResultEntry offset. Expected %s, Actual " + "%s (%s bytes remaining).",
+                        segmentOffset, entry.getStreamSegmentOffset(), length));
             } else if (entry.getType() == ReadResultEntryType.EndOfStreamSegment || entry.getType() ==
                     ReadResultEntryType.Future) {
                 // Not expecting EndOfSegment or Future read for catch-up reads.
-                result = ValidationResult.failed(String.format("Unexpected ReadResultEntry type '%s' at offset %s.",
-                        entry.getType(), segmentOffset));
+                result = ValidationResult.failed(
+                        String.format("Unexpected ReadResultEntry type '%s' at offset %s.", entry.getType(),
+                                segmentOffset));
             } else {
                 // Validate contents.
                 ReadResultEntryContents contents = entry.getContent().join();
                 if (contents.getLength() > length) {
-                    result = ValidationResult.failed(String.format("ReadResultEntry has more data than requested (Max" +
-                            " %s, Actual %s).", length, contents.getLength()));
+                    result = ValidationResult.failed(
+                            String.format("ReadResultEntry has more data than requested (Max" + " %s, Actual %s).",
+                                    length, contents.getLength()));
                 } else {
                     // Check, byte-by-byte, that the data matches what we expect.
                     InputStream actualData = contents.getData();
@@ -455,8 +447,9 @@ public class Consumer extends Actor {
                             int b2 = actualData.read();
                             if (b1 != b2) {
                                 // This also includes the case when one stream ends prematurely.
-                                result = ValidationResult.failed(String.format("Corrupted data at Segment offset %s. " +
-                                        "Expected '%s', found '%s'.", segmentOffset + i, b1, b2));
+                                result = ValidationResult.failed(String.format(
+                                        "Corrupted data at Segment offset %s. " + "Expected '%s', found '%s'.",
+                                        segmentOffset + i, b1, b2));
                                 break;
                             }
                         }

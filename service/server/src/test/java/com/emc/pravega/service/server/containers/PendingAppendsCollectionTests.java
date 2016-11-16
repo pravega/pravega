@@ -68,10 +68,12 @@ public class PendingAppendsCollectionTests {
                             c.register(op, doneThirdThird);
                         }
 
-                        CompletableFuture<AppendContext> contextFuture = c.get(op.getStreamSegmentId(), ac
-                                .getClientId());
-                        Assert.assertFalse("get() returned a completed future even though the underlying append did " +
-                                "not complete.", contextFuture.isDone());
+                        CompletableFuture<AppendContext> contextFuture = c.get(op.getStreamSegmentId(),
+                                ac.getClientId());
+                        Assert.assertFalse(
+                                "get() returned a completed future even though the underlying append did " + "not " +
+                                        "complete.",
+                                contextFuture.isDone());
                     }
                 }
             }
@@ -88,13 +90,19 @@ public class PendingAppendsCollectionTests {
                 for (UUID clientId : lastContexts.get(segmentId).keySet()) {
                     CompletableFuture<AppendContext> contextFuture = c.get(segmentId, clientId);
                     if (segmentId < SEGMENT_COUNT / 3) {
-                        Assert.assertNull("get() returned a non-null result for a Segment-Client combination that had" +
-                                " completed all appends.", contextFuture);
+                        Assert.assertNull(
+                                "get() returned a non-null result for a Segment-Client combination that had" + " " +
+                                        "completed all appends.",
+                                contextFuture);
                     } else {
-                        Assert.assertNotNull("get() returned a null result for a Segment-Client combination that had " +
-                                "not completed all appends.", contextFuture);
-                        Assert.assertFalse("get() returned a completed future even though the underlying append did " +
-                                "not complete.", contextFuture.isDone());
+                        Assert.assertNotNull(
+                                "get() returned a null result for a Segment-Client combination that had " + "not " +
+                                        "completed all appends.",
+                                contextFuture);
+                        Assert.assertFalse(
+                                "get() returned a completed future even though the underlying append did " + "not " +
+                                        "complete.",
+                                contextFuture.isDone());
                         if (segmentId < SEGMENT_COUNT * 2 / 3) {
                             secondThirdContexts.put(lastContexts.get(segmentId).get(clientId), contextFuture);
                         } else {
@@ -107,21 +115,24 @@ public class PendingAppendsCollectionTests {
             // Complete all the "appends" in the second third.
             doneSecondThird.complete(2L);
             for (Map.Entry<AppendContext, CompletableFuture<AppendContext>> e : secondThirdContexts.entrySet()) {
-                Assert.assertTrue("Future returned from get() did not complete even though the underlying append did " +
-                        "complete.", e.getValue().isDone());
+                Assert.assertTrue(
+                        "Future returned from get() did not complete even though the underlying append did " +
+                                "complete.",
+                        e.getValue().isDone());
                 Assert.assertEquals("Unexpected result contained in returned future.", e.getKey(), e.getValue().join());
             }
 
             // Fail all the "appends" in the third third.
             doneThirdThird.completeExceptionally(new IntentionalException());
             for (Map.Entry<AppendContext, CompletableFuture<AppendContext>> e : thirdThirdContexts.entrySet()) {
-                Assert.assertTrue("Future returned from get() did not complete even though the underlying append did " +
-                        "complete.", e.getValue().isDone());
+                Assert.assertTrue(
+                        "Future returned from get() did not complete even though the underlying append did " +
+                                "complete.",
+                        e.getValue().isDone());
                 AssertExtensions.assertThrows(
                         "Future returned from get() did not complete exceptionally even though the underlying append " +
-                                "failed.",
-                        e.getValue()::join,
-                        ex -> ex instanceof IntentionalException);
+                                "" + "failed.",
+                        e.getValue()::join, ex -> ex instanceof IntentionalException);
             }
         }
     }
@@ -134,17 +145,17 @@ public class PendingAppendsCollectionTests {
         PendingAppendsCollection c = new PendingAppendsCollection();
         long segmentId = 1;
         UUID clientId = UUID.randomUUID();
-        c.register(new StreamSegmentAppendOperation(segmentId, APPEND_DATA, new AppendContext(clientId, 0)), new
-                CompletableFuture<>());
+        c.register(new StreamSegmentAppendOperation(segmentId, APPEND_DATA, new AppendContext(clientId, 0)),
+                new CompletableFuture<>());
         CompletableFuture<AppendContext> contextFuture = c.get(segmentId, clientId);
         c.close();
 
-        Assert.assertTrue("Future returned from get() did not complete even though the PendingAppendCollection closed" +
-                ".", contextFuture.isDone());
+        Assert.assertTrue(
+                "Future returned from get() did not complete even though the PendingAppendCollection closed" + ".",
+                contextFuture.isDone());
         AssertExtensions.assertThrows(
-                "Future returned from get() did not complete exceptionally even though the PendingAppendCollection " +
-                        "closed.",
-                contextFuture::join,
-                ex -> ex instanceof ObjectClosedException);
+                "Future returned from get() did not complete exceptionally even though the PendingAppendCollection "
+                        + "closed.",
+                contextFuture::join, ex -> ex instanceof ObjectClosedException);
     }
 }

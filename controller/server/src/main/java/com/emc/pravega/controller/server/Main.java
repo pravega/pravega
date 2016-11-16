@@ -76,8 +76,7 @@ public class Main {
         //1) LOAD configuration.
 
         log.info("Creating store client");
-        StoreClient storeClient = StoreClientFactory.createStoreClient(
-                StoreClientFactory.StoreType.valueOf(STORE_TYPE),
+        StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.valueOf(STORE_TYPE),
                 new StoreConfiguration(STORE_CONNECTION_STRING));
 
         log.info("Creating in-memory stream store");
@@ -95,9 +94,12 @@ public class Main {
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
         log.info("Starting RPC server");
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, hostId);
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks));
 
         //3. hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -105,8 +107,10 @@ public class Main {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of controllers
+        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+        // controllers
         // and starts sweeping tasks orphaned by those hostIds.
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks, streamTransactionMetadataTasks);
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 }

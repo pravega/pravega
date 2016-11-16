@@ -69,46 +69,33 @@ public enum WireCommandType {
     APPEND(0, null), // Does not go over the wire, is converted to an event.
     EVENT(0, null), // Is read manually.
 
-    SETUP_APPEND(1, SetupAppend::readFrom),
-    APPEND_SETUP(2, AppendSetup::readFrom),
+    SETUP_APPEND(1, SetupAppend::readFrom), APPEND_SETUP(2, AppendSetup::readFrom),
 
-    APPEND_BLOCK(3, AppendBlock::readFrom),
-    APPEND_BLOCK_END(4, AppendBlockEnd::readFrom),
+    APPEND_BLOCK(3, AppendBlock::readFrom), APPEND_BLOCK_END(4, AppendBlockEnd::readFrom),
 
     DATA_APPENDED(5, DataAppended::readFrom),
 
-    READ_SEGMENT(6, ReadSegment::readFrom),
-    SEGMENT_READ(7, SegmentRead::readFrom),
+    READ_SEGMENT(6, ReadSegment::readFrom), SEGMENT_READ(7, SegmentRead::readFrom),
 
-    GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom),
-    STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),
+    GET_STREAM_SEGMENT_INFO(8, GetStreamSegmentInfo::readFrom), STREAM_SEGMENT_INFO(9, StreamSegmentInfo::readFrom),
 
-    GET_TRANSACTION_INFO(10, GetTransactionInfo::readFrom),
-    TRANSACTION_INFO(11, TransactionInfo::readFrom),
+    GET_TRANSACTION_INFO(10, GetTransactionInfo::readFrom), TRANSACTION_INFO(11, TransactionInfo::readFrom),
 
-    CREATE_SEGMENT(20, CreateSegment::readFrom),
-    SEGMENT_CREATED(21, SegmentCreated::readFrom),
+    CREATE_SEGMENT(20, CreateSegment::readFrom), SEGMENT_CREATED(21, SegmentCreated::readFrom),
 
-    CREATE_TRANSACTION(22, CreateTransaction::readFrom),
-    TRANSACTION_CREATED(23, TransactionCreated::readFrom),
+    CREATE_TRANSACTION(22, CreateTransaction::readFrom), TRANSACTION_CREATED(23, TransactionCreated::readFrom),
 
-    COMMIT_TRANSACTION(24, CommitTransaction::readFrom),
-    TRANSACTION_COMMITTED(25, TransactionCommitted::readFrom),
+    COMMIT_TRANSACTION(24, CommitTransaction::readFrom), TRANSACTION_COMMITTED(25, TransactionCommitted::readFrom),
 
-    DROP_TRANSACTION(26, DropTransaction::readFrom),
-    TRANSACTION_DROPPED(27, TransactionDropped::readFrom),
+    DROP_TRANSACTION(26, DropTransaction::readFrom), TRANSACTION_DROPPED(27, TransactionDropped::readFrom),
 
-    SEAL_SEGMENT(28, SealSegment::readFrom),
-    SEGMENT_SEALED(29, SegmentSealed::readFrom),
+    SEAL_SEGMENT(28, SealSegment::readFrom), SEGMENT_SEALED(29, SegmentSealed::readFrom),
 
-    DELETE_SEGMENT(30, DeleteSegment::readFrom),
-    SEGMENT_DELETED(31, SegmentDeleted::readFrom),
+    DELETE_SEGMENT(30, DeleteSegment::readFrom), SEGMENT_DELETED(31, SegmentDeleted::readFrom),
 
-    WRONG_HOST(50, WrongHost::readFrom),
-    SEGMENT_IS_SEALED(51, SegmentIsSealed::readFrom),
-    SEGMENT_ALREADY_EXISTS(52, SegmentAlreadyExists::readFrom),
-    NO_SUCH_SEGMENT(53, NoSuchSegment::readFrom),
-    NO_SUCH_TRANSACTION(54, NoSuchTransaction::readFrom),
+    WRONG_HOST(50, WrongHost::readFrom), SEGMENT_IS_SEALED(51, SegmentIsSealed::readFrom), SEGMENT_ALREADY_EXISTS(52,
+            SegmentAlreadyExists::readFrom), NO_SUCH_SEGMENT(53, NoSuchSegment::readFrom), NO_SUCH_TRANSACTION(54,
+            NoSuchTransaction::readFrom),
 
     KEEP_ALIVE(100, KeepAlive::readFrom);
 
