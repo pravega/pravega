@@ -19,7 +19,7 @@
 package com.emc.pravega.demo;
 
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.Host;
@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
 
 public class ControllerWrapper implements Controller {
 
-    private final ControllerServiceImpl controller;
+    private final ControllerService controller;
 
     public ControllerWrapper(String connectionString) {
         Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
@@ -103,7 +103,7 @@ public class ControllerWrapper implements Controller {
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, hostId);
 
-        controller = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controller = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Override

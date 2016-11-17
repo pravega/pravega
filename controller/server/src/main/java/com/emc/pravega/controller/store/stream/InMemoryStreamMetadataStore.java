@@ -34,7 +34,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Map<String, InMemoryStream> streams = new HashMap<>();
 
     @Override
-    Stream newStream(String name) {
+    synchronized Stream newStream(String name) {
         if (streams.containsKey(name)) {
             return streams.get(name);
         } else {
@@ -43,7 +43,7 @@ public class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long timeStamp) {
+    public synchronized CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration, long timeStamp) {
         if (!streams.containsKey(name)) {
             InMemoryStream stream = new InMemoryStream(name);
             stream.create(configuration, timeStamp);

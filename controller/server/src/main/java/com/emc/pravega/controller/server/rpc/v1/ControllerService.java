@@ -53,17 +53,17 @@ import java.util.stream.Collectors;
 /**
  * Stream controller RPC server implementation.
  */
-public class ControllerServiceImpl {
+public class ControllerService {
 
     private final StreamMetadataStore streamStore;
     private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
-    public ControllerServiceImpl(final StreamMetadataStore streamStore,
-                                 final HostControllerStore hostStore,
-                                 final StreamMetadataTasks streamMetadataTasks,
-                                 final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+    public ControllerService(final StreamMetadataStore streamStore,
+                             final HostControllerStore hostStore,
+                             final StreamMetadataTasks streamMetadataTasks,
+                             final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         this.streamStore = streamStore;
         this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;

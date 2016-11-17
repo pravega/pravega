@@ -18,7 +18,7 @@
 
 package com.emc.pravega.controller.server.v1;
 
-import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.server.rpc.v1.ControllerService;
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -60,7 +60,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * Controller service implementation test.
  */
-public class ControllerServiceImplTest {
+public class ControllerServiceTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
@@ -72,11 +72,11 @@ public class ControllerServiceImplTest {
 
     private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
-    private final ControllerServiceImpl consumer;
+    private final ControllerService consumer;
 
     private final TestingServer zkServer;
 
-    public ControllerServiceImplTest() throws Exception {
+    public ControllerServiceTest() throws Exception {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
@@ -86,7 +86,7 @@ public class ControllerServiceImplTest {
                         new InMemoryHostControllerStoreConfig(hostContainerMap));
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
         StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, "host");
-        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Before
