@@ -68,14 +68,17 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
     private int scaleFactor; // required
     private int minNumSegments; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
         /**
-         *
          * @see ScalingPolicyType
          */
-        TYPE((short) 1, "type"), TARGET_RATE((short) 2, "targetRate"), SCALE_FACTOR((short) 3,
-                "scaleFactor"), MIN_NUM_SEGMENTS((short) 4, "minNumSegments");
+        TYPE((short) 1, "type"),
+        TARGET_RATE((short) 2, "targetRate"),
+        SCALE_FACTOR((short) 3, "scaleFactor"),
+        MIN_NUM_SEGMENTS((short) 4, "minNumSegments");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -208,7 +211,6 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
     }
 
     /**
-     *
      * @see ScalingPolicyType
      */
     public ScalingPolicyType getType() {
@@ -216,7 +218,6 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
     }
 
     /**
-     *
      * @see ScalingPolicyType
      */
     public ScalingPolicy setType(ScalingPolicyType type) {
@@ -228,7 +229,9 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
         this.type = null;
     }
 
-    /** Returns true if field type is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field type is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetType() {
         return this.type != null;
     }
@@ -253,7 +256,9 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __TARGETRATE_ISSET_ID);
     }
 
-    /** Returns true if field targetRate is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field targetRate is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetTargetRate() {
         return EncodingUtils.testBit(__isset_bitfield, __TARGETRATE_ISSET_ID);
     }
@@ -276,7 +281,9 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SCALEFACTOR_ISSET_ID);
     }
 
-    /** Returns true if field scaleFactor is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field scaleFactor is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetScaleFactor() {
         return EncodingUtils.testBit(__isset_bitfield, __SCALEFACTOR_ISSET_ID);
     }
@@ -299,7 +306,9 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __MINNUMSEGMENTS_ISSET_ID);
     }
 
-    /** Returns true if field minNumSegments is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field minNumSegments is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetMinNumSegments() {
         return EncodingUtils.testBit(__isset_bitfield, __MINNUMSEGMENTS_ISSET_ID);
     }
@@ -363,7 +372,9 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -644,7 +655,8 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
             struct.validate();
         }
 
-        public void write(org.apache.thrift.protocol.TProtocol oprot, ScalingPolicy struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot, ScalingPolicy struct) throws org.apache.thrift
+                .TException {
             struct.validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -677,7 +689,8 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
     private static class ScalingPolicyTupleScheme extends TupleScheme<ScalingPolicy> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, ScalingPolicy struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, ScalingPolicy struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             oprot.writeI32(struct.type.getValue());
             oprot.writeI64(struct.targetRate);
@@ -686,7 +699,8 @@ public class ScalingPolicy implements org.apache.thrift.TBase<ScalingPolicy, Sca
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, ScalingPolicy struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, ScalingPolicy struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.type = com.emc.pravega.controller.stream.api.v1.ScalingPolicyType.findByValue(iprot.readI32());
             struct.setTypeIsSet(true);

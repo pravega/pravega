@@ -22,7 +22,11 @@ import org.apache.commons.lang.NotImplementedException;
 
 public class HostStoreFactory {
     public enum StoreType {
-        InMemory, Zookeeper, ECS, S3, HDFS
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3,
+        HDFS
     }
 
     public static HostControllerStore createStore(StoreType type, StoreConfiguration config) {

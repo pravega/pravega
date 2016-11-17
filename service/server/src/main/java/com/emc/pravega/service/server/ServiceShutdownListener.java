@@ -45,8 +45,7 @@ public class ServiceShutdownListener extends Service.Listener {
      *
      * @param terminatedCallback An optional callback that will be invoked when the monitored service terminates.
      * @param failureCallback    An optional callback that will be invoked when the monitored service fails. The
-     *                           argument
-     *                           to this callback is the exception that caused the service to fail.
+     *                           argument to this callback is the exception that caused the service to fail.
      */
     public ServiceShutdownListener(Runnable terminatedCallback, Consumer<Throwable> failureCallback) {
         this.terminatedCallback = terminatedCallback;

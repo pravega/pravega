@@ -14,7 +14,9 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 public enum UpdateStreamStatus implements org.apache.thrift.TEnum {
-    SUCCESS(0), FAILURE(1), STREAM_NOT_FOUND(2);
+    SUCCESS(0),
+    FAILURE(1),
+    STREAM_NOT_FOUND(2);
 
     private final int value;
 
@@ -31,6 +33,7 @@ public enum UpdateStreamStatus implements org.apache.thrift.TEnum {
 
     /**
      * Find a the enum type by its integer value, as defined in the Thrift IDL.
+     *
      * @return null if the value is not found.
      */
     public static UpdateStreamStatus findByValue(int value) {

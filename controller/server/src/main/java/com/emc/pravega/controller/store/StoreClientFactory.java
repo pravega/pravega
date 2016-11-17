@@ -26,7 +26,11 @@ import org.apache.commons.lang.NotImplementedException;
 public class StoreClientFactory {
 
     public enum StoreType {
-        InMemory, Zookeeper, ECS, S3, HDFS
+        InMemory,
+        Zookeeper,
+        ECS,
+        S3,
+        HDFS
     }
 
     public static StoreClient createStoreClient(final StoreType type, final StoreConfiguration config) {

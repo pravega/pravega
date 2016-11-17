@@ -59,13 +59,15 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
     private ScaleStreamStatus status; // required
     private List<SegmentRange> segments; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
         /**
-         *
          * @see ScaleStreamStatus
          */
-        STATUS((short) 1, "status"), SEGMENTS((short) 2, "segments");
+        STATUS((short) 1, "status"),
+        SEGMENTS((short) 2, "segments");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -179,7 +181,6 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
     }
 
     /**
-     *
      * @see ScaleStreamStatus
      */
     public ScaleStreamStatus getStatus() {
@@ -187,7 +188,6 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
     }
 
     /**
-     *
      * @see ScaleStreamStatus
      */
     public ScaleResponse setStatus(ScaleStreamStatus status) {
@@ -199,7 +199,9 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
         this.status = null;
     }
 
-    /** Returns true if field status is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field status is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetStatus() {
         return this.status != null;
     }
@@ -238,7 +240,9 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
         this.segments = null;
     }
 
-    /** Returns true if field segments is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field segments is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetSegments() {
         return this.segments != null;
     }
@@ -282,7 +286,9 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -530,7 +536,8 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
     private static class ScaleResponseTupleScheme extends TupleScheme<ScaleResponse> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, ScaleResponse struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, ScaleResponse struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             oprot.writeI32(struct.status.getValue());
             {
@@ -542,7 +549,8 @@ public class ScaleResponse implements org.apache.thrift.TBase<ScaleResponse, Sca
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, ScaleResponse struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, ScaleResponse struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.status = com.emc.pravega.controller.stream.api.v1.ScaleStreamStatus.findByValue(iprot.readI32());
             struct.setStatusIsSet(true);

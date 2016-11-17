@@ -27,10 +27,10 @@ import com.google.common.base.Preconditions;
  * <pre>
  * <code>
  * Retry.withExpBackoff(1, 10, 5)
- * .retryingOn(FooException.class)
- * .throwingOn(RuntimeException.class).run(() -> {
- * //Do stuff here.
- * }
+        .retryingOn(FooException.class)
+        .throwingOn(RuntimeException.class).run(() -> {
+            //Do stuff here.
+        }
  * </code>
  * </pre>
  * <p>

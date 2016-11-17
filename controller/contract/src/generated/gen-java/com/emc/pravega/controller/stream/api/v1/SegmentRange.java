@@ -63,9 +63,13 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
     private double minKey; // required
     private double maxKey; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        SEGMENT_ID((short) 1, "segmentId"), MIN_KEY((short) 2, "minKey"), MAX_KEY((short) 3, "maxKey");
+        SEGMENT_ID((short) 1, "segmentId"),
+        MIN_KEY((short) 2, "minKey"),
+        MAX_KEY((short) 3, "maxKey");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -199,7 +203,9 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
         this.segmentId = null;
     }
 
-    /** Returns true if field segmentId is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field segmentId is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetSegmentId() {
         return this.segmentId != null;
     }
@@ -224,7 +230,9 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __MINKEY_ISSET_ID);
     }
 
-    /** Returns true if field minKey is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field minKey is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetMinKey() {
         return EncodingUtils.testBit(__isset_bitfield, __MINKEY_ISSET_ID);
     }
@@ -247,7 +255,9 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __MAXKEY_ISSET_ID);
     }
 
-    /** Returns true if field maxKey is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field maxKey is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetMaxKey() {
         return EncodingUtils.testBit(__isset_bitfield, __MAXKEY_ISSET_ID);
     }
@@ -300,7 +310,9 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -544,7 +556,8 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
             struct.validate();
         }
 
-        public void write(org.apache.thrift.protocol.TProtocol oprot, SegmentRange struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot, SegmentRange struct) throws org.apache.thrift
+                .TException {
             struct.validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -574,7 +587,8 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
     private static class SegmentRangeTupleScheme extends TupleScheme<SegmentRange> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, SegmentRange struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, SegmentRange struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             struct.segmentId.write(oprot);
             oprot.writeDouble(struct.minKey);
@@ -582,7 +596,8 @@ public class SegmentRange implements org.apache.thrift.TBase<SegmentRange, Segme
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, SegmentRange struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, SegmentRange struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.segmentId = new SegmentId();
             struct.segmentId.read(iprot);

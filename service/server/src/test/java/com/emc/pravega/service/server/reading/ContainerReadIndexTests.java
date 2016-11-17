@@ -597,8 +597,8 @@ public class ContainerReadIndexTests {
         }
 
         Assert.assertEquals(
-                "Not expecting any removed Cache entries at this point (we touched old entries and they " + "now have" +
-                        " the newest generation).",
+                "Not expecting any removed Cache entries at this point (we touched old entries and they " + "now " +
+                        "have" + " the newest generation).",
                 0, removedKeys.size());
 
         // Increment the generations so that we are caught up to just before the generation where the "touched" items
@@ -802,13 +802,13 @@ public class ContainerReadIndexTests {
                                 ReadResultEntryType.Storage);
                 if (readEntry.getType() == ReadResultEntryType.Cache) {
                     Assert.assertTrue(
-                            testId + ": getContent() did not return a completed future (ReadResultEntryType" + "" +
+                            testId + ": getContent() did not return a completed future (ReadResultEntryType" + "" + "" +
                                     ".Cache) for segment" + segmentId,
                             readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 } else if (readEntry.getType() == ReadResultEntryType.Storage) {
                     Assert.assertFalse(
-                            testId + ": getContent() did not return a non-completed future " + "(ReadResultEntryType" +
-                                    ".Storage) for segment" + segmentId,
+                            testId + ": getContent() did not return a non-completed future " + "(ReadResultEntryType"
+                                    + ".Storage) for segment" + segmentId,
                             readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 }
 

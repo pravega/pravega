@@ -214,8 +214,8 @@ class TestState {
             }
 
             throw new IllegalStateException(
-                    "Unable to find at least one Non-Transaction Segment out of " + this.allSegmentNames.size() + " " +
-                            "total segments.");
+                    "Unable to find at least one Non-Transaction Segment out of " + this.allSegmentNames.size() + " "
+                            + "total segments.");
         }
     }
 

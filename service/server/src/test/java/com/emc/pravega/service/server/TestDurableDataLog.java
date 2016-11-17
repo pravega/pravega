@@ -131,8 +131,7 @@ public class TestDurableDataLog implements DurableDataLog {
      *
      * @param syncInjector  An ErrorInjector to throw sync exceptions. If null, no sync exceptions will be thrown.
      * @param asyncInjector An ErrorInjector to throw async exceptions (wrapped in CompletableFutures). If null, no
-     *                      async
-     *                      exceptions will be thrown (from this wrapper).
+     *                      async exceptions will be thrown (from this wrapper).
      */
     public void setAppendErrorInjectors(ErrorInjector<Exception> syncInjector, ErrorInjector<Exception> asyncInjector) {
         this.appendSyncErrorInjector = syncInjector;
@@ -143,8 +142,7 @@ public class TestDurableDataLog implements DurableDataLog {
      * Sets the ErrorInjectors for the read operation.
      *
      * @param getReaderInjector An ErrorInjector to throw sync exceptions during calls to getReader. If null, no
-     *                          exceptions
-     *                          will be thrown when calling getReader.
+     *                          exceptions will be thrown when calling getReader.
      * @param readErrorInjector An ErrorInjector to throw sync exceptions during calls to getNext() from the iterator
      *                          returned by getReader. If null, no sync exceptions will be thrown.
      */

@@ -66,8 +66,8 @@ public class StreamSegmentMapper {
     /**
      * Creates a new instance of the StreamSegmentMapper class.
      *
-     * @param containerMetadata The StreamSegmentContainerMetadata to bind to. All assignments are vetted from here,
-     *                          but the Metadata is not touched directly from this component.
+     * @param containerMetadata The StreamSegmentContainerMetadata to bind to. All assignments are vetted from here, but
+     *                          the Metadata is not touched directly from this component.
      * @param durableLog        The Durable Log to bind to. All assignments are durably stored here.
      * @param storage           The Storage to use for all external operations (create segment, get info, etc.)
      * @param executor          The executor to use for async operations.
@@ -97,8 +97,8 @@ public class StreamSegmentMapper {
      *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally.
-     * If the operation failed, this will contain the exception that caused the failure.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed normally. If the
+     * operation failed, this will contain the exception that caused the failure.
      */
     public CompletableFuture<Void> createNewStreamSegment(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, traceObjectId, "createNewStreamSegment", streamSegmentName);
@@ -126,9 +126,8 @@ public class StreamSegmentMapper {
      * @param parentStreamSegmentName The case-sensitive StreamSegment Name of the Parent StreamSegment.
      * @param transactionId           A unique identifier for the transaction to be created.
      * @param timeout                 Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created
-     * Transaction StreamSegment.
-     * If the operation failed, this will contain the exception that caused the failure.
+     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created Transaction
+     * StreamSegment. If the operation failed, this will contain the exception that caused the failure.
      * @throws IllegalArgumentException If the given parent StreamSegment cannot have a Transaction (because it is
      *                                  deleted, sealed, inexistent).
      */
@@ -151,8 +150,8 @@ public class StreamSegmentMapper {
             if (parentMetadata != null) {
                 Exceptions.checkArgument(!isValidStreamSegmentId(parentMetadata.getParentId()),
                         "parentStreamSegmentName",
-                        "Given Parent StreamSegment is a Transaction StreamSegment. Cannot create a Transaction for " +
-                                "a" + " Transaction.");
+                        "Given Parent StreamSegment is a Transaction StreamSegment. Cannot create a Transaction for "
+                                + "a" + " Transaction.");
                 Exceptions.checkArgument(!parentMetadata.isDeleted() && !parentMetadata.isSealed(),
                         "parentStreamSegmentName",
                         "Given Parent StreamSegment is deleted or sealed. Cannot create a Transaction for it.");
@@ -306,9 +305,8 @@ public class StreamSegmentMapper {
      *
      * @param streamSegmentInfo     The SegmentProperties for the StreamSegment to generate and persist.
      * @param parentStreamSegmentId If different from ContainerMetadata.NO_STREAM_SEGMENT_ID, the given
-     *                              streamSegmentInfo
-     *                              will be mapped as a f. Otherwise, this will be registered as a standalone
-     *                              StreamSegment.
+     *                              streamSegmentInfo will be mapped as a f. Otherwise, this will be registered as a
+     *                              standalone StreamSegment.
      * @param timeout               Timeout for the operation.
      */
     private CompletableFuture<Long> persistInDurableLog(SegmentProperties streamSegmentInfo, long

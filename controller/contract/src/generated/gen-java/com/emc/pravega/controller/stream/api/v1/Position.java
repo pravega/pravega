@@ -61,9 +61,12 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     private Map<SegmentId, Long> ownedSegments; // required
     private Map<FutureSegment, Long> futureOwnedSegments; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        OWNED_SEGMENTS((short) 1, "ownedSegments"), FUTURE_OWNED_SEGMENTS((short) 2, "futureOwnedSegments");
+        OWNED_SEGMENTS((short) 1, "ownedSegments"),
+        FUTURE_OWNED_SEGMENTS((short) 2, "futureOwnedSegments");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -225,7 +228,9 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
         this.ownedSegments = null;
     }
 
-    /** Returns true if field ownedSegments is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field ownedSegments is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetOwnedSegments() {
         return this.ownedSegments != null;
     }
@@ -260,7 +265,9 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
         this.futureOwnedSegments = null;
     }
 
-    /** Returns true if field futureOwnedSegments is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field futureOwnedSegments is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetFutureOwnedSegments() {
         return this.futureOwnedSegments != null;
     }
@@ -304,7 +311,9 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -575,7 +584,8 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
     private static class PositionTupleScheme extends TupleScheme<Position> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, Position struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, Position struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             {
                 oprot.writeI32(struct.ownedSegments.size());
@@ -594,7 +604,8 @@ public class Position implements org.apache.thrift.TBase<Position, Position._Fie
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, Position struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, Position struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             {
                 org.apache.thrift.protocol.TMap _map12 = new org.apache.thrift.protocol.TMap(

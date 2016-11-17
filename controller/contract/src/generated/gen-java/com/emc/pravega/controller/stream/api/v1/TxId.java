@@ -59,9 +59,12 @@ public class TxId implements org.apache.thrift.TBase<TxId, TxId._Fields>, java.i
     private long highBits; // required
     private long lowBits; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        HIGH_BITS((short) 1, "highBits"), LOW_BITS((short) 2, "lowBits");
+        HIGH_BITS((short) 1, "highBits"),
+        LOW_BITS((short) 2, "lowBits");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -185,7 +188,9 @@ public class TxId implements org.apache.thrift.TBase<TxId, TxId._Fields>, java.i
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __HIGHBITS_ISSET_ID);
     }
 
-    /** Returns true if field highBits is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field highBits is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetHighBits() {
         return EncodingUtils.testBit(__isset_bitfield, __HIGHBITS_ISSET_ID);
     }
@@ -208,7 +213,9 @@ public class TxId implements org.apache.thrift.TBase<TxId, TxId._Fields>, java.i
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __LOWBITS_ISSET_ID);
     }
 
-    /** Returns true if field lowBits is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field lowBits is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetLowBits() {
         return EncodingUtils.testBit(__isset_bitfield, __LOWBITS_ISSET_ID);
     }
@@ -250,7 +257,9 @@ public class TxId implements org.apache.thrift.TBase<TxId, TxId._Fields>, java.i
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();

@@ -157,8 +157,8 @@ public class StorageReaderTests {
         storage.readImplementation = () -> {
             if (wasReadInvoked.getAndSet(true)) {
                 Assert.fail(
-                        "Read was invoked multiple times, which is a " + "likely indicator that the requests were not" +
-                                " chained.");
+                        "Read was invoked multiple times, which is a " + "likely indicator that the requests were " +
+                                "not" + " chained.");
             }
             return signal;
         };

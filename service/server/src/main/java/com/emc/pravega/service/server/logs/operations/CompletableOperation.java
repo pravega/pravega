@@ -46,9 +46,9 @@ public class CompletableOperation {
      * Creates a new instance of the CompletableOperation class.
      *
      * @param operation      The operation to wrap.
-     * @param callbackFuture A CompletableFuture that will be used to indicate the outcome of this operation.
-     *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation
-     *                       as its payload.
+     * @param callbackFuture A CompletableFuture that will be used to indicate the outcome of this operation. If
+     *                       successful, the CompletableFuture will contain the Sequence Number of the Operation as its
+     *                       payload.
      * @throws IllegalArgumentException If the given callbackFuture is already done.
      */
     public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture) {
@@ -60,8 +60,8 @@ public class CompletableOperation {
      * Creates a new instance of the CompletableOperation class.
      *
      * @param operation      The operation to wrap.
-     * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided
-     *                       is the Sequence Number of the Operation.
+     * @param successHandler A consumer that will be invoked if this operation is successful. The argument provided is
+     *                       the Sequence Number of the Operation.
      * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the
      *                       causing Exception for the failure.
      * @throws NullPointerException If operation is null.

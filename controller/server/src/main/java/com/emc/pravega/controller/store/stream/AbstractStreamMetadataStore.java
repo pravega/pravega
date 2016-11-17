@@ -189,9 +189,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * @param number segment number for which default futures are sought.
      * @return the list of successors of specified segment who have only one predecessor.
      * <p>
-     * return stream.getSuccessors(number).stream()
-     * .filter(x -> stream.getPredecessors(x).size() == 1)
-     * .*                collect(Collectors.toList());
+     * return stream.getSuccessors(number).stream() .filter(x -> stream.getPredecessors(x).size() == 1) .*
+     * collect(Collectors.toList());
      */
     private CompletableFuture<List<Integer>> getDefaultFutures(final Stream stream, final int number) {
         CompletableFuture<List<Integer>> futureSuccessors = stream.getSuccessors(number);

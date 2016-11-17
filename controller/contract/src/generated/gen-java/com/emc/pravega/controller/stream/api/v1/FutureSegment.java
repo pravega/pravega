@@ -61,9 +61,12 @@ public class FutureSegment implements org.apache.thrift.TBase<FutureSegment, Fut
     private SegmentId futureSegment; // required
     private SegmentId precedingSegment; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        FUTURE_SEGMENT((short) 1, "futureSegment"), PRECEDING_SEGMENT((short) 2, "precedingSegment");
+        FUTURE_SEGMENT((short) 1, "futureSegment"),
+        PRECEDING_SEGMENT((short) 2, "precedingSegment");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -184,7 +187,9 @@ public class FutureSegment implements org.apache.thrift.TBase<FutureSegment, Fut
         this.futureSegment = null;
     }
 
-    /** Returns true if field futureSegment is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field futureSegment is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetFutureSegment() {
         return this.futureSegment != null;
     }
@@ -208,7 +213,9 @@ public class FutureSegment implements org.apache.thrift.TBase<FutureSegment, Fut
         this.precedingSegment = null;
     }
 
-    /** Returns true if field precedingSegment is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field precedingSegment is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetPrecedingSegment() {
         return this.precedingSegment != null;
     }
@@ -252,7 +259,9 @@ public class FutureSegment implements org.apache.thrift.TBase<FutureSegment, Fut
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -460,7 +469,8 @@ public class FutureSegment implements org.apache.thrift.TBase<FutureSegment, Fut
             struct.validate();
         }
 
-        public void write(org.apache.thrift.protocol.TProtocol oprot, FutureSegment struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot, FutureSegment struct) throws org.apache.thrift
+                .TException {
             struct.validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -489,14 +499,16 @@ public class FutureSegment implements org.apache.thrift.TBase<FutureSegment, Fut
     private static class FutureSegmentTupleScheme extends TupleScheme<FutureSegment> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, FutureSegment struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, FutureSegment struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             struct.futureSegment.write(oprot);
             struct.precedingSegment.write(oprot);
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, FutureSegment struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, FutureSegment struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.futureSegment = new SegmentId();
             struct.futureSegment.read(iprot);

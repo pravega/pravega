@@ -2012,7 +2012,9 @@ public class ControllerService {
 
         private StreamConfig streamConfig; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             STREAM_CONFIG((short) 1, "streamConfig");
 
@@ -2124,7 +2126,9 @@ public class ControllerService {
             this.streamConfig = null;
         }
 
-        /** Returns true if field streamConfig is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field streamConfig is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStreamConfig() {
             return this.streamConfig != null;
         }
@@ -2157,7 +2161,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -2386,10 +2392,11 @@ public class ControllerService {
 
         private CreateStreamStatus success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             /**
-             *
              * @see CreateStreamStatus
              */
             SUCCESS((short) 0, "success");
@@ -2490,7 +2497,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see CreateStreamStatus
          */
         public CreateStreamStatus getSuccess() {
@@ -2498,7 +2504,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see CreateStreamStatus
          */
         public createStream_result setSuccess(CreateStreamStatus success) {
@@ -2510,7 +2515,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -2543,7 +2550,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -2771,7 +2780,9 @@ public class ControllerService {
 
         private StreamConfig streamConfig; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             STREAM_CONFIG((short) 1, "streamConfig");
 
@@ -2883,7 +2894,9 @@ public class ControllerService {
             this.streamConfig = null;
         }
 
-        /** Returns true if field streamConfig is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field streamConfig is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStreamConfig() {
             return this.streamConfig != null;
         }
@@ -2916,7 +2929,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -3146,10 +3161,11 @@ public class ControllerService {
 
         private UpdateStreamStatus success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             /**
-             *
              * @see UpdateStreamStatus
              */
             SUCCESS((short) 0, "success");
@@ -3250,7 +3266,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see UpdateStreamStatus
          */
         public UpdateStreamStatus getSuccess() {
@@ -3258,7 +3273,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see UpdateStreamStatus
          */
         public alterStream_result setSuccess(UpdateStreamStatus success) {
@@ -3270,7 +3284,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -3303,7 +3319,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -3533,9 +3551,12 @@ public class ControllerService {
         private String scope; // required
         private String stream; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -3654,7 +3675,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -3678,7 +3701,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -3722,7 +3747,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -4000,7 +4027,9 @@ public class ControllerService {
 
         private List<SegmentRange> success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -4133,7 +4162,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -4166,7 +4197,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -4433,10 +4466,14 @@ public class ControllerService {
         private long timestamp; // required
         private int count; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), TIMESTAMP((short) 3, "timestamp"), COUNT((short) 4,
-                    "count");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            TIMESTAMP((short) 3, "timestamp"),
+            COUNT((short) 4, "count");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -4579,7 +4616,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -4603,7 +4642,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -4628,7 +4669,9 @@ public class ControllerService {
             __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __TIMESTAMP_ISSET_ID);
         }
 
-        /** Returns true if field timestamp is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field timestamp is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetTimestamp() {
             return EncodingUtils.testBit(__isset_bitfield, __TIMESTAMP_ISSET_ID);
         }
@@ -4651,7 +4694,9 @@ public class ControllerService {
             __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __COUNT_ISSET_ID);
         }
 
-        /** Returns true if field count is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field count is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetCount() {
             return EncodingUtils.testBit(__isset_bitfield, __COUNT_ISSET_ID);
         }
@@ -4715,7 +4760,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -5092,7 +5139,9 @@ public class ControllerService {
 
         private List<Position> success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -5224,7 +5273,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -5257,7 +5308,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -5521,9 +5574,13 @@ public class ControllerService {
         private String stream; // required
         private List<Position> positions; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), POSITIONS((short) 3, "positions");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            POSITIONS((short) 3, "positions");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -5658,7 +5715,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -5682,7 +5741,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -5721,7 +5782,9 @@ public class ControllerService {
             this.positions = null;
         }
 
-        /** Returns true if field positions is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field positions is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetPositions() {
             return this.positions != null;
         }
@@ -5776,7 +5839,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -6141,7 +6206,9 @@ public class ControllerService {
 
         private List<Position> success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -6273,7 +6340,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -6306,7 +6375,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -6578,11 +6649,15 @@ public class ControllerService {
         private Map<Double, Double> newKeyRanges; // required
         private long scaleTimestamp; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), SEALED_SEGMENTS((short) 3,
-                    "sealedSegments"), NEW_KEY_RANGES((short) 4, "newKeyRanges"), SCALE_TIMESTAMP((short) 5,
-                    "scaleTimestamp");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            SEALED_SEGMENTS((short) 3, "sealedSegments"),
+            NEW_KEY_RANGES((short) 4, "newKeyRanges"),
+            SCALE_TIMESTAMP((short) 5, "scaleTimestamp");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -6741,7 +6816,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -6765,7 +6842,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -6804,7 +6883,9 @@ public class ControllerService {
             this.sealedSegments = null;
         }
 
-        /** Returns true if field sealedSegments is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field sealedSegments is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSealedSegments() {
             return this.sealedSegments != null;
         }
@@ -6839,7 +6920,9 @@ public class ControllerService {
             this.newKeyRanges = null;
         }
 
-        /** Returns true if field newKeyRanges is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field newKeyRanges is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetNewKeyRanges() {
             return this.newKeyRanges != null;
         }
@@ -6864,7 +6947,9 @@ public class ControllerService {
             __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SCALETIMESTAMP_ISSET_ID);
         }
 
-        /** Returns true if field scaleTimestamp is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scaleTimestamp is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScaleTimestamp() {
             return EncodingUtils.testBit(__isset_bitfield, __SCALETIMESTAMP_ISSET_ID);
         }
@@ -6939,7 +7024,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -7443,7 +7530,9 @@ public class ControllerService {
 
         private ScaleResponse success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -7555,7 +7644,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -7588,7 +7679,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -7817,7 +7910,9 @@ public class ControllerService {
 
         private SegmentId segment; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SEGMENT((short) 1, "segment");
 
@@ -7929,7 +8024,9 @@ public class ControllerService {
             this.segment = null;
         }
 
-        /** Returns true if field segment is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field segment is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSegment() {
             return this.segment != null;
         }
@@ -7962,7 +8059,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -8191,7 +8290,9 @@ public class ControllerService {
 
         private NodeUri success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -8303,7 +8404,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -8336,7 +8439,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -8572,9 +8677,13 @@ public class ControllerService {
         private String stream; // required
         private int segmentNumber; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), SEGMENT_NUMBER((short) 3, "segmentNumber");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            SEGMENT_NUMBER((short) 3, "segmentNumber");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -8706,7 +8815,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -8730,7 +8841,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -8755,7 +8868,9 @@ public class ControllerService {
             __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SEGMENTNUMBER_ISSET_ID);
         }
 
-        /** Returns true if field segmentNumber is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field segmentNumber is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSegmentNumber() {
             return EncodingUtils.testBit(__isset_bitfield, __SEGMENTNUMBER_ISSET_ID);
         }
@@ -8808,7 +8923,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -9137,7 +9254,9 @@ public class ControllerService {
 
         private boolean success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -9252,7 +9371,9 @@ public class ControllerService {
             __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SUCCESS_ISSET_ID);
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return EncodingUtils.testBit(__isset_bitfield, __SUCCESS_ISSET_ID);
         }
@@ -9283,7 +9404,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -9509,9 +9632,12 @@ public class ControllerService {
         private String scope; // required
         private String stream; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -9630,7 +9756,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -9654,7 +9782,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -9698,7 +9828,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -9976,7 +10108,9 @@ public class ControllerService {
 
         private TxId success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             SUCCESS((short) 0, "success");
 
@@ -10088,7 +10222,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -10121,7 +10257,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -10356,9 +10494,13 @@ public class ControllerService {
         private String stream; // required
         private TxId txid; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), TXID((short) 3, "txid");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            TXID((short) 3, "txid");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -10488,7 +10630,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -10512,7 +10656,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -10536,7 +10682,9 @@ public class ControllerService {
             this.txid = null;
         }
 
-        /** Returns true if field txid is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field txid is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetTxid() {
             return this.txid != null;
         }
@@ -10591,7 +10739,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -10928,10 +11078,11 @@ public class ControllerService {
 
         private TransactionStatus success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             /**
-             *
              * @see TransactionStatus
              */
             SUCCESS((short) 0, "success");
@@ -11032,7 +11183,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see TransactionStatus
          */
         public TransactionStatus getSuccess() {
@@ -11040,7 +11190,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see TransactionStatus
          */
         public commitTransaction_result setSuccess(TransactionStatus success) {
@@ -11052,7 +11201,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -11085,7 +11236,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -11209,7 +11362,8 @@ public class ControllerService {
 
         private static class commitTransaction_resultStandardScheme extends StandardScheme<commitTransaction_result> {
 
-            public void read(org.apache.thrift.protocol.TProtocol iprot, commitTransaction_result struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol iprot, commitTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 org.apache.thrift.protocol.TField schemeField;
                 iprot.readStructBegin();
                 while (true) {
@@ -11238,7 +11392,8 @@ public class ControllerService {
                 struct.validate();
             }
 
-            public void write(org.apache.thrift.protocol.TProtocol oprot, commitTransaction_result struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol oprot, commitTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 struct.validate();
 
                 oprot.writeStructBegin(STRUCT_DESC);
@@ -11262,7 +11417,8 @@ public class ControllerService {
         private static class commitTransaction_resultTupleScheme extends TupleScheme<commitTransaction_result> {
 
             @Override
-            public void write(org.apache.thrift.protocol.TProtocol prot, commitTransaction_result struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol prot, commitTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 TTupleProtocol oprot = (TTupleProtocol) prot;
                 BitSet optionals = new BitSet();
                 if (struct.isSetSuccess()) {
@@ -11275,7 +11431,8 @@ public class ControllerService {
             }
 
             @Override
-            public void read(org.apache.thrift.protocol.TProtocol prot, commitTransaction_result struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol prot, commitTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 TTupleProtocol iprot = (TTupleProtocol) prot;
                 BitSet incoming = iprot.readBitSet(1);
                 if (incoming.get(0)) {
@@ -11288,18 +11445,21 @@ public class ControllerService {
 
     }
 
-    public static class dropTransaction_args implements org.apache.thrift.TBase<dropTransaction_args, dropTransaction_args._Fields>, java.io.Serializable, Cloneable, Comparable<dropTransaction_args> {
+    public static class dropTransaction_args implements org.apache.thrift.TBase<dropTransaction_args,
+            dropTransaction_args._Fields>, java.io.Serializable, Cloneable, Comparable<dropTransaction_args> {
         private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct(
                 "dropTransaction_args");
 
         private static final org.apache.thrift.protocol.TField SCOPE_FIELD_DESC = new org.apache.thrift.protocol.TField(
                 "scope", org.apache.thrift.protocol.TType.STRING, (short) 1);
-        private static final org.apache.thrift.protocol.TField STREAM_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        private static final org.apache.thrift.protocol.TField STREAM_FIELD_DESC = new org.apache.thrift.protocol
+                .TField(
                 "stream", org.apache.thrift.protocol.TType.STRING, (short) 2);
         private static final org.apache.thrift.protocol.TField TXID_FIELD_DESC = new org.apache.thrift.protocol.TField(
                 "txid", org.apache.thrift.protocol.TType.STRUCT, (short) 3);
 
-        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends
+                IScheme>, SchemeFactory>();
 
         static {
             schemes.put(StandardScheme.class, new dropTransaction_argsStandardSchemeFactory());
@@ -11310,9 +11470,13 @@ public class ControllerService {
         private String stream; // required
         private TxId txid; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), TXID((short) 3, "txid");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            TXID((short) 3, "txid");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -11376,7 +11540,8 @@ public class ControllerService {
         public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
 
         static {
-            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(
+            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift
+                    .meta_data.FieldMetaData>(
                     _Fields.class);
             tmpMap.put(_Fields.SCOPE, new org.apache.thrift.meta_data.FieldMetaData("scope",
                     org.apache.thrift.TFieldRequirementType.DEFAULT,
@@ -11441,7 +11606,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -11465,7 +11632,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -11489,7 +11658,9 @@ public class ControllerService {
             this.txid = null;
         }
 
-        /** Returns true if field txid is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field txid is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetTxid() {
             return this.txid != null;
         }
@@ -11544,7 +11715,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -11733,7 +11906,8 @@ public class ControllerService {
 
         private static class dropTransaction_argsStandardScheme extends StandardScheme<dropTransaction_args> {
 
-            public void read(org.apache.thrift.protocol.TProtocol iprot, dropTransaction_args struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol iprot, dropTransaction_args struct) throws org
+                    .apache.thrift.TException {
                 org.apache.thrift.protocol.TField schemeField;
                 iprot.readStructBegin();
                 while (true) {
@@ -11778,7 +11952,8 @@ public class ControllerService {
                 struct.validate();
             }
 
-            public void write(org.apache.thrift.protocol.TProtocol oprot, dropTransaction_args struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol oprot, dropTransaction_args struct) throws org
+                    .apache.thrift.TException {
                 struct.validate();
 
                 oprot.writeStructBegin(STRUCT_DESC);
@@ -11812,7 +11987,8 @@ public class ControllerService {
         private static class dropTransaction_argsTupleScheme extends TupleScheme<dropTransaction_args> {
 
             @Override
-            public void write(org.apache.thrift.protocol.TProtocol prot, dropTransaction_args struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol prot, dropTransaction_args struct) throws org
+                    .apache.thrift.TException {
                 TTupleProtocol oprot = (TTupleProtocol) prot;
                 BitSet optionals = new BitSet();
                 if (struct.isSetScope()) {
@@ -11837,7 +12013,8 @@ public class ControllerService {
             }
 
             @Override
-            public void read(org.apache.thrift.protocol.TProtocol prot, dropTransaction_args struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol prot, dropTransaction_args struct) throws org
+                    .apache.thrift.TException {
                 TTupleProtocol iprot = (TTupleProtocol) prot;
                 BitSet incoming = iprot.readBitSet(3);
                 if (incoming.get(0)) {
@@ -11858,14 +12035,17 @@ public class ControllerService {
 
     }
 
-    public static class dropTransaction_result implements org.apache.thrift.TBase<dropTransaction_result, dropTransaction_result._Fields>, java.io.Serializable, Cloneable, Comparable<dropTransaction_result> {
+    public static class dropTransaction_result implements org.apache.thrift.TBase<dropTransaction_result,
+            dropTransaction_result._Fields>, java.io.Serializable, Cloneable, Comparable<dropTransaction_result> {
         private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct(
                 "dropTransaction_result");
 
-        private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol
+                .TField(
                 "success", org.apache.thrift.protocol.TType.I32, (short) 0);
 
-        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends
+                IScheme>, SchemeFactory>();
 
         static {
             schemes.put(StandardScheme.class, new dropTransaction_resultStandardSchemeFactory());
@@ -11874,10 +12054,11 @@ public class ControllerService {
 
         private TransactionStatus success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             /**
-             *
              * @see TransactionStatus
              */
             SUCCESS((short) 0, "success");
@@ -11940,7 +12121,8 @@ public class ControllerService {
         public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
 
         static {
-            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(
+            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift
+                    .meta_data.FieldMetaData>(
                     _Fields.class);
             tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success",
                     org.apache.thrift.TFieldRequirementType.DEFAULT,
@@ -11977,7 +12159,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see TransactionStatus
          */
         public TransactionStatus getSuccess() {
@@ -11985,7 +12166,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see TransactionStatus
          */
         public dropTransaction_result setSuccess(TransactionStatus success) {
@@ -11997,7 +12177,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -12030,7 +12212,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -12154,7 +12338,8 @@ public class ControllerService {
 
         private static class dropTransaction_resultStandardScheme extends StandardScheme<dropTransaction_result> {
 
-            public void read(org.apache.thrift.protocol.TProtocol iprot, dropTransaction_result struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol iprot, dropTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 org.apache.thrift.protocol.TField schemeField;
                 iprot.readStructBegin();
                 while (true) {
@@ -12183,7 +12368,8 @@ public class ControllerService {
                 struct.validate();
             }
 
-            public void write(org.apache.thrift.protocol.TProtocol oprot, dropTransaction_result struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol oprot, dropTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 struct.validate();
 
                 oprot.writeStructBegin(STRUCT_DESC);
@@ -12207,7 +12393,8 @@ public class ControllerService {
         private static class dropTransaction_resultTupleScheme extends TupleScheme<dropTransaction_result> {
 
             @Override
-            public void write(org.apache.thrift.protocol.TProtocol prot, dropTransaction_result struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol prot, dropTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 TTupleProtocol oprot = (TTupleProtocol) prot;
                 BitSet optionals = new BitSet();
                 if (struct.isSetSuccess()) {
@@ -12220,7 +12407,8 @@ public class ControllerService {
             }
 
             @Override
-            public void read(org.apache.thrift.protocol.TProtocol prot, dropTransaction_result struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol prot, dropTransaction_result struct) throws org
+                    .apache.thrift.TException {
                 TTupleProtocol iprot = (TTupleProtocol) prot;
                 BitSet incoming = iprot.readBitSet(1);
                 if (incoming.get(0)) {
@@ -12233,18 +12421,22 @@ public class ControllerService {
 
     }
 
-    public static class checkTransactionStatus_args implements org.apache.thrift.TBase<checkTransactionStatus_args, checkTransactionStatus_args._Fields>, java.io.Serializable, Cloneable, Comparable<checkTransactionStatus_args> {
+    public static class checkTransactionStatus_args implements org.apache.thrift.TBase<checkTransactionStatus_args,
+            checkTransactionStatus_args._Fields>, java.io.Serializable, Cloneable,
+                                                               Comparable<checkTransactionStatus_args> {
         private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct(
                 "checkTransactionStatus_args");
 
         private static final org.apache.thrift.protocol.TField SCOPE_FIELD_DESC = new org.apache.thrift.protocol.TField(
                 "scope", org.apache.thrift.protocol.TType.STRING, (short) 1);
-        private static final org.apache.thrift.protocol.TField STREAM_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        private static final org.apache.thrift.protocol.TField STREAM_FIELD_DESC = new org.apache.thrift.protocol
+                .TField(
                 "stream", org.apache.thrift.protocol.TType.STRING, (short) 2);
         private static final org.apache.thrift.protocol.TField TXID_FIELD_DESC = new org.apache.thrift.protocol.TField(
                 "txid", org.apache.thrift.protocol.TType.STRUCT, (short) 3);
 
-        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends
+                IScheme>, SchemeFactory>();
 
         static {
             schemes.put(StandardScheme.class, new checkTransactionStatus_argsStandardSchemeFactory());
@@ -12255,9 +12447,13 @@ public class ControllerService {
         private String stream; // required
         private TxId txid; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-            SCOPE((short) 1, "scope"), STREAM((short) 2, "stream"), TXID((short) 3, "txid");
+            SCOPE((short) 1, "scope"),
+            STREAM((short) 2, "stream"),
+            TXID((short) 3, "txid");
 
             private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -12321,7 +12517,8 @@ public class ControllerService {
         public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
 
         static {
-            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(
+            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift
+                    .meta_data.FieldMetaData>(
                     _Fields.class);
             tmpMap.put(_Fields.SCOPE, new org.apache.thrift.meta_data.FieldMetaData("scope",
                     org.apache.thrift.TFieldRequirementType.DEFAULT,
@@ -12387,7 +12584,9 @@ public class ControllerService {
             this.scope = null;
         }
 
-        /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field scope is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetScope() {
             return this.scope != null;
         }
@@ -12411,7 +12610,9 @@ public class ControllerService {
             this.stream = null;
         }
 
-        /** Returns true if field stream is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field stream is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetStream() {
             return this.stream != null;
         }
@@ -12435,7 +12636,9 @@ public class ControllerService {
             this.txid = null;
         }
 
-        /** Returns true if field txid is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field txid is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetTxid() {
             return this.txid != null;
         }
@@ -12490,7 +12693,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -12677,9 +12882,11 @@ public class ControllerService {
             }
         }
 
-        private static class checkTransactionStatus_argsStandardScheme extends StandardScheme<checkTransactionStatus_args> {
+        private static class checkTransactionStatus_argsStandardScheme extends
+                                                                       StandardScheme<checkTransactionStatus_args> {
 
-            public void read(org.apache.thrift.protocol.TProtocol iprot, checkTransactionStatus_args struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol iprot, checkTransactionStatus_args struct) throws
+                    org.apache.thrift.TException {
                 org.apache.thrift.protocol.TField schemeField;
                 iprot.readStructBegin();
                 while (true) {
@@ -12724,7 +12931,8 @@ public class ControllerService {
                 struct.validate();
             }
 
-            public void write(org.apache.thrift.protocol.TProtocol oprot, checkTransactionStatus_args struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol oprot, checkTransactionStatus_args struct) throws
+                    org.apache.thrift.TException {
                 struct.validate();
 
                 oprot.writeStructBegin(STRUCT_DESC);
@@ -12758,7 +12966,8 @@ public class ControllerService {
         private static class checkTransactionStatus_argsTupleScheme extends TupleScheme<checkTransactionStatus_args> {
 
             @Override
-            public void write(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_args struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_args struct) throws
+                    org.apache.thrift.TException {
                 TTupleProtocol oprot = (TTupleProtocol) prot;
                 BitSet optionals = new BitSet();
                 if (struct.isSetScope()) {
@@ -12783,7 +12992,8 @@ public class ControllerService {
             }
 
             @Override
-            public void read(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_args struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_args struct) throws
+                    org.apache.thrift.TException {
                 TTupleProtocol iprot = (TTupleProtocol) prot;
                 BitSet incoming = iprot.readBitSet(3);
                 if (incoming.get(0)) {
@@ -12804,14 +13014,19 @@ public class ControllerService {
 
     }
 
-    public static class checkTransactionStatus_result implements org.apache.thrift.TBase<checkTransactionStatus_result, checkTransactionStatus_result._Fields>, java.io.Serializable, Cloneable, Comparable<checkTransactionStatus_result> {
+    public static class checkTransactionStatus_result implements org.apache.thrift
+                                                                         .TBase<checkTransactionStatus_result,
+            checkTransactionStatus_result._Fields>, java.io.Serializable, Cloneable,
+                                                                 Comparable<checkTransactionStatus_result> {
         private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct(
                 "checkTransactionStatus_result");
 
-        private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol.TField(
+        private static final org.apache.thrift.protocol.TField SUCCESS_FIELD_DESC = new org.apache.thrift.protocol
+                .TField(
                 "success", org.apache.thrift.protocol.TType.I32, (short) 0);
 
-        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+        private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends
+                IScheme>, SchemeFactory>();
 
         static {
             schemes.put(StandardScheme.class, new checkTransactionStatus_resultStandardSchemeFactory());
@@ -12820,10 +13035,11 @@ public class ControllerService {
 
         private TxState success; // required
 
-        /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+        /**
+         * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+         */
         public enum _Fields implements org.apache.thrift.TFieldIdEnum {
             /**
-             *
              * @see TxState
              */
             SUCCESS((short) 0, "success");
@@ -12886,7 +13102,8 @@ public class ControllerService {
         public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
 
         static {
-            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(
+            Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift
+                    .meta_data.FieldMetaData>(
                     _Fields.class);
             tmpMap.put(_Fields.SUCCESS, new org.apache.thrift.meta_data.FieldMetaData("success",
                     org.apache.thrift.TFieldRequirementType.DEFAULT,
@@ -12924,7 +13141,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see TxState
          */
         public TxState getSuccess() {
@@ -12932,7 +13148,6 @@ public class ControllerService {
         }
 
         /**
-         *
          * @see TxState
          */
         public checkTransactionStatus_result setSuccess(TxState success) {
@@ -12944,7 +13159,9 @@ public class ControllerService {
             this.success = null;
         }
 
-        /** Returns true if field success is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field success is set (has been assigned a value) and false otherwise
+         */
         public boolean isSetSuccess() {
             return this.success != null;
         }
@@ -12977,7 +13194,9 @@ public class ControllerService {
             throw new IllegalStateException();
         }
 
-        /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+        /**
+         * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+         */
         public boolean isSet(_Fields field) {
             if (field == null) {
                 throw new IllegalArgumentException();
@@ -13099,9 +13318,11 @@ public class ControllerService {
             }
         }
 
-        private static class checkTransactionStatus_resultStandardScheme extends StandardScheme<checkTransactionStatus_result> {
+        private static class checkTransactionStatus_resultStandardScheme extends
+                                                                         StandardScheme<checkTransactionStatus_result> {
 
-            public void read(org.apache.thrift.protocol.TProtocol iprot, checkTransactionStatus_result struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol iprot, checkTransactionStatus_result struct) throws
+                    org.apache.thrift.TException {
                 org.apache.thrift.protocol.TField schemeField;
                 iprot.readStructBegin();
                 while (true) {
@@ -13130,7 +13351,8 @@ public class ControllerService {
                 struct.validate();
             }
 
-            public void write(org.apache.thrift.protocol.TProtocol oprot, checkTransactionStatus_result struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol oprot, checkTransactionStatus_result struct)
+                    throws org.apache.thrift.TException {
                 struct.validate();
 
                 oprot.writeStructBegin(STRUCT_DESC);
@@ -13151,10 +13373,12 @@ public class ControllerService {
             }
         }
 
-        private static class checkTransactionStatus_resultTupleScheme extends TupleScheme<checkTransactionStatus_result> {
+        private static class checkTransactionStatus_resultTupleScheme extends
+                                                                      TupleScheme<checkTransactionStatus_result> {
 
             @Override
-            public void write(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_result struct) throws org.apache.thrift.TException {
+            public void write(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_result struct) throws
+                    org.apache.thrift.TException {
                 TTupleProtocol oprot = (TTupleProtocol) prot;
                 BitSet optionals = new BitSet();
                 if (struct.isSetSuccess()) {
@@ -13167,7 +13391,8 @@ public class ControllerService {
             }
 
             @Override
-            public void read(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_result struct) throws org.apache.thrift.TException {
+            public void read(org.apache.thrift.protocol.TProtocol prot, checkTransactionStatus_result struct) throws
+                    org.apache.thrift.TException {
                 TTupleProtocol iprot = (TTupleProtocol) prot;
                 BitSet incoming = iprot.readBitSet(1);
                 if (incoming.get(0)) {

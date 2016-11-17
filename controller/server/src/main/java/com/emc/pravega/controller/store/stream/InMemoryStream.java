@@ -107,11 +107,10 @@ class InMemoryStream implements Stream {
     }
 
     /**
-     * @return the list of segments active at a given timestamp.
-     * GetActiveSegments runs in O(n), where n is the total number of segments.
-     * It can be improved to O(k + logn), where k is the number of active segments at specified timestamp,
-     * using augmented interval tree or segment index..
-     * TODO: maintain a augmented interval tree or segment tree index
+     * @return the list of segments active at a given timestamp. GetActiveSegments runs in O(n), where n is the total
+     * number of segments. It can be improved to O(k + logn), where k is the number of active segments at specified
+     * timestamp, using augmented interval tree or segment index.. TODO: maintain a augmented interval tree or segment
+     * tree index
      */
     @Override
     public synchronized CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {

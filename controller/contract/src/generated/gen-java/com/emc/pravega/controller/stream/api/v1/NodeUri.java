@@ -59,9 +59,12 @@ public class NodeUri implements org.apache.thrift.TBase<NodeUri, NodeUri._Fields
     private String endpoint; // required
     private int port; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        ENDPOINT((short) 1, "endpoint"), PORT((short) 2, "port");
+        ENDPOINT((short) 1, "endpoint"),
+        PORT((short) 2, "port");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -183,7 +186,9 @@ public class NodeUri implements org.apache.thrift.TBase<NodeUri, NodeUri._Fields
         this.endpoint = null;
     }
 
-    /** Returns true if field endpoint is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field endpoint is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetEndpoint() {
         return this.endpoint != null;
     }
@@ -208,7 +213,9 @@ public class NodeUri implements org.apache.thrift.TBase<NodeUri, NodeUri._Fields
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __PORT_ISSET_ID);
     }
 
-    /** Returns true if field port is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field port is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetPort() {
         return EncodingUtils.testBit(__isset_bitfield, __PORT_ISSET_ID);
     }
@@ -250,7 +257,9 @@ public class NodeUri implements org.apache.thrift.TBase<NodeUri, NodeUri._Fields
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -450,7 +459,8 @@ public class NodeUri implements org.apache.thrift.TBase<NodeUri, NodeUri._Fields
             struct.validate();
         }
 
-        public void write(org.apache.thrift.protocol.TProtocol oprot, NodeUri struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot, NodeUri struct) throws org.apache.thrift
+                .TException {
             struct.validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -477,14 +487,16 @@ public class NodeUri implements org.apache.thrift.TBase<NodeUri, NodeUri._Fields
     private static class NodeUriTupleScheme extends TupleScheme<NodeUri> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, NodeUri struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, NodeUri struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             oprot.writeString(struct.endpoint);
             oprot.writeI32(struct.port);
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, NodeUri struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, NodeUri struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.endpoint = iprot.readString();
             struct.setEndpointIsSet(true);

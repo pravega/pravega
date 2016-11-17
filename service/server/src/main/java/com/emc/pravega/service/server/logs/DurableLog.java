@@ -83,8 +83,8 @@ public class DurableLog extends AbstractService implements OperationLog {
      * Creates a new instance of the DurableLog class.
      *
      * @param config              Durable Log Configuration.
-     * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is
-     *                            part of.
+     * @param metadata            The StreamSegment Container Metadata for the container which this Durable Log is part
+     *                            of.
      * @param dataFrameLogFactory A DurableDataLogFactory which can be used to create instances of DataFrameLogs.
      * @param cacheUpdater        A CacheUpdater which can be used to store newly processed appends.
      * @param executor            The Executor to use for async operations.
@@ -381,8 +381,8 @@ public class DurableLog extends AbstractService implements OperationLog {
 
                 skippedOperationCount++;
                 log.debug(
-                        "{}: Not recovering operation because no MetadataCheckpointOperation encountered so far " + "" +
-                                "({}).",
+                        "{}: Not recovering operation because no MetadataCheckpointOperation encountered so far " +
+                                "" + "({}).",
                         this.traceObjectId, readResult.getItem());
             }
 

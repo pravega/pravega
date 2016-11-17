@@ -62,8 +62,8 @@ public class AsyncReadResultProcessor extends AbstractIdleService implements Aut
     /**
      * Creates a new instance of the AsyncReadResultProcessor class.
      *
-     * @param readResult   The ReadResult to attach to. When the ReadResult is closed, the AsyncReadResultProcessor
-     *                     is closed as well. When the AsyncReadResultProcessor is closed, the ReadResult is closed too.
+     * @param readResult   The ReadResult to attach to. When the ReadResult is closed, the AsyncReadResultProcessor is
+     *                     closed as well. When the AsyncReadResultProcessor is closed, the ReadResult is closed too.
      * @param entryHandler A handler for every ReadResultEntry that is extracted out of the ReadResult.
      * @param executor     An Executor to use for asynchronous callbacks.
      */

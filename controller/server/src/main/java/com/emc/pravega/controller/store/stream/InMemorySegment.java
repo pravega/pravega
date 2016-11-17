@@ -35,7 +35,9 @@ import java.util.List;
 public class InMemorySegment extends Segment {
 
     enum Status {
-        Active, Sealing, Sealed,
+        Active,
+        Sealing,
+        Sealed,
     }
 
     private final long end;

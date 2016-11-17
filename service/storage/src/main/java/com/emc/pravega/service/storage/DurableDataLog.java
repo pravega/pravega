@@ -33,11 +33,10 @@ public interface DurableDataLog extends AutoCloseable {
      *
      * @param timeout Timeout for the operation.
      * @throws DurableDataLogException When an exception occurred. This can be one of the following:
-     *                                 DataLogNotAvailableException: it is not possible to reach the DataLog at
-     *                                 the current time;
-     *                                 DataLogWriterNotPrimaryException: the DurableDataLog could not acquire
-     *                                 the exclusive write lock for its log;
-     *                                 DataLogInitializationException: a general initialization failure occurred.
+     *                                 DataLogNotAvailableException: it is not possible to reach the DataLog at the
+     *                                 current time; DataLogWriterNotPrimaryException: the DurableDataLog could not
+     *                                 acquire the exclusive write lock for its log; DataLogInitializationException: a
+     *                                 general initialization failure occurred.
      */
     void initialize(Duration timeout) throws DurableDataLogException;
 
@@ -52,10 +51,8 @@ public interface DurableDataLog extends AutoCloseable {
      * </ul>
      *
      * @param data    An InputStream representing the data to append. The InputStream must be positioned at the first
-     *                byte
-     *                where the data should be read from. The InputStream's available() method must also specify the
-     *                number
-     *                of bytes to append.
+     *                byte where the data should be read from. The InputStream's available() method must also specify
+     *                the number of bytes to append.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the LogAddress within the log for the entry. If
      * the entry failed to be added, this Future will complete with the appropriate exception.
@@ -72,8 +69,7 @@ public interface DurableDataLog extends AutoCloseable {
      * </ul>
      *
      * @param upToAddress The LogAddress up to where to truncate. This is the value returned either by append() or
-     *                    obtained
-     *                    via read().
+     *                    obtained via read().
      * @param timeout     The timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate whether any truncation completed. If anything was
      * truncated, the result of the Future will be 'true'; if no truncation was necessary, the result of the Future will
@@ -86,10 +82,9 @@ public interface DurableDataLog extends AutoCloseable {
      *
      * @param afterSequence The Sequence of the last entry before the first one to read.
      * @return A CloseableIterator with the result.
-     * @throws DurableDataLogException If an exception occurred:
-     *                                 DataLogNotAvailableException: is not possible to reach the DataLog at the
-     *                                 current time;
-     *                                 DurableDataLogException: the operation was unable to open a reader.
+     * @throws DurableDataLogException If an exception occurred: DataLogNotAvailableException: is not possible to reach
+     *                                 the DataLog at the current time; DurableDataLogException: the operation was
+     *                                 unable to open a reader.
      */
     CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException;
 

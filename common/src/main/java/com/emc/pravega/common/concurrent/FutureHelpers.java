@@ -75,9 +75,9 @@ public final class FutureHelpers {
      * of the type whose constructor is provided.
      *
      * @param future               The future whose result is wanted
-     * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
-     *                             If null is returned from the function no exception will be thrown.
+     * @param exceptionConstructor This can be any function that either transforms an exception IE: Passing
+     *                             RuntimeException::new will wrap the exception in a new RuntimeException. If null is
+     *                             returned from the function no exception will be thrown.
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
      * @return The result of calling future.get()
@@ -85,9 +85,8 @@ public final class FutureHelpers {
      */
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
                                                                                          Function<Throwable,
-                                                                                            ExceptionT>
-                                                                                           exceptionConstructor)
-            throws ExceptionT {
+                                                                                                 ExceptionT>
+                                                                                                 exceptionConstructor) throws ExceptionT {
         Preconditions.checkNotNull(exceptionConstructor);
         try {
             return Exceptions.handleInterrupted(() -> future.get());
@@ -105,9 +104,9 @@ public final class FutureHelpers {
      * Same as {@link #getAndHandleExceptions(Future, Function)} but with a timeout on get().
      *
      * @param future               The future whose result is wanted
-     * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             IE: Passing RuntimeException::new will wrap the exception in a new RuntimeException.
-     *                             If null is returned from the function no exception will be thrown.
+     * @param exceptionConstructor This can be any function that either transforms an exception IE: Passing
+     *                             RuntimeException::new will wrap the exception in a new RuntimeException. If null is
+     *                             returned from the function no exception will be thrown.
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -116,8 +115,7 @@ public final class FutureHelpers {
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Function<Throwable,
-                                                                                                 ExceptionT>
+                                                                                         Function<Throwable, ExceptionT>
                                                                                           exceptionConstructor,
                                                                                          long timeoutMillis)
             throws TimeoutException, ExceptionT {
@@ -276,12 +274,12 @@ public final class FutureHelpers {
      * a thread.
      *
      * @param condition A Supplier that indicates whether to proceed with the loop or not.
-     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
-     *                  supplier is invoked every time the loopBody needs to execute.
+     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This supplier
+     *                  is invoked every time the loopBody needs to execute.
      * @param executor  An Executor that is used to execute the condition and the loop support code.
-     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
-     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned
-     * Future.
+     * @return          A CompletableFuture that, when completed, indicates the loop terminated without any exception.
+     *                  If either the loopBody or condition throw/return Exceptions, these will be set as the result
+     *                  of this returned Future.
      */
     public static CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>>
             loopBody, Executor executor) {
@@ -302,9 +300,8 @@ public final class FutureHelpers {
      * @param resultConsumer A Consumer that will be invoked with the result of every call to loopBody.
      * @param executor       An Executor that is used to execute the condition and the loop support code.
      * @param <T>            The Type of the future's result.
-     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
-     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned
-     * Future.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If either
+     * the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>>
             loopBody, Consumer<T> resultConsumer, Executor executor) {
@@ -320,12 +317,11 @@ public final class FutureHelpers {
      * Executes a code fragment returning a CompletableFutures while a condition on the returned value is satisfied.
      *
      * @param condition Predicate that indicates whether to proceed with the loop or not.
-     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This
-     *                  supplier is invoked every time the loopBody needs to execute.
+     * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This supplier
+     *                  is invoked every time the loopBody needs to execute.
      * @param <T>       Return type of the executor.
-     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
-     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this
-     * returned Future.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If either
+     * the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
      */
     public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T>
             condition) {

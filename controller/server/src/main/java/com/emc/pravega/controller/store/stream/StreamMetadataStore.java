@@ -105,8 +105,8 @@ public interface StreamMetadataStore {
      * @param sealedSegments segments to be sealed
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the
      *                       stream
-     * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and
-     *                       all new segments shall have it as their start time.
+     * @param scaleTimestamp scaling timestamp, all sealed segments shall have it as their end time and all new segments
+     *                       shall have it as their start time.
      * @return the list of newly created segments
      */
     CompletableFuture<List<Segment>> scale(final String name, final List<Integer> sealedSegments, final

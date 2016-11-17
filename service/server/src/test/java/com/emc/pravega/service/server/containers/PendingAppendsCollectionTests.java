@@ -131,7 +131,7 @@ public class PendingAppendsCollectionTests {
                         e.getValue().isDone());
                 AssertExtensions.assertThrows(
                         "Future returned from get() did not complete exceptionally even though the underlying append " +
-                                "" + "failed.",
+                                "" + "" + "failed.",
                         e.getValue()::join, ex -> ex instanceof IntentionalException);
             }
         }

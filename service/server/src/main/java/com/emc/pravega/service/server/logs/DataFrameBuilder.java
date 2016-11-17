@@ -58,14 +58,11 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      *
      * @param targetLog                      The DurableDataLog to publish completed Data Frames to.
      * @param dataFrameCommitSuccessCallback A callback that will be invoked upon every successful commit of a Data
-     *                                       Frame.
-     *                                       When this is called, all entries added via append() that were successful
-     *                                       have
-     *                                       been 100% committed. In-flight entries (that have been written
-     *                                       partially) should not be acked.
-     * @param dataFrameCommitFailureCallback A callback that will be invoked upon a failed commit of a Data Frame.
-     *                                       When this is called, all entries added via append() that were successful
-     *                                       have
+     *                                       Frame. When this is called, all entries added via append() that were
+     *                                       successful have been 100% committed. In-flight entries (that have been
+     *                                       written partially) should not be acked.
+     * @param dataFrameCommitFailureCallback A callback that will be invoked upon a failed commit of a Data Frame. When
+     *                                       this is called, all entries added via append() that were successful have
      *                                       failed to commit. The in-flight entries will be failed via the append()
      *                                       method.
      * @throws NullPointerException If any of the arguments are null.
@@ -120,8 +117,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * @param logItem The LogItem to append.
      * @throws NullPointerException If logItem is null.
      * @throws IOException          If the LogItem failed to serialize to the DataLog, or if one of the DataFrames
-     *                              containing
-     *                              the LogItem failed to commit to the DataFrameLog.
+     *                              containing the LogItem failed to commit to the DataFrameLog.
      */
     public void append(T logItem) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
@@ -174,7 +170,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // truncation markers.
             dataFrame.setAddress(logAddress);
             assert dataFrame.getPreviousFrameSequence() < logAddress.getSequence() : "DataLog assigned non-monotonic " +
-                    "" + "sequence number";
+                    "" + "" + "sequence number";
         } catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
             // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to

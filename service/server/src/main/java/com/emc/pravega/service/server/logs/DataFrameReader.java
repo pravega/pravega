@@ -40,7 +40,8 @@ import java.util.stream.Stream;
 /**
  * Decomposes Data Frames into the Log Operations that were serialized into them. Uses a DataFrameLog as an input, reads
  * it in order from the beginning, and returns all successfully serialized Log Operations from them in the order in
- * which they were serialized. */
+ * which they were serialized.
+ */
 @Slf4j
 class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameReader.ReadResult<T>, Exception> {
     //region Members
@@ -151,8 +152,8 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     /**
      * Gets a collection of ByteArraySegments (SegmentCollection) that makes up the next Log Operation to be returned.
      *
-     * @return A CompletableFuture that, when complete, will contain a SegmentCollection with the requested result.
-     * If no * more segments are available, either a null value or an empty SegmentCollection will be returned.
+     * @return A CompletableFuture that, when complete, will contain a SegmentCollection with the requested result. If
+     * no * more segments are available, either a null value or an empty SegmentCollection will be returned.
      */
     private SegmentCollection getNextOperationSegments() throws Exception {
         SegmentCollection result = new SegmentCollection();

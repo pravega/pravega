@@ -14,7 +14,11 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 public enum TxState implements org.apache.thrift.TEnum {
-    UNKNOWN(0), OPEN(1), SEALED(2), COMMITTED(3), DROPPED(4);
+    UNKNOWN(0),
+    OPEN(1),
+    SEALED(2),
+    COMMITTED(3),
+    DROPPED(4);
 
     private final int value;
 
@@ -31,6 +35,7 @@ public enum TxState implements org.apache.thrift.TEnum {
 
     /**
      * Find a the enum type by its integer value, as defined in the Thrift IDL.
+     *
      * @return null if the value is not found.
      */
     public static TxState findByValue(int value) {

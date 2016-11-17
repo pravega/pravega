@@ -242,9 +242,8 @@ public class ByteArraySegment implements ArrayView {
      *
      * @param offset   The offset within this ByteArraySegment where the new ByteArraySegment starts.
      * @param length   The length of the new ByteArraySegment.
-     * @param readOnly Whether the resulting sub-segment should be read-only.
-     *                 Note: if this ByteArraySegment is already read-only, this argument is ignored and the resulting
-     *                 segment is read-only
+     * @param readOnly Whether the resulting sub-segment should be read-only. Note: if this ByteArraySegment is already
+     *                 read-only, this argument is ignored and the resulting segment is read-only
      * @return The new ByteArraySegment.
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */

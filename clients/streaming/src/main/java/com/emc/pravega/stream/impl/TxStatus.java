@@ -18,5 +18,9 @@
 package com.emc.pravega.stream.impl;
 
 public enum TxStatus {
-    UNKNOWN, OPEN, SEALED, COMMITTED, DROPPED;
+    UNKNOWN,
+    OPEN,
+    SEALED,
+    COMMITTED,
+    DROPPED;
 }

@@ -27,7 +27,7 @@ public interface RateChangeListener {
      *
      * @param stream            The stream that may need to be scaled.
      * @param isRebalanceUrgent True if a consumer may be blocked because
-     *                          {@link RebalancerUtils#rebalance(java.util.Collection, int)} needs to be called.
+     * {@link RebalancerUtils#rebalance(java.util.Collection, *                          int)} needs to be called.
      */
     void rateChanged(Stream stream, boolean isRebalanceUrgent);
 }

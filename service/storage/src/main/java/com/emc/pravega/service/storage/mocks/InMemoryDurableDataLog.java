@@ -284,7 +284,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
                 if (existingLockOwner == null || !existingLockOwner.equals(clientId)) {
                     throw new DataLogWriterNotPrimaryException(
                             "Unable to release exclusive write lock because the " + "current client does not own it. " +
-                                    "Current owner: " + clientId);
+                                    "" + "Current owner: " + clientId);
                 }
 
                 this.writeLock.set(null);

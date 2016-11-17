@@ -147,7 +147,7 @@ class DataFrameTestHelpers {
 
                     Assert.assertEquals(
                             "isLastRecordEntry() indicates true but there are bytes remaining to be read " + "in the " +
-                                    "record.",
+                                    "" + "record.",
                             currentRecord.getLength(), recordOffset);
                     state.clearCurrentRecordEntries();
                 }

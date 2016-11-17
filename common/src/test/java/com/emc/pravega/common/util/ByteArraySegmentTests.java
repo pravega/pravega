@@ -277,8 +277,8 @@ public class ByteArraySegmentTests {
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment.",
                 segment.subSegment(0, 1).isReadOnly());
         Assert.assertTrue(
-                "Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment " + "(when " +
-                        "attempting to create a non-read-only segment).",
+                "Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment " + "(when "
+                        + "attempting to create a non-read-only segment).",
                 segment.subSegment(0, 1, false).isReadOnly());
         Assert.assertTrue("Unexpected value for isReadOnly() for read-only sub-segment from non-read-only segment.",
                 new ByteArraySegment(buffer).subSegment(0, 1, true).isReadOnly());

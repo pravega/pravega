@@ -38,8 +38,7 @@ public interface Serializer<T> {
      * Serializes the given event.
      *
      * @param value The event to be serialized.
-     * @return The serialized form of the event.
-     * NOTE: buffers returned should not exceed {@link #MAX_EVENT_SIZE}.
+     * @return The serialized form of the event. NOTE: buffers returned should not exceed {@link #MAX_EVENT_SIZE}.
      */
     ByteBuffer serialize(T value);
 

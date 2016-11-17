@@ -32,7 +32,8 @@ import static com.emc.pravega.common.util.BitConverter.writeInt;
 
 /**
  * Helps serialize entries into fixed-size batches. Allows writing multiple records per frame, as well as splitting a
- * record across multiple frames. */
+ * record across multiple frames.
+ */
 public class DataFrame {
     //region Members
 
@@ -177,11 +178,9 @@ public class DataFrame {
      *
      * @param firstRecordEntry If true, this entry will be marked as the first entry in a record (records can be split
      *                         across multiple frames, and this helps ensure that, upon reading, the records are
-     *                         recomposed
-     *                         starting with the right Data Frame Entry).
-     * @return True if we were able to start an entry in this Frame, or false otherwise (this happens in case the
-     * frame is full).
-     * If the frame is full, the new entry will need to be started on a new Frame.
+     *                         recomposed starting with the right Data Frame Entry).
+     * @return True if we were able to start an entry in this Frame, or false otherwise (this happens in case the frame
+     * is full). If the frame is full, the new entry will need to be started on a new Frame.
      * @throws IllegalStateException If the entry is sealed.
      */
     boolean startNewEntry(boolean firstRecordEntry) {

@@ -118,7 +118,7 @@ public class StreamSegmentMapperTests {
                 context.mapper.createNewStreamSegment(segmentName, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals(
-                "Segment was registered in the metadata even if it failed to be created " + "" +
+                "Segment was registered in the metadata even if it failed to be created " + "" + "" +
                         "(StreamSegmentExistsException).",
                 ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
@@ -142,7 +142,7 @@ public class StreamSegmentMapperTests {
                 context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals(
-                "Transaction was registered in the metadata even if it failed to be created " + "" +
+                "Transaction was registered in the metadata even if it failed to be created " + "" + "" +
                         "(StreamSegmentExistsException).",
                 1, context.metadata.getAllStreamSegmentIds().size());
 
@@ -153,7 +153,7 @@ public class StreamSegmentMapperTests {
                 context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals(
-                "Transaction was registered in the metadata even if it failed to be created " + "" +
+                "Transaction was registered in the metadata even if it failed to be created " + "" + "" +
                         "(IntentionalException).",
                 1, context.metadata.getAllStreamSegmentIds().size());
 
@@ -173,8 +173,8 @@ public class StreamSegmentMapperTests {
                         "OperationLog.",
                 1, context.metadata.getAllStreamSegmentIds().size());
         Assert.assertEquals(
-                "Transaction was not created in Storage even if the failure was post-storage (in " + "OperationLog " +
-                        "processing).",
+                "Transaction was not created in Storage even if the failure was post-storage (in " + "OperationLog "
+                        + "processing).",
                 2, storageSegments.size());
 
         // 6. When creating a new StreamSegment.

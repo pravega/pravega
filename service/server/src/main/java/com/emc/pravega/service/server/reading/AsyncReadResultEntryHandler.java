@@ -56,7 +56,8 @@ public interface AsyncReadResultEntryHandler {
      * AsyncReadResultProcessor
      * will auto-close.
      *
-     * @param entry The entry that caused the processing error (this may be null, depending on when the error occurred).
+     * @param entry The entry that caused the processing error (this may be null, depending on when the error
+     *              occurred).
      * @param cause The error that triggered this.
      */
     void processError(ReadResultEntry entry, Throwable cause);

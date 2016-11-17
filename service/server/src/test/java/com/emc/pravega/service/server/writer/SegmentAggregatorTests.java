@@ -223,7 +223,7 @@ public class SegmentAggregatorTests {
         // 1b. Verify that MergeTransactionOperation has the right parent.
         AssertExtensions.assertThrows(
                 "add() allowed a MergeTransactionOperation on the parent for a Transaction that did not have it as a " +
-                        "parent.",
+                        "" + "parent.",
                 () -> transactionAggregator.add(generateSimpleMergeTransaction(badTransactionId, context)),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -387,8 +387,7 @@ public class SegmentAggregatorTests {
             getAppendData(appendOp, writtenData, context);
 
             // Call flush() and inspect the result.
-            currentTime.set(
-                    currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
+            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
             // incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).",
                     context.segmentAggregator.mustFlush());
@@ -421,7 +420,7 @@ public class SegmentAggregatorTests {
                 getAppendData(appendOp, writtenData, context);
                 Assert.assertEquals(
                         "Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (Transaction " +
-                                "appends).",
+                                "" + "appends).",
                         appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
             }
 
@@ -456,8 +455,7 @@ public class SegmentAggregatorTests {
             getAppendData(appendOp, writtenData, context);
 
             // Call flush() and inspect the result.
-            currentTime.set(
-                    currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
+            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
             // incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).",
                     context.segmentAggregator.mustFlush());
@@ -531,8 +529,7 @@ public class SegmentAggregatorTests {
 
             // Call flush() and inspect the result.
             setException.set(null);
-            currentTime.set(
-                    currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
+            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
             // incrementing the time by a lot.
             FlushResult flushResult = null;
 
@@ -1074,8 +1071,7 @@ public class SegmentAggregatorTests {
                 Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
             }
 
-            currentTime.set(
-                    currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
+            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
             // incrementing the time by a lot.
         }
 
@@ -1253,8 +1249,7 @@ public class SegmentAggregatorTests {
                             appendData.get(j).length, TIMEOUT).join();
                 }
             }
-            currentTime.set(
-                    currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
+            currentTime.set(currentTime.get() + config.getFlushThresholdTime().toMillis() + 1); // Force a flush by
             // incrementing the time by a lot.
             int flushLoopCount = 0;
             while (context.segmentAggregator.mustFlush()) {
@@ -1540,8 +1535,8 @@ public class SegmentAggregatorTests {
                 exceptionReset.run();
                 FlushResult parentFlushResult = tryFlushSegment(context.segmentAggregator, exceptionProvider,
                         context.executor.get());
-                anythingFlushed = anythingFlushed | (parentFlushResult == null ||
-                        (parentFlushResult.getFlushedBytes() + parentFlushResult.getMergedBytes()) > 0);
+                anythingFlushed = anythingFlushed | (parentFlushResult == null || (parentFlushResult.getFlushedBytes
+                        () + parentFlushResult.getMergedBytes()) > 0);
             }
         }
     }

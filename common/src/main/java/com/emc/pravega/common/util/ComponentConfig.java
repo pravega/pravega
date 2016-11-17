@@ -56,8 +56,8 @@ public abstract class ComponentConfig {
      * @param componentCode The configuration code for the component.
      * @throws ConfigurationException   When a configuration issue has been detected. This can be:
      *                                  MissingPropertyException (a required Property is missing from the given
-     *                                  properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
+     *                                  properties collection), NumberFormatException (a Property has a value that is
+     *                                  invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */

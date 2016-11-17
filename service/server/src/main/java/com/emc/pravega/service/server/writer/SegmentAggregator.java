@@ -233,7 +233,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     // Only log warning if the StorageLength has actually been initialized, but is different.
                     log.warn(
                             "{}: SegmentMetadata has a StorageLength ({}) that is different than the actual " + "one " +
-                                    "({}) - updating metadata.",
+                                    "" + "({}) - updating metadata.",
                             this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
                 }
 
@@ -638,7 +638,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     if (transProperties.getLength() != transactionMetadata.getStorageLength()) {
                         throw new CompletionException(new DataCorruptionException(String.format(
                                 "Transaction Segment '%s' cannot be merged into parent '%s' because its metadata " +
-                                        "disagrees with the Storage. Metadata.StorageLength=%d, Storage" + "" +
+                                        "disagrees with the Storage. Metadata.StorageLength=%d, Storage" + "" + "" +
                                         ".StorageLength=%d",
                                 transactionMetadata.getName(), this.metadata.getName(),
                                 transactionMetadata.getStorageLength(), transProperties.getLength())));
@@ -740,7 +740,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * on that, does one of the following:
      * * Nothing, if the Storage agrees with the Metadata.
      * * Throws a show-stopping DataCorruptionException (wrapped in a CompletionException) if the situation is
-     *     unrecoverable.
+     * unrecoverable.
      * * Initiates the Reconciliation Procedure, which allows the reconcile() method to execute.
      *
      * @param timer Timer for the operation.
@@ -820,9 +820,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param timer       Timer for the operation.
      * @param executor    An Executor to use for async tasks.
      * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a
-     * ReconciliationFailureException,
-     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in
-     * Storage.
+     * ReconciliationFailureException, if the operation cannot be reconciled, based on the in-memory metadata or the
+     * current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileOperation(StorageOperation op, SegmentProperties storageInfo,
                                                               TimeoutTimer timer, Executor executor) {
@@ -849,9 +848,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param storageInfo The current state of the Segment in Storage.
      * @param timer       Timer for the operation.
      * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a
-     * ReconciliationFailureException,
-     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in
-     * Storage.
+     * ReconciliationFailureException, if the operation cannot be reconciled, based on the in-memory metadata or the
+     * current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileAppendOperation(StorageOperation op, SegmentProperties
             storageInfo, TimeoutTimer timer, Executor executor) {
@@ -883,8 +881,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                         storageData, bytesReadSoFar.get(), (int) readLength - bytesReadSoFar.get(),
                         timer.getRemaining()), bytesRead -> {
                     assert bytesRead > 0 : String.format(
-                            "Unable to make any read progress when reconciling " + "operation '%s' after reading %s " +
-                                    "bytes.",
+                            "Unable to make any read progress when reconciling " + "operation '%s' after reading %s "
+                                    + "bytes.",
                             op, bytesReadSoFar);
                     bytesReadSoFar.addAndGet(bytesRead);
                 }, executor).thenApply(v -> {
@@ -915,9 +913,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param storageInfo The current state of the Segment in Storage.
      * @param timer       Timer for the operation
      * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a
-     * ReconciliationFailureException,
-     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in
-     * Storage.
+     * ReconciliationFailureException, if the operation cannot be reconciled, based on the in-memory metadata or the
+     * current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileMergeOperation(MergeTransactionOperation op, SegmentProperties
             storageInfo, TimeoutTimer timer) {
@@ -927,7 +924,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         if (transactionMeta == null || transactionMeta.isDeleted()) {
             return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format(
                     "Cannot reconcile " + "operation '%s' because the transaction segment is deleted or missing from " +
-                            "the metadata.",
+                            "" + "the metadata.",
                     op), this.metadata, storageInfo));
         }
 
@@ -935,8 +932,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // nothing).
         if (op.getLastStreamSegmentOffset() > storageInfo.getLength()) {
             return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format(
-                    "Cannot reconcile " + "operation '%s' because the transaction segment is not fully merged into " +
-                            "the parent.",
+                    "Cannot reconcile " + "operation '%s' because the transaction segment is not fully merged into "
+                            + "the parent.",
                     op), this.metadata, storageInfo));
         }
 
@@ -966,9 +963,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *
      * @param storageInfo The current state of the Segment in Storage.
      * @return A CompletableFuture containing a FlushResult with the number of bytes reconciled, or failed with a
-     * ReconciliationFailureException,
-     * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in
-     * Storage.
+     * ReconciliationFailureException, if the operation cannot be reconciled, based on the in-memory metadata or the
+     * current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileSealOperation(SegmentProperties storageInfo) {
         // All we need to do is verify that the Segment is actually sealed in Storage.
@@ -1024,8 +1020,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * @param operation The operation to check.
      * @throws DataCorruptionException  If any of the validations failed.
      * @throws IllegalArgumentException If the operation has an undefined Offset or Length (these are not considered
-     *                                  data-
-     *                                  corrupting issues).
+     *                                  data- corrupting issues).
      */
     private void checkValidOperation(StorageOperation operation) throws DataCorruptionException {
         if (this.hasSealPending.get()) {

@@ -62,9 +62,13 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
     private String name; // required
     private ScalingPolicy policy; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        SCOPE((short) 1, "scope"), NAME((short) 2, "name"), POLICY((short) 3, "policy");
+        SCOPE((short) 1, "scope"),
+        NAME((short) 2, "name"),
+        POLICY((short) 3, "policy");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -194,7 +198,9 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
         this.scope = null;
     }
 
-    /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field scope is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetScope() {
         return this.scope != null;
     }
@@ -218,7 +224,9 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
         this.name = null;
     }
 
-    /** Returns true if field name is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field name is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetName() {
         return this.name != null;
     }
@@ -242,7 +250,9 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
         this.policy = null;
     }
 
-    /** Returns true if field policy is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field policy is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetPolicy() {
         return this.policy != null;
     }
@@ -297,7 +307,9 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -544,7 +556,8 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
             struct.validate();
         }
 
-        public void write(org.apache.thrift.protocol.TProtocol oprot, StreamConfig struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot, StreamConfig struct) throws org.apache.thrift
+                .TException {
             struct.validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -578,7 +591,8 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
     private static class StreamConfigTupleScheme extends TupleScheme<StreamConfig> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, StreamConfig struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, StreamConfig struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             oprot.writeString(struct.scope);
             oprot.writeString(struct.name);
@@ -586,7 +600,8 @@ public class StreamConfig implements org.apache.thrift.TBase<StreamConfig, Strea
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, StreamConfig struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, StreamConfig struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.scope = iprot.readString();
             struct.setScopeIsSet(true);

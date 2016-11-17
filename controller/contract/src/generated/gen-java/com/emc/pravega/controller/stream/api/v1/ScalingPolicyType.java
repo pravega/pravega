@@ -14,7 +14,9 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 public enum ScalingPolicyType implements org.apache.thrift.TEnum {
-    FIXED_NUM_SEGMENTS(0), BY_RATE_IN_BYTES(1), BY_RATE_IN_EVENTS(2);
+    FIXED_NUM_SEGMENTS(0),
+    BY_RATE_IN_BYTES(1),
+    BY_RATE_IN_EVENTS(2);
 
     private final int value;
 

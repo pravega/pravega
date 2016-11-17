@@ -162,8 +162,7 @@ public final class ModelHelper {
     }
 
     private static Map<com.emc.pravega.stream.impl.FutureSegment, Long> encodeFutureSegmentMap(final
-                                                                                               Map<FutureSegment,
-                                                                                                       Long> map) {
+                                                                                   Map<FutureSegment, Long> map) {
         Preconditions.checkNotNull(map);
         HashMap<com.emc.pravega.stream.impl.FutureSegment, Long> result = new HashMap<>();
         for (Entry<FutureSegment, Long> entry : map.entrySet()) {

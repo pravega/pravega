@@ -239,7 +239,7 @@ public class OperationMetadataUpdaterTests {
         StreamSegmentAppendOperation badAppendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA,
                 appendOp.getAppendContext());
         AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. " +
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. " + "" +
                         "(test" + " #1)",
                 () -> updater.preProcessOperation(badAppendOp), ex -> ex instanceof BadEventNumberException);
 
@@ -254,7 +254,7 @@ public class OperationMetadataUpdaterTests {
         StreamSegmentAppendOperation badAppendOp2 = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA,
                 differentClientAppend.getAppendContext());
         AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. " +
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. " + "" +
                         "(test" + " #2)",
                 () -> updater.preProcessOperation(badAppendOp2), ex -> ex instanceof BadEventNumberException);
     }
@@ -532,7 +532,7 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentName already exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists " +
-                        "" + "(in transaction).",
+                        "" + "" + "(in transaction).",
                 () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
@@ -542,7 +542,7 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentName already exists (metadata).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists " +
-                        "" + "(in metadata).",
+                        "" + "" + "(in metadata).",
                 () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
     }

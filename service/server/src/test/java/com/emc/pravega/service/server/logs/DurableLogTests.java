@@ -556,12 +556,11 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the ability of the DurableLog to add MetadataCheckpointOperations.
      *
      * @param createDurableLogConfig          A Supplier that creates a DurableLogConfig object.
-     * @param waitForProcessingFrequency      The frequency at which to stop and wait for operations to be processed
-     *                                        by the
-     *                                        DurableLog before adding others.
+     * @param waitForProcessingFrequency      The frequency at which to stop and wait for operations to be processed by
+     *                                        the DurableLog before adding others.
      * @param calculateExpectedInjectionCount A function that, given the total number of DurableDataLog writes (and
-     *                                        their total lengths),
-     *                                        calculates the expected number of injected operations that should exist.
+     *                                        their total lengths), calculates the expected number of injected
+     *                                        operations that should exist.
      */
     private void testMetadataCheckpoint(Supplier<DurableLogConfig> createDurableLogConfig, int
             waitForProcessingFrequency, BiFunction<Integer, Integer, Double> calculateExpectedInjectionCount) throws
@@ -893,8 +892,8 @@ public class DurableLogTests extends OperationLogTestBase {
                     // Verify all operations up to, and including this one have been removed.
                     Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
                     Assert.assertTrue(
-                            "Not expecting an empty log after truncating an operation (a MetadataCheckpoint" + " must" +
-                                    " always exist).",
+                            "Not expecting an empty log after truncating an operation (a MetadataCheckpoint" + " " +
+                                    "must" + " always exist).",
                             reader.hasNext());
                     verifyFirstItemIsMetadataCheckpoint(reader);
 
@@ -1031,8 +1030,8 @@ public class DurableLogTests extends OperationLogTestBase {
                     // Verify all operations up to, and including this one have been removed.
                     Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
                     Assert.assertTrue(
-                            "Not expecting an empty log after truncating an operation (a MetadataCheckpoint" + " must" +
-                                    " always exist).",
+                            "Not expecting an empty log after truncating an operation (a MetadataCheckpoint" + " " +
+                                    "must" + " always exist).",
                             reader.hasNext());
                     verifyFirstItemIsMetadataCheckpoint(reader);
 

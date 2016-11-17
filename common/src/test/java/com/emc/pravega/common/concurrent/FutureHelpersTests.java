@@ -101,8 +101,8 @@ public class FutureHelpersTests {
         failRandomFuture(futures);
         allFuturesComplete = FutureHelpers.allOf(futures);
         Assert.assertFalse(
-                "allOf() created a completed future when not all of the futures were previously complete " + "(but " +
-                        "one failed).",
+                "allOf() created a completed future when not all of the futures were previously complete " + "(but "
+                        + "one failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
         Assert.assertTrue(
@@ -152,8 +152,8 @@ public class FutureHelpersTests {
         failRandomFuture(futures);
         allFuturesComplete = FutureHelpers.allOfWithResults(futures);
         Assert.assertFalse(
-                "allOf() created a completed future when not all of the futures were previously complete " + "(but " +
-                        "one failed).",
+                "allOf() created a completed future when not all of the futures were previously complete " + "(but "
+                        + "one failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
         Assert.assertTrue(

@@ -392,7 +392,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                     // If we do find a failed one in this area, make sure it is failed with DataCorruptionException.
                     AssertExtensions.assertThrows(
                             "Unexpected exception for failed Operation in the same DataFrame as intentionally failed " +
-                                    "" + "operation.",
+                                    "" + "" + "operation.",
                             oc.completion::join, ex -> ex instanceof DataCorruptionException);
                     encounteredFirstFailure = true;
                 } else {
@@ -471,14 +471,14 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
                 Assert.assertEquals(
-                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when" +
-                                " it spans multiple DataFrames.",
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " " +
+                                "when" + " it spans multiple DataFrames.",
                         readResult.getLastFullDataFrameAddress(), dataFrameAddress);
             } else if (readResult.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
                 Assert.assertEquals(
-                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when" +
-                                " it is the last entry in a DataFrame.",
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " " +
+                                "when" + " it is the last entry in a DataFrame.",
                         readResult.getLastUsedDataFrameAddress(), dataFrameAddress);
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
@@ -487,8 +487,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(
                         expectedOp.getSequenceNumber() - 1);
                 Assert.assertEquals(
-                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when" +
-                                " it is in the middle of a DataFrame.",
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " " +
+                                "when" + " it is in the middle of a DataFrame.",
                         expectedTruncationMarker, dataFrameAddress);
             }
         }

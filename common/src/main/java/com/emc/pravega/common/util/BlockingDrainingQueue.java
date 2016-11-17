@@ -104,8 +104,7 @@ public class BlockingDrainingQueue<T> {
      * @throws ObjectClosedException If the Queue is closed.
      * @throws IllegalStateException If another call to takeAllEntries is in progress.
      * @throws InterruptedException  If the call is waiting for an empty queue to become non-empty and the queue is
-     *                               closed
-     *                               while waiting.
+     *                               closed while waiting.
      */
     public List<T> takeAllEntries() throws InterruptedException {
         this.lock.lock();

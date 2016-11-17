@@ -149,7 +149,7 @@ public class TruncateableListTests {
         list.truncate(i -> i < 20);
         AssertExtensions.assertThrows(
                 "Unexpected behavior from next() when current element has been truncated (after hasNext() and before " +
-                        "" + "next()).",
+                        "" + "" + "next()).",
                 midTruncateIterator::next, ex -> ex instanceof NoSuchElementException);
     }
 

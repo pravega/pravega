@@ -110,8 +110,8 @@ public class ComponentConfigTests {
                 } else {
                     // This is a different component. Make sure it is not included here.
                     AssertExtensions.assertThrows(String.format(
-                            "ComponentConfig returned property that was for a different component. " + "PropertyName:" +
-                                    " %s, Value: %s.",
+                            "ComponentConfig returned property that was for a different component. " +
+                                    "PropertyName:" + " %s, Value: %s.",
                             fullyQualifiedPropertyName, expectedValue), () -> methodToTest.apply(config, propName),
                             ex -> ex instanceof MissingPropertyException);
                 }

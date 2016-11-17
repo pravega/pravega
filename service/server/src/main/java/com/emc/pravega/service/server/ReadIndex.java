@@ -55,8 +55,8 @@ public interface ReadIndex extends AutoCloseable {
      * </ol>
      *
      * @param targetStreamSegmentId The Id of the StreamSegment to merge into.
-     * @param offset                The offset in the Target StreamSegment where to merge the Source StreamSegment.
-     *                              The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
+     * @param offset                The offset in the Target StreamSegment where to merge the Source StreamSegment. The
+     *                              offset must be at the end of the StreamSegment as it exists in the ReadIndex.
      * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in
      *                                  ReadIndex).
@@ -96,8 +96,7 @@ public interface ReadIndex extends AutoCloseable {
      * Clears the entire contents of the ReadIndex.
      *
      * @throws IllegalStateException If the operation cannot be performed due to the current state of the system (for
-     *                               example,
-     *                               if the system is in Recovery Mode).
+     *                               example, if the system is in Recovery Mode).
      */
     void clear();
 

@@ -119,8 +119,8 @@ class LogClient implements AutoCloseable {
      *
      * @throws IllegalStateException   If the LogClient is already initialized.
      * @throws DurableDataLogException If an exception is thrown during initialization. The actual exception thrown may
-     *                                 be a derived exception from this one, which provides more information about
-     *                                 the failure reason.
+     *                                 be a derived exception from this one, which provides more information about the
+     *                                 failure reason.
      */
     public void initialize() throws DurableDataLogException {
         long traceId = LoggerHelpers.traceEnter(log, this.traceObjectId, "initialize");
@@ -151,8 +151,8 @@ class LogClient implements AutoCloseable {
      * Gets (or creates) a LogHandle for a particular log name.
      *
      * @param logName The name of the log.
-     * @return A CompletableFuture that, when completed, will contain the requested result. If the operation failed,
-     * the Future will contain the exception that caused the failure. All Log-related exceptions will inherit from the
+     * @return A CompletableFuture that, when completed, will contain the requested result. If the operation failed, the
+     * Future will contain the exception that caused the failure. All Log-related exceptions will inherit from the
      * DurableDataLogException class.
      */
     LogHandle getLogHandle(String logName) throws DurableDataLogException {

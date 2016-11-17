@@ -27,8 +27,7 @@ import java.util.List;
  * Task subclass to define scaling operations
  * This is serialized and stored in the persistent store
  * and used to resume partially completed scale operation
-*/
-public class Scale {
+ */ public class Scale {
     private final List<Integer> sealedSegments;
     private final List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
     private final long scaleTimestamp;

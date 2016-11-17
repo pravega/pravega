@@ -45,8 +45,8 @@ public class DistributedLogDataLogFactory implements DurableDataLogFactory {
      *
      * @throws IllegalStateException   If the DistributedLogDataLogFactory is already initialized.
      * @throws DurableDataLogException If an exception is thrown during initialization. The actual exception thrown may
-     *                                 be a derived exception from this one, which provides more information about
-     *                                 the failure reason.
+     *                                 be a derived exception from this one, which provides more information about the
+     *                                 failure reason.
      */
     public void initialize() throws DurableDataLogException {
         this.client.initialize();

@@ -60,8 +60,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
      *
      * @param containerRegistry        The SegmentContainerRegistry to manage.
      * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the
-     *                                 cluster
-     *                                 (i.e., number of containers).
+     *                                 cluster (i.e., number of containers).
      * @throws NullPointerException     If containerRegistry is null.
      * @throws NullPointerException     If segmentToContainerMapper is null.
      * @throws NullPointerException     If logger is null.

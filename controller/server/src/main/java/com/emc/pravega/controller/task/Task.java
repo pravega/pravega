@@ -44,30 +44,16 @@ import java.lang.annotation.Target;
  * <p>
  * The method
  *
- * @Task(name = "a", version="0.1")
- * CompletableFuture<T> method(Object... params) {
- * body;
- * }
+ * @Task(name = "a", version="0.1") CompletableFuture<T> method(Object... params) { body; }
  * <p>
  * is replaced with the following method
  * <p>
- * CompletableFuture<T> method (Object... params) {
- * try {
- * CompletableFuture<Boolean> lock = this.lock();
- * if (lock.get()) {
- * TaskData data = new TaskData("a", "0.1", params);
- * persist(data);
+ * CompletableFuture<T> method (Object... params) { try { CompletableFuture<Boolean> lock = this.lock(); if (lock.get())
+ * { TaskData data = new TaskData("a", "0.1", params); persist(data);
  * <p>
  * body;
  * <p>
- * delete(data);
- * } else {
- * throw new LockFailedException();
- * }
- * } finally {
- * unlock();
- * }
- * }
+ * delete(data); } else { throw new LockFailedException(); } } finally { unlock(); } }
  */
 
 @Target(ElementType.METHOD)

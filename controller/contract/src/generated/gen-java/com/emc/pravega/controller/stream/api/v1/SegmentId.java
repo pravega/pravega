@@ -63,9 +63,13 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     private String streamName; // required
     private int number; // required
 
-    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    /**
+     * The set of fields this struct contains, along with convenience methods for finding and manipulating them.
+     */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-        SCOPE((short) 1, "scope"), STREAM_NAME((short) 2, "streamName"), NUMBER((short) 3, "number");
+        SCOPE((short) 1, "scope"),
+        STREAM_NAME((short) 2, "streamName"),
+        NUMBER((short) 3, "number");
 
         private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -197,7 +201,9 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         this.scope = null;
     }
 
-    /** Returns true if field scope is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field scope is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetScope() {
         return this.scope != null;
     }
@@ -221,7 +227,9 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         this.streamName = null;
     }
 
-    /** Returns true if field streamName is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field streamName is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetStreamName() {
         return this.streamName != null;
     }
@@ -246,7 +254,9 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __NUMBER_ISSET_ID);
     }
 
-    /** Returns true if field number is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field number is set (has been assigned a value) and false otherwise
+     */
     public boolean isSetNumber() {
         return EncodingUtils.testBit(__isset_bitfield, __NUMBER_ISSET_ID);
     }
@@ -299,7 +309,9 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         throw new IllegalStateException();
     }
 
-    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    /**
+     * Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise
+     */
     public boolean isSet(_Fields field) {
         if (field == null) {
             throw new IllegalArgumentException();
@@ -542,7 +554,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
             struct.validate();
         }
 
-        public void write(org.apache.thrift.protocol.TProtocol oprot, SegmentId struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol oprot, SegmentId struct) throws org.apache.thrift
+                .TException {
             struct.validate();
 
             oprot.writeStructBegin(STRUCT_DESC);
@@ -574,7 +587,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
     private static class SegmentIdTupleScheme extends TupleScheme<SegmentId> {
 
         @Override
-        public void write(org.apache.thrift.protocol.TProtocol prot, SegmentId struct) throws org.apache.thrift.TException {
+        public void write(org.apache.thrift.protocol.TProtocol prot, SegmentId struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol oprot = (TTupleProtocol) prot;
             oprot.writeString(struct.scope);
             oprot.writeString(struct.streamName);
@@ -582,7 +596,8 @@ public class SegmentId implements org.apache.thrift.TBase<SegmentId, SegmentId._
         }
 
         @Override
-        public void read(org.apache.thrift.protocol.TProtocol prot, SegmentId struct) throws org.apache.thrift.TException {
+        public void read(org.apache.thrift.protocol.TProtocol prot, SegmentId struct) throws org.apache.thrift
+                .TException {
             TTupleProtocol iprot = (TTupleProtocol) prot;
             struct.scope = iprot.readString();
             struct.setScopeIsSet(true);

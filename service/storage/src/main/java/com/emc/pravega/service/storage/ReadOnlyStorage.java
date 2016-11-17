@@ -34,12 +34,9 @@ public interface ReadOnlyStorage {
      * and cannot be used by another one.
      *
      * @param streamSegmentName Name of the StreamSegment to be acquired.
-     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been locked,
-     * an exclusive lock acquired for it.
-     * If the operation failed, it will be failed with the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been locked, an
+     * exclusive lock acquired for it. If the operation failed, it will be failed with the cause of the failure. Notable
+     * exceptions: <ul> <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage. </ul>
      */
     CompletableFuture<Void> open(String streamSegmentName);
 
@@ -53,10 +50,8 @@ public interface ReadOnlyStorage {
      * @param length            The number of bytes to read.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the number of bytes read. If the operation failed,
-     * it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
+     * it will contain the cause of the failure. Notable exceptions: <ul> <li> StreamSegmentNotExistsException: When the
+     * given Segment does not exist in Storage. </ul>
      * @throws ArrayIndexOutOfBoundsException If bufferOffset or bufferOffset + length are invalid for the buffer.
      */
     CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int
@@ -68,10 +63,8 @@ public interface ReadOnlyStorage {
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the information requested about the StreamSegment.
-     * If the operation failed, it will contain the cause of the failure. Notable exceptions:
-     * <ul>
-     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
-     * </ul>
+     * If the operation failed, it will contain the cause of the failure. Notable exceptions: <ul> <li>
+     * StreamSegmentNotExistsException: When the given Segment does not exist in Storage. </ul>
      */
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 

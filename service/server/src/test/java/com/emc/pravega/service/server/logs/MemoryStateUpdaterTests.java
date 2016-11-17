@@ -88,7 +88,7 @@ public class MemoryStateUpdaterTests {
                 if (expected instanceof StreamSegmentAppendOperation) {
                     Assert.assertTrue(
                             "StreamSegmentAppendOperation was not added as a " + "CachedStreamSegmentAppendOperation " +
-                                    "to the Memory Log.",
+                                    "" + "to the Memory Log.",
                             actual instanceof CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
                     Assert.assertEquals(
@@ -96,16 +96,16 @@ public class MemoryStateUpdaterTests {
                                     "ReadIndex.",
                             TestReadIndex.APPEND, invokedMethod.methodName);
                     Assert.assertEquals(
-                            "Append with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex " +
-                                    "with wrong arguments.",
+                            "Append with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex "
+                                    + "with wrong arguments.",
                             appendOp.getStreamSegmentId(), invokedMethod.args.get("streamSegmentId"));
                     Assert.assertEquals(
-                            "Append with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex " +
-                                    "with wrong arguments.",
+                            "Append with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex "
+                                    + "with wrong arguments.",
                             appendOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals(
-                            "Append with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex " +
-                                    "with wrong arguments.",
+                            "Append with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex "
+                                    + "with wrong arguments.",
                             appendOp.getData(), invokedMethod.args.get("data"));
                 } else if (expected instanceof MergeTransactionOperation) {
                     MergeTransactionOperation mergeOp = (MergeTransactionOperation) expected;
@@ -114,16 +114,16 @@ public class MemoryStateUpdaterTests {
                                     "ReadIndex.",
                             TestReadIndex.BEGIN_MERGE, invokedMethod.methodName);
                     Assert.assertEquals(
-                            "Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex " +
-                                    "with wrong arguments.",
+                            "Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex "
+                                    + "with wrong arguments.",
                             mergeOp.getStreamSegmentId(), invokedMethod.args.get("targetStreamSegmentId"));
                     Assert.assertEquals(
-                            "Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex " +
-                                    "with wrong arguments.",
+                            "Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex "
+                                    + "with wrong arguments.",
                             mergeOp.getStreamSegmentOffset(), invokedMethod.args.get("offset"));
                     Assert.assertEquals(
-                            "Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex " +
-                                    "with wrong arguments.",
+                            "Merge with SeqNo " + expected.getSequenceNumber() + " was added to the " + "ReadIndex "
+                                    + "with wrong arguments.",
                             mergeOp.getTransactionSegmentId(), invokedMethod.args.get("sourceStreamSegmentId"));
                 }
             }

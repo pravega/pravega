@@ -14,7 +14,10 @@ import java.util.HashMap;
 import org.apache.thrift.TEnum;
 
 public enum TransactionStatus implements org.apache.thrift.TEnum {
-    SUCCESS(0), FAILURE(1), STREAM_NOT_FOUND(2), TRANSACTION_NOT_FOUND(3);
+    SUCCESS(0),
+    FAILURE(1),
+    STREAM_NOT_FOUND(2),
+    TRANSACTION_NOT_FOUND(3);
 
     private final int value;
 
@@ -31,6 +34,7 @@ public enum TransactionStatus implements org.apache.thrift.TEnum {
 
     /**
      * Find a the enum type by its integer value, as defined in the Thrift IDL.
+     *
      * @return null if the value is not found.
      */
     public static TransactionStatus findByValue(int value) {

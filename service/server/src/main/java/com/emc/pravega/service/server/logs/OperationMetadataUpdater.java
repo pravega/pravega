@@ -208,9 +208,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
      *                                         metadata.
      * @throws StreamSegmentNotExistsException If the given operation was for a StreamSegment that was is marked as
      *                                         deleted.
-     * @throws StreamSegmentSealedException    If the given operation was for a StreamSegment that was previously
-     *                                         sealed and
-     *                                         that is incompatible with a sealed stream.
+     * @throws StreamSegmentSealedException    If the given operation was for a StreamSegment that was previously sealed
+     *                                         and that is incompatible with a sealed stream.
      * @throws StreamSegmentMergedException    If the given operation was for a StreamSegment that was previously
      *                                         merged.
      * @throws NullPointerException            If the operation is null.
@@ -357,8 +356,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
          *
          * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation
          *                                argument.
-         * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to,
-         *                                and including).
+         * @param logAddress              The Address of the corresponding Data Frame that can be truncated (up to, and
+         *                                including).
          */
         void recordTruncationMarker(long operationSequenceNumber, LogAddress logAddress) {
             Exceptions.checkArgument(operationSequenceNumber >= 0, "operationSequenceNumber",
@@ -384,11 +383,10 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @param operation The operation to pre-process.
          * @throws MetadataUpdateException         If the given operation was rejected given the current state of the
          *                                         metadata.
-         * @throws StreamSegmentNotExistsException If the given operation was for a StreamSegment that was is marked
-         *                                         as deleted.
+         * @throws StreamSegmentNotExistsException If the given operation was for a StreamSegment that was is marked as
+         *                                         deleted.
          * @throws StreamSegmentSealedException    If the given operation was for a StreamSegment that was previously
-         *                                         sealed and
-         *                                         that is incompatible with a sealed stream.
+         *                                         sealed and that is incompatible with a sealed stream.
          * @throws StreamSegmentMergedException    If the given operation was for a StreamSegment that was previously
          *                                         merged.
          * @throws NullPointerException            If the operation is null.
@@ -467,7 +465,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (existingStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 throw new MetadataUpdateException(String.format(
                         "Operation %d wants to map a StreamSegment Name that " + "is already mapped in the metadata. " +
-                                "Name = '%s', Existing Id = %d.",
+                                "" + "Name = '%s', Existing Id = %d.",
                         operation.getSequenceNumber(), operation.getStreamSegmentName(), existingStreamSegmentId));
             }
 
@@ -483,7 +481,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (parentMetadata == null) {
                 throw new MetadataUpdateException(String.format(
                         "Operation %d wants to map a StreamSegment to a Parent StreamSegment Id that does not exist. " +
-                                "" + "Parent StreamSegmentId = %d, Transaction Name = %s.",
+                                "" + "" + "Parent StreamSegmentId = %d, Transaction Name = %s.",
                         operation.getSequenceNumber(), operation.getParentStreamSegmentId(),
                         operation.getStreamSegmentName()));
             }
@@ -948,8 +946,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @throws StreamSegmentSealedException If the StreamSegment is sealed.
          * @throws StreamSegmentMergedException If the StreamSegment is merged into another.
          * @throws BadOffsetException           If the operation has an assigned offset, but it doesn't match the
-         *                                      current
-         *                                      Segment DurableLogOffset.
+         *                                      current Segment DurableLogOffset.
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
         void preProcessOperation(StreamSegmentAppendOperation operation) throws StreamSegmentSealedException,
@@ -1028,8 +1025,8 @@ class OperationMetadataUpdater implements ContainerMetadata {
          * @param operation           The operation to pre-process.
          * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
          * @throws StreamSegmentSealedException If the parent stream is already sealed.
-         * @throws MetadataUpdateException      If the operation cannot be processed because of the current state of
-         *                                      the metadata.
+         * @throws MetadataUpdateException      If the operation cannot be processed because of the current state of the
+         *                                      metadata.
          * @throws IllegalArgumentException     If the operation is for a different stream.
          */
         void preProcessAsParentSegment(MergeTransactionOperation operation, TemporaryStreamSegmentMetadata

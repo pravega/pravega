@@ -56,8 +56,7 @@ class StreamSegmentReadResult implements ReadResult {
      * @param streamSegmentStartOffset The StreamSegment Offset where the ReadResult starts at.
      * @param maxResultLength          The maximum number of bytes to read.
      * @param getNextItem              A Bi-Function that returns the next ReadResultEntry to consume. The first
-     *                                 argument
-     *                                 is startOffset (long) and the second is remainingLength (int).
+     *                                 argument is startOffset (long) and the second is remainingLength (int).
      * @throws NullPointerException     If getNextItem is null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
@@ -156,7 +155,8 @@ class StreamSegmentReadResult implements ReadResult {
      * next() will wait for the previous entry to complete and then do more processing.
      * </ul>
      *
-     * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished processing.
+     * @throws IllegalStateException If we have more elements, but the last element returned hasn't finished
+     *                               processing.
      */
     @Override
     public ReadResultEntry next() {

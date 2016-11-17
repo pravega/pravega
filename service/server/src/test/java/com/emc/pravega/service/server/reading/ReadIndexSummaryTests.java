@@ -73,13 +73,13 @@ public class ReadIndexSummaryTests {
                 Assert.assertEquals("Unexpected total size.", totalSize, currentStatus.getSize());
                 if (i < ITEMS_PER_GENERATION - 1) {
                     Assert.assertEquals(
-                            "Not expecting a change in oldest generation when there are elements still in" + " that " +
-                                    "generation.",
+                            "Not expecting a change in oldest generation when there are elements still in" + " that "
+                                    + "generation.",
                             generation, currentStatus.getOldestGeneration());
                 } else {
                     Assert.assertNotEquals(
-                            "Expected a change in oldest generation when all elements in that " + "generation were " +
-                                    "removed.",
+                            "Expected a change in oldest generation when all elements in that " + "generation were "
+                                    + "removed.",
                             generation, currentStatus.getOldestGeneration());
                 }
 

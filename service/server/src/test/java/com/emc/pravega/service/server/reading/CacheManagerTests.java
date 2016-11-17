@@ -91,8 +91,8 @@ public class CacheManagerTests {
 
             if (activityInCycle) {
                 Assert.assertEquals(
-                        "CacheManager did not update all Clients with generation information when " + "activity did " +
-                                "happen during the cycle.",
+                        "CacheManager did not update all Clients with generation information when " + "activity did "
+                                + "happen during the cycle.",
                         clients.size(), updatedClients.size());
             } else {
                 Assert.assertEquals("CacheManager updated Generations when no activity happened during the cycle.", 0,

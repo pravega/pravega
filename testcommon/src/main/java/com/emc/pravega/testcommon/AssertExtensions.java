@@ -228,8 +228,8 @@ public class AssertExtensions {
      * @param message  The message to include in the Assert calls.
      * @param expected The list to check against.
      * @param actual   The list to check.
-     * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each
-     *                 list are equivalent.
+     * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each list
+     *                 are equivalent.
      * @param <T>      The type of the list's elements.
      */
     public static <T> void assertListEquals(String message, List<T> expected, List<T> actual,

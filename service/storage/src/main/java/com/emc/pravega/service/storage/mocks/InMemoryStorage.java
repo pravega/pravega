@@ -253,8 +253,7 @@ public class InMemoryStorage implements Storage {
      * @param segmentName The Name of the Segment.
      * @param timeout     The timeout for the wait.
      * @return A CompletableFuture that will complete when the given Segment is sealed. This Future will fail with a
-     * TimeoutException
-     * if the Segment was not sealed within the given timeout.
+     * TimeoutException if the Segment was not sealed within the given timeout.
      */
     public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
         CompletableFuture<Void> result;

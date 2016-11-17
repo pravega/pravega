@@ -243,8 +243,8 @@ public class ContainerReadIndex implements ReadIndex {
                 "Given" + " ContainerMetadata refers to a different container than this ReadIndex.");
 
         // Swap metadata with recovery metadata (but still keep track of recovery metadata.
-        assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless " +
-                "we" + " already are in recovery mode";
+        assert this.preRecoveryMetadata == null : "preRecoveryMetadata is not null, which should not happen unless "
+                + "we" + " already are in recovery mode";
         this.preRecoveryMetadata = this.metadata;
         this.metadata = recoveryMetadataSource;
         log.info("{} Enter RecoveryMode.", this.traceObjectId);

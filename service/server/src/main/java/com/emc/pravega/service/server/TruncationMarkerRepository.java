@@ -32,8 +32,8 @@ public interface TruncationMarkerRepository {
      * A Truncation Marker is a particular position in the Log where we can execute truncation operations.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param address                 The LogAddress of the corresponding Data Frame that can be truncated (up to,
-     *                                and including).
+     * @param address                 The LogAddress of the corresponding Data Frame that can be truncated (up to, and
+     *                                including).
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     void recordTruncationMarker(long operationSequenceNumber, LogAddress address);

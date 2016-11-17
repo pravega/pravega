@@ -276,8 +276,8 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
     }
 
     /**
-     * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer, * java.util.concurrent
-     * .CompletableFuture)
+     * @see com.emc.pravega.stream.impl.segment.SegmentOutputStream#write(java.nio.ByteBuffer,
+     *                   java.util.concurrent.CompletableFuture)
      */
     @Override
     @Synchronized
