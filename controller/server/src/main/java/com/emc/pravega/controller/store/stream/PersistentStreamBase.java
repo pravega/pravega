@@ -346,8 +346,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         final int currentChunk = currentSegmentData.left;
         final Data<T> currentChunkData = currentSegmentData.right;
 
-        final int startingSegmentNumber = currentChunk * SegmentRecord.SEGMENT_CHUNK_SIZE + (currentChunkData.getData
-                ().length / SegmentRecord.SEGMENT_RECORD_SIZE);
+        final int startingSegmentNumber = currentChunk * SegmentRecord.SEGMENT_CHUNK_SIZE +
+                (currentChunkData.getData().length / SegmentRecord.SEGMENT_RECORD_SIZE);
 
         // idempotent check
         final Segment lastSegment = TableHelper.getSegment(startingSegmentNumber - 1, currentChunkData.getData());

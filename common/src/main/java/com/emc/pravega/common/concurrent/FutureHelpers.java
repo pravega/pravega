@@ -84,9 +84,8 @@ public final class FutureHelpers {
      * @throws ExceptionT If thrown by the future.
      */
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Function<Throwable,
-                                                                                                 ExceptionT>
-                                                                                                 exceptionConstructor) throws ExceptionT {
+                                                        Function<Throwable, ExceptionT> exceptionConstructor)
+            throws ExceptionT {
         Preconditions.checkNotNull(exceptionConstructor);
         try {
             return Exceptions.handleInterrupted(() -> future.get());

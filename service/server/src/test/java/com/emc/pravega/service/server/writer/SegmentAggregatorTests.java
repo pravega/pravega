@@ -1535,8 +1535,8 @@ public class SegmentAggregatorTests {
                 exceptionReset.run();
                 FlushResult parentFlushResult = tryFlushSegment(context.segmentAggregator, exceptionProvider,
                         context.executor.get());
-                anythingFlushed = anythingFlushed | (parentFlushResult == null || (parentFlushResult.getFlushedBytes
-                        () + parentFlushResult.getMergedBytes()) > 0);
+                anythingFlushed = anythingFlushed | (parentFlushResult == null ||
+                        (parentFlushResult.getFlushedBytes() + parentFlushResult.getMergedBytes()) > 0);
             }
         }
     }

@@ -35,7 +35,8 @@ import java.util.Optional;
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
  * Row : [eventTime, List-of-active-segment-numbers]
- */ public class HistoryRecord {
+*/
+public class HistoryRecord {
     private final int endOfRowPointer;
     private final long eventTime;
     private final List<Integer> segments;
