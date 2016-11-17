@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
@@ -73,7 +74,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private final NodeCache segContainerHostMapping;
     private final CuratorFramework client;
-    private final String clusterName;
+    private final String clusterPath;
 
     /**
      * Creates a new instance of the ZKSegmentContainerManager class.
@@ -95,15 +96,15 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
         Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
+        Preconditions.checkArgument(StringUtils.isNotEmpty(clusterName), "cluster name is invalid");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
         this.handles = new HashMap<>();
 
         this.client = zkClient;
-        this.clusterName = clusterName;
-        segContainerHostMapping = new NodeCache(zkClient, ZKPaths.makePath("cluster", clusterName,
-                "segmentContainerHostMapping"));
+        this.clusterPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
+        segContainerHostMapping = new NodeCache(zkClient, clusterPath);
 
         this.host = pravegaServiceEndpoint;
     }
@@ -258,8 +259,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     @SuppressWarnings("unchecked")
     private Map<Host, Set<Integer>> getSegmentContainerMapping() throws Exception {
-        String path = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
-        Optional<byte[]> containerToHostMapSer = Optional.of(client.getData().forPath(path));
+        Optional<byte[]> containerToHostMapSer = Optional.of(client.getData().forPath(clusterPath));
         if (containerToHostMapSer.isPresent()) {
             return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer.get());
         } else {
