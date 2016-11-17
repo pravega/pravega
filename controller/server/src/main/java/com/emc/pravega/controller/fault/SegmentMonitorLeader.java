@@ -117,7 +117,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 case ERROR:
                     //This event should be due to ZK connection errors and would have been received by the monitor too,
                     //hence not handling it explicitly here.
-                    log.warn("Received error event when monitoring the pravega host cluster");
+                    log.info("Received error event when monitoring the pravega host cluster, ignoring...");
                     break;
             }
         });

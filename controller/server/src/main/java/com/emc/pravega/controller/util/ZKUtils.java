@@ -56,8 +56,6 @@ public class ZKUtils {
      *
      * @param client                The curator client to access zookeeper.
      * @param basePath              The znode path string.
-     * @throws NullPointerException If client is null.
-     * @throws NullPointerException If basePath is null.
      * @throws RuntimeException     If checking or creating path on zookeeper fails.
      */
     public static void createPathIfNotExists(final CuratorFramework client, final String basePath) {
@@ -81,9 +79,6 @@ public class ZKUtils {
      * @param client                The curator client to access zookeeper.
      * @param basePath              The znode path string.
      * @param initData              Initialize the znode using the supplied data if not already created.
-     * @throws NullPointerException If client is null.
-     * @throws NullPointerException If basePath is null.
-     * @throws NullPointerException If initData is null.
      * @throws RuntimeException     If checking or creating path on zookeeper fails.
      */
     public static void createPathIfNotExists(final CuratorFramework client, final String basePath,

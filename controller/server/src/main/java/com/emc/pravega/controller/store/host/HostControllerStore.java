@@ -38,7 +38,6 @@ public interface HostControllerStore {
      * Update the existing host to container map with the new one. This operation has to be atomic.
      *
      * @param newMapping            The new host to container mapping which needs to be persisted.
-     * @throws NullPointerException If newMapping is null.
      * @throws HostStoreException   On error while updating the Map.
      */
     void updateHostContainersMap(Map<Host, Set<Integer>> newMapping);

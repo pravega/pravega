@@ -52,8 +52,6 @@ public class ZKHostStore implements HostControllerStore {
      *
      * @param client                    The curator client instance.
      * @param clusterName               The name of the cluster.
-     * @throws NullPointerException     If client is null.
-     * @throws NullPointerException     If clusterName is null.
      */
     public ZKHostStore(CuratorFramework client, String clusterName) {
         Preconditions.checkNotNull(client, "Curator Client");

@@ -36,7 +36,6 @@ public class InMemoryHostStore implements HostControllerStore {
      * deployment purposes.
      *
      * @param hostContainerMap      The initial Host to container ownership information.
-     * @throws NullPointerException If hostContainerMap is null.
      */
     public InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");

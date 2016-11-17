@@ -33,8 +33,6 @@ public interface ContainerBalancer {
      *                              older host set.
      * @param currentHosts          The updated list of hosts in the cluster.
      * @return                      The new host to containers mapping after performing a rebalance operation.
-     * @throws NullPointerException If previousMapping is null.
-     * @throws NullPointerException If currentHosts is null.
      */
     Map<Host, Set<Integer>> rebalance(Map<Host, Set<Integer>> previousMapping, Set<Host> currentHosts);
 
