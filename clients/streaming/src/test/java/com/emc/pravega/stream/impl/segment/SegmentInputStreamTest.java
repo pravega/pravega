@@ -18,8 +18,7 @@
 package com.emc.pravega.stream.impl.segment;
 
 import static com.emc.pravega.testcommon.Async.testBlocking;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import java.nio.ByteBuffer;
 import java.util.Vector;
@@ -182,6 +181,34 @@ public class SegmentInputStreamTest {
         }
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read);
+    }
+    
+    @Test
+    public void testIsAtTail() throws EndOfSegmentException {
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        int numEntries = SegmentInputStreamImpl.BUFFER_SIZE / data.length;
+
+        ByteBuffer wireData = ByteBuffer.allocate((data.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            wireData.putInt(WireCommandType.EVENT.getCode());
+            wireData.putInt(data.length);
+            wireData.put(data);
+        }
+        wireData.flip();
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(3);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        assertFalse(stream.wasReadAtTail());
+        fakeNetwork.complete(0, new SegmentRead("Foo", 0, true, false, wireData.slice()));
+        for (int i = 0; i < numEntries; i++) {
+            assertFalse(stream.wasReadAtTail());
+            assertEquals(ByteBuffer.wrap(data), stream.read());
+        }
+        assertTrue(stream.wasReadAtTail());
+        testBlocking(() -> stream.read(), () -> {
+            fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, createEventFromData(data)));
+        });
+        assertFalse(stream.wasReadAtTail());
     }
 
     @Test
