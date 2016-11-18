@@ -70,7 +70,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class WrongHost implements Reply {
+    public static final class WrongHost implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.WRONG_HOST;
         final String segment;
         final String correctHost;
@@ -94,7 +94,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentIsSealed implements Reply {
+    public static final class SegmentIsSealed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_IS_SEALED;
         final String segment;
 
@@ -115,7 +115,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentAlreadyExists implements Reply {
+    public static final class SegmentAlreadyExists implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_ALREADY_EXISTS;
         final String segment;
 
@@ -141,7 +141,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class NoSuchSegment implements Reply {
+    public static final class NoSuchSegment implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.NO_SUCH_SEGMENT;
         final String segment;
 
@@ -167,7 +167,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class NoSuchTransaction implements Reply {
+    public static final class NoSuchTransaction implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.NO_SUCH_TRANSACTION;
         final String batch;
 
@@ -219,31 +219,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class Append implements Request, Comparable<Append> {
-        final WireCommandType type = WireCommandType.APPEND;
-        final String segment;
-        final UUID connectionId;
-        final long eventNumber;
-        final ByteBuf data;
-
-        @Override
-        public void process(RequestProcessor cp) {
-            cp.append(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) {
-            // This does not go over the wire. It is converted into Event (below) to save space.
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int compareTo(Append other) {
-            return Long.compare(eventNumber, other.eventNumber);
-        }
-    }
-
-    @Data
     public static final class PartialEvent implements WireCommand {
         final WireCommandType type = WireCommandType.PARTIAL_EVENT;
         final ByteBuf data;
@@ -278,7 +253,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SetupAppend implements Request {
+    public static final class SetupAppend implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SETUP_APPEND;
         final UUID connectionId;
         final String segment;
@@ -370,9 +345,48 @@ public final class WireCommands {
             return new AppendBlockEnd(connectionId, lastEventNumber, sizeOfHeaderlessAppends, wrappedBuffer(data));
         }
     }
+    
+    @Data
+    public static final class ConditionalAppend implements WireCommand {
+        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
+        final UUID connectionId;
+        final long eventNumber;
+        final long expectedOffset;
+        final ByteBuf data;
+        
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(connectionId.getMostSignificantBits());
+            out.writeLong(connectionId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            if (data == null) {
+                out.writeInt(0);
+            } else {
+                out.writeInt(data.readableBytes());
+                out.write(data.array(), data.arrayOffset(), data.readableBytes());
+            }
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            UUID connectionId = new UUID(in.readLong(), in.readLong());
+            long eventNumber = in.readLong();
+            long expectedOffset = in.readLong();
+            int dataLength = in.readInt();
+            byte[] data;
+            if (dataLength > 0) {
+                data = new byte[dataLength];
+                in.readFully(data);
+            } else {
+                data = new byte[0];
+            }
+            return new ConditionalAppend(connectionId, eventNumber, expectedOffset, wrappedBuffer(data));
+        }
+    }
+    
 
     @Data
-    public static final class AppendSetup implements Reply {
+    public static final class AppendSetup implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.APPEND_SETUP;
         final String segment;
         final UUID connectionId;
@@ -400,7 +414,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class DataAppended implements Reply {
+    public static final class DataAppended implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.DATA_APPENDED;
         final UUID connectionId;
         final long eventNumber;
@@ -423,9 +437,34 @@ public final class WireCommands {
             return new DataAppended(connectionId, offset);
         }
     }
+    
+    @Data
+    public static final class ConditionalCheckFailed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.CONDITIONAL_CHECK_FAILED;
+        final UUID connectionId;
+        final long eventNumber;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.conditionalCheckFailed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(connectionId.getMostSignificantBits());
+            out.writeLong(connectionId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            UUID connectionId = new UUID(in.readLong(), in.readLong());
+            long offset = in.readLong();
+            return new DataAppended(connectionId, offset);
+        }
+    }
 
     @Data
-    public static final class ReadSegment implements Request {
+    public static final class ReadSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.READ_SEGMENT;
         final String segment;
         final long offset;
@@ -452,7 +491,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentRead implements Reply {
+    public static final class SegmentRead implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
         final long offset;
@@ -492,7 +531,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class GetStreamSegmentInfo implements Request {
+    public static final class GetStreamSegmentInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final String segmentName;
 
@@ -513,7 +552,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class StreamSegmentInfo implements Reply {
+    public static final class StreamSegmentInfo implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.STREAM_SEGMENT_INFO;
         final String segmentName;
         final boolean exists;
@@ -549,7 +588,7 @@ public final class WireCommands {
     }
     
     @Data
-    public static final class GetTransactionInfo implements Request {
+    public static final class GetTransactionInfo implements Request, WireCommand {
         final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
         final String segment;
         final UUID txid;
@@ -574,7 +613,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TransactionInfo implements Reply {
+    public static final class TransactionInfo implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_INFO;
         final String segment;
         final UUID txid;
@@ -615,7 +654,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class CreateSegment implements Request {
+    public static final class CreateSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final String segment;
 
@@ -636,7 +675,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentCreated implements Reply {
+    public static final class SegmentCreated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_CREATED;
         final String segment;
 
@@ -657,7 +696,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class CreateTransaction implements Request {
+    public static final class CreateTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.CREATE_TRANSACTION;
         final String segment;
         final UUID txid;
@@ -682,7 +721,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TransactionCreated implements Reply {
+    public static final class TransactionCreated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_CREATED;
         final String segment;
         final UUID txid;
@@ -707,7 +746,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class CommitTransaction implements Request {
+    public static final class CommitTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.COMMIT_TRANSACTION;
         final String segment;
         final UUID txid;
@@ -732,7 +771,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TransactionCommitted implements Reply {
+    public static final class TransactionCommitted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_COMMITTED;
         final String segment;
         final UUID txid;
@@ -757,7 +796,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class DropTransaction implements Request {
+    public static final class DropTransaction implements Request, WireCommand {
         final WireCommandType type = WireCommandType.DROP_TRANSACTION;
         final String segment;
         final UUID txid;
@@ -782,7 +821,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TransactionDropped implements Reply {
+    public static final class TransactionDropped implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.TRANSACTION_DROPPED;
         final String segment;
         final UUID txid;
@@ -808,7 +847,7 @@ public final class WireCommands {
 
     
     @Data
-    public static final class SealSegment implements Request {
+    public static final class SealSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final String segment;
 
@@ -829,7 +868,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentSealed implements Reply {
+    public static final class SegmentSealed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_SEALED;
 
         @Override
@@ -849,7 +888,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class DeleteSegment implements Request {
+    public static final class DeleteSegment implements Request, WireCommand {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
 
         @Override
@@ -869,7 +908,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class SegmentDeleted implements Reply {
+    public static final class SegmentDeleted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_DELETED;
 
         @Override
@@ -889,7 +928,7 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class KeepAlive implements Request, Reply {
+    public static final class KeepAlive implements Request, Reply, WireCommand {
         final WireCommandType type = WireCommandType.KEEP_ALIVE;
 
         @Override

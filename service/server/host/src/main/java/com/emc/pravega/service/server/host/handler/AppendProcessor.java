@@ -15,10 +15,21 @@
 
 package com.emc.pravega.service.server.host.handler;
 
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.BiFunction;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.ServerConnection;
-import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
@@ -32,24 +43,11 @@ import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.contracts.WrongHostException;
+import com.google.common.collect.LinkedListMultimap;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.function.BiFunction;
-
-import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * Process incomming Append requests and write them to the appropriate store.
@@ -68,7 +66,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final Object lock = new Object();
 
     @GuardedBy("lock")
-    private final LinkedHashMap<UUID, List<Append>> waitingAppends = new LinkedHashMap<>();
+    private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
     @GuardedBy("lock")
     private final HashMap<UUID, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
@@ -131,23 +129,30 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
                 return;
             }
-            Entry<UUID, List<Append>> entry = removeFirst(waitingAppends);
-            UUID writer = entry.getKey();
-            List<Append> appends = entry.getValue();
-            // NOTE: Not sorting the events because they should already be in order
-            ByteBuf data = wrappedBuffer(appends.stream().map(Append::getData).toArray(ByteBuf[]::new));
-            Append lastAppend = appends.get(appends.size() - 1);
-            append = new Append(lastAppend.getSegment(), writer, lastAppend.getEventNumber(), data);
+            UUID writer = waitingAppends.keys().iterator().next();
+            List<Append> appends = waitingAppends.get(writer);
+            if (appends.get(0).isConditional()) {
+                append = appends.remove(0);
+            } else {
+                ByteBuf[] toAppend = new ByteBuf[appends.size()];
+                Append last = null;
+                int i = -1;
+                for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext();) {
+                    Append a = iterator.next();
+                    if (a.isConditional()) {
+                        break;
+                    }
+                    i++;
+                    toAppend[i] = a.getData();
+                    last = a;
+                    iterator.remove();
+                }                
+                ByteBuf data = Unpooled.wrappedBuffer(toAppend);
+                append = new Append(last.getSegment(), writer, last.getEventNumber(), data, null);
+            }
             outstandingAppend = append;
         }
         write(append);
-    }
-
-    private static <K, V> Entry<K, V> removeFirst(LinkedHashMap<K, V> map) {
-        Iterator<Entry<K, V>> iter = map.entrySet().iterator();
-        Entry<K, V> first = iter.next();
-        iter.remove();
-        return first;
     }
 
     /**
@@ -171,7 +176,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         toWrite.getData().release();
                         outstandingAppend = null;
                         if (u != null) {
-                            waitingAppends.remove(toWrite.getConnectionId());
+                            waitingAppends.removeAll(toWrite.getConnectionId());
                             latestEventNumbers.remove(toWrite.getConnectionId());
                         }
                     }
@@ -225,7 +230,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         synchronized (lock) {
             bytesWaiting = waitingAppends.values()
                 .stream()
-                .flatMap(List::stream)
                 .mapToInt(a -> a.getData().readableBytes())
                 .sum();
         }
@@ -254,12 +258,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 throw new IllegalStateException("Event was already appended.");
             }
             latestEventNumbers.put(id, append.getEventNumber());
-            List<Append> waiting = waitingAppends.get(id);
-            if (waiting == null) {
-                waiting = new ArrayList<>(2);
-                waitingAppends.put(id, waiting);
-            }
-            waiting.add(append);
+            waitingAppends.put(id, append);
         }
         pauseOrResumeReading();
         performNextWrite();

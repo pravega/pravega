@@ -31,6 +31,14 @@ public interface ClientConnection extends AutoCloseable {
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(WireCommand cmd) throws ConnectionFailedException;
+    
+    /**
+     * Sends the provided append request. This operation may block. 
+     * (Though buffering is used to try to prevent it)
+     *
+     * @throws ConnectionFailedException The connection has died, and can no longer be used.
+     */
+    void send(Append append) throws ConnectionFailedException;
 
     /**
      * Drop the connection. No further operations may be performed.

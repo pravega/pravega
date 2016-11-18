@@ -18,6 +18,7 @@
 package com.emc.pravega.common.netty;
 
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
@@ -72,6 +73,11 @@ public class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void dataAppended(DataAppended dataAppended) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+    
+    @Override
+    public void conditionalCheckFailed(ConditionalCheckFailed dataNotAppended) {
         throw new IllegalStateException("Unexpected operation");
     }
 

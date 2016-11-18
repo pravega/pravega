@@ -29,10 +29,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import com.emc.pravega.common.netty.Append;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.PravegaNodeUri;
-import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.KeepAlive;

@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.UUID;
 
-import com.emc.pravega.common.netty.WireCommands.Append;
 import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
 import com.emc.pravega.common.netty.WireCommands.Event;
@@ -64,7 +63,7 @@ import lombok.SneakyThrows;
  * event in the block, so that it can be acknowledged.
  * 
  */
-public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
+public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
     private final HashMap<String, Session> setupSegments = new HashMap<>();
@@ -78,7 +77,7 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
     }
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, WireCommand msg, ByteBuf out) throws Exception {
+    protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
         if (msg instanceof Append) {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
@@ -123,12 +122,14 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
             }
         } else if (msg instanceof SetupAppend) {
             breakFromAppend(out);
-            writeMessage(msg, out);
+            writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(setup.getSegment(), new Session(setup.getConnectionId()));
-        } else {
+        } else if (msg instanceof WireCommand) {
             breakFromAppend(out);
-            writeMessage(msg, out);
+            writeMessage((WireCommand) msg, out);
+        } else {
+            throw new IllegalArgumentException("Expected a wire command and found: "+ msg);
         }
     }
 
