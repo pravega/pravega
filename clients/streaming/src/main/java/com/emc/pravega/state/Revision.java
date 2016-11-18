@@ -17,6 +17,13 @@
  */
 package com.emc.pravega.state;
 
+import com.emc.pravega.state.impl.RevisionImpl;
+
 public interface Revision extends Comparable<Revision> {
+
+    /**
+     * Used internally. Do not call.
+     */
+    RevisionImpl asImpl();
 
 }
