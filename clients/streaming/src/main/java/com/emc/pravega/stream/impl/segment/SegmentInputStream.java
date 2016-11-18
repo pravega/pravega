@@ -47,10 +47,20 @@ public abstract class SegmentInputStream implements AutoCloseable {
      * Buffering is performed internally to try to prevent blocking.
      *
      * @return A ByteBuffer containing the serialized data that was written via {@link Producer#publish(String, Object)}
-     * @throws EndOfSegmentException If no event could beread because the end of the segment was reached.
+     * @throws EndOfSegmentException If no event could be read because the end of the segment was reached.
      */
     public abstract ByteBuffer read() throws EndOfSegmentException;
-
+    
+    /**
+     * Returns true if the last call to {@link #read()} was at the tail and contained the most
+     * recent available data. (Meaning that the next call to read will block until more data is
+     * written).
+     * 
+     * Calling this method upon construction or immediately following {@link #setOffset(long)} will
+     * return false.
+     */
+    public abstract boolean wasReadAtTail();
+    
     /**
      * Closes this InputStream. No further methods may be called after close.
      * This will free any resources associated with the InputStream.

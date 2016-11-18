@@ -17,7 +17,7 @@
  */
 package com.emc.pravega.stream.impl.segment;
 
-import static com.emc.pravega.common.netty.WireCommandType.APPEND;
+import static com.emc.pravega.common.netty.WireCommandType.EVENT;
 import static com.emc.pravega.common.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static com.emc.pravega.stream.impl.segment.SegmentOutputStream.MAX_WRITE_SIZE;
@@ -55,6 +55,8 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
     private ReadFuture outstandingRequest = null;
+    @GuardedBy("$lock")
+    private boolean lastRequestAtTail = false;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
         Preconditions.checkArgument(offset >= 0);
@@ -67,9 +69,12 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     @Synchronized
     public void setOffset(long offset) {
         Preconditions.checkArgument(offset >= 0);
-        this.offset = offset;
-        buffer.clear();
-        receivedEndOfSegment = false;
+        if (offset != this.offset) {
+            this.offset = offset;
+            lastRequestAtTail = false;
+            buffer.clear();
+            receivedEndOfSegment = false;
+        }
     }
 
     @Override
@@ -99,7 +104,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
             headerReadingBuffer.flip();
             int type = headerReadingBuffer.getInt();
             int length = headerReadingBuffer.getInt();
-            if (type != APPEND.getCode()) {
+            if (type != EVENT.getCode()) {
                 throw new InvalidMessageException("Event was of wrong type: " + type);
             }
             if (length < 0 || length > MAX_WIRECOMMAND_SIZE) {
@@ -131,6 +136,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
         }
+        lastRequestAtTail = segmentRead.isAtTail();
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
         }
@@ -153,6 +159,21 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     @Synchronized
     public void close() {
         asyncInput.close();
+    }
+
+    @Override
+    @Synchronized
+    public boolean wasReadAtTail() {
+        if (buffer.dataAvailable() > 0) {
+            return false;
+        }
+        if (receivedEndOfSegment && outstandingRequest == null) {
+            return true;
+        }
+        if (outstandingRequest != null && outstandingRequest.isSuccess()) {
+            return false;
+        }
+        return lastRequestAtTail;
     }
 
 }
