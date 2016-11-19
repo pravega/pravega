@@ -31,6 +31,7 @@ import com.emc.pravega.common.netty.DelegatingRequestProcessor;
 import com.emc.pravega.common.netty.RequestProcessor;
 import com.emc.pravega.common.netty.ServerConnection;
 import com.emc.pravega.common.netty.WireCommands.AppendSetup;
+import com.emc.pravega.common.netty.WireCommands.ConditionalCheckFailed;
 import com.emc.pravega.common.netty.WireCommands.DataAppended;
 import com.emc.pravega.common.netty.WireCommands.NoSuchSegment;
 import com.emc.pravega.common.netty.WireCommands.SegmentAlreadyExists;
@@ -38,6 +39,7 @@ import com.emc.pravega.common.netty.WireCommands.SegmentIsSealed;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
 import com.emc.pravega.common.netty.WireCommands.WrongHost;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
@@ -162,8 +164,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ByteBuf buf = Unpooled.unmodifiableBuffer(toWrite.getData());
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        CompletableFuture<Long> future = store
-            .append(toWrite.getSegment(), bytes, new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber()), TIMEOUT);
+        AppendContext context = new AppendContext(toWrite.getConnectionId(), toWrite.getEventNumber());
+        CompletableFuture<Long> future;
+        String segment = toWrite.getSegment();
+        if (toWrite.isConditional()) {
+            future = store.append(segment, toWrite.getExpectedLength(), bytes, context, TIMEOUT);
+        } else {
+            future = store.append(segment, bytes, context, TIMEOUT);
+        }
         future.handle(new BiFunction<Long, Throwable, Void>() {
             @Override
             public Void apply(Long t, Throwable u) {
@@ -176,19 +184,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         toWrite.getData().release();
                         outstandingAppend = null;
                         if (u != null) {
-                            waitingAppends.removeAll(toWrite.getConnectionId());
-                            latestEventNumbers.remove(toWrite.getConnectionId());
+                            waitingAppends.removeAll(context.getClientId());
+                            latestEventNumbers.remove(context.getClientId());
                         }
                     }
                     if (t == null) {
-                        handleException(toWrite.getSegment(), u);
+                        if (u instanceof BadOffsetException) {
+                            connection.send(new ConditionalCheckFailed(context.getClientId(), context.getEventNumber()));
+                        } else {
+                            handleException(segment, u);
+                        }
                     } else {
-                        connection.send(new DataAppended(toWrite.getConnectionId(), toWrite.getEventNumber()));
+                        connection.send(new DataAppended(context.getClientId(),  context.getEventNumber()));
                     }
                     pauseOrResumeReading();
                     performNextWrite();
                 } catch (Throwable e) {
-                    handleException(toWrite.getSegment(), e);
+                    handleException(segment, e);
                 }
                 return null;
             }
