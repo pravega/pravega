@@ -20,13 +20,18 @@ package com.emc.pravega.service.server.store;
 
 import com.emc.pravega.common.util.ComponentConfig;
 import com.google.common.base.Preconditions;
+import lombok.extern.slf4j.Slf4j;
 
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Properties;
 import java.util.function.Function;
 
 /**
  * Configuration for ServiceBuilder.
  */
+@Slf4j
 public class ServiceBuilderConfig {
     //region Members
 
@@ -61,9 +66,35 @@ public class ServiceBuilderConfig {
     //region Default Configuration
 
     /**
-     * Gets a default set of configuration values, in absence of any real configuration.
+     * Gets a set of configuration values from the default config file.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
+        FileReader reader = null;
+        try {
+            reader = new FileReader("config/config.properties");
+            return getConfigFromStream(reader);
+        } catch (IOException e) {
+            log.warn("Unable to read configuration because of exception " + e.getMessage());
+            return getDefaultConfigHardCoded();
+        }
+    }
+
+    /**
+     * Gets a set of configuration values from a given InputStreamReader.
+     * @param  reader the InputStreamReader from which to read the configuration.
+     * @return A ServiceBuilderConfig object.
+     * @throws IOException If an exception occurred during reading of the configuration.
+     */
+    public static ServiceBuilderConfig getConfigFromStream(InputStreamReader reader) throws IOException {
+        Properties p = new Properties();
+        p.load(reader);
+        return new ServiceBuilderConfig(p);
+    }
+
+    /**
+     * Gets a default set of configuration values, in absence of any real configuration.
+     */
+    private static ServiceBuilderConfig getDefaultConfigHardCoded() {
         Properties p = new Properties();
 
         // General params
@@ -78,10 +109,10 @@ public class ServiceBuilderConfig {
 
         //HDFS params
         set(p, "hdfs", "fs.default.name", "localhost:9000");
-        set(p, "hdfs", "hdfsroot", "");
-        set(p, "hdfs", "pravegaid", "0");
+        set(p, "hdfs", "hdfsRoot", "");
+        set(p, "hdfs", "pravegaId", "0");
         set(p, "hdfs", "replication", "1");
-        set(p, "hdfs", "blocksize", "1048576");
+        set(p, "hdfs", "blockSize", "1048576");
 
         // DurableLogConfig, WriterConfig, ReadIndexConfig all have defaults built-in, so no need to override them here.
         return new ServiceBuilderConfig(p);

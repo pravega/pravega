@@ -27,6 +27,7 @@ import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 import java.net.URI;
 import java.util.concurrent.ConcurrentHashMap;
 
+
 /**
  * A stream manager. Used to bootstrap the client.
  */
@@ -55,8 +56,8 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        FutureHelpers.getAndHandleExceptions(controller
-                        .createStream(new StreamConfigurationImpl(scope, streamName, config.getScalingPolicy())),
+        FutureHelpers.getAndHandleExceptions(controller.createStream(new StreamConfigurationImpl(scope, streamName,
+                        config.getScalingPolicy())),
                 RuntimeException::new);
 
         Stream stream = new StreamImpl(scope, streamName, config, controller, connectionFactory);
