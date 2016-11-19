@@ -209,7 +209,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, AppendContext appendContext, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
@@ -222,7 +222,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
                     // Add to Append Context Registry, if needed.
                     this.pendingAppendsCollection.register(operation, result);
-                    return result.thenApply(seqNo -> null);
+                    return result;
                 });
     }
 
