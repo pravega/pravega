@@ -18,6 +18,14 @@
 
 package com.emc.pravega.controller.server.rpc.v1;
 
+import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+
+import java.net.UnknownHostException;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import org.apache.commons.lang.NotImplementedException;
+
 import com.emc.pravega.common.hash.HashHelper;
 import com.emc.pravega.common.netty.ClientConnection;
 import com.emc.pravega.common.netty.ConnectionFactory;
@@ -25,7 +33,7 @@ import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.FailingReplyProcessor;
 import com.emc.pravega.common.netty.PravegaNodeUri;
 import com.emc.pravega.common.netty.ReplyProcessor;
-import com.emc.pravega.common.netty.Request;
+import com.emc.pravega.common.netty.WireCommand;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -35,13 +43,6 @@ import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.TxFailedException;
 import com.emc.pravega.stream.impl.model.ModelHelper;
-import org.apache.commons.lang.NotImplementedException;
-
-import java.net.UnknownHostException;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import static com.emc.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 public class SegmentHelper {
 
@@ -247,7 +248,7 @@ public class SegmentHelper {
         return true;
     }
 
-    private static void sendRequestOverNewConnection(final Request request,
+    private static void sendRequestOverNewConnection(final WireCommand request,
                                                      final ReplyProcessor replyProcessor,
                                                      final ConnectionFactory connectionFactory,
                                                      final PravegaNodeUri uri) {
@@ -256,7 +257,6 @@ public class SegmentHelper {
                 .establishConnection(uri, replyProcessor), RuntimeException::new);
         try {
             connection.send(request);
-
         } catch (ConnectionFailedException e) {
             throw new RuntimeException(e);
         }
