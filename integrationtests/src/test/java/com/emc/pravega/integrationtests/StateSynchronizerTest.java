@@ -42,7 +42,6 @@ import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
-import scala.collection.immutable.HashSet;
 
 public class StateSynchronizerTest {
     
