@@ -71,7 +71,7 @@ public class ServiceBuilderConfig {
     public static ServiceBuilderConfig getDefaultConfig() {
         FileReader reader = null;
         try {
-            reader = new FileReader("config/config.properties");
+            reader = new FileReader("config.properties");
             return getConfigFromStream(reader);
         } catch (IOException e) {
             log.warn("Unable to read configuration because of exception " + e.getMessage());
