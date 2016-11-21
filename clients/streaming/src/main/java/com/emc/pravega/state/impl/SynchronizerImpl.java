@@ -14,10 +14,13 @@ import com.emc.pravega.stream.Serializer;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
+import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
+@RequiredArgsConstructor
 public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<StateT>>
         implements Synchronizer<StateT, UpdateT> {
 
@@ -34,7 +37,11 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         in.setOffset(0);
         ByteBuffer read;
         do {
-            read = in.read();
+            try {
+                read = in.read();
+            } catch (EndOfSegmentException e) {
+                throw new CorruptedStateException("Unexpected end of segment ", e);
+            }
         } while(isUpdate(read));
         StateT state = decodeState(read);
         in.setOffset(state.getRevision().asImpl().getOffsetInSegment());
@@ -73,7 +80,11 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         RevisionImpl revision = localState.getRevision().asImpl();
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         long offset = revision.getOffsetInSegment();
-        out.conditionalWrite(offset, encodeUpdate(Collections.singletonList(update)), wasWritten);
+        try {
+            out.conditionalWrite(offset, encodeUpdate(Collections.singletonList(update)), wasWritten);
+        } catch (SegmentSealedException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
         if (!FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) { 
             return null;
         } 
@@ -85,7 +96,11 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         RevisionImpl revision = localState.getRevision().asImpl();
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         long offset = revision.getOffsetInSegment();
-        out.conditionalWrite(offset, encodeUpdate(update), wasWritten);
+        try {
+            out.conditionalWrite(offset, encodeUpdate(update), wasWritten);
+        } catch (SegmentSealedException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
         if (!FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) { 
             return null;
         }

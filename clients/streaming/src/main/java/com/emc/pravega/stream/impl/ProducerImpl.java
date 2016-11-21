@@ -133,7 +133,7 @@ public class ProducerImpl<Type> implements Producer<Type> {
                 handleLogSealed();
             }
         }
-        return result.thenAccept(()->{});
+        return result.thenAccept(b->{});
     }
 
     /**

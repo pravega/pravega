@@ -6,4 +6,8 @@ public class CorruptedStateException extends RuntimeException {
         super(message);
     }
 
+    public CorruptedStateException(String string, Exception e) {
+        super(string, e);
+    }
+
 }
