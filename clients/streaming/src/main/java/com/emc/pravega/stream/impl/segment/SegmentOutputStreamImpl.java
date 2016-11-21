@@ -103,11 +103,8 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             handleInterrupted(() -> inflightEmpty.await());
         }
 
-        private void connectionSetupComplete(long ackLevel) {
-            synchronized (lock) {
-                eventNumber = ackLevel;
-                connectionSetup.release();
-            }
+        private void connectionSetupComplete() {
+            connectionSetup.release();
         }
 
         /**
@@ -143,7 +140,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
                 oldConnection = connection;
                 connection = null;
             }
-            connectionSetupComplete(0);
+            connectionSetupComplete();
             oldConnection.close();
         }
 
@@ -276,7 +273,7 @@ class SegmentOutputStreamImpl extends SegmentOutputStream {
             ackUpTo(ackLevel);
             try {
                 retransmitInflight();
-                state.connectionSetupComplete(ackLevel);
+                state.connectionSetupComplete();
             } catch (ConnectionFailedException e) {
                 state.failConnection(e);
             }
