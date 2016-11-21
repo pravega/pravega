@@ -25,6 +25,7 @@ import java.util.Set;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
+import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
@@ -162,7 +163,9 @@ public class SetSynchronizer<T extends Serializable> {
     }
     
     public static <T extends Serializable> SetSynchronizer<T> createNewSet(Stream stream) {
-        return new SetSynchronizer<>(stream.createSynchronizer(new JavaSerializer<UpdatableSet<T>>(), new JavaSerializer<SetUpdate<T>>(), null));
+        return new SetSynchronizer<>(stream.createSynchronizer(new JavaSerializer<UpdatableSet<T>>(),
+                                                               new JavaSerializer<SetUpdate<T>>(),
+                                                               new SynchronizerConfig(null, null)));
     }
 
 }

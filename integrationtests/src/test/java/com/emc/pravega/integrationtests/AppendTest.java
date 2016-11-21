@@ -184,7 +184,7 @@ public class AppendTest {
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();
-        assertEquals(null, ack.get(5, TimeUnit.SECONDS));
+        assertEquals(true, ack.get(5, TimeUnit.SECONDS));
     }
 
     @Test

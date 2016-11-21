@@ -44,7 +44,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
 
 public class StateSynchronizerTest {
-    
+
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
@@ -63,7 +63,7 @@ public class StateSynchronizerTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testStateTracker() throws TxFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
@@ -75,9 +75,10 @@ public class StateSynchronizerTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         Stream stream = streamManager.createStream(stateName, null);
+        // TODO: Pass an initial state when creating it.
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
-        
+
         assertTrue(setA.attemptAdd("1"));
         assertFalse(setB.attemptAdd("Fail"));
         assertTrue(setA.attemptAdd("2"));
@@ -93,5 +94,5 @@ public class StateSynchronizerTest {
         assertTrue(setA.attemptClear());
         assertEquals(0, setA.getCurrentValues().size());
     }
-    
+
 }

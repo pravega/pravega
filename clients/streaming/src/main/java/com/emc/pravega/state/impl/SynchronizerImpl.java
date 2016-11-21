@@ -83,6 +83,9 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     
     @Override
     public StateT getLatestState(StateT localState) {
+        if (localState == null) {
+            return getLatestState();
+        }
         StateT state = localState;
         in.setOffset(state.getRevision().asImpl().getOffsetInSegment());
         state = applyNextUpdateIfAvailable(state, false);
