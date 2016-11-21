@@ -222,8 +222,7 @@ public class SegmentAggregatorTests {
 
         // 1b. Verify that MergeTransactionOperation has the right parent.
         AssertExtensions.assertThrows(
-                "add() allowed a MergeTransactionOperation on the parent for a Transaction that did not have it as a " +
-                        "" + "parent.",
+         "add() allowed a MergeTransactionOperation on the parent for a Transaction that did not have it as a parent.",
                 () -> transactionAggregator.add(generateSimpleMergeTransaction(badTransactionId, context)),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -419,8 +418,7 @@ public class SegmentAggregatorTests {
                 context.segmentAggregator.add(appendOp);
                 getAppendData(appendOp, writtenData, context);
                 Assert.assertEquals(
-                        "Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (Transaction " +
-                                "" + "appends).",
+                "Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (Transaction appends).",
                         appendOp.getSequenceNumber(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
             }
 

@@ -392,8 +392,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                     // If we do find a failed one in this area, make sure it is failed with DataCorruptionException.
                     AssertExtensions.assertThrows(
                             "Unexpected exception for failed Operation in the same DataFrame as intentionally failed " +
-                                    "" + "" + "operation.",
-                            oc.completion::join, ex -> ex instanceof DataCorruptionException);
+                             "operation.", oc.completion::join, ex -> ex instanceof DataCorruptionException);
                     encounteredFirstFailure = true;
                 } else {
                     successCount++;

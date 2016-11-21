@@ -481,7 +481,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
             if (parentMetadata == null) {
                 throw new MetadataUpdateException(String.format(
                         "Operation %d wants to map a StreamSegment to a Parent StreamSegment Id that does not exist. " +
-                                "" + "" + "Parent StreamSegmentId = %d, Transaction Name = %s.",
+                                "Parent StreamSegmentId = %d, Transaction Name = %s.",
                         operation.getSequenceNumber(), operation.getParentStreamSegmentId(),
                         operation.getStreamSegmentName()));
             }
@@ -558,8 +558,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         private void acceptMetadataOperation(TransactionMapOperation operation) throws MetadataUpdateException {
             if (operation.getStreamSegmentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID) {
                 throw new MetadataUpdateException(
-                        "TransactionMapOperation does not have a StreamSegmentId assigned: " + "" + operation
-                                .toString());
+                        "TransactionMapOperation does not have a StreamSegmentId assigned: " + operation.toString());
             }
 
             // Create stream metadata here - we need to do this as part of the transaction.

@@ -77,7 +77,8 @@ public class AppendEncodeDecodeTest {
     @Test(expected = InvalidMessageException.class)
     public void testAppendWithoutSetup() throws Exception {
         int size = 10;
-        @Cleanup("release") ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         append(streamName, connectionId, 0, 1, size, fakeNetwork);
     }
 
@@ -95,7 +96,8 @@ public class AppendEncodeDecodeTest {
 
     private void sendAndVerifyEvents(String segment, UUID connectionId, int numEvents, int eventSize, int
             expectedMessages) throws Exception {
-        @Cleanup("release") ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(segment, connectionId, fakeNetwork);
         for (int i = 0; i < numEvents; i++) {
             append(segment, connectionId, eventSize * (i + 1), i, eventSize, fakeNetwork);
@@ -122,7 +124,8 @@ public class AppendEncodeDecodeTest {
     }
 
     private void testFlush(int size) throws Exception {
-        @Cleanup("release") ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(streamName, connectionId, fakeNetwork);
 
         append(streamName, connectionId, size, 0, size, fakeNetwork);
@@ -185,7 +188,8 @@ public class AppendEncodeDecodeTest {
     @Test
     public void testAppendAtBlockBound() throws Exception {
         int size = APPEND_BLOCK_SIZE;
-        @Cleanup("release") ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(streamName, connectionId, fakeNetwork);
 
         append(streamName, connectionId, size, 1, size, fakeNetwork);

@@ -126,13 +126,11 @@ public class PendingAppendsCollectionTests {
             doneThirdThird.completeExceptionally(new IntentionalException());
             for (Map.Entry<AppendContext, CompletableFuture<AppendContext>> e : thirdThirdContexts.entrySet()) {
                 Assert.assertTrue(
-                        "Future returned from get() did not complete even though the underlying append did " +
-                                "complete.",
+                        "Future returned from get() did not complete even though the underlying append did complete.",
                         e.getValue().isDone());
                 AssertExtensions.assertThrows(
                         "Future returned from get() did not complete exceptionally even though the underlying append " +
-                                "" + "" + "failed.",
-                        e.getValue()::join, ex -> ex instanceof IntentionalException);
+                                "failed.", e.getValue()::join, ex -> ex instanceof IntentionalException);
             }
         }
     }

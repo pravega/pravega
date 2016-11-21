@@ -111,7 +111,8 @@ public class SegmentInputStreamTest {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(3);
-        @Cleanup SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         ByteBuffer read = testBlocking(() -> stream.read(),
                 () -> fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
@@ -125,7 +126,8 @@ public class SegmentInputStreamTest {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(5);
-        @Cleanup SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         fakeNetwork.complete(1, new SegmentRead("Foo", 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(2, new SegmentRead("Foo", 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
@@ -149,7 +151,8 @@ public class SegmentInputStreamTest {
         wireData.flip();
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(3);
         fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, wireData.slice()));
-        @Cleanup SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         for (int i = 0; i < numEntries; i++) {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
@@ -165,7 +168,8 @@ public class SegmentInputStreamTest {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(6);
-        @Cleanup SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
         fakeNetwork.complete(2, new SegmentRead("Foo", 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));

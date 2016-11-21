@@ -118,8 +118,7 @@ public class StreamSegmentMapperTests {
                 context.mapper.createNewStreamSegment(segmentName, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals(
-                "Segment was registered in the metadata even if it failed to be created " + "" + "" +
-                        "(StreamSegmentExistsException).",
+              "Segment was registered in the metadata even if it failed to be created (StreamSegmentExistsException).",
                 ContainerMetadata.NO_STREAM_SEGMENT_ID, context.metadata.getStreamSegmentId(segmentName));
 
         // 2. Create fails with random exception.
@@ -142,9 +141,8 @@ public class StreamSegmentMapperTests {
                 context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertEquals(
-                "Transaction was registered in the metadata even if it failed to be created " + "" + "" +
-                        "(StreamSegmentExistsException).",
-                1, context.metadata.getAllStreamSegmentIds().size());
+            "Transaction was registered in the metadata even if it failed to be created(StreamSegmentExistsException).",
+            1, context.metadata.getAllStreamSegmentIds().size());
 
         // 4. Create-Transaction fails with random exception.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
@@ -153,8 +151,7 @@ public class StreamSegmentMapperTests {
                 context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), TIMEOUT)::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals(
-                "Transaction was registered in the metadata even if it failed to be created " + "" + "" +
-                        "(IntentionalException).",
+                "Transaction was registered in the metadata even if it failed to be created(IntentionalException).",
                 1, context.metadata.getAllStreamSegmentIds().size());
 
         // Check how this behaves when Storage works, but the OperationLog cannot process the operations.

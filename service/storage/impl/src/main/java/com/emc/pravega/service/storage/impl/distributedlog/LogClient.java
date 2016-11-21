@@ -95,7 +95,7 @@ class LogClient implements AutoCloseable {
                     handle.close();
                 } catch (Exception ex) {
                     log.error("{}: Unable to close handle for '{}'. {}", this.traceObjectId,
-                            handle == null ? "(null)" + "" : handle.getLogName(), ex);
+                            handle == null ? "(null)" : handle.getLogName(), ex);
                 }
             }
 

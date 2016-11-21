@@ -169,8 +169,8 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
             // Need to assign the DataFrameSequence that we got back from the DataLog. This is used to record
             // truncation markers.
             dataFrame.setAddress(logAddress);
-            assert dataFrame.getPreviousFrameSequence() < logAddress.getSequence() : "DataLog assigned non-monotonic " +
-                    "" + "" + "sequence number";
+            assert dataFrame.getPreviousFrameSequence() < logAddress.getSequence() : "DataLog assigned non-monotonic "
+                    + "sequence number";
         } catch (Exception ex) {
             Throwable realException = ExceptionHelpers.getRealException(ex);
             // This failure is due to us being unable to commit the DataFrame; this means the entire DataFrame has to

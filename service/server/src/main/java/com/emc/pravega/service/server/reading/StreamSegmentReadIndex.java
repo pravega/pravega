@@ -324,8 +324,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         RedirectReadIndexEntry newEntry = new RedirectReadIndexEntry(offset, sourceLength, sourceStreamSegmentIndex);
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.mergeOffsets.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex",
-                    "Given StreamSegmentReadIndex is already merged or in the process of " + "being merged into this " +
-                            "" + "one.");
+                    "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
             this.mergeOffsets.put(sourceMetadata.getId(), newEntry.getLastStreamSegmentOffset());
         }
 
@@ -610,7 +609,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         long redirectOffset = streamSegmentOffset - entry.getStreamSegmentOffset();
         assert redirectOffset >= 0 && redirectOffset < entry.getLength() : String.format(
                 "Redirected offset would be outside of the range of the Redirected StreamSegment. " +
-                        "StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d," + " "
+                        "StreamSegmentOffset = %d, MaxLength = %d, Entry.StartOffset = %d, Entry.Length = %d, "
                         + "RedirectOffset = %d.",
                 streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getLength(), redirectOffset);
 

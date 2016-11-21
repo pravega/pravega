@@ -802,12 +802,12 @@ public class ContainerReadIndexTests {
                                 ReadResultEntryType.Storage);
                 if (readEntry.getType() == ReadResultEntryType.Cache) {
                     Assert.assertTrue(
-                            testId + ": getContent() did not return a completed future (ReadResultEntryType" + "" + "" +
+                            testId + ": getContent() did not return a completed future (ReadResultEntryType" +
                                     ".Cache) for segment" + segmentId,
                             readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 } else if (readEntry.getType() == ReadResultEntryType.Storage) {
                     Assert.assertFalse(
-                            testId + ": getContent() did not return a non-completed future " + "(ReadResultEntryType"
+                            testId + ": getContent() did not return a non-completed future ReadResultEntryType"
                                     + ".Storage) for segment" + segmentId,
                             readEntry.getContent().isDone() && !readEntry.getContent().isCompletedExceptionally());
                 }
@@ -817,7 +817,7 @@ public class ContainerReadIndexTests {
                 ReadResultEntryContents readEntryContents = readEntry.getContent().get(TIMEOUT.toMillis(),
                         TimeUnit.MILLISECONDS);
                 AssertExtensions.assertGreaterThan(
-                        testId + ": getContent() returned an empty result entry for " + "segment " + segmentId, 0,
+                        testId + ": getContent() returned an empty result entry for segment " + segmentId, 0,
                         readEntryContents.getLength());
 
                 byte[] actualData = new byte[readEntryContents.getLength()];

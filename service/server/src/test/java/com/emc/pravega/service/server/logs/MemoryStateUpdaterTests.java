@@ -87,9 +87,8 @@ public class MemoryStateUpdaterTests {
                 TestReadIndex.MethodInvocation invokedMethod = methodInvocations.get(currentReadIndex);
                 if (expected instanceof StreamSegmentAppendOperation) {
                     Assert.assertTrue(
-                            "StreamSegmentAppendOperation was not added as a " + "CachedStreamSegmentAppendOperation " +
-                                    "" + "to the Memory Log.",
-                            actual instanceof CachedStreamSegmentAppendOperation);
+                            "StreamSegmentAppendOperation was not added as a CachedStreamSegmentAppendOperation to " +
+                                    "the Memory Log.", actual instanceof CachedStreamSegmentAppendOperation);
                     StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) expected;
                     Assert.assertEquals(
                             "Append with SeqNo " + expected.getSequenceNumber() + " was not added to the " +

@@ -144,8 +144,7 @@ public class OperationComparer {
     private void assertSame(String message, StreamSegmentAppendOperation expected, CachedStreamSegmentAppendOperation
             cachedActual) {
         Assert.assertNotNull(
-                "Cannot compare StreamSegmentAppendOperation with a CachedStreamSegmentAppendOperation " + "without " +
-                        "a" + " Cache.",
+              "Cannot compare StreamSegmentAppendOperation with a CachedStreamSegmentAppendOperation without a Cache.",
                 this.cache);
         Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(),
                 cachedActual.getStreamSegmentOffset());

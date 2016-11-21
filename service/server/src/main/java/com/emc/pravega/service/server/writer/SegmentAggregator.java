@@ -232,8 +232,8 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                 if (this.metadata.getStorageLength() >= 0) {
                     // Only log warning if the StorageLength has actually been initialized, but is different.
                     log.warn(
-                            "{}: SegmentMetadata has a StorageLength ({}) that is different than the actual " + "one " +
-                                    "" + "({}) - updating metadata.",
+                            "{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one " +
+                                    "({}) - updating metadata.",
                             this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
                 }
 
@@ -638,8 +638,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     if (transProperties.getLength() != transactionMetadata.getStorageLength()) {
                         throw new CompletionException(new DataCorruptionException(String.format(
                                 "Transaction Segment '%s' cannot be merged into parent '%s' because its metadata " +
-                                        "disagrees with the Storage. Metadata.StorageLength=%d, Storage" + "" + "" +
-                                        ".StorageLength=%d",
+                                      "disagrees with the Storage. Metadata.StorageLength=%d, StorageStorageLength=%d",
                                 transactionMetadata.getName(), this.metadata.getName(),
                                 transactionMetadata.getStorageLength(), transProperties.getLength())));
                     }
@@ -924,8 +923,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         if (transactionMeta == null || transactionMeta.isDeleted()) {
             return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format(
                     "Cannot reconcile " + "operation '%s' because the transaction segment is deleted or missing from " +
-                            "" + "the metadata.",
-                    op), this.metadata, storageInfo));
+                     "the metadata.", op), this.metadata, storageInfo));
         }
 
         // Verify that the operation fits fully within this segment (mergers are atomic - they either merge all or

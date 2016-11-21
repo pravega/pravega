@@ -66,10 +66,8 @@ public enum WireCommandType {
 
     PARTIAL_EVENT(-2, PartialEvent::readFrom),
 
-    APPEND(0, null),
-    // Does not go over the wire, is converted to an event.
-    EVENT(0, null),
-    // Is read manually.
+    APPEND(0, null), // Does not go over the wire, is converted to an event.
+    EVENT(0, null), // Is read manually.
 
     SETUP_APPEND(1, SetupAppend::readFrom),
     APPEND_SETUP(2, AppendSetup::readFrom),

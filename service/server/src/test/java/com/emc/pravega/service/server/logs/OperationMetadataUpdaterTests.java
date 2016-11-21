@@ -239,9 +239,9 @@ public class OperationMetadataUpdaterTests {
         StreamSegmentAppendOperation badAppendOp = new StreamSegmentAppendOperation(SEGMENT_ID, DEFAULT_APPEND_DATA,
                 appendOp.getAppendContext());
         AssertExtensions.assertThrows(
-                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. " + "" +
-                        "(test" + " #1)",
-                () -> updater.preProcessOperation(badAppendOp), ex -> ex instanceof BadEventNumberException);
+                "preProcessOperation accepted a StreamSegmentAppendOperation with an out-of-order Event Number. " +
+                        "(test" + " #1)", () -> updater.preProcessOperation(badAppendOp),
+                ex -> ex instanceof BadEventNumberException);
 
         // Append #3 (same EventNumber, but different clientId).
         StreamSegmentAppendOperation differentClientAppend = new StreamSegmentAppendOperation(SEGMENT_ID,
@@ -532,8 +532,7 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentName already exists (transaction).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists " +
-                        "" + "" + "(in transaction).",
-                () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
+                        "(in transaction).", () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Make changes permanent.
@@ -542,8 +541,7 @@ public class OperationMetadataUpdaterTests {
         // StreamSegmentName already exists (metadata).
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists " +
-                        "" + "" + "(in metadata).",
-                () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
+                   "(in metadata).", () -> updater.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
     }
 

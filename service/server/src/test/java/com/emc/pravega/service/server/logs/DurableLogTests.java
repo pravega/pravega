@@ -892,9 +892,8 @@ public class DurableLogTests extends OperationLogTestBase {
                     // Verify all operations up to, and including this one have been removed.
                     Iterator<Operation> reader = durableLog.read(-1, 2, TIMEOUT).join();
                     Assert.assertTrue(
-                            "Not expecting an empty log after truncating an operation (a MetadataCheckpoint" + " " +
-                                    "must" + " always exist).",
-                            reader.hasNext());
+                            "Not expecting an empty log after truncating an operation (a MetadataCheckpoint must" +
+                                    " always exist).", reader.hasNext());
                     verifyFirstItemIsMetadataCheckpoint(reader);
 
                     if (i < originalOperations.size() - 1) {
