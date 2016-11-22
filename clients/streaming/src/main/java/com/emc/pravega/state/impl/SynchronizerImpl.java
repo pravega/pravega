@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.state.impl;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,12 +29,14 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.Update;
 import com.emc.pravega.stream.Serializer;
+import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.segment.EndOfSegmentException;
 import com.emc.pravega.stream.impl.segment.SegmentInputStream;
 import com.emc.pravega.stream.impl.segment.SegmentOutputStream;
 import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.google.common.base.Preconditions;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
@@ -43,6 +46,8 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
 
     private static final int UPDATE = 1;
     private static final int STATE = 2;
+    @Getter
+    private final Stream stream;
     private final SegmentInputStream in;
     private final SegmentOutputStream out;
     private final Serializer<UpdateT> updateSerializer;
@@ -77,8 +82,11 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
             }
             read = in.read();
         } while (!isUpdate(read));
-        UpdateT update = decodeUpdate(read);
-        return update.applyTo(state, new RevisionImpl(in.getOffset()));
+        StateT result = state;
+        for (UpdateT update : decodeUpdate(read)) {
+            result = update.applyTo(state, new RevisionImpl(in.getOffset()));
+        }
+        return result;
     }
     
     @Override
@@ -129,11 +137,17 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
 
     @Override
     public void compact(StateT compactState) {
-        // TODO
+        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        try {
+            out.write(encodeState(compactState), wasWritten);
+        } catch (SegmentSealedException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
+        FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new);
     }
     
     private boolean isUpdate(ByteBuffer read) {
-        byte type = read.get(read.position());
+        int type = read.getInt(read.position());
         if (type == UPDATE) {
             return true;
         } else if (type == STATE) {
@@ -153,7 +167,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
     
     private StateT decodeState(ByteBuffer read) {
-        byte type = read.get();
+        int type = read.getInt();
         Preconditions.checkState(type == STATE);
         return stateSerializer.deserialize(read);
     }
@@ -176,10 +190,20 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         return result;
     }
     
-    private UpdateT decodeUpdate(ByteBuffer read) {
-        byte type = read.get();
+    private List<UpdateT> decodeUpdate(ByteBuffer read) {
+        ArrayList<UpdateT> result = new ArrayList<>();
+        int origionalLimit = read.limit();
+        int type = read.getInt();
         Preconditions.checkState(type == UPDATE);
-        return updateSerializer.deserialize(read);
+        while (read.hasRemaining()) {
+            int updateLength = read.getInt();
+            int position = read.position();
+            read.limit(read.position() + updateLength);
+            result.add(updateSerializer.deserialize(read));
+            read.limit(origionalLimit);
+            read.position(position + updateLength);
+        }
+        return result;
     }
 
 }
