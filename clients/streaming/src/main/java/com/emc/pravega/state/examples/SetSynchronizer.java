@@ -19,6 +19,7 @@ package com.emc.pravega.state.examples;
 
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -27,6 +28,7 @@ import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
+import com.emc.pravega.state.impl.RevisionImpl;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
 
@@ -107,7 +109,16 @@ public class SetSynchronizer<T extends Serializable> {
 
     private SetSynchronizer(Synchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer) {
         this.synchronizer = synchronizer;
-        update();
+        UpdatableSet<T> state = synchronizer.updateState(new UpdatableSet<T>(synchronizer.getStream(),
+                                                                 new HashSet<T>(),
+                                                                 new RevisionImpl(0)),
+                                                         new ClearSet<>(),
+                                                         true);
+        if (state == null) {
+            current = synchronizer.getLatestState();
+        } else {
+            current = state;
+        }
     }
 
     @Synchronized
