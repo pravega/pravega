@@ -122,6 +122,6 @@ public class StreamImpl implements Stream {
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }
-        return new SynchronizerImpl<StateT,UpdateT>(in, out, updateSerializer, stateSerializer);
+        return new SynchronizerImpl<StateT,UpdateT>(this, in, out, updateSerializer, stateSerializer);
     }
 }

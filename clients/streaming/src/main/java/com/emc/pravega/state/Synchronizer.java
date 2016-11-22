@@ -19,6 +19,8 @@ package com.emc.pravega.state;
 
 import java.util.List;
 
+import com.emc.pravega.stream.Stream;
+
 /**
  * Provides a means to have state that is synchronized between many processes.
  * 
@@ -44,6 +46,11 @@ import java.util.List;
  */
 public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<StateT>> {
 
+    /**
+     * @return The stream used by this Synchronizer.
+     */
+    Stream getStream();
+    
     /**
      * Gets the latest version of the state object.
      */
