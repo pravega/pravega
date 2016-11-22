@@ -33,7 +33,7 @@ import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.stream.ConnectionClosedException;
 import com.emc.pravega.stream.Segment;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -200,7 +200,7 @@ public class SegmentHelper {
 
             @Override
             public void transactionDropped(WireCommands.TransactionDropped transactionDropped) {
-                result.completeExceptionally(new TxFailedException("Transaction already dropped."));
+                result.completeExceptionally(new TxnFailedException("Transaction already dropped."));
             }
         };
 

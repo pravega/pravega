@@ -67,7 +67,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
 
-        // drop timedout transactions periodically
+        // abort timedout transactions periodically
         EXEC_SERVICE.scheduleAtFixedRate(() -> {
             // find transactions to be dropped
             try {
@@ -151,7 +151,7 @@ t     * @param scope  stream scope.
     }
 
     private CompletableFuture<TxStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
-        // notify hosts to drop transaction
+        // notify hosts to abort transaction
         return streamMetadataStore.getActiveSegments(stream)
                 .thenCompose(segments ->
                         FutureCollectionHelper.sequence(

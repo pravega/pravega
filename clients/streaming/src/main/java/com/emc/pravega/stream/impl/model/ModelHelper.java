@@ -103,7 +103,7 @@ public final class ModelHelper {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
             case DROPPED:
-                return Transaction.Status.DROPPED;
+                return Transaction.Status.ABORTED;
             case OPEN:
                 return Transaction.Status.OPEN;
             case SEALED:

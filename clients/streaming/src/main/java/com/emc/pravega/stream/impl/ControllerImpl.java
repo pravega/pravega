@@ -187,7 +187,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout) {
+    public CompletableFuture<UUID> createTxn(final Stream stream) {
         log.debug("Invoke AdminService.Client.createTransaction() with stream: {}", stream);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.createTransaction_call> callback = new ThriftAsyncCallback<>();
@@ -200,7 +200,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<TransactionStatus> commitTxn(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.commitTransaction() with stream: {}, txUd: {}", stream, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.commitTransaction_call> callback = new ThriftAsyncCallback<>();
@@ -213,7 +213,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<TransactionStatus> abortTxn(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.dropTransaction() with stream: {}, txUd: {}", stream, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.dropTransaction_call> callback = new ThriftAsyncCallback<>();
@@ -226,7 +226,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId) {
+    public CompletableFuture<Transaction.Status> checkTxnStatus(final Stream stream, final UUID txId) {
         log.debug("Invoke AdminService.Client.checkTransactionStatus() with stream: {}, txUd: {}", stream, txId);
 
         final ThriftAsyncCallback<ControllerService.AsyncClient.checkTransactionStatus_call> callback = new ThriftAsyncCallback<>();

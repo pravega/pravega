@@ -27,7 +27,7 @@ import com.emc.pravega.stream.ConsumerConfig;
 import com.emc.pravega.stream.Producer;
 import com.emc.pravega.stream.ProducerConfig;
 import com.emc.pravega.stream.Transaction;
-import com.emc.pravega.stream.TxFailedException;
+import com.emc.pravega.stream.TxnFailedException;
 import com.emc.pravega.stream.impl.JavaSerializer;
 import com.emc.pravega.stream.impl.StreamImpl;
 import com.emc.pravega.stream.mock.MockStreamManager;
@@ -67,7 +67,7 @@ public class TransactionTest {
     }
 
     @Test
-    public void testTransactionalWritesOrderedCorrectly() throws TxFailedException {
+    public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException {
         int readTimeout = 5000;
         String endpoint = "localhost";
         String streamName = "abc";
@@ -85,7 +85,7 @@ public class TransactionTest {
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         producer.publish(routingKey, nonTxEvent);
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn();
         producer.publish(routingKey, nonTxEvent);
         transaction.publish(routingKey, txnEvent);
         producer.publish(routingKey, nonTxEvent);
@@ -123,7 +123,7 @@ public class TransactionTest {
     }
     
     @Test
-    public void testDoubleCommit() throws TxFailedException {
+    public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -138,14 +138,14 @@ public class TransactionTest {
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn();
         transaction.publish(routingKey, event);
         transaction.commit();
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit() );
     }
     
     @Test
-    public void testDrop() throws TxFailedException {
+    public void testDrop() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
         int port = TestUtils.randomPort();
@@ -161,13 +161,13 @@ public class TransactionTest {
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
         @Cleanup
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
-        Transaction<String> transaction = producer.startTransaction(60000);
+        Transaction<String> transaction = producer.beginTxn();
         transaction.publish(routingKey, txnEvent);
         transaction.flush();
-        transaction.drop();
-        transaction.drop();
+        transaction.abort();
+        transaction.abort();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
+        AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
         
         Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
         producer.publish(routingKey, nonTxEvent);
