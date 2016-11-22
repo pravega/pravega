@@ -86,7 +86,7 @@ public class SegmentOutputStreamTest {
         verifyNoMoreInteractions(connection);
     }
     
-    @Test
+    @Test(timeout=10000)
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);
@@ -95,7 +95,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
-        @Cleanup
+        @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
         
         output.setupConnection();
