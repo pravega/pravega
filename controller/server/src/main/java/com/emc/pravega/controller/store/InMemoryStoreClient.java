@@ -15,36 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.task;
-
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.apache.commons.lang3.SerializationUtils;
-
-import java.io.Serializable;
+package com.emc.pravega.controller.store;
 
 /**
- * Lock row
+ * In memory store client.
  */
-@Data
-@EqualsAndHashCode
-class LockData implements Serializable {
-    private final String hostId;
-    private final String tag;
-    private final byte[] taskData;
+public class InMemoryStoreClient implements StoreClient {
 
-    public byte[] serialize() {
-        return SerializationUtils.serialize(this);
+    @Override
+    public Object getClient() {
+        return null;
     }
 
-    public boolean isOwnedBy(final String owner, final String ownerTag) {
-        return hostId != null
-                && hostId.equals(owner)
-                && tag != null
-                && tag.equals(ownerTag);
-    }
-
-    public static LockData deserialize(final byte[] bytes) {
-        return (LockData) SerializationUtils.deserialize(bytes);
+    @Override
+    public StoreClientFactory.StoreType getType() {
+        return StoreClientFactory.StoreType.InMemory;
     }
 }

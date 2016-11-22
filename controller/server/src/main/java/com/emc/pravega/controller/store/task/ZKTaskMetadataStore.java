@@ -34,52 +34,27 @@ import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Zookeeper based task store.
- * todo: potentially merge this class with stream metadata store
  */
 @Slf4j
-class ZKTaskMetadataStore implements TaskMetadataStore {
+class ZKTaskMetadataStore extends AbstractTaskMetadataStore {
 
     private final static String TAG_SEPARATOR = "_%%%_";
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     private final CuratorFramework client;
-    private final ScheduledExecutorService executor;
     private final String hostRoot = "/hostIndex";
     private final String taskRoot = "/taskIndex";
 
     public ZKTaskMetadataStore(ZKStoreClient storeClient, ScheduledExecutorService executor) {
+        super(executor);
         this.client = storeClient.getClient();
         this.client.start();
-        this.executor = executor;
     }
 
     @Override
-    public CompletableFuture<Void> lock(final Resource resource,
-                                        final TaskData taskData,
-                                        final String owner,
-                                        final String threadId,
-                                        final String oldOwner,
-                                        final String oldThreadId) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(resource);
-            Preconditions.checkNotNull(taskData);
-            Preconditions.checkNotNull(owner);
-            Preconditions.checkArgument(!owner.isEmpty());
-            Preconditions.checkNotNull(threadId);
-            Preconditions.checkArgument(!threadId.isEmpty());
-            Preconditions.checkArgument((oldOwner == null && oldThreadId == null) || (oldOwner != null && oldThreadId != null));
-            Preconditions.checkArgument(oldOwner == null || !oldOwner.isEmpty());
-            Preconditions.checkArgument(oldThreadId == null || !oldThreadId.isEmpty());
-
-            if (oldOwner == null) {
-                return acquireLock(resource, taskData, owner, threadId);
-            } else {
-                return transferLock(resource, owner, threadId, oldOwner, oldThreadId);
-            }
-
-        }, executor);
-    }
-
-    private Void acquireLock(Resource resource, TaskData taskData, String owner, String threadId) {
+    Void acquireLock(final Resource resource,
+                             final TaskData taskData,
+                             final String owner,
+                             final String threadId) {
         // test and set implementation
         try {
             // for fresh lock, create the node and write its data.
@@ -96,7 +71,12 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
         }
     }
 
-    private Void transferLock(Resource resource, String owner, String threadId, String oldOwner, String oldThreadId) {
+    @Override
+    Void transferLock(final Resource resource,
+                              final String owner,
+                              final String threadId,
+                              final String oldOwner,
+                              final String oldThreadId) {
         boolean lockAcquired = false;
 
         // test and set implementation
@@ -107,7 +87,7 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
             Stat stat = new Stat();
             byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
             LockData lockData = LockData.deserialize(data);
-            if (lockData.getHostId().equals(oldOwner) && lockData.getThreadId().equals(oldThreadId)) {
+            if (lockData.isOwnedBy(oldOwner, oldThreadId)) {
                 lockData = new LockData(owner, threadId, lockData.getTaskData());
 
                 client.setData().withVersion(stat.getVersion())
@@ -126,67 +106,60 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> unlock(final Resource resource,
-                                          final String owner,
-                                          final String threadId) {
-        return CompletableFuture.supplyAsync(() -> {
-            Preconditions.checkNotNull(resource);
-            Preconditions.checkNotNull(owner);
-            Preconditions.checkNotNull(threadId);
+    Void removeLock(final Resource resource, final String owner, final String tag) {
 
-            try {
-                // test and set implementation
-                Stat stat = new Stat();
-                byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
-                if (data != null && data.length > 0) {
-                    LockData lockData = LockData.deserialize(data);
-                    if (lockData.getHostId().equals(owner) && lockData.getThreadId().equals(threadId)) {
+        try {
+            // test and set implementation
+            Stat stat = new Stat();
+            byte[] data = client.getData().storingStatIn(stat).forPath(getTaskPath(resource));
+            if (data != null && data.length > 0) {
+                LockData lockData = LockData.deserialize(data);
+                if (lockData.isOwnedBy(owner, tag)) {
 
-                        //Guaranteed Delete
-                        //Solves this edge case: deleting a node can fail due to connection issues. Further, if the node was
-                        //ephemeral, the node will not get auto-deleted as the session is still valid. This can wreak havoc
-                        //with lock implementations.
-                        //When guaranteed is set, Curator will record failed node deletions and attempt to delete them in the
-                        //background until successful. NOTE: you will still get an exception when the deletion fails. But, you
-                        //can be assured that as long as the CuratorFramework instance is open attempts will be made to delete
-                        //the node.
-                        client.delete()
-                                .guaranteed()
-                                .withVersion(stat.getVersion())
-                                .forPath(getTaskPath(resource));
-                    } else {
-
-                        log.warn(String.format("Lock not owned by owner %s: thread %s", owner, threadId));
-                        throw new UnlockFailedException(resource.getString());
-
-                    }
-
-                } else {
-
+                    //Guaranteed Delete
+                    //Solves this edge case: deleting a node can fail due to connection issues. Further, if the node was
+                    //ephemeral, the node will not get auto-deleted as the session is still valid. This can wreak havoc
+                    //with lock implementations.
+                    //When guaranteed is set, Curator will record failed node deletions and attempt to delete them in the
+                    //background until successful. NOTE: you will still get an exception when the deletion fails. But, you
+                    //can be assured that as long as the CuratorFramework instance is open attempts will be made to delete
+                    //the node.
                     client.delete()
                             .guaranteed()
                             .withVersion(stat.getVersion())
                             .forPath(getTaskPath(resource));
-                }
-                return null;
+                } else {
 
-            } catch (KeeperException.NoNodeException e) {
-                log.debug("Lock not present on resource " + resource, e);
-                return null;
-            } catch (Exception e) {
-                throw new UnlockFailedException(resource.getString(), e);
+                    log.warn(String.format("Lock not owned by owner %s: thread %s", owner, tag));
+                    throw new UnlockFailedException(resource.getString());
+
+                }
+
+            } else {
+
+                client.delete()
+                        .guaranteed()
+                        .withVersion(stat.getVersion())
+                        .forPath(getTaskPath(resource));
             }
-        }, executor);
+            return null;
+
+        } catch (KeeperException.NoNodeException e) {
+            log.debug("Lock not present on resource " + resource, e);
+            return null;
+        } catch (Exception e) {
+            throw new UnlockFailedException(resource.getString(), e);
+        }
     }
 
     @Override
     public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
                                                          final String owner,
-                                                         final String threadId) {
+                                                         final String tag) {
         return CompletableFuture.supplyAsync(() -> {
             Preconditions.checkNotNull(resource);
             Preconditions.checkNotNull(owner);
-            Preconditions.checkNotNull(threadId);
+            Preconditions.checkNotNull(tag);
 
             try {
 
@@ -197,10 +170,10 @@ class ZKTaskMetadataStore implements TaskMetadataStore {
                     return Optional.empty();
                 } else {
                     LockData lockData = LockData.deserialize(data);
-                    if (lockData.getHostId().equals(owner) && lockData.getThreadId().equals(threadId)) {
+                    if (lockData.isOwnedBy(owner, tag)) {
                         return Optional.of(TaskData.deserialize(lockData.getTaskData()));
                     } else {
-                        log.debug(String.format("Resource %s not owned by pair (%s, %s)", resource.getString(), owner, threadId));
+                        log.debug(String.format("Resource %s not owned by pair (%s, %s)", resource.getString(), owner, tag));
                         return Optional.empty();
                     }
                 }

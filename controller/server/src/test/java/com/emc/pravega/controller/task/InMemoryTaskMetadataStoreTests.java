@@ -15,30 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.task;
+package com.emc.pravega.controller.task;
 
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
-import org.apache.commons.lang.NotImplementedException;
+import com.emc.pravega.controller.store.InMemoryStoreClient;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
 
+import java.io.IOException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Task store factory.
+ * In memory task metadata store tests.
  */
-public class TaskStoreFactory {
+public class InMemoryTaskMetadataStoreTests extends TaskMetadataStoreTests {
 
-    public static TaskMetadataStore createStore(StoreClient storeClient, ScheduledExecutorService executor) {
-        switch (storeClient.getType()) {
-            case Zookeeper:
-                return new ZKTaskMetadataStore((ZKStoreClient) storeClient, executor);
-            case InMemory:
-                return new InMemoryTaskMetadataStore(executor);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    @Override
+    public void setupTaskStore() throws Exception {
+        final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+        taskMetadataStore = TaskStoreFactory.createStore(new InMemoryStoreClient(), executor);
+    }
+
+    @Override
+    public void cleanupTaskStore() throws IOException {
+
     }
 }
