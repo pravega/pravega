@@ -1056,6 +1056,7 @@ public class SegmentAggregatorTests {
                 () -> context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                 ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
 
+        context.storage.setSealInterceptor(null);
         // Second time: we are in reconcilation mode, so flush must succeed (and update internal state based on storage).
         context.segmentAggregator.flush(TIMEOUT, context.executor.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 

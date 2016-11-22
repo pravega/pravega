@@ -36,7 +36,7 @@ public class SegmentFutures {
     // future segments to read from or write to mapped to the current segment it follows when it is completely read (consumer) or sealed (producer) 
     private final Map<Integer, Integer> futures;
 
-    public SegmentFutures(List<Integer> current, Map<Integer, Integer> futures) {
+    public SegmentFutures(final List<Integer> current, final Map<Integer, Integer> futures) {
         this.current = Collections.unmodifiableList(current);
         this.futures = Collections.unmodifiableMap(futures);
     }

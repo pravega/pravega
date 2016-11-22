@@ -29,7 +29,7 @@ import java.util.Properties;
 public class ServiceConfig extends ComponentConfig {
     //region Members
 
-    public static final String COMPONENT_CODE = "logservice";
+    public static final String COMPONENT_CODE = "pravegaservice";
     public static final String PROPERTY_CONTAINER_COUNT = "containerCount";
     public static final String PROPERTY_THREAD_POOL_SIZE = "threadPoolSize";
     public static final String PROPERTY_LISTENING_PORT = "listeningPort";

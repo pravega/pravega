@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * <p/>
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- * <p/>
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,16 +25,19 @@ import com.emc.pravega.controller.stream.api.v1.ScalingPolicyType;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
 import com.emc.pravega.controller.stream.api.v1.TxId;
-import com.emc.pravega.controller.stream.api.v1.TxStatus;
+import com.emc.pravega.controller.stream.api.v1.TxState;
 import com.emc.pravega.stream.PositionInternal;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.Segment;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.Transaction;
 import com.emc.pravega.stream.impl.PositionImpl;
+import com.emc.pravega.stream.impl.StreamConfigurationImpl;
 import com.google.common.base.Preconditions;
 
+import java.util.AbstractMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
@@ -48,6 +51,11 @@ public final class ModelHelper {
     public static final UUID encode(TxId txId) {
         Preconditions.checkNotNull(txId, "txId");
         return new UUID(txId.getHighBits(), txId.getLowBits());
+    }
+
+    public static final com.emc.pravega.stream.impl.TxStatus encode(TxState txStatus) {
+        Preconditions.checkNotNull(txStatus, "txStatus");
+        return com.emc.pravega.stream.impl.TxStatus.valueOf(txStatus.name());
     }
 
     public static final Segment encode(final SegmentId segment) {
@@ -68,22 +76,9 @@ public final class ModelHelper {
 
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "StreamConfig");
-        return new StreamConfiguration() {
-            @Override
-            public String getScope() {
-                return config.getScope();
-            }
-
-            @Override
-            public String getName() {
-                return config.getName();
-            }
-
-            @Override
-            public ScalingPolicy getScalingPolicy() {
-                return encode(config.getPolicy());
-            }
-        };
+        return new StreamConfigurationImpl(config.getScope(),
+                config.getName(),
+                encode(config.getPolicy()));
     }
 
     public static final PositionImpl encode(final Position position) {
@@ -95,7 +90,15 @@ public final class ModelHelper {
         return new com.emc.pravega.common.netty.PravegaNodeUri(uri.getEndpoint(), uri.getPort());
     }
 
-    public static Transaction.Status encode(TxStatus status, String logString) {
+    public static List<AbstractMap.SimpleEntry<Double, Double>> encode(Map<Double, Double> keyRanges) {
+        return keyRanges
+                .entrySet()
+                .stream()
+                .map(x -> new AbstractMap.SimpleEntry<>(x.getKey(), x.getValue()))
+                .collect(Collectors.toList());
+    }
+
+    public static Transaction.Status encode(TxState status, String logString) {
         switch (status) {
             case COMMITTED:
                 return Transaction.Status.COMMITTED;
@@ -117,10 +120,16 @@ public final class ModelHelper {
         return new TxId(txId.getMostSignificantBits(), txId.getLeastSignificantBits());
     }
 
+    public static final TxState decode(com.emc.pravega.stream.impl.TxStatus txstatus) {
+        Preconditions.checkNotNull(txstatus, "txstatus");
+        return TxState.valueOf(txstatus.name());
+    }
+
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "Segment");
         return new SegmentId().setScope(segment.getScope()).setStreamName(segment.getStreamName())
-                              .setNumber(segment.getSegmentNumber());
+                .setNumber(segment.getSegmentNumber());
+
     }
 
     public static final com.emc.pravega.controller.stream.api.v1.ScalingPolicy decode(final ScalingPolicy policyModel) {
@@ -132,7 +141,9 @@ public final class ModelHelper {
 
     public static final StreamConfig decode(final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "StreamConfiguration");
-        return new StreamConfig(configModel.getScope(), configModel.getName(), decode(configModel.getScalingPolicy()));
+        return new StreamConfig(configModel.getScope(),
+                configModel.getName(),
+                decode(configModel.getScalingPolicy()));
     }
 
     public static final Position decode(final PositionInternal position) {

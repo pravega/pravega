@@ -13,6 +13,7 @@ services:
 script: ./gradlew check && ./gradlew distTar && ./gradlew pushPravegaHostImage && ./gradlew pushPravegaControllerImage
 
 notifications:
+  slack: emcnautilus:UZK3F72LSRYWXUuvlzSilFyy
   email:
     - arvind.kandhare@dell.com
     - ram.viswanathan@dell.com
@@ -23,4 +24,5 @@ notifications:
     - sandeep.shridhar@dell.com
     - Vijayalakshmi.Veerubhotla@emc.com
     - Abhijeet.Jadhav@emc.com
+    - Flavio.Junqueira@emc.com
 
