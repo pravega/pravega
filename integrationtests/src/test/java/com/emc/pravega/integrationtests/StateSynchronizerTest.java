@@ -63,7 +63,7 @@ public class StateSynchronizerTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 60000)
     public void testStateTracker() throws TxFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
@@ -75,7 +75,7 @@ public class StateSynchronizerTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         Stream stream = streamManager.createStream(stateName, null);
-        // TODO: Pass an initial state when creating it.
+
         SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
         SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
 
