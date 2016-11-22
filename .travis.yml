@@ -10,6 +10,8 @@ sudo: required
 services:
   - docker
 
+script: ./gradlew check && ./gradlew distTar && ./gradlew pushPravegaHostImage && ./gradlew pushPravegaControllerImage
+
 notifications:
   email:
     - arvind.kandhare@dell.com
