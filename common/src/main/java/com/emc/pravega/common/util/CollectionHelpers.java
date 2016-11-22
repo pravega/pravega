@@ -55,8 +55,8 @@ public class CollectionHelpers {
      * @param <TEX>      The type of exceptions to expect.
      * @throws TEX If the processor threw one.
      */
-    public static <T, TEX extends Throwable> void forEach(Collection<T> collection, ConsumerWithException<T, TEX>
-            processor) throws TEX {
+    public static <T, TEX extends Throwable> void forEach(Collection<T> collection,
+                                           ConsumerWithException<T, TEX> processor) throws TEX {
         for (T element : collection) {
             processor.accept(element);
         }

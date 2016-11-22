@@ -23,26 +23,26 @@ import com.google.common.base.Preconditions;
 /**
  * A Utility class to support retrying something that can fail with exponential backoff.
  * The class is designed to have a declarative interface for ease of use. It can be used as follows:
- * <p>
+ *
  * <pre>
  * <code>
  * Retry.withExpBackoff(1, 10, 5)
-        .retryingOn(FooException.class)
-        .throwingOn(RuntimeException.class).run(() -> {
-            //Do stuff here.
-        }
+            .retryingOn(FooException.class)
+            .throwingOn(RuntimeException.class).run(() -> {
+                //Do stuff here.
+             }
  * </code>
  * </pre>
- * <p>
+ *
  * The above will retry the code in the block up to 5 times if it throws FooException. If it throws
  * a RuntimeException or returns successfully it will throw or return immediately. The delay
  * following each of the filed attempts would be 1, 10, 100, 1000, and 10000ms respectively. If all
  * retries fail {@link RetriesExaustedException} will be thrown.
- * <p>
+ *
  * Note that the class is not a builder object, so the methods in the chain must be invoked in
  * order. The intermediate objects in the chain are reusable and threadsafe, so they can be shared
  * between invocations.
- * <p>
+ *
  * In the event that the exception passed to retryingOn() and throwingOn() are related. IE: In the
  * above example if FooException were to extend RuntimeException. Then the more specific exception
  * is given preference. (In the above case FooException would be retried).

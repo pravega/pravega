@@ -47,8 +47,8 @@ public final class Exceptions {
      * @throws ExceptionT If thrown by run.
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run) throws
-            ExceptionT {
+    public static <ExceptionT extends Exception> void handleInterrupted(InterruptibleRun<ExceptionT> run)
+            throws ExceptionT {
         try {
             run.run();
         } catch (InterruptedException e) {
@@ -88,8 +88,8 @@ public final class Exceptions {
      * @throws NullPointerException     If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static void checkNotNullOrEmpty(String arg, String argName) throws NullPointerException,
-            IllegalArgumentException {
+    public static void checkNotNullOrEmpty(String arg, String argName)
+            throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(arg.length() > 0, argName, "Cannot be an empty string.");
     }
@@ -104,8 +104,8 @@ public final class Exceptions {
      * @param args           Format args for message. These must correspond to String.format() args.
      * @throws IllegalArgumentException If validCondition is false.
      */
-    public static void checkArgument(boolean validCondition, String argName, String message, Object... args) throws
-            IllegalArgumentException {
+    public static void checkArgument(boolean validCondition, String argName, String message, Object... args)
+            throws IllegalArgumentException {
         if (!validCondition) {
             throw new IllegalArgumentException(badArgumentMessage(argName, message, args));
         }
@@ -124,27 +124,28 @@ public final class Exceptions {
      * @throws IllegalArgumentException       If length is a negative number.
      */
     public static void checkArrayRange(long startIndex, int length, long arrayLength, String startIndexArgName,
-                                       String lengthArgName) throws ArrayIndexOutOfBoundsException,
+                                       String lengthArgName)
+            throws ArrayIndexOutOfBoundsException,
             IllegalArgumentException {
         // Check for non-negative length.
         if (length < 0) {
-            throw new IllegalArgumentException(
-                    badArgumentMessage(lengthArgName, "length must be a non-negative " + "integer."));
+            throw new IllegalArgumentException(badArgumentMessage(lengthArgName,
+                                                            "length must be a non-negative integer."));
         }
 
         // Check for valid start index.
         if (startIndex < 0 || startIndex >= arrayLength) {
             // The only valid case here is if the range has zero elements and the array bounds also has zero elements.
             if (!(startIndex == 0 && length == 0 && arrayLength == 0)) {
-                throw new ArrayIndexOutOfBoundsException(
-                        badStartOffsetMessage(startIndex, arrayLength, startIndexArgName));
+                throw new ArrayIndexOutOfBoundsException(badStartOffsetMessage(startIndex, arrayLength,
+                                                                            startIndexArgName));
             }
         }
 
         // Check for valid end offset. Note that end offset can be equal to upBoundExclusive, because this is a range.
         if (startIndex + length > arrayLength) {
-            throw new ArrayIndexOutOfBoundsException(
-                    badLengthMessage(startIndex, length, arrayLength, startIndexArgName, lengthArgName));
+            throw new ArrayIndexOutOfBoundsException(badLengthMessage(startIndex, length, arrayLength,
+                                                        startIndexArgName, lengthArgName));
         }
     }
 

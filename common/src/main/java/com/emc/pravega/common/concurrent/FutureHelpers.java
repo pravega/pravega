@@ -75,9 +75,9 @@ public final class FutureHelpers {
      * of the type whose constructor is provided.
      *
      * @param future               The future whose result is wanted
-     * @param exceptionConstructor This can be any function that either transforms an exception IE: Passing
-     *                             RuntimeException::new will wrap the exception in a new RuntimeException. If null is
-     *                             returned from the function no exception will be thrown.
+     * @param exceptionConstructor This can be any function that either transforms an exception
+     *                             IE: Passing RuntimeException::new will wrap the exception in a new
+     *                             RuntimeException. If null is returned from the function no exception will be thrown.
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
      * @return The result of calling future.get()
@@ -114,9 +114,8 @@ public final class FutureHelpers {
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Function<Throwable, ExceptionT>
-                                                                                          exceptionConstructor,
-                                                                                         long timeoutMillis)
+                                                                  Function<Throwable, ExceptionT> exceptionConstructor,
+                                                                  long timeoutMillis)
             throws TimeoutException, ExceptionT {
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
@@ -152,8 +151,8 @@ public final class FutureHelpers {
      * @param exceptionListener The Listener to register.
      * @param <T>               The Type of the future's result.
      */
-    public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable>
-            exceptionListener) {
+    public static <T> void exceptionListener(CompletableFuture<T> completableFuture,
+                                             Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null) {
                 CallbackHelpers.invokeSafely(exceptionListener, ex, null);
@@ -171,8 +170,8 @@ public final class FutureHelpers {
      * @param <E>               The Type of the exception.
      */
     @SuppressWarnings("unchecked")
-    public static <T, E extends Throwable> void exceptionListener(CompletableFuture<T> completableFuture, Class<E>
-            exceptionClass, Consumer<E> exceptionListener) {
+    public static <T, E extends Throwable> void exceptionListener(CompletableFuture<T> completableFuture,
+                                                Class<E> exceptionClass, Consumer<E> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null && exceptionClass.isAssignableFrom(ex.getClass())) {
                 CallbackHelpers.invokeSafely(exceptionListener, (E) ex, null);
@@ -210,8 +209,8 @@ public final class FutureHelpers {
      * @param executorService An ExecutorService that will be used to invoke the timeout on.
      * @param <T>             The Type argument for the CompletableFuture to create.
      */
-    public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout, ScheduledExecutorService
-            executorService) {
+    public static <T> CompletableFuture<T> futureWithTimeout(Duration timeout,
+                                                             ScheduledExecutorService executorService) {
         return futureWithTimeout(timeout, null, executorService);
     }
 
@@ -280,8 +279,8 @@ public final class FutureHelpers {
      *                  If either the loopBody or condition throw/return Exceptions, these will be set as the result
      *                  of this returned Future.
      */
-    public static CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>>
-            loopBody, Executor executor) {
+    public static CompletableFuture<Void> loop(Supplier<Boolean> condition,
+                                               Supplier<CompletableFuture<Void>> loopBody, Executor executor) {
         if (condition.get()) {
             return loopBody.get().thenComposeAsync(v -> loop(condition, loopBody, executor), executor);
         } else {
@@ -299,11 +298,13 @@ public final class FutureHelpers {
      * @param resultConsumer A Consumer that will be invoked with the result of every call to loopBody.
      * @param executor       An Executor that is used to execute the condition and the loop support code.
      * @param <T>            The Type of the future's result.
-     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If either
-     * the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     * @return               A CompletableFuture that, when completed, indicates the loop terminated without any
+     *                       exception. If either the loopBody or condition throw/return Exceptions,
+     *                       these will be set as the result of this returned Future.
      */
-    public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition, Supplier<CompletableFuture<T>>
-            loopBody, Consumer<T> resultConsumer, Executor executor) {
+    public static <T> CompletableFuture<Void> loop(Supplier<Boolean> condition,
+                                                   Supplier<CompletableFuture<T>> loopBody,
+                                                   Consumer<T> resultConsumer, Executor executor) {
         if (condition.get()) {
             return loopBody.get().thenAccept(resultConsumer).thenComposeAsync(
                     v -> loop(condition, loopBody, resultConsumer, executor), executor);
@@ -319,11 +320,12 @@ public final class FutureHelpers {
      * @param loopBody  A Supplier that returns a CompletableFuture which represents the body of the loop. This supplier
      *                  is invoked every time the loopBody needs to execute.
      * @param <T>       Return type of the executor.
-     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If either
-     * the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     * @return          A CompletableFuture that, when completed, indicates the loop terminated without any exception.
+     *                  If either the loopBody or condition throw/return Exceptions,
+     *                  these will be set as the result of this returned Future.
      */
-    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody, Predicate<T>
-            condition) {
+    public static <T> CompletableFuture<Void> doWhileLoop(Supplier<CompletableFuture<T>> loopBody,
+                                                          Predicate<T> condition) {
         return loopBody.get().thenCompose(
                 result -> condition.test(result) ? doWhileLoop(loopBody, condition) : CompletableFuture.completedFuture(
                         null));
@@ -338,10 +340,10 @@ public final class FutureHelpers {
      * @param exceptionTranslator utility function that translates the exception
      * @param executor            The context for the execution.
      * @param <T>                 Return type of the executor.
-     * @return The CompletableFuture which either holds the result or is completed exceptionally.
+     * @return                      The CompletableFuture which either holds the result or is completed exceptionally.
      */
-    public static <T> CompletableFuture<T> runAsyncTranslateException(Callable<T> function, Function<Exception,
-            Exception> exceptionTranslator, Executor executor) {
+    public static <T> CompletableFuture<T> runAsyncTranslateException(Callable<T> function,
+                                           Function<Exception, Exception> exceptionTranslator, Executor executor) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return function.call();
@@ -357,8 +359,8 @@ public final class FutureHelpers {
      *
      * @param future The CompletableFuture to attach to.
      * @param <T>    The type of the input's future result.
-     * @return A CompletableFuture that will complete when the given future completes. If the given future fails, so
-     * will this future.
+     * @return       A CompletableFuture that will complete when the given future completes.
+     *               If the given future fails, so will this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
         return future.thenAccept(r -> {

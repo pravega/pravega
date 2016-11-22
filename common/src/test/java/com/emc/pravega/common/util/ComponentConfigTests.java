@@ -101,19 +101,19 @@ public class ComponentConfigTests {
                         String actualValue = methodToTest.apply(config, propName).toString();
                         Assert.assertEquals("Unexpected value returned by extractor.", expectedValue, actualValue);
                     } else {
-                        AssertExtensions.assertThrows(String.format(
-                                "ComponentConfig returned property and interpreted it with the wrong " + "type. " +
-                                        "PropertyName: %s, Value: %s.",
-                                fullyQualifiedPropertyName, expectedValue), () -> methodToTest.apply(config, propName),
+                        AssertExtensions.assertThrows(String.format("ComponentConfig returned property and interpreted"
+                                        + " it with the wrong type. PropertyName: %s, Value: %s.",
+                                fullyQualifiedPropertyName, expectedValue),
+                                () -> methodToTest.apply(config, propName),
                                 ex -> !(ex instanceof MissingPropertyException));
                     }
                 } else {
                     // This is a different component. Make sure it is not included here.
-                    AssertExtensions.assertThrows(String.format(
-                            "ComponentConfig returned property that was for a different component. " +
-                                    "PropertyName:" + " %s, Value: %s.",
-                            fullyQualifiedPropertyName, expectedValue), () -> methodToTest.apply(config, propName),
-                            ex -> ex instanceof MissingPropertyException);
+                    AssertExtensions.assertThrows(String.format("ComponentConfig returned property that was for a " +
+                                    "different component. PropertyName:%s, Value: %s.",
+                                    fullyQualifiedPropertyName, expectedValue),
+                                    () -> methodToTest.apply(config, propName),
+                                    ex -> ex instanceof MissingPropertyException);
                 }
             }
         }
@@ -154,9 +154,8 @@ public class ComponentConfigTests {
     private static int getPropertyId(String fullyQualifiedPropertyName) {
         int pos = fullyQualifiedPropertyName.indexOf(PROPERTY_PREFIX);
         if (pos < 0) {
-            Assert.fail(
-                    "Internal test error: Unable to determine property if from property name " +
-                            fullyQualifiedPropertyName);
+            Assert.fail("Internal test error: Unable to determine property if from property name " +
+                    fullyQualifiedPropertyName);
         }
 
         return Integer.parseInt(fullyQualifiedPropertyName.substring(pos + PROPERTY_PREFIX.length()));

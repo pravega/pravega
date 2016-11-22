@@ -30,8 +30,8 @@ public class ReadResultEntryContents {
     /**
      * Creates a new instance of the ReadResultEntryContents class.
      *
-     * @param data   The data to retrieve.
-     * @param length The length of the retrieved data.
+     * @param data                The data to retrieve.
+     * @param length              The length of the retrieved data.
      */
     public ReadResultEntryContents(InputStream data, int length) {
         this.data = data;

@@ -63,8 +63,8 @@ public class RuntimeStreamingException extends RuntimeException {
      * @param enableSuppression  Whether or not suppression is enabled or disabled
      * @param writableStackTrace Whether or not the stack trace should be writable
      */
-    public RuntimeStreamingException(String message, Throwable cause, boolean enableSuppression, boolean
-            writableStackTrace) {
+    public RuntimeStreamingException(String message, Throwable cause, boolean enableSuppression,
+                                     boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
 }

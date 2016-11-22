@@ -64,13 +64,11 @@ public class FutureHelpersTests {
         Exception ex = new IntentionalException();
         FutureHelpers.exceptionListener(cf, thrownException::set);
         cf.completeExceptionally(ex);
-        Assert.assertNotNull(
-                "exceptionListener did not invoke the callback when the future was completed " + "exceptionally.",
+        Assert.assertNotNull("exceptionListener did not invoke the callback when the future was completed " +
+                        "exceptionally.",
                 thrownException.get());
-        Assert.assertEquals(
-                "Unexpected exception was passed to the callback from exceptionListener when the future " + "was " +
-                        "completed exceptionally.",
-                ex, thrownException.get());
+        Assert.assertEquals("Unexpected exception was passed to the callback from exceptionListener when the future " +
+                        "was completed exceptionally.", ex, thrownException.get());
     }
 
     /**
@@ -100,26 +98,21 @@ public class FutureHelpersTests {
         futures = createNumericFutures(count);
         failRandomFuture(futures);
         allFuturesComplete = FutureHelpers.allOf(futures);
-        Assert.assertFalse(
-                "allOf() created a completed future when not all of the futures were previously complete " + "(but "
-                        + "one failed).",
-                allFuturesComplete.isDone());
+        Assert.assertFalse("allOf() created a completed future when not all of the futures were previously complete " +
+                        "(but one failed).", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue(
-                "The result of allOf() did not complete exceptionally when at least one of the futures " + "failed.",
-                allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures " +
+                "failed.", allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
         futures = createNumericFutures(count);
         allFuturesComplete = FutureHelpers.allOf(futures);
         failRandomFuture(futures);
-        Assert.assertFalse(
-                "The result of allOf() completed when not all the futures completed (except one that " + "failed).",
-                allFuturesComplete.isDone());
+        Assert.assertFalse("The result of allOf() completed when not all the futures completed (except one that " +
+                        "failed).", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue(
-                "The result of allOf() did not complete exceptionally when at least one of the futures " + "failed.",
-                allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures " +
+                        "failed.", allFuturesComplete.isCompletedExceptionally());
     }
 
     /**
@@ -151,26 +144,21 @@ public class FutureHelpersTests {
         futures = createNumericFutures(count);
         failRandomFuture(futures);
         allFuturesComplete = FutureHelpers.allOfWithResults(futures);
-        Assert.assertFalse(
-                "allOf() created a completed future when not all of the futures were previously complete " + "(but "
-                        + "one failed).",
-                allFuturesComplete.isDone());
+        Assert.assertFalse("allOf() created a completed future when not all of the futures were previously complete " +
+                        "(but one failed).", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue(
-                "The result of allOf() did not complete exceptionally when at least one of the futures " + "failed.",
-                allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue( "The result of allOf() did not complete exceptionally when at least one of the futures " +
+                        "failed.", allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
         futures = createNumericFutures(count);
         allFuturesComplete = FutureHelpers.allOfWithResults(futures);
         failRandomFuture(futures);
-        Assert.assertFalse(
-                "The result of allOf() completed when not all the futures completed (except one that " + "failed).",
-                allFuturesComplete.isDone());
+        Assert.assertFalse("The result of allOf() completed when not all the futures completed (except one that " +
+                        "failed).", allFuturesComplete.isDone());
         completeFutures(futures);
-        Assert.assertTrue(
-                "The result of allOf() did not complete exceptionally when at least one of the futures " + "failed.",
-                allFuturesComplete.isCompletedExceptionally());
+        Assert.assertTrue( "The result of allOf() did not complete exceptionally when at least one of the futures " +
+                        "failed.", allFuturesComplete.isCompletedExceptionally());
     }
 
     @Test
@@ -181,18 +169,23 @@ public class FutureHelpersTests {
         AtomicInteger accumulator = new AtomicInteger();
 
         // 1. With no specific accumulator.
-        FutureHelpers.loop(() -> loopCounter.incrementAndGet() < maxLoops, () -> {
-            accumulator.addAndGet(loopCounter.get());
-            return CompletableFuture.completedFuture(null);
-        }, ForkJoinPool.commonPool()).join();
+        FutureHelpers.loop(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> {
+                    accumulator.addAndGet(loopCounter.get());
+                    return CompletableFuture.completedFuture(null);
+                },
+                ForkJoinPool.commonPool()).join();
         Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult,
                 accumulator.get());
 
         //2. With specific accumulator.
         loopCounter.set(0);
         accumulator.set(0);
-        FutureHelpers.loop(() -> loopCounter.incrementAndGet() < maxLoops,
-                () -> CompletableFuture.completedFuture(loopCounter.get()), accumulator::addAndGet,
+        FutureHelpers.loop(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> CompletableFuture.completedFuture(loopCounter.get()),
+                accumulator::addAndGet,
                 ForkJoinPool.commonPool()).join();
         Assert.assertEquals("Unexpected result for loop with a specific accumulator.", expectedResult,
                 accumulator.get());
@@ -200,18 +193,22 @@ public class FutureHelpersTests {
         //3. With exceptions.
         loopCounter.set(0);
         accumulator.set(0);
-        CompletableFuture<Void> loopFuture = FutureHelpers.loop(() -> loopCounter.incrementAndGet() < maxLoops, () -> {
-            if (loopCounter.get() % 3 == 0) {
-                throw new IntentionalException();
-            } else {
-                accumulator.addAndGet(loopCounter.get());
-                return CompletableFuture.completedFuture(null);
-            }
-        }, ForkJoinPool.commonPool());
+        CompletableFuture<Void> loopFuture = FutureHelpers.loop(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> {
+                    if (loopCounter.get() % 3 == 0) {
+                        throw new IntentionalException();
+                    } else {
+                        accumulator.addAndGet(loopCounter.get());
+                        return CompletableFuture.completedFuture(null);
+                    }
+                },
+                ForkJoinPool.commonPool());
 
         AssertExtensions.assertThrows(
                 "loop() did not return a failed Future when one of the loopBody calls returned a failed Future.",
-                loopFuture::join, ex -> ex instanceof IntentionalException);
+                loopFuture::join,
+                ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
     }
 
@@ -223,11 +220,14 @@ public class FutureHelpersTests {
         AtomicInteger accumulator = new AtomicInteger();
 
         // 1. Successful execution.
-        FutureHelpers.doWhileLoop(() -> {
-            int i = loopCounter.get();
-            accumulator.addAndGet(i);
-            return CompletableFuture.completedFuture(loopCounter.incrementAndGet());
-        }, x -> x < maxLoops).join();
+        FutureHelpers.doWhileLoop(
+                () -> {
+                    int i = loopCounter.get();
+                    accumulator.addAndGet(i);
+                    return CompletableFuture.completedFuture(loopCounter.incrementAndGet());
+                },
+                x -> x < maxLoops
+        ).join();
 
         Assert.assertEquals("Unexpected result for loop without a specific accumulator.", expectedResult,
                 accumulator.get());
@@ -235,18 +235,21 @@ public class FutureHelpersTests {
         //2. With exceptions.
         loopCounter.set(0);
         accumulator.set(0);
-        CompletableFuture<Void> loopFuture = FutureHelpers.doWhileLoop(() -> {
-            if (loopCounter.incrementAndGet() % 3 == 0) {
-                throw new IntentionalException();
-            } else {
-                accumulator.addAndGet(loopCounter.get());
-                return CompletableFuture.completedFuture(loopCounter.get());
-            }
-        }, x -> x < maxLoops);
+        CompletableFuture<Void> loopFuture = FutureHelpers.doWhileLoop(
+                () -> {
+                    if (loopCounter.incrementAndGet() % 3 == 0) {
+                        throw new IntentionalException();
+                    } else {
+                        accumulator.addAndGet(loopCounter.get());
+                        return CompletableFuture.completedFuture(loopCounter.get());
+                    }
+                },
+                x -> x < maxLoops);
 
         AssertExtensions.assertThrows(
                 "doWhileLoop() did not return a failed Future when one of the loopBody calls returned a failed Future.",
-                loopFuture::join, ex -> ex instanceof IntentionalException);
+                loopFuture::join,
+                ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
     }
 

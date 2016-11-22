@@ -48,9 +48,10 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     private final ControllerServiceImpl controllerService;
 
-    public ControllerServiceSyncImpl(final StreamMetadataStore streamStore, final HostControllerStore hostStore,
-                                     final StreamMetadataTasks streamMetadataTasks, final
-                                     StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+    public ControllerServiceSyncImpl(final StreamMetadataStore streamStore,
+                                     final HostControllerStore hostStore,
+                                     final StreamMetadataTasks streamMetadataTasks,
+                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
         controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks);
     }
@@ -62,9 +63,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
      */
     @Override
     public CreateStreamStatus createStream(final StreamConfig streamConfig) throws TException {
-        return FutureHelpers.getAndHandleExceptions(
-                controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()),
-                RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig),
+                System.currentTimeMillis()), RuntimeException::new);
     }
 
     @Override
@@ -90,8 +90,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public List<Position> getPositions(final String scope, final String stream, final long timestamp, final int
-            count) throws TException {
+    public List<Position> getPositions(final String scope, final String stream, final long timestamp,
+                                       final int count) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getPositions(scope, stream, timestamp, count),
                 RuntimeException::new);
     }
@@ -104,8 +104,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public ScaleResponse scale(final String scope, final String stream, final List<Integer> sealedSegments, final
-    Map<Double, Double> newKeyRanges, final long scaleTimestamp) throws TException {
+    public ScaleResponse scale(final String scope, final String stream, final List<Integer> sealedSegments,
+                               final Map<Double, Double> newKeyRanges, final long scaleTimestamp) throws TException {
         return FutureHelpers.getAndHandleExceptions(
                 controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp),
                 RuntimeException::new);
@@ -118,15 +118,15 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
     }
 
     @Override
-    public TransactionStatus commitTransaction(final String scope, final String stream, final TxId txid) throws
-            TException {
+    public TransactionStatus commitTransaction(final String scope, final String stream, final TxId txid)
+            throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid),
                 RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus dropTransaction(final String scope, final String stream, final TxId txid) throws
-            TException {
+    public TransactionStatus dropTransaction(final String scope, final String stream, final TxId txid)
+            throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid),
                 RuntimeException::new);
     }

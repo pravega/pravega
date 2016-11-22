@@ -94,8 +94,8 @@ public class AppendEncodeDecodeTest {
         sendAndVerifyEvents(s2, c2, numEvents, size, numEvents);
     }
 
-    private void sendAndVerifyEvents(String segment, UUID connectionId, int numEvents, int eventSize, int
-            expectedMessages) throws Exception {
+    private void sendAndVerifyEvents(String segment, UUID connectionId, int numEvents, int eventSize,
+            int expectedMessages) throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(segment, connectionId, fakeNetwork);
@@ -146,8 +146,11 @@ public class AppendEncodeDecodeTest {
     public void testSmallAppends() throws Exception {
         int eventSize = 10;
         int numEvents = 10000;
-        sendAndVerifyEvents(streamName, connectionId, numEvents, eventSize,
-                numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / APPEND_BLOCK_SIZE + 1);
+        sendAndVerifyEvents(streamName,
+                            connectionId,
+                            numEvents,
+                            eventSize,
+                            numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / APPEND_BLOCK_SIZE + 1);
     }
 
     @Test
