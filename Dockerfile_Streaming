@@ -2,15 +2,14 @@ FROM java:8
 
 MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
-COPY  .  /opt/streaming/
+COPY service/server/host/build/distributions/ /opt
 
-RUN mkdir -p /root/.m2/repository/com/twitter/
-RUN mkdir -p /root/.m2/repository/org/apache/thrift/
-WORKDIR /opt/streaming/
-RUN mv ./temp_repo/twitter /root/.m2/repository/com/
-RUN mv ./temp_repo/thrift /root/.m2/repository/org/apache/
-RUN mv ./temp_repo/bookkeeper /root/.m2/repository/org/apache/
+WORKDIR /opt
 
-RUN  ./gradlew jar
+RUN tar -xf /opt/host.tar
 
-ENTRYPOINT [ "/opt/streaming/gradlew","startServer" ]
+RUN rm /opt/host.tar
+RUN rm /opt/host.zip
+
+ENTRYPOINT [ "/opt/host/bin/host" ]
+
