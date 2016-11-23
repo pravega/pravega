@@ -150,7 +150,7 @@ project('service:server:host') {
         testCompile project(':testcommon')
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
-        dependsOn 'distTar'
+        dependsOn 'distTar','distZip'
         dockerFile = file(dockerFilePravegaHost)
         inputDir = file(dockerDirPravegaHost)
         tag = 'abhijeet78/pravega:host'
@@ -265,7 +265,7 @@ project('controller:server') {
     }
 
     task buildPravegaControllerImage(type: DockerBuildImage) {
-        dependsOn 'distTar'
+        dependsOn 'distTar','distZip'
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravegaController)
         tag = 'abhijeet78/pravega:controller'
