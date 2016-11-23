@@ -176,6 +176,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             @Override
             public Void apply(Long t, Throwable u) {
                 try {
+                    boolean conditionalFailed = u != null
+                            && (u instanceof BadOffsetException || u.getCause() instanceof BadOffsetException);
                     synchronized (lock) {
                         if (outstandingAppend != toWrite) {
                             throw new IllegalStateException(
@@ -183,13 +185,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         }
                         toWrite.getData().release();
                         outstandingAppend = null;
-                        if (u != null) {
+                        if (u != null && !conditionalFailed) {
                             waitingAppends.removeAll(context.getClientId());
                             latestEventNumbers.remove(context.getClientId());
                         }
                     }
                     if (t == null) {
-                        if (u instanceof BadOffsetException) {
+                        if (conditionalFailed) {
                             connection.send(new ConditionalCheckFailed(context.getClientId(), context.getEventNumber()));
                         } else {
                             handleException(segment, u);
