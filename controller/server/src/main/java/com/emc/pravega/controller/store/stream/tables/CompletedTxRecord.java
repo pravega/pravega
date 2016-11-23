@@ -32,7 +32,8 @@ public class CompletedTxRecord {
     public static CompletedTxRecord parse(final byte[] bytes) {
         final long completeTimeStamp = Utilities.toLong(ArrayUtils.subarray(bytes, 0, Long.SIZE / 8));
 
-        final TxStatus status = TxStatus.values()[Utilities.toInt(ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
+        final TxStatus status = TxStatus.values()[Utilities.toInt(
+                ArrayUtils.subarray(bytes, Long.SIZE / 8, bytes.length))];
 
         return new CompletedTxRecord(completeTimeStamp, status);
     }

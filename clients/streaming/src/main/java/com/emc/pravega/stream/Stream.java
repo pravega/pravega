@@ -94,5 +94,6 @@ public interface Stream {
      * @param startingPosition The StartingPosition to use.
      * @param <T>              The consumer data type.
      */
-    <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition, RateChangeListener l);
+    <T> Consumer<T> createConsumer(Serializer<T> s, ConsumerConfig config, Position startingPosition,
+                                   RateChangeListener l);
 }

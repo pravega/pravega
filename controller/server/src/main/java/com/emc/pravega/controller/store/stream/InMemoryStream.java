@@ -59,14 +59,11 @@ class InMemoryStream implements Stream {
         this.configuration = configuration;
         int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
-        IntStream.range(0, numSegments)
-                .forEach(
-                        x -> {
-                            InMemorySegment segment = new InMemorySegment(x, 0, Long.MAX_VALUE, x * keyRange, (x + 1) * keyRange);
-                            segments.add(segment);
-                            currentSegments.add(x);
-                        }
-                );
+        IntStream.range(0, numSegments).forEach(x -> {
+            InMemorySegment segment = new InMemorySegment(x, 0, Long.MAX_VALUE, x * keyRange, (x + 1) * keyRange);
+            segments.add(segment);
+            currentSegments.add(x);
+        });
         return CompletableFuture.completedFuture(true);
     }
 
@@ -110,11 +107,10 @@ class InMemoryStream implements Stream {
     }
 
     /**
-     * @return the list of segments active at a given timestamp.
-     * GetActiveSegments runs in O(n), where n is the total number of segments.
-     * It can be improved to O(k + logn), where k is the number of active segments at specified timestamp,
-     * using augmented interval tree or segment index..
-     * TODO: maintain a augmented interval tree or segment tree index
+     * @return the list of segments active at a given timestamp. GetActiveSegments runs in O(n), where n is the total
+     * number of segments. It can be improved to O(k + logn), where k is the number of active segments at specified
+     * timestamp, using augmented interval tree or segment index.. TODO: maintain a augmented interval tree or segment
+     * tree index
      */
     @Override
     public synchronized CompletableFuture<List<Integer>> getActiveSegments(long timestamp) {
@@ -136,11 +132,13 @@ class InMemoryStream implements Stream {
      *
      * @param sealedSegments segments to be sealed
      * @param keyRanges      new segments to be added as active segments
-     * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new segments.
+     * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new
+     *                       segments.
      * @return the list of new segments.
      */
     @Override
-    public synchronized CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> keyRanges, long scaleTimestamp) {
+    public synchronized CompletableFuture<List<Segment>> scale(List<Integer> sealedSegments, List<SimpleEntry<Double,
+            Double>> keyRanges, long scaleTimestamp) {
         Preconditions.checkNotNull(sealedSegments);
         Preconditions.checkNotNull(keyRanges);
         Preconditions.checkArgument(sealedSegments.size() > 0);
@@ -164,7 +162,9 @@ class InMemoryStream implements Stream {
                     predecessors.get(i).add(sealed);
                 }
             }
-            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(), scaleTimestamp, segment.getKeyStart(), segment.getKeyEnd(), InMemorySegment.Status.Sealed, successors, segment.getPredecessors());
+            InMemorySegment sealedSegment = new InMemorySegment(sealed, segment.getStart(), scaleTimestamp,
+                    segment.getKeyStart(), segment.getKeyEnd(), InMemorySegment.Status.Sealed, successors,
+                    segment.getPredecessors());
             segments.set(sealed, sealedSegment);
             currentSegments.remove(sealed);
         }
@@ -173,7 +173,9 @@ class InMemoryStream implements Stream {
         // assign start times, numbers to new segments. Add them to segments list and current list.
         for (int i = 0; i < keyRanges.size(); i++) {
             int number = start + i;
-            InMemorySegment segment = new InMemorySegment(number, scaleTimestamp, Long.MAX_VALUE, keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), InMemorySegment.Status.Active, new ArrayList<>(), predecessors.get(i));
+            InMemorySegment segment = new InMemorySegment(number, scaleTimestamp, Long.MAX_VALUE,
+                    keyRanges.get(i).getKey(), keyRanges.get(i).getValue(), InMemorySegment.Status.Active,
+                    new ArrayList<>(), predecessors.get(i));
             newSegments.add(segment);
             segments.add(segment);
             currentSegments.add(number);

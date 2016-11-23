@@ -34,26 +34,32 @@ public interface ReadIndex extends AutoCloseable {
      * @param offset          The offset in the StreamSegment where to write this append. The offset must be at the end
      *                        of the StreamSegment as it exists in the ReadIndex.
      * @param data            The data to append.
-     * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
-     * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the StreamSegment.
+     * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in
+     *                                  ReadIndex).
+     * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the
+     *                                  StreamSegment.
      */
     void append(long streamSegmentId, long offset, byte[] data);
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.
      * <ol>
-     * <li>Step 1: The StreamSegments are merged (Source->Target@Offset) in Metadata and a ReadIndex Redirection is put in place.
-     * At this stage, the Source still exists as a physical object in Storage, and we need to keep its ReadIndex around, pointing
+     * <li>Step 1: The StreamSegments are merged (Source->Target@Offset) in Metadata and a ReadIndex Redirection is
+     * put in place.
+     * At this stage, the Source still exists as a physical object in Storage, and we need to keep its ReadIndex
+     * around, pointing
      * to the old object.
-     * <li>Step 2: The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
+     * <li>Step 2: The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist
+     * anymore.
      * The ReadIndex entries of the two Streams are actually joined together.
      * </ol>
      *
      * @param targetStreamSegmentId The Id of the StreamSegment to merge into.
-     * @param offset                The offset in the Target StreamSegment where to merge the Source StreamSegment.
-     *                              The offset must be at the end of the StreamSegment as it exists in the ReadIndex.
+     * @param offset                The offset in the Target StreamSegment where to merge the Source StreamSegment. The
+     *                              offset must be at the end of the StreamSegment as it exists in the ReadIndex.
      * @param sourceStreamSegmentId The Id of the StreamSegment to merge.
-     * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
+     * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in
+     *                                  ReadIndex).
      * @throws IllegalArgumentException If the offset + SourceStreamSegment.length exceeds the metadata DurableLogLength
      *                                  of the target StreamSegment.
      */
@@ -89,8 +95,8 @@ public interface ReadIndex extends AutoCloseable {
     /**
      * Clears the entire contents of the ReadIndex.
      *
-     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system (for example,
-     *                               if the system is in Recovery Mode).
+     * @throws IllegalStateException If the operation cannot be performed due to the current state of the system (for
+     *                               example, if the system is in Recovery Mode).
      */
     void clear();
 
@@ -104,7 +110,8 @@ public interface ReadIndex extends AutoCloseable {
      *
      * @param recoveryMetadataSource The Metadata Source to use. This Metadata must be in sync with the ReadIndex base
      *                               ContainerMetadata. If, upon exiting recovery mode, they disagree, it could lead to
-     *                               serious errors, and will be reported as DataCorruptionExceptions (see exitRecoveryMode).
+     *                               serious errors, and will be reported as DataCorruptionExceptions (see
+     *                               exitRecoveryMode).
      * @throws IllegalStateException If the ReadIndex is already in recovery mode.
      * @throws NullPointerException  If the parameter is null.
      */

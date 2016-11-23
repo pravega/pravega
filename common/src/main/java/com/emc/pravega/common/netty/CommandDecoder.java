@@ -48,7 +48,7 @@ import lombok.extern.slf4j.Slf4j;
  * which must be an AppendBlockEnd.
  * The AppendBlockEnd command should have all of the information need to construct a single
  * Append object with all of the Events in the block.
- * 
+ *
  * @See CommandEncoder For details about handling of PartialEvents
  */
 @Slf4j
@@ -83,44 +83,44 @@ public class CommandDecoder extends ByteToMessageDecoder {
         }
         WireCommand result;
         switch (command.getType()) {
-        case PADDING:
-            result = null;
-            break;
-        case SETUP_APPEND:
-            SetupAppend append = (SetupAppend) command;
-            appendingSegments.put(append.getConnectionId(), new Segment(append.getSegment()));
-            result = command;
-            break;
-        case APPEND_BLOCK:
-            getSegment(((AppendBlock) command).getConnectionId());
-            currentBlock = (AppendBlock) command;
-            result = null;
-            break;
-        case APPEND_BLOCK_END:
-            AppendBlockEnd blockEnd = (AppendBlockEnd) command;
-            if (currentBlock == null) {
-                throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
-            }
-            UUID connectionId = blockEnd.getConnectionId();
-            if (!connectionId.equals(currentBlock.getConnectionId())) {
-                throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
-            }
-            Segment segment = getSegment(connectionId);
-            if (blockEnd.lastEventNumber < segment.lastEventNumber) {
-                throw new InvalidMessageException("Last event number went backwards.");
-            }
-            int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
-            if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
-                throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
-            }
-            ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
-            segment.lastEventNumber = blockEnd.lastEventNumber;
-            currentBlock = null;
-            result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf);
-            break;
-        default:
-            result = command;
-            break;
+            case PADDING:
+                result = null;
+                break;
+            case SETUP_APPEND:
+                SetupAppend append = (SetupAppend) command;
+                appendingSegments.put(append.getConnectionId(), new Segment(append.getSegment()));
+                result = command;
+                break;
+            case APPEND_BLOCK:
+                getSegment(((AppendBlock) command).getConnectionId());
+                currentBlock = (AppendBlock) command;
+                result = null;
+                break;
+            case APPEND_BLOCK_END:
+                AppendBlockEnd blockEnd = (AppendBlockEnd) command;
+                if (currentBlock == null) {
+                    throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
+                }
+                UUID connectionId = blockEnd.getConnectionId();
+                if (!connectionId.equals(currentBlock.getConnectionId())) {
+                    throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
+                }
+                Segment segment = getSegment(connectionId);
+                if (blockEnd.lastEventNumber < segment.lastEventNumber) {
+                    throw new InvalidMessageException("Last event number went backwards.");
+                }
+                int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
+                if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
+                    throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
+                }
+                ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
+                segment.lastEventNumber = blockEnd.lastEventNumber;
+                currentBlock = null;
+                result = new Append(segment.name, connectionId, segment.lastEventNumber, appendDataBuf);
+                break;
+            default:
+                result = command;
+                break;
         }
         return result;
     }
@@ -132,8 +132,8 @@ public class CommandDecoder extends ByteToMessageDecoder {
             ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
             WireCommand cmd = parseCommand(dataRemainingInBlock);
             if (!(cmd.getType() == PARTIAL_EVENT || cmd.getType() == PADDING)) {
-                throw new InvalidMessageException("Found " + cmd.getType()
-                        + " at end of append block but was expecting a partialEvent or padding.");
+                throw new InvalidMessageException( "Found " + cmd.getType() +
+                        " at end of append block but was expecting a partialEvent or padding.");
             }
             if (cmd.getType() == PADDING && blockEnd.getData().readableBytes() != 0) {
                 throw new InvalidMessageException("Unexpected data in BlockEnd");

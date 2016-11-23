@@ -183,8 +183,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 if (connection == null) {
                     connection = connectionFactory.establishConnection(uri, responseProcessor);
                 }
-                return connection; 
-            } 
+                return connection;
+            }
         });
     }
 

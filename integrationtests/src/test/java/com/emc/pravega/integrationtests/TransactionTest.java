@@ -76,14 +76,11 @@ public class TransactionTest {
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        @Cleanup MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         producer.publish(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.startTransaction(60000);
         producer.publish(routingKey, nonTxEvent);
@@ -102,9 +99,9 @@ public class TransactionTest {
         transaction.publish(routingKey, txnEvent);
         transaction.commit();
         producer.publish(routingKey, nonTxEvent);
-        AssertExtensions.assertThrows(IllegalStateException.class,
-                                      () -> transaction.publish(routingKey, txnEvent));
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(),
+                streamManager.getInitialPosition(streamName), null);
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
@@ -121,7 +118,7 @@ public class TransactionTest {
 
         assertEquals(nonTxEvent, consumer.getNextEvent(readTimeout));
     }
-    
+
     @Test
     public void testDoubleCommit() throws TxFailedException {
         String endpoint = "localhost";
@@ -130,20 +127,17 @@ public class TransactionTest {
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        @Cleanup MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
         transaction.publish(routingKey, event);
         transaction.commit();
-        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit() );    
+        AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
     }
-    
+
     @Test
     public void testDrop() throws TxFailedException {
         String endpoint = "localhost";
@@ -153,14 +147,11 @@ public class TransactionTest {
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        @Cleanup MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
-        @Cleanup
-        Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
+        @Cleanup Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));
         Transaction<String> transaction = producer.startTransaction(60000);
         transaction.publish(routingKey, txnEvent);
         transaction.flush();
@@ -168,8 +159,9 @@ public class TransactionTest {
         transaction.drop();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> transaction.publish(routingKey, txnEvent));
         AssertExtensions.assertThrows(TxFailedException.class, () -> transaction.commit());
-        
-        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
+
+        Consumer<Serializable> consumer = stream.createConsumer(new JavaSerializer<>(), new ConsumerConfig(),
+                streamManager.getInitialPosition(streamName), null);
         producer.publish(routingKey, nonTxEvent);
         producer.flush();
         assertEquals(nonTxEvent, consumer.getNextEvent(1500));

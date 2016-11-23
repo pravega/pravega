@@ -87,7 +87,7 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
         getNextReplyProcessor().streamSegmentInfo(streamInfo);
     }
-    
+
     @Override
     public void transactionInfo(TransactionInfo transactionInfo) {
         getNextReplyProcessor().transactionInfo(transactionInfo);
@@ -107,7 +107,7 @@ public abstract class DelegatingReplyProcessor implements ReplyProcessor {
     public void transactionCommitted(TransactionCommitted transactionCommitted) {
         getNextReplyProcessor().transactionCommitted(transactionCommitted);
     }
-    
+
     @Override
     public void transactionDropped(TransactionDropped transactionDropped) {
         getNextReplyProcessor().transactionDropped(transactionDropped);

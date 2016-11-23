@@ -43,12 +43,13 @@ class AckCalculator {
      * The Sequence Number we acknowledge has the property that all operations up to, and including it, have been
      * committed to Storage.
      * This can only be calculated by looking at all the active SegmentAggregators and picking the Lowest Uncommitted
-     * Sequence Number (LUSN) among all of those Aggregators that have any outstanding data. The LUSN for each aggregator
-     * has the property that, within the context of that Aggregator alone, all Operations that have a Sequence Number (SN)
-     * smaller than LUSN have been committed to Storage. As such, picking the smallest of all LUSN values across
-     * all the active SegmentAggregators will give us the highest SN that can be safely truncated out of the OperationLog.
-     * Note that LUSN still points to an uncommitted Operation, so we need to subtract 1 from it to obtain the highest SN
-     * that can be truncated up to (and including).
+     * Sequence Number (LUSN) among all of those Aggregators that have any outstanding data. The LUSN for each
+     * aggregator has the property that, within the context of that Aggregator alone, all Operations that have a
+     * Sequence Number (SN) * smaller than LUSN have been committed to Storage. As such, picking the smallest of all
+     * LUSN values across * all the active SegmentAggregators will give us the highest SN that can be safely truncated
+     * out of the * OperationLog.
+     * Note that LUSN still points to an uncommitted Operation, so we need to subtract 1 from it to obtain the
+     * highest SN that can be truncated up to (and including).
      * If we have no active Aggregators, then we have committed all operations that were passed to us, so we can
      * safely truncate up to LastReadSequenceNumber.
      *
@@ -61,7 +62,8 @@ class AckCalculator {
                 long firstSeqNo = a.getLowestUncommittedSequenceNumber();
                 if (firstSeqNo >= 0) {
                     // Subtract 1 from the computed LUSN and then make sure it doesn't exceed the LastReadSequenceNumber
-                    // (it would only exceed it if there are no aggregators or of they are all empty - which means we processed everything).
+                    // (it would only exceed it if there are no aggregators or of they are all empty - which means we
+                    // processed everything).
                     lowestUncommittedSeqNo = Math.min(lowestUncommittedSeqNo, firstSeqNo - 1);
                 }
             }

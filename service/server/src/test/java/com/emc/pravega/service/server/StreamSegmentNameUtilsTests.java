@@ -42,18 +42,22 @@ public class StreamSegmentNameUtilsTests {
 
         for (int i = 0; i < transactionCount; i++) {
             String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
-            AssertExtensions.assertNotNullOrEmpty("getTransactionNameFromId() did not return any Segment Name.", transactionName);
-            AssertExtensions.assertGreaterThan("getTransactionNameFromId() returned a Segment Name that is shorter than the base.", segmentName.length(), transactionName.length());
+            AssertExtensions.assertNotNullOrEmpty("getTransactionNameFromId() did not return any Segment Name.",
+                    transactionName);
+            AssertExtensions.assertGreaterThan(
+                    "getTransactionNameFromId() returned a Segment Name that is shorter " + "than the base.",
+                    segmentName.length(), transactionName.length());
 
             parentName = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-            Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName, parentName);
+            Assert.assertEquals("getParentStreamSegmentName() generated an unexpected value for parent.", segmentName,
+                    parentName);
         }
     }
 
     /**
-     * Tests recursive batch generation. This is not a direct requirement or in any way represents how the service works,
-     * but it is good to test the principles of batch generation (i.e., only look at the last part of a segment name and
-     * ignore the first part).
+     * Tests recursive batch generation. This is not a direct requirement or in any way represents how the service
+     * works, but it is good to test the principles of batch generation (i.e., only look at the last part of a
+     * segment name and ignore the first part).
      */
     @Test
     public void testRecursiveBatchNameGeneration() {
@@ -74,6 +78,7 @@ public class StreamSegmentNameUtilsTests {
             lastName = expectedName;
         }
 
-        Assert.assertNull("Unexpected parent name when none was expected.", StreamSegmentNameUtils.getParentStreamSegmentName(lastName));
+        Assert.assertNull("Unexpected parent name when none was expected.",
+                StreamSegmentNameUtils.getParentStreamSegmentName(lastName));
     }
 }

@@ -67,7 +67,8 @@ public class ZkStreamTest {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
+                config);
         final String streamName = "test";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -86,8 +87,7 @@ public class ZkStreamTest {
         // existing range 0 = 0 - .2, 1 = .2 - .4, 2 = .4 - .6, 3 = .6 - .8, 4 = .8 - 1.0
 
         // 3, 4 -> 5 = .6 - 1.0
-        newRanges = Collections.singletonList(
-                new AbstractMap.SimpleEntry<>(0.6, 1.0));
+        newRanges = Collections.singletonList(new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale1 = start + 10;
         store.scale(streamName, Lists.newArrayList(3, 4), newRanges, scale1).get();
@@ -98,9 +98,7 @@ public class ZkStreamTest {
 
         // 1 -> 6 = 0.2 -.3, 7 = .3 - .4
         // 2,5 -> 8 = .4 - 1.0
-        newRanges = Arrays.asList(
-                new AbstractMap.SimpleEntry<>(0.2, 0.3),
-                new AbstractMap.SimpleEntry<>(0.3, 0.4),
+        newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.2, 0.3), new AbstractMap.SimpleEntry<>(0.3, 0.4),
                 new AbstractMap.SimpleEntry<>(0.4, 1.0));
 
         long scale2 = scale1 + 10;
@@ -112,9 +110,7 @@ public class ZkStreamTest {
 
         // 7 -> 9 = .3 - .35, 10 = .35 - .6
         // 8 -> 10 = .35 - .6, 11 = .6 - 1.0
-        newRanges = Arrays.asList(
-                new AbstractMap.SimpleEntry<>(0.3, 0.35),
-                new AbstractMap.SimpleEntry<>(0.35, 0.6),
+        newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.3, 0.35), new AbstractMap.SimpleEntry<>(0.35, 0.6),
                 new AbstractMap.SimpleEntry<>(0.6, 1.0));
 
         long scale3 = scale2 + 10;
@@ -160,7 +156,8 @@ public class ZkStreamTest {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 6);
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
+                config);
         final String streamName = "test2";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -176,12 +173,9 @@ public class ZkStreamTest {
 
         IntStream.range(0, SegmentRecord.SEGMENT_CHUNK_SIZE + 2).forEach(x -> {
             List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Arrays.asList(
-                    new AbstractMap.SimpleEntry<>(0.0, 0.2),
-                    new AbstractMap.SimpleEntry<>(0.2, 0.4),
-                    new AbstractMap.SimpleEntry<>(0.4, 0.6),
-                    new AbstractMap.SimpleEntry<>(0.6, 0.8),
-                    new AbstractMap.SimpleEntry<>(0.8, 0.9),
-                    new AbstractMap.SimpleEntry<>(0.9, 1.0));
+                    new AbstractMap.SimpleEntry<>(0.0, 0.2), new AbstractMap.SimpleEntry<>(0.2, 0.4),
+                    new AbstractMap.SimpleEntry<>(0.4, 0.6), new AbstractMap.SimpleEntry<>(0.6, 0.8),
+                    new AbstractMap.SimpleEntry<>(0.8, 0.9), new AbstractMap.SimpleEntry<>(0.9, 1.0));
 
             long scaleTs = start + 10 * (x + 1);
 
@@ -206,7 +200,8 @@ public class ZkStreamTest {
         final ScalingPolicy policy = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 5);
 
         final StoreConfiguration config = new StoreConfiguration(zkTestServer.getConnectString());
-        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper, config);
+        final StreamMetadataStore store = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
+                config);
         final String streamName = "testTx";
 
         StreamConfigurationImpl streamConfig = new StreamConfigurationImpl(streamName, streamName, policy);
@@ -234,23 +229,21 @@ public class ZkStreamTest {
         assert store.transactionStatus(streamName, streamName, tx).get().equals(TxStatus.COMMITTED);
         assert store.transactionStatus(streamName, streamName, tx2).get().equals(TxStatus.DROPPED);
 
-        assert store.commitTransaction(streamName, streamName, UUID.randomUUID())
-                .handle((ok, ex) -> {
-                    if (ex.getCause() instanceof TransactionNotFoundException) {
-                        return true;
-                    } else {
-                        throw new RuntimeException("assert failed");
-                    }
-                }).get();
+        assert store.commitTransaction(streamName, streamName, UUID.randomUUID()).handle((ok, ex) -> {
+            if (ex.getCause() instanceof TransactionNotFoundException) {
+                return true;
+            } else {
+                throw new RuntimeException("assert failed");
+            }
+        }).get();
 
-        assert store.dropTransaction(streamName, streamName, UUID.randomUUID())
-                .handle((ok, ex) -> {
-                    if (ex.getCause() instanceof TransactionNotFoundException) {
-                        return true;
-                    } else {
-                        throw new RuntimeException("assert failed");
-                    }
-                }).get();
+        assert store.dropTransaction(streamName, streamName, UUID.randomUUID()).handle((ok, ex) -> {
+            if (ex.getCause() instanceof TransactionNotFoundException) {
+                return true;
+            } else {
+                throw new RuntimeException("assert failed");
+            }
+        }).get();
 
         assert store.transactionStatus(streamName, streamName, UUID.randomUUID()).get().equals(TxStatus.UNKNOWN);
     }

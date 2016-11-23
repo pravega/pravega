@@ -27,24 +27,22 @@ import lombok.Cleanup;
 import java.time.Duration;
 
 public class StartLocalService {
-    
+
     static final int PORT = 9090;
     static final String SCOPE = "Scope";
     static final String STREAM_NAME = "Foo";
 
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        @Cleanup ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(
+                ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize(Duration.ofMinutes(1)).get();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, PORT, store);
         server.startListening();
-        
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.PORT);
+
+        @Cleanup MockStreamManager streamManager = new MockStreamManager(SCOPE, "localhost", StartLocalService.PORT);
         streamManager.createStream(STREAM_NAME, null);
-        
+
         Thread.sleep(60000);
         System.exit(0);
     }

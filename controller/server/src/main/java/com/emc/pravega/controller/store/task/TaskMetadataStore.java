@@ -45,12 +45,8 @@ public interface TaskMetadataStore {
      * @param oldThreadId threadId that took the lock
      * @return void if the operation succeeds, otherwise throws LockFailedException.
      */
-    CompletableFuture<Void> lock(final Resource resource,
-                                 final TaskData taskData,
-                                 final String owner,
-                                 final String threadId,
-                                 final String oldOwner,
-                                 final String oldThreadId);
+    CompletableFuture<Void> lock(final Resource resource, final TaskData taskData, final String owner, final String
+            threadId, final String oldOwner, final String oldThreadId);
 
     /**
      * Unlocks a resource if it is owned by the specified owner.
@@ -93,7 +89,8 @@ public interface TaskMetadataStore {
      * @param deleteEmptyParent to delete or not to delete.
      * @return void in future.
      */
-    CompletableFuture<Void> removeChild(final String parent, final TaggedResource child, final boolean deleteEmptyParent);
+    CompletableFuture<Void> removeChild(final String parent, final TaggedResource child, final boolean
+            deleteEmptyParent);
 
     /**
      * Remove a parent node if it is empty.

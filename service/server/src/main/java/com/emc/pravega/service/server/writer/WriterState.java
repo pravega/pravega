@@ -112,7 +112,8 @@ class WriterState {
      * @param value The Sequence Number to set.
      */
     void setLastTruncatedSequenceNumber(long value) {
-        Preconditions.checkArgument(value >= this.lastTruncatedSequenceNumber.get(), "New LastTruncatedSequenceNumber cannot be smaller than the previous one.");
+        Preconditions.checkArgument(value >= this.lastTruncatedSequenceNumber.get(),
+                "New LastTruncatedSequenceNumber" + " cannot be smaller than the previous one.");
         this.lastTruncatedSequenceNumber.set(value);
     }
 
@@ -129,13 +130,15 @@ class WriterState {
      * @param value The Sequence Number to set.
      */
     void setLastReadSequenceNumber(long value) {
-        Preconditions.checkArgument(value >= this.lastReadSequenceNumber.get(), "New LastReadSequenceNumber cannot be smaller than the previous one.");
+        Preconditions.checkArgument(value >= this.lastReadSequenceNumber.get(),
+                "New LastReadSequenceNumber cannot be" + " smaller than the previous one.");
         this.lastReadSequenceNumber.set(value);
     }
 
     @Override
     public String toString() {
-        return String.format("LastRead=%s, LastTruncate=%s, Error=%s", this.lastReadSequenceNumber, this.lastTruncatedSequenceNumber, this.lastIterationError);
+        return String.format("LastRead=%s, LastTruncate=%s, Error=%s", this.lastReadSequenceNumber,
+                this.lastTruncatedSequenceNumber, this.lastIterationError);
     }
 
     //endregion

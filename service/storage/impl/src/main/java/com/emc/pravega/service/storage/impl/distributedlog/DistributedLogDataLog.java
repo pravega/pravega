@@ -94,7 +94,8 @@ class DistributedLogDataLog implements DurableDataLog {
     }
 
     @Override
-    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws DurableDataLogException {
+    public CloseableIterator<ReadItem, DurableDataLogException> getReader(long afterSequence) throws
+            DurableDataLogException {
         ensureInitialized();
         return this.handle.getReader(afterSequence);
     }

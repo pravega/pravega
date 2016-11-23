@@ -63,7 +63,8 @@ public interface Controller {
 
     /**
      * Api to get list of current segments for the stream to produce to.
-     * @param scope scope
+     *
+     * @param scope      scope
      * @param streamName stream name
      * @return
      */
@@ -72,33 +73,38 @@ public interface Controller {
     /**
      * Api to create a new transaction.
      * The transaction timeout is relative to the creation time.
-     * @param stream stream name
+     *
+     * @param stream  stream name
      * @param timeout tx timeout
      * @return
      */
     CompletableFuture<UUID> createTransaction(final Stream stream, final long timeout);
 
     /**
-     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees specified in {@link Producer}.
+     * Commits a transaction, atomically committing all events to the stream, subject to the ordering guarantees
+     * specified in {@link Producer}.
      * Will fail with {@link TxFailedException} if the transaction has already been committed or dropped.
+     *
      * @param stream stream name
-     * @param txId transaction id
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<TransactionStatus> commitTransaction(final Stream stream, final UUID txId);
 
     /**
      * Drops a transaction. No events published to it may be read, and no further events may be published.
+     *
      * @param stream stream name
-     * @param txId transaction id
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<TransactionStatus> dropTransaction(final Stream stream, final UUID txId);
 
     /**
      * Returns the status of the specified transaction.
+     *
      * @param stream stream name
-     * @param txId transaction id
+     * @param txId   transaction id
      * @return
      */
     CompletableFuture<Transaction.Status> checkTransactionStatus(final Stream stream, final UUID txId);
@@ -109,9 +115,9 @@ public interface Controller {
      * Returns list of position objects by distributing available segments at the
      * given timestamp into requested number of position objects.
      *
-     * @param stream name
+     * @param stream    name
      * @param timestamp timestamp for getting position objects
-     * @param count number of position objects
+     * @param count     number of position objects
      * @return
      */
     CompletableFuture<List<PositionInternal>> getPositions(final Stream stream, final long timestamp, final int count);
@@ -119,11 +125,12 @@ public interface Controller {
     /**
      * Called by consumer upon reaching end of segment on some segment in its position obejct.
      *
-     * @param stream stream name
+     * @param stream    stream name
      * @param positions current position objects
      * @return
      */
-    CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal> positions);
+    CompletableFuture<List<PositionInternal>> updatePositions(final Stream stream, final List<PositionInternal>
+            positions);
 
     //Controller Apis that are called by producers and consumers
 
@@ -142,12 +149,10 @@ public interface Controller {
     /**
      * Given a segment number, check if the segment is created and not sealed.
      *
-     * @param scope scope
-     * @param stream stream
+     * @param scope         scope
+     * @param stream        stream
      * @param segmentNumber segment number
      * @return
      */
-    CompletableFuture<Boolean> isSegmentValid(final String scope,
-                                              final String stream,
-                                              final int segmentNumber);
+    CompletableFuture<Boolean> isSegmentValid(final String scope, final String stream, final int segmentNumber);
 }

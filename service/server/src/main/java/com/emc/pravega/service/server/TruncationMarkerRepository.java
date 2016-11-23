@@ -22,7 +22,8 @@ import com.emc.pravega.service.storage.LogAddress;
 
 /**
  * Defines a repository for Truncation Markers.
- * Truncation Markers are mappings (of Operation Sequence Numbers to DataFrame Sequence Numbers) where the DurableDataLog
+ * Truncation Markers are mappings (of Operation Sequence Numbers to DataFrame Sequence Numbers) where the
+ * DurableDataLog
  * can be truncated.
  */
 public interface TruncationMarkerRepository {
@@ -31,7 +32,8 @@ public interface TruncationMarkerRepository {
      * A Truncation Marker is a particular position in the Log where we can execute truncation operations.
      *
      * @param operationSequenceNumber The Sequence Number of the Operation that can be used as a truncation argument.
-     * @param address                 The LogAddress of the corresponding Data Frame that can be truncated (up to, and including).
+     * @param address                 The LogAddress of the corresponding Data Frame that can be truncated (up to, and
+     *                                including).
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     void recordTruncationMarker(long operationSequenceNumber, LogAddress address);
@@ -71,7 +73,8 @@ public interface TruncationMarkerRepository {
     boolean isValidTruncationPoint(long operationSequenceNumber);
 
     /**
-     * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence Number.
+     * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence
+     * Number.
      *
      * @param operationSequenceNumber The Sequence number to query.
      */

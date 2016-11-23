@@ -112,7 +112,8 @@ public class RocksDBCacheFactory implements CacheFactory {
         // Create (or recreate the database dir).
         createDatabaseDir();
 
-        // Load the RocksDB C++ library. Doing this more than once has no effect, so it's safe to put in the constructor.
+        // Load the RocksDB C++ library. Doing this more than once has no effect, so it's safe to put in the
+        // constructor.
         RocksDB.loadLibrary();
         this.options = createOptions();
 
@@ -137,12 +138,10 @@ public class RocksDBCacheFactory implements CacheFactory {
     }
 
     private Options createOptions() {
-        return new Options()
-                .setCreateIfMissing(true)
-                .setDbLogDir(Paths.get(this.config.getDatabaseDir(), DB_LOG_DIR).toString())
-                .setWalDir(Paths.get(this.config.getDatabaseDir(), DB_WRITE_AHEAD_LOG_DIR).toString())
-                .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+        return new Options().setCreateIfMissing(true).setDbLogDir(
+                Paths.get(this.config.getDatabaseDir(), DB_LOG_DIR).toString()).setWalDir(
+                Paths.get(this.config.getDatabaseDir(), DB_WRITE_AHEAD_LOG_DIR).toString()).setWalTtlSeconds(
+                0).setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
     }
 
     //endregion

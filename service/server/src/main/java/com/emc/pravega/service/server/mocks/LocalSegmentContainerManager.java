@@ -59,17 +59,19 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
      * Creates a new instance of the LocalSegmentContainerManager class.
      *
      * @param containerRegistry        The SegmentContainerRegistry to manage.
-     * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the cluster
-     *                                 (i.e., number of containers).
+     * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the
+     *                                 cluster (i.e., number of containers).
      * @throws NullPointerException     If containerRegistry is null.
      * @throws NullPointerException     If segmentToContainerMapper is null.
      * @throws NullPointerException     If logger is null.
      * @throws IllegalArgumentException If containerRegistry already has Containers registered in it.
      */
-    public LocalSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
+    public LocalSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper
+            segmentToContainerMapper) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
-        Exceptions.checkArgument(containerRegistry.getContainerCount() == 0, "containerRegistry", "containerRegistry already has containers registered.");
+        Exceptions.checkArgument(containerRegistry.getContainerCount() == 0, "containerRegistry",
+                "containerRegistry " + "already has containers registered.");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
@@ -108,11 +110,11 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int containerId = 0; containerId < this.segmentToContainerMapper.getTotalContainerCount(); containerId++) {
-            futures.add(this.registry.startContainer(containerId, timer.getRemaining()).thenAccept(this::registerHandle));
+            futures.add(
+                    this.registry.startContainer(containerId, timer.getRemaining()).thenAccept(this::registerHandle));
         }
 
-        return FutureHelpers.allOf(futures)
-                            .thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
+        return FutureHelpers.allOf(futures).thenRun(() -> LoggerHelpers.traceLeave(log, "initialize", traceId));
     }
 
     //endregion
@@ -121,7 +123,8 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
 
     private void unregisterHandle(ContainerHandle handle) {
         synchronized (this.handles) {
-            assert this.handles.containsKey(handle.getContainerId()) : "found unregistered handle " + handle.getContainerId();
+            assert this.handles.containsKey(
+                    handle.getContainerId()) : "found unregistered handle " + handle.getContainerId();
             this.handles.remove(handle.getContainerId());
         }
 
@@ -131,12 +134,14 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     private void registerHandle(ContainerHandle handle) {
         assert handle != null : "handle is null.";
         synchronized (this.handles) {
-            assert !this.handles.containsKey(handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
+            assert !this.handles.containsKey(
+                    handle.getContainerId()) : "handle is already registered " + handle.getContainerId();
             this.handles.put(handle.getContainerId(), handle);
 
             handle.setContainerStoppedListener(id -> {
                 unregisterHandle(handle);
-                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode, we rely on not auto-restarting containers.
+                //TODO: need to restart container. BUT ONLY IF WE HAVE A FLAG SET. In benchmark mode, we rely on not
+                // auto-restarting containers.
             });
         }
 

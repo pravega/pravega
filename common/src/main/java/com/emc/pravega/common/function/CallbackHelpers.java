@@ -59,7 +59,8 @@ public final class CallbackHelpers {
      * @param <T2>           The type of the second argument.
      * @throws NullPointerException If the consumer is null.
      */
-    public static <T1, T2> void invokeSafely(BiConsumer<T1, T2> consumer, T1 argument1, T2 argument2, Consumer<Throwable> failureHandler) {
+    public static <T1, T2> void invokeSafely(BiConsumer<T1, T2> consumer, T1 argument1, T2 argument2,
+                                             Consumer<Throwable> failureHandler) {
         Preconditions.checkNotNull(consumer, "consumer");
 
         try {

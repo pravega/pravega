@@ -32,7 +32,8 @@ interface StoreAdapter extends AutoCloseable {
 
     CompletableFuture<Void> initialize(Duration timeout);
 
-    CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration timeout);
+    CompletableFuture<Void> append(String streamSegmentName, byte[] data, AppendContext appendContext, Duration
+            timeout);
 
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 

@@ -29,6 +29,7 @@ public abstract class LogAddress {
 
     /**
      * Creates a new instance of the LogAddress class.
+     *
      * @param sequence The sequence of the address (location).
      */
     public LogAddress(long sequence) {

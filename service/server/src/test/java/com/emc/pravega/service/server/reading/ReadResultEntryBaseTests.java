@@ -38,17 +38,23 @@ public class ReadResultEntryBaseTests {
         final int positiveDelta = 8976;
         final int negativeDelta = 76;
         TestReadResultEntry e = new TestReadResultEntry(originalOffset, originalLength);
-        AssertExtensions.assertThrows("adjustOffset allowed changing to a negative offset.", () -> e.adjustOffset(-originalOffset - 1), ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("adjustOffset allowed changing to a negative offset.",
+                () -> e.adjustOffset(-originalOffset - 1), ex -> ex instanceof IllegalArgumentException);
 
         // Adjust up.
         e.adjustOffset(positiveDelta);
-        Assert.assertEquals("Unexpected value for getStreamSegmentOffset after up-adjustment.", originalOffset + positiveDelta, e.getStreamSegmentOffset());
-        Assert.assertEquals("Unexpected value for getRequestedReadLength after up-adjustment (no change expected).", originalLength, e.getRequestedReadLength());
+        Assert.assertEquals("Unexpected value for getStreamSegmentOffset after up-adjustment.",
+                originalOffset + positiveDelta, e.getStreamSegmentOffset());
+        Assert.assertEquals("Unexpected value for getRequestedReadLength after up-adjustment (no change expected).",
+                originalLength, e.getRequestedReadLength());
 
         // Adjust down.
         e.adjustOffset(negativeDelta);
-        Assert.assertEquals("Unexpected value for getStreamSegmentOffset after down-adjustment.", originalOffset + positiveDelta + negativeDelta, e.getStreamSegmentOffset());
-        Assert.assertEquals("Unexpected value for getRequestedReadLength after down-adjustment (no change expected).", originalLength, e.getRequestedReadLength());
+        Assert.assertEquals("Unexpected value for getStreamSegmentOffset after down-adjustment.",
+                originalOffset + positiveDelta + negativeDelta, e.getStreamSegmentOffset());
+        Assert.assertEquals(
+                "Unexpected value for getRequestedReadLength after down-adjustment (no change expected)" + ".",
+                originalLength, e.getRequestedReadLength());
     }
 
     private static class TestReadResultEntry extends ReadResultEntryBase {

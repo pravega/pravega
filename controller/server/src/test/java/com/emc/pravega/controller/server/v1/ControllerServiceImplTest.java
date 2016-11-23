@@ -64,8 +64,8 @@ public class ControllerServiceImplTest {
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
 
-    private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+    private final StreamMetadataStore streamStore = StreamStoreFactory.createStore(
+            StreamStoreFactory.StoreType.InMemory, null);
 
     private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
@@ -78,12 +78,14 @@ public class ControllerServiceImplTest {
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
-        final HostControllerStore hostStore =
-                HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
-                        new InMemoryHostControllerStoreConfig(hostContainerMap));
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
-        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
+                new InMemoryHostControllerStoreConfig(hostContainerMap));
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                "host");
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, "host");
+        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 
     @Before
@@ -148,8 +150,7 @@ public class ControllerServiceImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(1, positions.get(2).getFutureOwnedSegments().size());
 
-        Position newPosition = new Position(
-                Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),
+        Position newPosition = new Position(Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),
                 Collections.emptyMap());
         positions.set(2, newPosition);
         positions = consumer.updatePositions(SCOPE, stream2, positions).get();

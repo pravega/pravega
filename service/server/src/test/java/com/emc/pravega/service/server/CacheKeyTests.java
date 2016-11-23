@@ -42,12 +42,16 @@ public class CacheKeyTests {
                 CacheKey newKey = new CacheKey(originalKey.getSerialization());
 
                 Assert.assertTrue("equals() did not return true for equivalent keys.", originalKey.equals(newKey));
-                Assert.assertEquals("hashCode() did not return the same value for equivalent keys.", originalKey.hashCode(), newKey.hashCode());
-                Assert.assertEquals("getStreamSegmentId() did not return the same value for equivalent keys.", originalKey.getStreamSegmentId(), newKey.getStreamSegmentId());
-                Assert.assertEquals("getOffset() did not return the same value for equivalent keys.", originalKey.getOffset(), newKey.getOffset());
+                Assert.assertEquals("hashCode() did not return the same value for equivalent keys.",
+                        originalKey.hashCode(), newKey.hashCode());
+                Assert.assertEquals("getStreamSegmentId() did not return the same value for equivalent keys.",
+                        originalKey.getStreamSegmentId(), newKey.getStreamSegmentId());
+                Assert.assertEquals("getOffset() did not return the same value for equivalent keys.",
+                        originalKey.getOffset(), newKey.getOffset());
 
                 if (lastKey != null) {
-                    Assert.assertFalse("equals() did not return false for different keys.", originalKey.equals(lastKey));
+                    Assert.assertFalse("equals() did not return false for different keys.",
+                            originalKey.equals(lastKey));
                 }
 
                 lastKey = originalKey;

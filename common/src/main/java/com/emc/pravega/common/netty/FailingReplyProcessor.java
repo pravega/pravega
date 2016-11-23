@@ -90,7 +90,7 @@ public class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation");
     }
 
-    
+
     @Override
     public void segmentCreated(SegmentCreated streamsSegmentCreated) {
         throw new IllegalStateException("Unexpected operation");
@@ -110,7 +110,7 @@ public class FailingReplyProcessor implements ReplyProcessor {
     public void transactionDropped(TransactionDropped transactionDropped) {
         throw new IllegalStateException("Unexpected operation");
     }
-    
+
     @Override
     public void segmentSealed(SegmentSealed segmentSealed) {
         throw new IllegalStateException("Unexpected operation");
@@ -130,6 +130,6 @@ public class FailingReplyProcessor implements ReplyProcessor {
     public void connectionDropped() {
         throw new IllegalStateException("Unexpected operation");
     }
-    
+
 
 }

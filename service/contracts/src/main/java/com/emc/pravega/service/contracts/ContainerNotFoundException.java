@@ -23,7 +23,7 @@ package com.emc.pravega.service.contracts;
  */
 public class ContainerNotFoundException extends ContainerException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 

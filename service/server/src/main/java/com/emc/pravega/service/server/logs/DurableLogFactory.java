@@ -41,7 +41,8 @@ public class DurableLogFactory implements OperationLogFactory {
      * @param dataLogFactory The DurableDataLogFactory to use.
      * @param executor       The Executor to use.
      */
-    public DurableLogFactory(DurableLogConfig config, DurableDataLogFactory dataLogFactory, ScheduledExecutorService executor) {
+    public DurableLogFactory(DurableLogConfig config, DurableDataLogFactory dataLogFactory, ScheduledExecutorService
+            executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(dataLogFactory, "dataLogFactory");
         Preconditions.checkNotNull(executor, "executor");

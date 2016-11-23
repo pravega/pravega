@@ -75,7 +75,8 @@ public class FixedByteArrayOutputStreamTests {
                 if (streamOffset < length / 2) {
                     Assert.assertEquals("Unexpected value for stream index " + streamOffset, streamOffset, buffer[i]);
                 } else {
-                    Assert.assertEquals("Unexpected value for stream index " + streamOffset, secondHalfFillValue, buffer[i]);
+                    Assert.assertEquals("Unexpected value for stream index " + streamOffset, secondHalfFillValue,
+                            buffer[i]);
                 }
             }
         }

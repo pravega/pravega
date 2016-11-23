@@ -19,8 +19,8 @@
 package com.emc.pravega.service.contracts;
 
 /**
- * Represents an exception that is thrown when an operation that is incompatible with a sealed StreamSegment is attempted on
- * a sealed StreamSegment.
+ * Represents an exception that is thrown when an operation that is incompatible with a sealed StreamSegment is
+ * attempted on a sealed StreamSegment.
  */
 public class StreamSegmentSealedException extends StreamSegmentException {
     /**

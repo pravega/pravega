@@ -78,7 +78,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @param containerId           The Id of the Container this StreamSegment belongs to.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId) {
+    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int
+            containerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
@@ -95,7 +96,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.storageLength = -1;
         this.durableLogLength = -1;
         this.lastCommittedAppends = new HashMap<>();
-        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.lastModified = new Date(); // TODO: figure out what is the best way to represent this, while taking into
+        // account PermanentStorage timestamps, timezones, etc.
     }
 
     //endregion
@@ -179,14 +181,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public String toString() {
         return String.format(
-                "Id = %d, StorageLength = %d, DLOffset = %d, Sealed(DL/S) = %s/%s, Deleted = %s, Name = %s",
-                getId(),
-                getStorageLength(),
-                getDurableLogLength(),
-                isSealed(),
-                isSealedInStorage(),
-                isDeleted(),
-                getName());
+                "Id = %d, StorageLength = %d, DLOffset = %d, Sealed(DL/S) = %s/%s, Deleted = %s, Name = %s", getId(),
+                getStorageLength(), getDurableLogLength(), isSealed(), isSealedInStorage(), isDeleted(), getName());
     }
 
     //endregion
@@ -196,7 +192,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public void setStorageLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Storage Length must be a non-negative number.");
-        Exceptions.checkArgument(value >= this.storageLength, "value", "New Storage Length cannot be smaller than the previous one.");
+        Exceptions.checkArgument(value >= this.storageLength, "value",
+                "New Storage Length cannot be smaller than the" + " previous one.");
 
         log.trace("{}: StorageLength changed from {} to {}.", this.traceObjectId, this.storageLength, value);
         this.storageLength = value;
@@ -205,7 +202,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public void setDurableLogLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Durable Log Length must be a non-negative number.");
-        Exceptions.checkArgument(value >= this.durableLogLength, "value", "New Durable Log Length cannot be smaller than the previous one.");
+        Exceptions.checkArgument(value >= this.durableLogLength, "value",
+                "New Durable Log Length cannot be smaller " + "than the previous one.");
 
         log.trace("{}: DurableLogLength changed from {} to {}.", this.traceObjectId, this.durableLogLength, value);
         this.durableLogLength = value;
@@ -232,7 +230,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
+        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "Cannot merge " + "a non-Transaction StreamSegment.");
 
         log.trace("{}: Merged = true.", this.traceObjectId);
         this.merged = true;
@@ -251,9 +250,12 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public void copyFrom(SegmentMetadata base) {
-        Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
-        Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
-        Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
+        Exceptions.checkArgument(this.getId() == base.getId(), "base",
+                "Given SegmentMetadata refers to a different " + "StreamSegment than this one (SegmentId).");
+        Exceptions.checkArgument(this.getName().equals(base.getName()), "base",
+                "Given SegmentMetadata refers to a " + "different StreamSegment than this one (SegmentName).");
+        Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base",
+                "Given SegmentMetadata has a " + "different parent StreamSegment than this one.");
 
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());

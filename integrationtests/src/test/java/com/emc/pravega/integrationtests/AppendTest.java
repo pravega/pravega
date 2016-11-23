@@ -127,8 +127,7 @@ public class AppendTest {
         assertEquals(segment, setup.getSegment());
         assertEquals(uuid, setup.getConnectionId());
 
-        DataAppended ack = (DataAppended) sendRequest(channel,
-                decoder,
+        DataAppended ack = (DataAppended) sendRequest(channel, decoder,
                 new Append(segment, uuid, data.readableBytes(), data));
         assertEquals(uuid, ack.getConnectionId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
@@ -154,11 +153,8 @@ public class AppendTest {
 
     static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                new CommandEncoder(),
-                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                new CommandDecoder(),
-                lsh);
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""), new CommandEncoder(),
+                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4), new CommandDecoder(), lsh);
         lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh)));
         return channel;
     }
@@ -171,8 +167,7 @@ public class AppendTest {
         String scope = "scope";
         String stream = "stream";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
@@ -181,9 +176,9 @@ public class AppendTest {
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
-        @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
+        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream),
+                RuntimeException::new).getSegments().iterator().next();
+        @Cleanup("close") SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, null);
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(ByteBuffer.wrap(testString.getBytes()), ack);
         out.flush();
@@ -197,12 +192,10 @@ public class AppendTest {
         int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        @Cleanup MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
         Stream stream = streamManager.createStream(streamName, null);
 
         Producer<String> producer = stream.createProducer(new JavaSerializer<>(), new ProducerConfig(null));

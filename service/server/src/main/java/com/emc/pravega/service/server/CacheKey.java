@@ -89,8 +89,7 @@ public class CacheKey extends Cache.Key {
         }
 
         CacheKey other = (CacheKey) obj;
-        return this.streamSegmentId == other.streamSegmentId
-                && this.offset == other.offset;
+        return this.streamSegmentId == other.streamSegmentId && this.offset == other.offset;
     }
 
     //endregion

@@ -78,12 +78,10 @@ public class ControllerWrapper implements Controller {
             hostId = UUID.randomUUID().toString();
         }
 
-        StoreClient storeClient = StoreClientFactory.createStoreClient(
-                StoreClientFactory.StoreType.Zookeeper,
+        StoreClient storeClient = StoreClientFactory.createStoreClient(StoreClientFactory.StoreType.Zookeeper,
                 new StoreConfiguration(connectionString));
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.Zookeeper,
+        StreamMetadataStore streamStore = StreamStoreFactory.createStore(StreamStoreFactory.StoreType.Zookeeper,
                 new StoreConfiguration(connectionString));
 
         HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory,
@@ -92,10 +90,13 @@ public class ControllerWrapper implements Controller {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient);
 
         //2) start RPC server with v1 implementation. Enable other versions if required.
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, hostId);
 
-        controller = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controller = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 
     @Override
@@ -110,15 +111,13 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
-        return controller.getCurrentSegments(scope, stream)
-                .thenApply((List<SegmentRange> ranges) -> {
-                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-                    for (SegmentRange r : ranges) {
-                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-                    }
-                    return rangeMap;
-                })
-                .thenApply(StreamSegments::new);
+        return controller.getCurrentSegments(scope, stream).thenApply((List<SegmentRange> ranges) -> {
+            NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+            for (SegmentRange r : ranges) {
+                rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+            }
+            return rangeMap;
+        }).thenApply(StreamSegments::new);
     }
 
     @Override
@@ -133,37 +132,37 @@ public class ControllerWrapper implements Controller {
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId))
-                .thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
+        return controller.checkTransactionStatus(stream.getScope(), stream.getStreamName(),
+                ModelHelper.decode(txId)).thenApply(status -> ModelHelper.encode(status, stream + " " + txId));
     }
 
     @Override
     public CompletableFuture<UUID> createTransaction(Stream stream, long timeout) {
-        return controller.createTransaction(stream.getScope(), stream.getStreamName())
-                .thenApply(ModelHelper::encode);
+        return controller.createTransaction(stream.getScope(), stream.getStreamName()).thenApply(ModelHelper::encode);
     }
 
     @Override
     public CompletableFuture<List<PositionInternal>> getPositions(Stream stream, long timestamp, int count) {
-        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
+        return controller.getPositions(stream.getScope(), stream.getStreamName(), timestamp, count).thenApply(
+                result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
     }
 
     @Override
     public CompletableFuture<List<PositionInternal>> updatePositions(Stream stream, List<PositionInternal> positions) {
-        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed =
-                positions.stream().map(ModelHelper::decode).collect(Collectors.toList());
+        final List<com.emc.pravega.controller.stream.api.v1.Position> transformed = positions.stream().map(
+                ModelHelper::decode).collect(Collectors.toList());
 
-        return controller.updatePositions(stream.getScope(), stream.getStreamName(), transformed)
-                .thenApply(result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
+        return controller.updatePositions(stream.getScope(), stream.getStreamName(), transformed).thenApply(
+                result -> result.stream().map(ModelHelper::encode).collect(Collectors.toList()));
     }
 
     @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromQualifiedName(qualifiedSegmentName);
         try {
-            return controller.getURI(new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber()))
-                    .thenApply(ModelHelper::encode);
+            return controller.getURI(
+                    new SegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber())).thenApply(
+                    ModelHelper::encode);
         } catch (TException e) {
             throw new RuntimeException(e);
         }

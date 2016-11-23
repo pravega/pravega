@@ -73,8 +73,9 @@ public class WriterConfig extends ComponentConfig {
      *
      * @param properties The java.util.Properties object to read Properties from.
      * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
+     *                                  MissingPropertyException (a required Property is missing from the given
+     *                                  properties collection), NumberFormatException (a Property has a value that is
+     *                                  invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */
@@ -87,14 +88,16 @@ public class WriterConfig extends ComponentConfig {
     //region Properties
 
     /**
-     * Gets a value indicating the minimum number of bytes to wait for before flushing aggregated data for a Segment to Storage.
+     * Gets a value indicating the minimum number of bytes to wait for before flushing aggregated data for a Segment
+     * to Storage.
      */
     public int getFlushThresholdBytes() {
         return this.flushThresholdBytes;
     }
 
     /**
-     * Gets a value indicating the minimum amount of time to wait for before flushing aggregated data for a Segment to Storage.
+     * Gets a value indicating the minimum amount of time to wait for before flushing aggregated data for a Segment
+     * to Storage.
      */
     public Duration getFlushThresholdTime() {
         return this.flushThresholdTime;
@@ -165,7 +168,8 @@ public class WriterConfig extends ComponentConfig {
     protected void refresh() throws ConfigurationException {
         this.flushThresholdBytes = getInt32Property(PROPERTY_FLUSH_THRESHOLD_BYTES, DEFAULT_FLUSH_THRESHOLD_BYTES);
         if (this.flushThresholdBytes < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
+            throw new ConfigurationException(
+                    String.format("Property '%s' must be a non-negative integer.", PROPERTY_FLUSH_THRESHOLD_BYTES));
         }
 
         long flushThresholdMillis = getInt64Property(PROPERTY_FLUSH_THRESHOLD_MILLIS, DEFAULT_FLUSH_THRESHOLD_MILLIS);
@@ -173,19 +177,23 @@ public class WriterConfig extends ComponentConfig {
 
         this.maxFlushSizeBytes = getInt32Property(PROPERTY_MAX_FLUSH_SIZE_BYTES, DEFAULT_MAX_FLUSH_SIZE_BYTES);
 
-        this.maxItemsToReadAtOnce = getInt32Property(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE, DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
+        this.maxItemsToReadAtOnce = getInt32Property(PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE,
+                DEFAULT_MAX_ITEMS_TO_READ_AT_ONCE);
         if (this.maxItemsToReadAtOnce <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
+            throw new ConfigurationException(
+                    String.format("Property '%s' must be a positive integer.", PROPERTY_MAX_ITEMS_TO_READ_AT_ONCE));
         }
 
         long minReadTimeoutMillis = getInt64Property(PROPERTY_MIN_READ_TIMEOUT_MILLIS, DEFAULT_MIN_READ_TIMEOUT_MILLIS);
         long maxReadTimeoutMillis = getInt64Property(PROPERTY_MAX_READ_TIMEOUT_MILLIS, DEFAULT_MAX_READ_TIMEOUT_MILLIS);
         if (minReadTimeoutMillis < 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
+            throw new ConfigurationException(
+                    String.format("Property '%s' must be a positive integer.", PROPERTY_MIN_READ_TIMEOUT_MILLIS));
         }
 
         if (minReadTimeoutMillis > maxReadTimeoutMillis) {
-            throw new ConfigurationException(String.format("Property '%s' must be smaller than or equal to '%s'.", PROPERTY_MIN_READ_TIMEOUT_MILLIS, PROPERTY_MAX_READ_TIMEOUT_MILLIS));
+            throw new ConfigurationException(String.format("Property '%s' must be smaller than or equal to '%s'.",
+                    PROPERTY_MIN_READ_TIMEOUT_MILLIS, PROPERTY_MAX_READ_TIMEOUT_MILLIS));
         }
 
         this.minReadTimeout = Duration.ofMillis(minReadTimeoutMillis);
@@ -199,7 +207,8 @@ public class WriterConfig extends ComponentConfig {
         long ackTimeoutMillis = getInt64Property(PROPERTY_ACK_TIMEOUT_MILLIS, DEFAULT_ACK_TIMEOUT_MILLIS);
         this.ackTimeout = Duration.ofMillis(ackTimeoutMillis);
 
-        long shutdownTimeoutMillis = getInt64Property(PROPERTY_SHUTDOWN_TIMEOUT_MILLIS, DEFAULT_SHUTDOWN_TIMEOUT_MILLIS);
+        long shutdownTimeoutMillis = getInt64Property(PROPERTY_SHUTDOWN_TIMEOUT_MILLIS,
+                DEFAULT_SHUTDOWN_TIMEOUT_MILLIS);
         this.shutdownTimeout = Duration.ofMillis(shutdownTimeoutMillis);
     }
 

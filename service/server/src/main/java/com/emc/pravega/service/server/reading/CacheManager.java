@@ -37,13 +37,16 @@ import java.util.concurrent.TimeUnit;
  * Manages the lifecycle of Cache Entries. Decides which entries are to be kept in memory and which are eligible for
  * removal.
  * <p/>
- * Entry Management is indirect, and doesn't deal with them directly. Also, the management needs to be done across multiple
- * CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to evict unused entries.
+ * Entry Management is indirect, and doesn't deal with them directly. Also, the management needs to be done across
+ * multiple CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to
+ * evict unused entries.
  * <p/>
  * The CacheManager holds two reference numbers: the current generation and the oldest generation. Every new Cache Entry
- * (in the clients) that is generated or updated gets assigned the current generation. As the CacheManager determines that
- * there are too many Cache Entries or that the maximum size has been exceeded, it will increment the oldest generation.
- * The CacheManager Clients can use this information to evict those Cache Entries that have a generation below the oldest generation number.
+ * (in the clients) that is generated or updated gets assigned the current generation. As the CacheManager determines
+ * that there are too many Cache Entries or that the maximum size has been exceeded, it will increment the oldest
+ * generation.
+ * The CacheManager Clients can use this information to evict those Cache Entries that have a generation below the
+ * oldest generation number.
  */
 @Slf4j
 public class CacheManager extends AbstractScheduledService implements AutoCloseable {
@@ -220,8 +223,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
             totalSize += clientStatus.getSize();
 
-            if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this.currentGeneration) {
-                log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.", TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
+            if (clientStatus.oldestGeneration > this.currentGeneration || clientStatus.newestGeneration > this
+                    .currentGeneration) {
+                log.warn(
+                        "{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, " +
+                                "OldestGeneration = {}.",
+                        TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
             }
 
             minGeneration = Math.min(minGeneration, clientStatus.oldestGeneration);
@@ -253,7 +260,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     private boolean adjustCurrentGeneration(CacheStatus currentStatus) {
-        // We only need to increment if we had any activity in the current generation. This can be determined by comparing
+        // We only need to increment if we had any activity in the current generation. This can be determined by
+        // comparing
         // the current generation with the newest generation from the retrieved status.
         boolean shouldIncrement = currentStatus.getNewestGeneration() >= this.currentGeneration;
         if (shouldIncrement) {
@@ -289,8 +297,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return currentStatus.getSize() > this.policy.getMaxSize()
-                || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
+        return currentStatus.getSize() > this.policy.getMaxSize() || currentStatus.getOldestGeneration() <
+                getOldestPermissibleGeneration();
     }
 
     private int getOldestPermissibleGeneration() {
@@ -305,10 +313,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     private void logCurrentStatus(CacheStatus status) {
         log.info("{} Current Generation = {}, Oldest Generation = {}, Clients = {},  CacheSize = {} MB",
-                TRACE_OBJECT_ID,
-                this.currentGeneration,
-                this.oldestGeneration,
-                this.clients.size(),
+                TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, this.clients.size(),
                 status.getSize() / 1048576);
     }
 
@@ -356,7 +361,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         CacheStatus(long size, int oldestGeneration, int newestGeneration) {
             Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
             Preconditions.checkArgument(oldestGeneration >= 0, "oldestGeneration must be a non-negative number");
-            Preconditions.checkArgument(newestGeneration >= oldestGeneration, "newestGeneration must be larger than or equal to oldestGeneration");
+            Preconditions.checkArgument(newestGeneration >= oldestGeneration,
+                    "newestGeneration must be larger than " + "or equal to oldestGeneration");
             this.size = size;
             this.oldestGeneration = oldestGeneration;
             this.newestGeneration = newestGeneration;

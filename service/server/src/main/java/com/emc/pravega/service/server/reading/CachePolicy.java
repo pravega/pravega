@@ -84,7 +84,8 @@ public class CachePolicy {
 
     @Override
     public String toString() {
-        return String.format("MaxSize = %d, MaxGen = %d, Generation = %s", this.maxSize, this.maxGenerations, this.generationDuration);
+        return String.format("MaxSize = %d, MaxGen = %d, Generation = %s", this.maxSize, this.maxGenerations,
+                this.generationDuration);
     }
 
     //endregion

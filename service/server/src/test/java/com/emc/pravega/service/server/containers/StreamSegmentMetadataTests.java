@@ -67,7 +67,8 @@ public class StreamSegmentMetadataTests {
         }
 
         Collection<UUID> recordedClients = m.getKnownClientIds();
-        AssertExtensions.assertContainsSameElements("Unexpected collection of Client Ids", lastContexts.keySet(), recordedClients);
+        AssertExtensions.assertContainsSameElements("Unexpected collection of Client Ids", lastContexts.keySet(),
+                recordedClients);
     }
 
     /**
@@ -75,7 +76,8 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testCopyFrom() {
-        StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID,
+                CONTAINER_ID);
         final int clientCount = 20;
         for (int i = 0; i < clientCount; i++) {
             baseMetadata.recordAppendContext(new AppendContext(UUID.randomUUID(), 1));
@@ -88,34 +90,35 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markMerged();
 
         // Normal metadata copy.
-        StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID,
+                CONTAINER_ID);
         newMetadata.copyFrom(baseMetadata);
         assertEquals("Normal metadata copy:", baseMetadata, newMetadata);
 
         // Verify we cannot copy from different StreamSegments.
-        AssertExtensions.assertThrows(
-                "copyFrom allowed copying from a metadata with a different Segment Name",
-                () -> new StreamSegmentMetadata("foo", SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(baseMetadata),
-                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("copyFrom allowed copying from a metadata with a different Segment Name",
+                () -> new StreamSegmentMetadata("foo", SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(
+                        baseMetadata), ex -> ex instanceof IllegalArgumentException);
 
-        AssertExtensions.assertThrows(
-                "copyFrom allowed copying from a metadata with a different Segment Id",
-                () -> new StreamSegmentMetadata(SEGMENT_NAME, -SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(baseMetadata),
-                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("copyFrom allowed copying from a metadata with a different Segment Id",
+                () -> new StreamSegmentMetadata(SEGMENT_NAME, -SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(
+                        baseMetadata), ex -> ex instanceof IllegalArgumentException);
 
-        AssertExtensions.assertThrows(
-                "copyFrom allowed copying from a metadata with a different Parent Id",
-                () -> new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, -PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(baseMetadata),
-                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("copyFrom allowed copying from a metadata with a different Parent Id",
+                () -> new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, -PARENT_SEGMENT_ID, CONTAINER_ID).copyFrom(
+                        baseMetadata), ex -> ex instanceof IllegalArgumentException);
     }
 
     private static void assertEquals(String message, SegmentMetadata expected, SegmentMetadata actual) {
-        Assert.assertEquals(message + " StorageLength differs.", expected.getStorageLength(), actual.getStorageLength());
-        Assert.assertEquals(message + " DurableLogLength differs.", expected.getDurableLogLength(), actual.getDurableLogLength());
+        Assert.assertEquals(message + " StorageLength differs.", expected.getStorageLength(),
+                actual.getStorageLength());
+        Assert.assertEquals(message + " DurableLogLength differs.", expected.getDurableLogLength(),
+                actual.getDurableLogLength());
         Assert.assertEquals(message + " isDeleted differs.", expected.isDeleted(), actual.isDeleted());
         Assert.assertEquals(message + " isSealed differs.", expected.isSealed(), actual.isSealed());
         Assert.assertEquals(message + " isMerged differs.", expected.isMerged(), actual.isMerged());
-        AssertExtensions.assertContainsSameElements(message + " KnownClientIds differ.", expected.getKnownClientIds(), actual.getKnownClientIds());
+        AssertExtensions.assertContainsSameElements(message + " KnownClientIds differ.", expected.getKnownClientIds(),
+                actual.getKnownClientIds());
         for (UUID clientId : expected.getKnownClientIds()) {
             AppendContext expectedContext = expected.getLastAppendContext(clientId);
             AppendContext actualContext = actual.getLastAppendContext(clientId);

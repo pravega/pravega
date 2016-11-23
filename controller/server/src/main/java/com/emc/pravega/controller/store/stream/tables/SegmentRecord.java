@@ -54,8 +54,10 @@ public class SegmentRecord {
 
         return new SegmentRecord(Utilities.toInt(ArrayUtils.subarray(bytes, 0, Integer.SIZE / 8)),
                 Utilities.toLong(ArrayUtils.subarray(bytes, Integer.SIZE / 8, (Integer.SIZE + Long.SIZE) / 8)),
-                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8)),
-                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8, (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8)));
+                Utilities.toDouble(ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE) / 8,
+                        (Integer.SIZE + Long.SIZE + Double.SIZE) / 8)), Utilities.toDouble(
+                ArrayUtils.subarray(bytes, (Integer.SIZE + Long.SIZE + Double.SIZE) / 8,
+                        (Integer.SIZE + Long.SIZE + Double.SIZE + Double.SIZE) / 8)));
     }
 
     public byte[] toByteArray() {

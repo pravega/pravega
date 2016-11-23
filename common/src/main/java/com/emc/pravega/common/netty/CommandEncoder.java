@@ -43,12 +43,12 @@ import lombok.SneakyThrows;
 /**
  * Encodes data so that it can go out onto the wire.
  * For more details about the various commands @see WireCommands.
- * 
+ *
  * The general encoding for commands is:
  * Type - 4 byte tag
  * Length - 4 byte length
  * Data - Which is obtained by calling the serializer for the specific wire command.
- * 
+ *
  * Most commands are that simple. For performance Appends however are handled differently.
  * Appends are written in blocks so that the server does not need to decode the contents of the
  * block.
@@ -58,11 +58,10 @@ import lombok.SneakyThrows;
  * Length). If an event does not fully fit inside of a block it can be wrapped in a PartialEvent
  * command. In this case the fist part of the Event is written as the value of the PartialEvent and
  * the remainder goes in the AppendBlockEnd.
- * 
+ *
  * The AppendBlockEnd contains metadata about the block that was just appended so that it does not
  * need to be parsed out of individual messages. Notably this includes the event number of the last
  * event in the block, so that it can be acknowledged.
- * 
  */
 public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
@@ -86,11 +85,11 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
                 throw new InvalidMessageException("Sending appends without setting up the append.");
             }
             if (append.getEventNumber() <= session.lastEventNumber) {
-                throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-                        + " following: " + session.lastEventNumber);
+                throw new InvalidMessageException( "Events written out of order. Received: "
+                        + append.getEventNumber() + " following: " + session.lastEventNumber);
             }
             Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
-                                     "Bug in CommandEncoder.encode, block is too small.");
+                    "Bug in CommandEncoder.encode, block is too small.");
             if (append.segment != segmentBeingAppendedTo) {
                 breakFromAppend(out);
             }
@@ -111,14 +110,13 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
                 byte[] serializedMessage = serializeMessage(new Event(data));
                 int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
                 ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
-                ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
-                                                       bytesInBlock,
-                                                       serializedMessage.length - bytesInBlock);
+                ByteBuf dataRemainging = wrappedBuffer(serializedMessage, bytesInBlock,
+                        serializedMessage.length - bytesInBlock);
                 writeMessage(new PartialEvent(dataInsideBlock), out);
-                writeMessage(new AppendBlockEnd(session.id,
-                        session.lastEventNumber,
-                        APPEND_BLOCK_SIZE - bytesLeftInBlock,
-                        dataRemainging), out);
+                writeMessage( new AppendBlockEnd(session.id,
+                                                session.lastEventNumber,
+                                                APPEND_BLOCK_SIZE - bytesLeftInBlock,
+                                                dataRemainging), out);
                 bytesLeftInBlock = 0;
             }
         } else if (msg instanceof SetupAppend) {
@@ -136,10 +134,10 @@ public class CommandEncoder extends MessageToByteEncoder<WireCommand> {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
             Session session = setupSegments.get(segmentBeingAppendedTo);
-            writeMessage(new AppendBlockEnd(session.id,
-                    session.lastEventNumber,
-                    APPEND_BLOCK_SIZE - bytesLeftInBlock,
-                    null), out);
+            writeMessage( new AppendBlockEnd(session.id,
+                                    session.lastEventNumber,
+                                    APPEND_BLOCK_SIZE - bytesLeftInBlock,
+                                    null), out);
             bytesLeftInBlock = 0;
         }
         segmentBeingAppendedTo = null;

@@ -64,7 +64,8 @@ public interface PositionInternal extends Position {
     Set<FutureSegment> getFutureOwnedSegments();
 
     /**
-     * Returns all future owned segments associated with the offset they should be read from once their preceding segment is complete.
+     * Returns all future owned segments associated with the offset they should be read from once their preceding
+     * segment is complete.
      */
     Map<FutureSegment, Long> getFutureOwnedSegmentsWithOffsets();
 }

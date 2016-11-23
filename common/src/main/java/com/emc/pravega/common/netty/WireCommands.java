@@ -38,10 +38,10 @@ import lombok.experimental.Accessors;
  * Each command is self-contained providing both it's serialization and deserialization logic.
  * Commands are not nested and contain only primitive types. The types are serialized in the obvious
  * way using Java's DataOutput and DataInput. All data is written BigEndian.
- * 
+ * <p>
  * Because length and type are detected externally these are not necessary for the classes to
  * supply.
- * 
+ * <p>
  * Compatible changes (IE: Adding new members) that would not cause breakage if either the client or
  * the server were running older code can be made at any time.
  * Incompatible changes should instead create a new WireCommand object.
@@ -52,6 +52,7 @@ public final class WireCommands {
     public static final int APPEND_BLOCK_SIZE = 32 * 1024;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
     private static final Map<Integer, WireCommandType> MAPPING;
+
     static {
         HashMap<Integer, WireCommandType> map = new HashMap<>();
         for (WireCommandType t : WireCommandType.values()) {
@@ -464,7 +465,7 @@ public final class WireCommands {
         public void process(ReplyProcessor cp) {
             cp.segmentRead(this);
         }
-        
+
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
@@ -547,7 +548,7 @@ public final class WireCommands {
             return new StreamSegmentInfo(segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
         }
     }
-    
+
     @Data
     public static final class GetTransactionInfo implements Request {
         final WireCommandType type = WireCommandType.GET_TRANSACTION_INFO;
@@ -806,7 +807,7 @@ public final class WireCommands {
         }
     }
 
-    
+
     @Data
     public static final class SealSegment implements Request {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;

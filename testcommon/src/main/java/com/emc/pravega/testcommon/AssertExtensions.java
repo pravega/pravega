@@ -85,7 +85,8 @@ public class AssertExtensions {
      * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>            The type of the future's result.
      */
-    public static <T> void assertThrows(String message, Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
+    public static <T> void assertThrows(String message, Supplier<CompletableFuture<T>> futureSupplier,
+                                        Predicate<Throwable> tester) {
         try {
             futureSupplier.get().join();
             Assert.fail(message + " No exception has been thrown.");
@@ -133,18 +134,15 @@ public class AssertExtensions {
      * @param offset2 The offset within the second array to start checking at.
      * @param length  The number of elements to check.
      */
-    public static void assertArrayEquals(String message, byte[] array1, int offset1, byte[] array2, int offset2, int length) {
-        // We could do argument checks here, but the array access below will throw the appropriate exceptions if any of these args are out of bounds.
+    public static void assertArrayEquals(String message, byte[] array1, int offset1, byte[] array2, int offset2, int
+            length) {
+        // We could do argument checks here, but the array access below will throw the appropriate exceptions if any
+        // of these args are out of bounds.
         for (int i = 0; i < length; i++) {
             if (array1[i + offset1] != array2[i + offset2]) {
-                Assert.fail(String.format(
-                        "%s Arrays differ at check-offset %d. Array1[%d]=%d, Array2[%d]=%d.",
-                        message,
-                        i,
-                        offset1 + i,
-                        array1[i + offset1],
-                        offset2 + i,
-                        array2[i + offset2]));
+                Assert.fail(
+                        String.format("%s Arrays differ at check-offset %d. Array1[%d]=%d, Array2[%d]=%d.", message, i,
+                                offset1 + i, array1[i + offset1], offset2 + i, array2[i + offset2]));
             }
         }
     }
@@ -158,14 +156,17 @@ public class AssertExtensions {
      * @param maxLength The maximum number of bytes to check.
      * @throws IOException If unable to read from any of the given streams.
      */
-    public static void assertStreamEquals(String message, InputStream s1, InputStream s2, int maxLength) throws IOException {
+    public static void assertStreamEquals(String message, InputStream s1, InputStream s2, int maxLength) throws
+            IOException {
         int readSoFar = 0;
         while (readSoFar < maxLength) {
             int b1 = s1.read();
             int b2 = s2.read();
             if (b1 != b2) {
                 // This also includes the case when one stream ends prematurely.
-                Assert.fail(String.format("%s InputStreams differ at index %d. Expected %d, actual %d.", message, readSoFar, b1, b2));
+                Assert.fail(
+                        String.format("%s InputStreams differ at index %d. Expected %d, actual %d.", message, readSoFar,
+                                b1, b2));
             }
 
             readSoFar++;
@@ -183,7 +184,8 @@ public class AssertExtensions {
      * @param actual   The collection to check.
      * @param <T>      The type of the collection's elements.
      */
-    public static <T extends Comparable<? super T>> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual) {
+    public static <T extends Comparable<? super T>> void assertContainsSameElements(String message, Collection<T>
+            expected, Collection<T> actual) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (T e : expected) {
             if (!actual.contains(e)) {
@@ -201,7 +203,8 @@ public class AssertExtensions {
      * @param comparator A Comparator to use to compare elements of the two collections.
      * @param <T>        The type of the collection's elements.
      */
-    public static <T> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual, Comparator<T> comparator) {
+    public static <T> void assertContainsSameElements(String message, Collection<T> expected, Collection<T> actual,
+                                                      Comparator<T> comparator) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (T e : expected) {
             boolean contains = false;
@@ -219,20 +222,24 @@ public class AssertExtensions {
     }
 
     /**
-     * Asserts that the given lists contain equivalent elements (at the same indices), based on the given tester function.
+     * Asserts that the given lists contain equivalent elements (at the same indices), based on the given tester
+     * function.
      *
      * @param message  The message to include in the Assert calls.
      * @param expected The list to check against.
      * @param actual   The list to check.
-     * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each list are equivalent.
+     * @param tester   A BiConsumerWithMessage that will be used to assert the elements at the same indices in each list
+     *                 are equivalent.
      * @param <T>      The type of the list's elements.
      */
-    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual, BiConsumerWithMessage<T, T> tester) {
+    public static <T> void assertListEquals(String message, List<T> expected, List<T> actual,
+                                            BiConsumerWithMessage<T, T> tester) {
         Assert.assertEquals(String.format("%s Collections differ in size.", message), expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
             T expectedItem = expected.get(i);
             T actualItem = actual.get(i);
-            tester.accept(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i, expectedItem, actualItem), expectedItem, actualItem);
+            tester.accept(String.format("%s Elements at index %d differ. Expected '%s', found '%s'.", message, i,
+                    expectedItem, actualItem), expectedItem, actualItem);
         }
     }
 
@@ -244,7 +251,8 @@ public class AssertExtensions {
      * @param actual   The smaller value.
      */
     public static void assertLessThan(String message, long expected, long actual) {
-        Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, expected, actual), expected > actual);
+        Assert.assertTrue(String.format("%s Expected: less than %d. Actual: %d.", message, expected, actual),
+                expected > actual);
     }
 
     /**
@@ -255,7 +263,9 @@ public class AssertExtensions {
      * @param actual   The smaller value.
      */
     public static void assertLessThanOrEqual(String message, long expected, long actual) {
-        Assert.assertTrue(String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected, actual), expected >= actual);
+        Assert.assertTrue(
+                String.format("%s Expected: less than or equal to %d. Actual: %d.", message, expected, actual),
+                expected >= actual);
     }
 
     /**
@@ -266,7 +276,8 @@ public class AssertExtensions {
      * @param actual   The larger value.
      */
     public static void assertGreaterThan(String message, long expected, long actual) {
-        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, expected, actual), expected < actual);
+        Assert.assertTrue(String.format("%s Expected: greater than %d. Actual: %d.", message, expected, actual),
+                expected < actual);
     }
 
     /**
@@ -277,7 +288,9 @@ public class AssertExtensions {
      * @param actual   The larger value.
      */
     public static void assertGreaterThanOrEqual(String message, long expected, long actual) {
-        Assert.assertTrue(String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected, actual), expected <= actual);
+        Assert.assertTrue(
+                String.format("%s Expected: greater than or equal to %d. Actual: %d.", message, expected, actual),
+                expected <= actual);
     }
 
     /**

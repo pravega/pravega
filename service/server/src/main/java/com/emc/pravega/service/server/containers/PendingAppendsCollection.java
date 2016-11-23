@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -84,7 +84,8 @@ class PendingAppendsCollection implements AutoCloseable {
 
         if (operation.getAppendContext() != null) {
             // Create an entry and put it in the map.
-            Entry e = new Entry(getKey(operation.getStreamSegmentId(), operation.getAppendContext().getClientId()), operation.getAppendContext(), completionCallback);
+            Entry e = new Entry(getKey(operation.getStreamSegmentId(), operation.getAppendContext().getClientId()),
+                    operation.getAppendContext(), completionCallback);
             this.entries.put(e.key, e);
 
             // Upon completion, regardless of outcome, remove it from the index.
@@ -98,8 +99,8 @@ class PendingAppendsCollection implements AutoCloseable {
      * @param streamSegmentId The Id of the StreamSegment to inquire for.
      * @param clientId        The Id of the Client to inquire for.
      * @return A CompletableFuture that, when completed, will contain the requested AppendContext. If the append failed,
-     * the Future will contain the cause of the failure. If no pending appends exist for the given combination of arguments,
-     * this method returns null.
+     * the Future will contain the cause of the failure. If no pending appends exist for the given combination of
+     * arguments, this method returns null.
      */
     public CompletableFuture<AppendContext> get(long streamSegmentId, UUID clientId) {
         Exceptions.checkNotClosed(this.closed, this);
@@ -134,7 +135,9 @@ class PendingAppendsCollection implements AutoCloseable {
 
         @Override
         public String toString() {
-            return String.format("%s: %s (%s)", this.key, this.context, this.completionFuture.isDone() ? (this.completionFuture.isCompletedExceptionally() ? "Error" : "Complete") : "Pending");
+            return String.format("%s: %s (%s)", this.key, this.context,
+                    this.completionFuture.isDone() ? (this.completionFuture.isCompletedExceptionally() ? "Error" :
+                            "Complete") : "Pending");
         }
     }
 

@@ -48,7 +48,8 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory,
+                segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -75,7 +76,8 @@ public class AsyncSegmentInputStreamTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
 
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory,
+                segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);
@@ -95,7 +97,8 @@ public class AsyncSegmentInputStreamTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
-        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory,
+                segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         ReadFuture readFuture = in.read(1234, 5678);

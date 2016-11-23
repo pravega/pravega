@@ -27,9 +27,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 /**
- * Log Operation that represents a StreamSegment Append. As opposed from StreamSegmentAppendOperation, this operation cannot
- * be serialized to a DurableLog. Its purpose is to be added to the In-Memory Transaction Log, where it binds a StreamSegmentAppendOperation
- * to its corresponding Cache entry.
+ * Log Operation that represents a StreamSegment Append. As opposed from StreamSegmentAppendOperation, this operation
+ * cannot be serialized to a DurableLog. Its purpose is to be added to the In-Memory Transaction Log, where it binds a
+ * StreamSegmentAppendOperation to its corresponding Cache entry.
  */
 public class CachedStreamSegmentAppendOperation extends StorageOperation {
     //region Members
@@ -43,15 +43,16 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     /**
      * Creates a new instance of the CachedStreamSegmentAppendOperation based on the given StreamSegmentAppendOperation.
-     * The created operation will have the same SequenceNumber, StreamSegmentId, Offset and Length as the base operation,
-     * but it will not directly store the data (the contents of the Append is stored in the Cache, and will have to be
-     * retrieved using properties of this object).
+     * The created operation will have the same SequenceNumber, StreamSegmentId, Offset and Length as the base
+     * operation, but it will not directly store the data (the contents of the Append is stored in the Cache, and will
+     * have to be retrieved using properties of this object).
      *
      * @param baseOperation The StreamSegmentAppendOperation to use.
      */
     public CachedStreamSegmentAppendOperation(StreamSegmentAppendOperation baseOperation) {
         super(baseOperation.getStreamSegmentId());
-        Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0, "given baseOperation does not have an assigned StreamSegment Offset.");
+        Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0,
+                "given baseOperation does not have " + "an assigned StreamSegment Offset.");
 
         this.streamSegmentOffset = baseOperation.getStreamSegmentOffset();
         this.length = baseOperation.getData().length;
@@ -73,11 +74,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     public String toString() {
-        return String.format(
-                "%s, Offset = %d, Length = %d",
-                super.toString(),
-                this.streamSegmentOffset,
-                this.length);
+        return String.format("%s, Offset = %d, Length = %d", super.toString(), this.streamSegmentOffset, this.length);
     }
 
     //endregion
@@ -96,7 +93,9 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation {
 
     @Override
     protected byte getOperationType() {
-        throw new UnsupportedOperationException(this.getClass().getSimpleName() + " cannot be serialized, thus it does not have an Operation Type.");
+        throw new UnsupportedOperationException(
+                this.getClass().getSimpleName() + " cannot be serialized, thus it " + "does not have an Operation " +
+                        "Type.");
     }
 
     @Override

@@ -30,7 +30,8 @@ public class ZKStoreClient implements StoreClient {
     private final CuratorFramework client;
 
     public ZKStoreClient(StoreConfiguration configuration) {
-        this.client = CuratorFrameworkFactory.newClient(configuration.getConnectionString(), new ExponentialBackoffRetry(1000, 3));
+        this.client = CuratorFrameworkFactory.newClient(configuration.getConnectionString(),
+                new ExponentialBackoffRetry(1000, 3));
     }
 
     @Override

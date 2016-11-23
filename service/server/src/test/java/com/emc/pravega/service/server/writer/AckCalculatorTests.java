@@ -50,24 +50,28 @@ public class AckCalculatorTests {
 
         // 1a. Empty set
         long result = calc.getHighestCommittedSequenceNumber(new ArrayList<>());
-        Assert.assertEquals("Unexpected result for Empty Set when LRSN is small.", state.getLastReadSequenceNumber(), result);
+        Assert.assertEquals("Unexpected result for Empty Set when LRSN is small.", state.getLastReadSequenceNumber(),
+                result);
 
         // 1b. None have values
         processors.forEach(p -> p.setLowestUncommittedSequenceNumber(-1));
         result = calc.getHighestCommittedSequenceNumber(new ArrayList<>());
-        Assert.assertEquals("Unexpected result for Set with no values when LRSN is small.", state.getLastReadSequenceNumber(), result);
+        Assert.assertEquals("Unexpected result for Set with no values when LRSN is small.",
+                state.getLastReadSequenceNumber(), result);
 
         // 1c. All have values
         processors.forEach(p -> p.setLowestUncommittedSequenceNumber(initialLastReadSeqNo + 1 + random.nextInt(1000)));
         result = calc.getHighestCommittedSequenceNumber(processors);
-        Assert.assertEquals("Unexpected result for Set with values when LRSN is small.", state.getLastReadSequenceNumber(), result);
+        Assert.assertEquals("Unexpected result for Set with values when LRSN is small.",
+                state.getLastReadSequenceNumber(), result);
 
         // Part 2: WriterState.LastReadSequenceNumber is a high value, and thus is a no-factor.
         state.setLastReadSequenceNumber(Long.MAX_VALUE);
 
         // 2a. Empty set
         result = calc.getHighestCommittedSequenceNumber(new ArrayList<>());
-        Assert.assertEquals("Unexpected result for Empty Set when LRSN is infinite.", state.getLastReadSequenceNumber(), result);
+        Assert.assertEquals("Unexpected result for Empty Set when LRSN is infinite.", state.getLastReadSequenceNumber(),
+                result);
 
         // 2b. None have values
         processors.forEach(p -> p.setLowestUncommittedSequenceNumber(-1));
@@ -77,7 +81,8 @@ public class AckCalculatorTests {
         // 2c. All have values
         processors.forEach(p -> p.setLowestUncommittedSequenceNumber(initialLastReadSeqNo + 1 + random.nextInt(1000)));
         result = calc.getHighestCommittedSequenceNumber(processors);
-        long expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).min().getAsLong() - 1;
+        long expectedResult = processors.stream().mapToLong(
+                TestProcessor::getLowestUncommittedSequenceNumber).min().getAsLong() - 1;
         Assert.assertEquals("Unexpected result for Set with values when LRSN is infinite.", expectedResult, result);
 
         // 2d. Some have values, some don't
@@ -88,10 +93,13 @@ public class AckCalculatorTests {
                 resetCount.incrementAndGet();
             }
         });
-        Assert.assertTrue("Either no resets or all were reset. Bad test.", 0 < resetCount.get() && resetCount.get() < processors.size());
+        Assert.assertTrue("Either no resets or all were reset. Bad test.",
+                0 < resetCount.get() && resetCount.get() < processors.size());
         result = calc.getHighestCommittedSequenceNumber(processors);
-        expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).filter(sn -> sn >= 0).min().getAsLong() - 1;
-        Assert.assertEquals("Unexpected result for Set with partial values when LRSN is infinite.", expectedResult, result);
+        expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).filter(
+                sn -> sn >= 0).min().getAsLong() - 1;
+        Assert.assertEquals("Unexpected result for Set with partial values when LRSN is infinite.", expectedResult,
+                result);
     }
 
     private static class TestProcessor implements OperationProcessor {

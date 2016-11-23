@@ -51,8 +51,7 @@ public class InMemoryDurableDataLogTests {
     public void testAppend() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
-            AssertExtensions.assertThrows(
-                    "append() worked before initialize()",
+            AssertExtensions.assertThrows("append() worked before initialize()",
                     () -> log.append(new ByteArrayInputStream("h".getBytes()), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
@@ -66,7 +65,8 @@ public class InMemoryDurableDataLogTests {
                 LogAddress address = log.append(writeStream, TIMEOUT).join();
 
                 if (prevAddress != null) {
-                    AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.", prevAddress.getSequence(), address.getSequence());
+                    AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.",
+                            prevAddress.getSequence(), address.getSequence());
                 }
 
                 prevAddress = address;
@@ -81,9 +81,7 @@ public class InMemoryDurableDataLogTests {
     public void testGetReader() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Read pre-initialization.
-            AssertExtensions.assertThrows(
-                    "read() worked before initialize()",
-                    () -> log.getReader(0),
+            AssertExtensions.assertThrows("read() worked before initialize()", () -> log.getReader(0),
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
@@ -109,8 +107,7 @@ public class InMemoryDurableDataLogTests {
     public void testTruncate() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Read pre-initialization.
-            AssertExtensions.assertThrows(
-                    "truncate() worked before initialize()",
+            AssertExtensions.assertThrows("truncate() worked before initialize()",
                     () -> log.truncate(new InMemoryDurableDataLog.InMemoryLogAddress(0), TIMEOUT),
                     ex -> ex instanceof IllegalStateException);
 
@@ -137,8 +134,7 @@ public class InMemoryDurableDataLogTests {
             populate(log, WRITE_COUNT);
 
             // Create a reader and read one item.
-            @Cleanup
-            CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(-1);
+            @Cleanup CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(-1);
             DurableDataLog.ReadItem firstItem = reader.getNext();
             Assert.assertNotNull("Nothing read before modification.", firstItem);
 
@@ -156,8 +152,8 @@ public class InMemoryDurableDataLogTests {
     //region InMemoryDurableDataLog-specific tests
 
     /**
-     * Tests the ability of InMemoryDurableDataLog to simulate an exclusive writer, by only allowing one client at a time
-     * to write to an "EntryCollection".
+     * Tests the ability of InMemoryDurableDataLog to simulate an exclusive writer, by only allowing one client at a
+     * time to write to an "EntryCollection".
      */
     @Test
     public void testExclusiveWriteLock() throws Exception {
@@ -168,13 +164,11 @@ public class InMemoryDurableDataLogTests {
 
             // 1. No two logs can use the same EntryCollection.
             AssertExtensions.assertThrows(
-                    "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> {
+                    "A second log was able to acquire the exclusive write lock, even if another log held it.", () -> {
                         try (DurableDataLog log2 = new InMemoryDurableDataLog(entries)) {
                             log2.initialize(TIMEOUT);
                         }
-                    },
-                    ex -> ex instanceof DataLogWriterNotPrimaryException);
+                    }, ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // Verify we can still append to the first log.
             TreeMap<Long, byte[]> writeData = populate(log, WRITE_COUNT);
@@ -189,8 +183,8 @@ public class InMemoryDurableDataLogTests {
             // ... or to truncate ...
             AssertExtensions.assertThrows(
                     "A second log was able to acquire the exclusive write lock, even if another log held it.",
-                    () -> log.truncate(new InMemoryDurableDataLog.InMemoryLogAddress(writeData.lastKey()), TIMEOUT).join(),
-                    ex -> ex instanceof DataLogWriterNotPrimaryException);
+                    () -> log.truncate(new InMemoryDurableDataLog.InMemoryLogAddress(writeData.lastKey()),
+                            TIMEOUT).join(), ex -> ex instanceof DataLogWriterNotPrimaryException);
 
             // ... but it should still be able to read.
             testRead(log, -1, writeData);
@@ -234,24 +228,29 @@ public class InMemoryDurableDataLogTests {
         return writtenData;
     }
 
-    private void testRead(DurableDataLog log, long afterSequenceNumber, TreeMap<Long, byte[]> writeData) throws Exception {
-        @Cleanup
-        CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(afterSequenceNumber);
+    private void testRead(DurableDataLog log, long afterSequenceNumber, TreeMap<Long, byte[]> writeData) throws
+            Exception {
+        @Cleanup CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> reader = log.getReader(
+                afterSequenceNumber);
         SortedMap<Long, byte[]> expectedData = writeData.tailMap(afterSequenceNumber, false);
         Iterator<Long> expectedKeyIterator = expectedData.keySet().iterator();
         while (true) {
             DurableDataLog.ReadItem nextItem = reader.getNext();
             if (nextItem == null) {
-                Assert.assertFalse("Reader reached the end but there were still items to be read.", expectedKeyIterator.hasNext());
+                Assert.assertFalse("Reader reached the end but there were still items to be read.",
+                        expectedKeyIterator.hasNext());
                 break;
             }
 
-            Assert.assertTrue("Reader has more items but there should not be any more items to be read.", expectedKeyIterator.hasNext());
+            Assert.assertTrue("Reader has more items but there should not be any more items to be read.",
+                    expectedKeyIterator.hasNext());
 
             // Verify sequence number, as well as payload.
             long expectedSequenceNumber = expectedKeyIterator.next();
-            Assert.assertEquals("Unexpected sequence number.", expectedSequenceNumber, nextItem.getAddress().getSequence());
-            Assert.assertArrayEquals("Unexpected payload for sequence number " + expectedSequenceNumber, expectedData.get(expectedSequenceNumber), nextItem.getPayload());
+            Assert.assertEquals("Unexpected sequence number.", expectedSequenceNumber,
+                    nextItem.getAddress().getSequence());
+            Assert.assertArrayEquals("Unexpected payload for sequence number " + expectedSequenceNumber,
+                    expectedData.get(expectedSequenceNumber), nextItem.getPayload());
         }
     }
 

@@ -23,6 +23,6 @@
   -->
 
 <suppressions>
-    <suppress checks="JavadocStyle" files=".+Tests\.java" />
-    <suppress checks="JavadocMethod" files=".+Tests\.java" />
+    <suppress checks="JavadocStyle" files=".+Tests\.java"/>
+    <suppress checks="JavadocMethod" files=".+Tests\.java"/>
 </suppressions>

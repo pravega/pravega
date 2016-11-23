@@ -23,8 +23,8 @@ import java.nio.ByteBuffer;
  * Takes events being published and serializes them to byteBuffers so they can be sent over the wire and deserializes
  * these same byte buffers back into objects.
  * <p>
- * NOTE: There is no need for implementations to implement any sort of "framing"; the byte buffers passed back will be of
- * the appropriate length.
+ * NOTE: There is no need for implementations to implement any sort of "framing"; the byte buffers passed back will
+ * be of the appropriate length.
  *
  * @param <T> The type of event that this serializes.
  */
@@ -38,8 +38,7 @@ public interface Serializer<T> {
      * Serializes the given event.
      *
      * @param value The event to be serialized.
-     * @return The serialized form of the event.
-     * NOTE: buffers returned should not exceed {@link #MAX_EVENT_SIZE}.
+     * @return The serialized form of the event. NOTE: buffers returned should not exceed {@link #MAX_EVENT_SIZE}.
      */
     ByteBuffer serialize(T value);
 

@@ -23,7 +23,7 @@ package com.emc.pravega.common;
  */
 public class ObjectClosedException extends IllegalStateException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 
@@ -39,7 +39,8 @@ public class ObjectClosedException extends IllegalStateException {
         if (object == null) {
             return "Object has been closed and cannot be accessed anymore.";
         } else {
-            return String.format("Object '%s' has been closed and cannot be accessed anymore.", object.getClass().getSimpleName());
+            return String.format("Object '%s' has been closed and cannot be accessed anymore.",
+                    object.getClass().getSimpleName());
         }
     }
 }

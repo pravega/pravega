@@ -76,8 +76,8 @@ public class TaskTest {
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
 
-    private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+    private final StreamMetadataStore streamStore = StreamStoreFactory.createStore(
+            StreamStoreFactory.StoreType.InMemory, null);
 
     private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
@@ -144,7 +144,8 @@ public class TaskTest {
             assertTrue(e.getCause() instanceof StreamAlreadyExistsException);
         }
 
-        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis()).join();
+        CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
+                System.currentTimeMillis()).join();
         // failure because the task will not be able to contact pravega host as we have not started one
         assertEquals(result, CreateStreamStatus.FAILURE);
     }
@@ -229,8 +230,10 @@ public class TaskTest {
         taskMetadataStore.lock(resource1, taskData1, deadHost, deadThreadId1, null, null).join();
         taskMetadataStore.lock(resource2, taskData2, deadHost, deadThreadId2, null, null).join();
 
-        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks, deadHost);
-        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks, deadHost);
+        final SweeperThread sweeperThread1 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
+                deadHost);
+        final SweeperThread sweeperThread2 = new SweeperThread(HOSTNAME, taskMetadataStore, streamMetadataTasks,
+                deadHost);
 
         sweeperThread1.start();
         sweeperThread2.start();
@@ -292,14 +295,13 @@ public class TaskTest {
 
         @Override
         public void run() {
-            testTasks.testStreamLock(scope, stream)
-                    .whenComplete((value, ex) -> {
-                        if (ex != null) {
-                            this.result.completeExceptionally(ex);
-                        } else {
-                            this.result.complete(value);
-                        }
-                    });
+            testTasks.testStreamLock(scope, stream).whenComplete((value, ex) -> {
+                if (ex != null) {
+                    this.result.completeExceptionally(ex);
+                } else {
+                    this.result.complete(value);
+                }
+            });
         }
     }
 
@@ -311,7 +313,8 @@ public class TaskTest {
         private final String deadHostId;
         private final TaskSweeper taskSweeper;
 
-        public SweeperThread(String hostId, TaskMetadataStore taskMetadataStore, StreamMetadataTasks streamMetadataTasks, String deadHostId) {
+        public SweeperThread(String hostId, TaskMetadataStore taskMetadataStore, StreamMetadataTasks
+                streamMetadataTasks, String deadHostId) {
             this.result = new CompletableFuture<>();
             this.taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks);
             this.deadHostId = deadHostId;
@@ -319,14 +322,13 @@ public class TaskTest {
 
         @Override
         public void run() {
-            taskSweeper.sweepOrphanedTasks(this.deadHostId)
-                    .whenComplete((value, e) -> {
-                        if (e != null) {
-                            result.completeExceptionally(e);
-                        } else {
-                            result.complete(value);
-                        }
-                    });
+            taskSweeper.sweepOrphanedTasks(this.deadHostId).whenComplete((value, e) -> {
+                if (e != null) {
+                    result.completeExceptionally(e);
+                } else {
+                    result.complete(value);
+                }
+            });
         }
     }
 }

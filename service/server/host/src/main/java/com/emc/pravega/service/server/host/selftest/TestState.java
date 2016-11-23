@@ -153,10 +153,8 @@ class TestState {
      * The resulting object is a copy of the internal state, and will not reflect future modifications to this object.
      */
     Collection<String> getTransactionNames() {
-        return this.allSegments.values().stream()
-                               .filter(s -> !s.isTransaction())
-                               .map(s -> s.name)
-                               .collect(Collectors.toList());
+        return this.allSegments.values().stream().filter(s -> !s.isTransaction()).map(s -> s.name).collect(
+                Collectors.toList());
     }
 
     /**
@@ -197,8 +195,8 @@ class TestState {
     }
 
     /**
-     * Gets the name of an arbitrary Segment (non-transaction) that is registered. Note that calling this method with the
-     * same value for the argument may not necessarily produce the same result if done repeatedly.
+     * Gets the name of an arbitrary Segment (non-transaction) that is registered. Note that calling this method with
+     * the same value for the argument may not necessarily produce the same result if done repeatedly.
      *
      * @param hint A hint to use to get the Segment name.
      */
@@ -215,7 +213,9 @@ class TestState {
                 retry++;
             }
 
-            throw new IllegalStateException("Unable to find at least one Non-Transaction Segment out of " + this.allSegmentNames.size() + " total segments.");
+            throw new IllegalStateException(
+                    "Unable to find at least one Non-Transaction Segment out of " + this.allSegmentNames.size() + " "
+                            + "total segments.");
         }
     }
 
@@ -260,7 +260,8 @@ class TestState {
 
         @Override
         public String toString() {
-            return String.format("%s, OpCount = %s, Transaction = %s", this.name, this.operationCompleted(), this.transaction);
+            return String.format("%s, OpCount = %s, Transaction = %s", this.name, this.operationCompleted(),
+                    this.transaction);
         }
     }
 

@@ -166,12 +166,11 @@ class RocksDBCache implements Cache {
      * Creates the RocksDB WriteOptions to use. Since we use RocksDB as an in-process cache with disk spillover,
      * we do not care about the data being persisted to disk for recovery purposes. As such:
      * * Write-Ahead-Log is disabled (2.8x performance improvement)
-     * * Sync is disabled - does not wait for a disk flush before returning from the write call (50x or more improvement).
+     * * Sync is disabled - does not wait for a disk flush before returning from the write call (50x or more
+     * improvement).
      */
     private WriteOptions createWriteOptions() {
-        return new WriteOptions()
-                .setDisableWAL(true)
-                .setSync(false);
+        return new WriteOptions().setDisableWAL(true).setSync(false);
     }
 
     private RocksDB openDatabase() {
@@ -187,9 +186,7 @@ class RocksDBCache implements Cache {
     }
 
     private RuntimeException convert(RocksDBException exception, String message, Object... messageFormatArgs) {
-        String exceptionMessage = String.format(
-                "Unable to %s (CacheId=%s).",
-                String.format(message, messageFormatArgs),
+        String exceptionMessage = String.format("Unable to %s (CacheId=%s).", String.format(message, messageFormatArgs),
                 this.id);
 
         throw new CacheException(exceptionMessage, exception);

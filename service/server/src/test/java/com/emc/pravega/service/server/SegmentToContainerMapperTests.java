@@ -37,10 +37,8 @@ public class SegmentToContainerMapperTests {
      */
     @Test
     public void testConstructor() {
-        AssertExtensions.assertThrows(
-                "SegmentToContainerManager could be created with no containers.",
-                () -> new SegmentToContainerMapper(0),
-                ex -> ex instanceof IllegalArgumentException);
+        AssertExtensions.assertThrows("SegmentToContainerManager could be created with no containers.",
+                () -> new SegmentToContainerMapper(0), ex -> ex instanceof IllegalArgumentException);
     }
 
     /**
@@ -53,7 +51,8 @@ public class SegmentToContainerMapperTests {
         int containerCount = 128;
 
         // To generate names uniformly, we will generate any possible Name with this length.
-        // DO not make this any larger. This will very easily grow out of proportions (MAX_BYTE ^ streamSegmentNameByteCount).
+        // DO not make this any larger. This will very easily grow out of proportions (MAX_BYTE ^
+        // streamSegmentNameByteCount).
         int streamSegmentNameByteCount = 2;
 
         // Calculate how many segments we have.
@@ -63,7 +62,8 @@ public class SegmentToContainerMapperTests {
         double maxDeviation = 0.01;
 
         SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
-        Assert.assertEquals("Unexpected value for getTotalContainerCount().", containerCount, m.getTotalContainerCount());
+        Assert.assertEquals("Unexpected value for getTotalContainerCount().", containerCount,
+                m.getTotalContainerCount());
         HashMap<Integer, Integer> containerMapCounts = new HashMap<>();
 
         // Generate all possible names with the given length and assign them to a container.
@@ -82,10 +82,9 @@ public class SegmentToContainerMapperTests {
         }
 
         // Verify that min and max do not deviate too much from each other.
-        AssertExtensions.assertGreaterThan(
-                String.format("Too large of a variation between min and max mapping counts to containers. Min = %d, Max = %d.", min, max),
-                max - min,
-                (int) (maxDeviation * max));
+        AssertExtensions.assertGreaterThan(String.format(
+                "Too large of a variation between min and max mapping counts to containers. Min = %d, " + "Max = %d.",
+                min, max), max - min, (int) (maxDeviation * max));
     }
 
     /**
@@ -105,9 +104,11 @@ public class SegmentToContainerMapperTests {
             String segmentName = getSegmentName(segmentId, streamSegmentNameByteCount);
             int containerId = m.getContainerId(segmentName);
             for (int i = 0; i < transactionPerParentCount; i++) {
-                String transcationName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+                String transcationName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName,
+                        UUID.randomUUID());
                 int transactionContainerId = m.getContainerId(transcationName);
-                Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, transactionContainerId);
+                Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId,
+                        transactionContainerId);
             }
         }
     }

@@ -39,11 +39,6 @@ class TestLogger {
         int totalSeconds = (int) (currentTime / 1000);
         int totalMinutes = totalSeconds / 60;
         int totalHours = totalMinutes / 60;
-        return String.format(
-                "%d:%02d:%02d.%03d",
-                totalHours,
-                totalMinutes % 60,
-                totalSeconds % 60,
-                currentTime % 1000);
+        return String.format("%d:%02d:%02d.%03d", totalHours, totalMinutes % 60, totalSeconds % 60, currentTime % 1000);
     }
 }

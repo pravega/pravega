@@ -23,7 +23,7 @@ package com.emc.pravega.common.util;
  */
 public class InvalidPropertyValueException extends ConfigurationException {
     /**
-     * 
+     *
      */
     private static final long serialVersionUID = 1L;
 

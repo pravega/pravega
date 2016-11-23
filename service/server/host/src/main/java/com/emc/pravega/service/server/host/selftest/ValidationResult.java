@@ -60,7 +60,8 @@ class ValidationResult {
     //region Constructor
 
     /**
-     * Creates a new instance of the ValidationResult class. Not to be used externally (use the static factory methods instead).
+     * Creates a new instance of the ValidationResult class. Not to be used externally (use the static factory
+     * methods instead).
      */
     private ValidationResult() {
         this.moreDataNeeded = false;
@@ -79,7 +80,8 @@ class ValidationResult {
     }
 
     /**
-     * Creates a new ValidationResult for an inconclusive verification, when more data is needed to determine correctness.
+     * Creates a new ValidationResult for an inconclusive verification, when more data is needed to determine
+     * correctness.
      */
     static ValidationResult moreDataNeeded() {
         ValidationResult result = new ValidationResult();
@@ -117,11 +119,13 @@ class ValidationResult {
     @Override
     public String toString() {
         if (isFailed()) {
-            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset, this.failureMessage);
+            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset,
+                    this.failureMessage);
         } else if (isMoreDataNeeded()) {
             return String.format("More data needed (Source=%s, Offset=%d)", this.source, this.segmentOffset);
         } else {
-            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset, this.length);
+            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset,
+                    this.length);
         }
     }
 

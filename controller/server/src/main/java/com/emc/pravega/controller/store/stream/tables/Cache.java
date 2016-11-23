@@ -36,23 +36,19 @@ public class Cache<T> {
     private final LoadingCache<String, CompletableFuture<Data<T>>> cache;
 
     public Cache(final Loader<T> loader) {
-        cache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .refreshAfterWrite(10, TimeUnit.MINUTES)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(
-                        new CacheLoader<String, CompletableFuture<Data<T>>>() {
-                            @ParametersAreNonnullByDefault
-                            public CompletableFuture<Data<T>> load(final String key) {
-                                try {
-                                    return loader.get(key);
-                                } catch (DataNotFoundException d) {
-                                    throw d;
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        });
+        cache = CacheBuilder.newBuilder().maximumSize(1000).refreshAfterWrite(10, TimeUnit.MINUTES).expireAfterWrite(10,
+                TimeUnit.MINUTES).build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
+            @ParametersAreNonnullByDefault
+            public CompletableFuture<Data<T>> load(final String key) {
+                try {
+                    return loader.get(key);
+                } catch (DataNotFoundException d) {
+                    throw d;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
     }
 
     public CompletableFuture<Data<T>> getCachedData(final String key) {

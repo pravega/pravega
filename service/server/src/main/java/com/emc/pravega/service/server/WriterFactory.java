@@ -33,5 +33,6 @@ public interface WriterFactory {
      * @param cache             The cache to use (to fetch cached append data).
      * @return An instance of a class that implements the Writer interface.
      */
-    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex, Cache cache);
+    Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex
+            readIndex, Cache cache);
 }

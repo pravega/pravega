@@ -34,7 +34,8 @@ public class TestDurableDataLogFactory implements DurableDataLogFactory {
         this(wrappedFactory, null);
     }
 
-    public TestDurableDataLogFactory(DurableDataLogFactory wrappedFactory, Consumer<TestDurableDataLog> durableLogCreated) {
+    public TestDurableDataLogFactory(DurableDataLogFactory wrappedFactory, Consumer<TestDurableDataLog>
+            durableLogCreated) {
         this.wrappedFactory = wrappedFactory;
         this.durableLogCreated = durableLogCreated;
     }

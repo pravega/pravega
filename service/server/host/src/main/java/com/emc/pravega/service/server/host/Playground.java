@@ -40,8 +40,7 @@ public class Playground {
 
         RocksDBConfig config = new RocksDBConfig(PropertyBag.create());
 
-        @Cleanup
-        RocksDBCacheFactory factory = new RocksDBCacheFactory(config);
+        @Cleanup RocksDBCacheFactory factory = new RocksDBCacheFactory(config);
         factory.initialize(true);
         final String cacheId = "MockCache";
         Cache cache = factory.getCache(cacheId);
@@ -73,6 +72,7 @@ public class Playground {
         }
 
         long readElapsed = System.nanoTime() - readStart;
-        System.out.println(String.format("Count = %s, Write = %sms, Read = %sms", maxSegmentId * maxOffsetId, writeElapsed / 1000 / 1000, readElapsed / 1000 / 1000));
+        System.out.println(String.format("Count = %s, Write = %sms, Read = %sms", maxSegmentId * maxOffsetId,
+                writeElapsed / 1000 / 1000, readElapsed / 1000 / 1000));
     }
 }

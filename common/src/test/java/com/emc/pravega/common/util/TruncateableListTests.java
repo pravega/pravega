@@ -97,12 +97,14 @@ public class TruncateableListTests {
 
         // Truncate 25% of items.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for size after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
+        Assert.assertEquals("Unexpected value for size after truncating 25% items.", ITEM_COUNT - ITEM_COUNT / 4,
+                list.size());
         checkRange("Truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate the same 25% of items - verify no change.
         list.truncate(i -> i < ITEM_COUNT / 4);
-        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.", ITEM_COUNT - ITEM_COUNT / 4, list.size());
+        Assert.assertEquals("Unexpected value for size after re-truncating first 25% items.",
+                ITEM_COUNT - ITEM_COUNT / 4, list.size());
         checkRange("Re-truncate 25%", ITEM_COUNT / 4, ITEM_COUNT - 1, list.read(i -> true, ITEM_COUNT));
 
         // Truncate all items.
@@ -134,22 +136,20 @@ public class TruncateableListTests {
         truncateIterator.next(); // Read 1 value
         list.truncate(i -> i < 10);
         Assert.assertFalse("Unexpected value from hasNext when list has been truncated.", truncateIterator.hasNext());
-        AssertExtensions.assertThrows(
-                "Unexpected behavior from next() when current element has been truncated.",
-                truncateIterator::next,
-                ex -> ex instanceof NoSuchElementException);
+        AssertExtensions.assertThrows("Unexpected behavior from next() when current element has been truncated.",
+                truncateIterator::next, ex -> ex instanceof NoSuchElementException);
 
         // Test when we do a truncation between calls to hasNext() and next().
         // This is always a possibility. If the list gets truncated between calls to hasNext() and next(), we cannot
-        // return a truncated element. This means we expect a NoSuchElementException to be thrown from next(), even though
+        // return a truncated element. This means we expect a NoSuchElementException to be thrown from next(), even
+        // though
         // the previous call to hasNext() returned true (now it should return false).
         Iterator<Integer> midTruncateIterator = list.read(i -> true, ITEM_COUNT * 2);
         Assert.assertTrue("Unexpected value from hasNext when not been truncated.", midTruncateIterator.hasNext());
         list.truncate(i -> i < 20);
         AssertExtensions.assertThrows(
-                "Unexpected behavior from next() when current element has been truncated (after hasNext() and before next()).",
-                midTruncateIterator::next,
-                ex -> ex instanceof NoSuchElementException);
+         "Unexpected behavior from next() when current element has been truncated (after hasNext() and before next()).",
+                midTruncateIterator::next, ex -> ex instanceof NoSuchElementException);
     }
 
     /**
@@ -169,12 +169,14 @@ public class TruncateableListTests {
 
     private void checkRange(String testDescription, int startElement, int endElement, Iterator<Integer> readResult) {
         for (int i = startElement; i <= endElement; i++) {
-            Assert.assertTrue(testDescription + ": Unexpected value from hasNext when more elements are expected.", readResult.hasNext());
+            Assert.assertTrue(testDescription + ": Unexpected value from hasNext when more elements are expected.",
+                    readResult.hasNext());
             int nextItem = readResult.next();
             Assert.assertEquals(testDescription + ": Unexpected next value from next.", i, nextItem);
         }
 
-        Assert.assertFalse(testDescription + ": Unexpected value from hasNext when no more elements are expected.", readResult.hasNext());
+        Assert.assertFalse(testDescription + ": Unexpected value from hasNext when no more elements are expected.",
+                readResult.hasNext());
     }
 }
 

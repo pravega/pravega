@@ -20,6 +20,7 @@ package com.emc.pravega.controller.store.stream;
 /**
  * In-memory representation of a stream segment.
  */
+
 import com.google.common.base.Preconditions;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -52,14 +53,8 @@ public class InMemorySegment extends Segment {
         predecessors = new ArrayList<>();
     }
 
-    InMemorySegment(final int number,
-                    final long start,
-                    final long end,
-                    final double keyStart,
-                    final double keyEnd,
-                    final Status status,
-                    final List<Integer> successors,
-                    final List<Integer> predecessors) {
+    InMemorySegment(final int number, final long start, final long end, final double keyStart, final double keyEnd,
+                    final Status status, final List<Integer> successors, final List<Integer> predecessors) {
         super(number, start, keyStart, keyEnd);
         Preconditions.checkNotNull(successors);
         Preconditions.checkNotNull(predecessors);

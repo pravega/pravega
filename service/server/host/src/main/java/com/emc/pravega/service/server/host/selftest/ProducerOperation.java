@@ -78,8 +78,8 @@ class ProducerOperation {
     }
 
     /**
-     * Indicates that this ProducerOperation failed to complete. Invokes any associated failure callbacks that are registered
-     * with it.
+     * Indicates that this ProducerOperation failed to complete. Invokes any associated failure callbacks that are
+     * registered with it.
      */
     void failed(Throwable ex) {
         BiConsumer<ProducerOperation, Throwable> callback = this.failureCallback;

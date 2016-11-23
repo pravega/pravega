@@ -50,26 +50,23 @@ public class StreamSegmentContainerMetadataTests {
 
         AssertExtensions.assertThrows(
                 "setOperationSequenceNumber allowed updating the sequence number in non-recovery mode.",
-                () -> m.setOperationSequenceNumber(Integer.MAX_VALUE),
-                ex -> ex instanceof IllegalStateException);
+                () -> m.setOperationSequenceNumber(Integer.MAX_VALUE), ex -> ex instanceof IllegalStateException);
 
         // In recovery mode: setOperationSequenceNumber should work, nextOperationSequenceNumber should not.
         m.enterRecoveryMode();
         AssertExtensions.assertThrows(
                 "setOperationSequenceNumber allowed updating the sequence number to a smaller value.",
-                () -> m.setOperationSequenceNumber(1),
-                ex -> ex instanceof IllegalArgumentException);
+                () -> m.setOperationSequenceNumber(1), ex -> ex instanceof IllegalArgumentException);
 
         m.setOperationSequenceNumber(Integer.MAX_VALUE);
 
-        AssertExtensions.assertThrows(
-                "nextOperationSequenceNumber worked in recovery mode.",
-                m::nextOperationSequenceNumber,
-                ex -> ex instanceof IllegalStateException);
+        AssertExtensions.assertThrows("nextOperationSequenceNumber worked in recovery mode.",
+                m::nextOperationSequenceNumber, ex -> ex instanceof IllegalStateException);
 
         m.exitRecoveryMode();
         long actualSeqNo = m.getOperationSequenceNumber();
-        Assert.assertEquals("Unexpected value from getNewSequenceNumber after setting the value.", Integer.MAX_VALUE, actualSeqNo);
+        Assert.assertEquals("Unexpected value from getNewSequenceNumber after setting the value.", Integer.MAX_VALUE,
+                actualSeqNo);
     }
 
     /**
@@ -86,15 +83,14 @@ public class StreamSegmentContainerMetadataTests {
 
             // This should work.
             m.mapStreamSegmentId(segmentName, segmentId);
-            Assert.assertEquals("Unexpected value from getStreamSegmentId (Stand-alone Segment).", segmentId, m.getStreamSegmentId(segmentName));
+            Assert.assertEquals("Unexpected value from getStreamSegmentId (Stand-alone Segment).", segmentId,
+                    m.getStreamSegmentId(segmentName));
 
             // Now check that we cannot re-map the same SegmentId or SegmentName.
-            AssertExtensions.assertThrows(
-                    "mapStreamSegmentId allowed mapping the same SegmentId twice.",
+            AssertExtensions.assertThrows("mapStreamSegmentId allowed mapping the same SegmentId twice.",
                     () -> m.mapStreamSegmentId(segmentName + "foo", segmentId),
                     ex -> ex instanceof IllegalArgumentException);
-            AssertExtensions.assertThrows(
-                    "mapStreamSegmentId allowed mapping the same SegmentName twice.",
+            AssertExtensions.assertThrows("mapStreamSegmentId allowed mapping the same SegmentName twice.",
                     () -> m.mapStreamSegmentId(segmentName, segmentId + 1),
                     ex -> ex instanceof IllegalArgumentException);
 
@@ -110,7 +106,8 @@ public class StreamSegmentContainerMetadataTests {
 
                 // This should work.
                 m.mapStreamSegmentId(transactionName, transactionId, segmentId);
-                Assert.assertEquals("Unexpected value from getStreamSegmentId (Transaction Segment).", transactionId, m.getStreamSegmentId(transactionName));
+                Assert.assertEquals("Unexpected value from getStreamSegmentId (Transaction Segment).", transactionId,
+                        m.getStreamSegmentId(transactionName));
 
                 // Now check that we cannot re-map the same Transaction Id or Name.
                 AssertExtensions.assertThrows(
@@ -131,11 +128,13 @@ public class StreamSegmentContainerMetadataTests {
         }
 
         Collection<Long> metadataSegmentIds = m.getAllStreamSegmentIds();
-        AssertExtensions.assertContainsSameElements("Metadata does not contain the expected Segment Ids", segmentIds, metadataSegmentIds);
+        AssertExtensions.assertContainsSameElements("Metadata does not contain the expected Segment Ids", segmentIds,
+                metadataSegmentIds);
     }
 
     /**
-     * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (Transaction) StreamSegments.
+     * Tests the ability to delete a StreamSegment from the metadata, as well as any dependent (Transaction)
+     * StreamSegments.
      */
     @Test
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -153,7 +152,8 @@ public class StreamSegmentContainerMetadataTests {
             }
         }
 
-        // By construction (see above, any index i=3n is a parent StreamSegment, and any index i=3n+1 or 3n+2 is a Transaction).
+        // By construction (see above, any index i=3n is a parent StreamSegment, and any index i=3n+1 or 3n+2 is a
+        // Transaction).
         // Let's delete a few parent StreamSegments and verify their Transactions are also deleted.
         // Then delete only Transactions, and verify those are the only ones to be deleted.
         final int groupSize = TRANSACTIONS_PER_SEGMENT_COUNT + 1;
@@ -188,7 +188,8 @@ public class StreamSegmentContainerMetadataTests {
             }
 
             Collection<String> deletedSegmentNames = m.deleteStreamSegment(name);
-            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames);
+            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.",
+                    expectedDeletedSegmentNames, deletedSegmentNames);
         }
 
         // Delete Transactions.
@@ -200,17 +201,20 @@ public class StreamSegmentContainerMetadataTests {
             expectedDeletedSegmentNames.add(name);
 
             Collection<String> deletedSegmentNames = m.deleteStreamSegment(name);
-            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.", expectedDeletedSegmentNames, deletedSegmentNames);
+            AssertExtensions.assertContainsSameElements("Unexpected StreamSegments were deleted.",
+                    expectedDeletedSegmentNames, deletedSegmentNames);
         }
 
         // Verify deleted segments have not been actually removed from the metadata.
         Collection<Long> metadataSegmentIds = m.getAllStreamSegmentIds();
-        AssertExtensions.assertContainsSameElements("Metadata does not contain the expected Segment Ids", segmentIds, metadataSegmentIds);
+        AssertExtensions.assertContainsSameElements("Metadata does not contain the expected Segment Ids", segmentIds,
+                metadataSegmentIds);
 
         // Verify individual StreamSegmentMetadata.
         for (long segmentId : segmentIds) {
             boolean expectDeleted = deletedStreamSegmentIds.contains(segmentId);
-            Assert.assertEquals("Unexpected value for isDeleted.", expectDeleted, m.getStreamSegmentMetadata(segmentId).isDeleted());
+            Assert.assertEquals("Unexpected value for isDeleted.", expectDeleted,
+                    m.getStreamSegmentMetadata(segmentId).isDeleted());
         }
     }
 
@@ -245,9 +249,7 @@ public class StreamSegmentContainerMetadataTests {
         m.recordTruncationMarker(truncationMarkerSeqNo, new TestLogAddress(truncationMarkerSeqNo));
         m.setValidTruncationPoint(truncationMarkerSeqNo);
 
-        AssertExtensions.assertThrows(
-                "reset() worked in non-recovery mode.",
-                m::reset,
+        AssertExtensions.assertThrows("reset() worked in non-recovery mode.", m::reset,
                 ex -> ex instanceof IllegalStateException);
 
         // Do the reset.
@@ -256,10 +258,13 @@ public class StreamSegmentContainerMetadataTests {
         m.exitRecoveryMode();
 
         // Verify everything was reset.
-        Assert.assertEquals("Sequence Number was not reset.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, m.getOperationSequenceNumber());
+        Assert.assertEquals("Sequence Number was not reset.", ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER,
+                m.getOperationSequenceNumber());
         for (long segmentId : segmentIds) {
-            Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).", ContainerMetadata.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId)));
-            Assert.assertNull("SegmentMetadata was not reset (getStreamSegmentMetadata).", m.getStreamSegmentMetadata(segmentId));
+            Assert.assertEquals("SegmentMetadata was not reset (getStreamSegmentId).",
+                    ContainerMetadata.NO_STREAM_SEGMENT_ID, m.getStreamSegmentId(getName(segmentId)));
+            Assert.assertNull("SegmentMetadata was not reset (getStreamSegmentMetadata).",
+                    m.getStreamSegmentMetadata(segmentId));
         }
 
         LogAddress tmSeqNo = m.getClosestTruncationMarker(truncationMarkerSeqNo);
@@ -291,7 +296,8 @@ public class StreamSegmentContainerMetadataTests {
             }
 
             LogAddress truncationMarker = m.getClosestTruncationMarker(seqNo);
-            Assert.assertEquals("Unexpected truncation marker value for Op Sequence Number " + seqNo, expectedTruncationMarker, truncationMarker);
+            Assert.assertEquals("Unexpected truncation marker value for Op Sequence Number " + seqNo,
+                    expectedTruncationMarker, truncationMarker);
         }
 
         // Remove some truncation markers & verify again.
@@ -300,7 +306,8 @@ public class StreamSegmentContainerMetadataTests {
 
             // Check that the removal actually made sense (it should return -1 now).
             LogAddress truncationMarker = m.getClosestTruncationMarker(seqNo);
-            Assert.assertNull("Unexpected truncation marker value after removal for Op Sequence Number " + seqNo, truncationMarker);
+            Assert.assertNull("Unexpected truncation marker value after removal for Op Sequence Number " + seqNo,
+                    truncationMarker);
 
             // Check that the next higher up still works.
             long input = seqNo + markerFrequency;
@@ -314,7 +321,10 @@ public class StreamSegmentContainerMetadataTests {
             }
 
             truncationMarker = m.getClosestTruncationMarker(input);
-            Assert.assertEquals("Unexpected truncation marker value for Op Sequence Number " + input + " after removing marker at Sequence Number " + seqNo, expectedTruncationMarker, truncationMarker);
+            Assert.assertEquals(
+                    "Unexpected truncation marker value for Op Sequence Number " + input + " after " + "removing " +
+                            "marker at Sequence Number " + seqNo,
+                    expectedTruncationMarker, truncationMarker);
         }
     }
 
@@ -330,7 +340,8 @@ public class StreamSegmentContainerMetadataTests {
 
         for (int i = 0; i < 100; i++) {
             boolean expectedValid = i % 2 == 0;
-            Assert.assertEquals("Unexpected result from isValidTruncationPoint.", expectedValid, m.isValidTruncationPoint(i));
+            Assert.assertEquals("Unexpected result from isValidTruncationPoint.", expectedValid,
+                    m.isValidTruncationPoint(i));
         }
     }
 

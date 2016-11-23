@@ -34,8 +34,8 @@ public enum ReadResultEntryType {
     Storage,
 
     /**
-     * The ReadResultEntry points to a location beyond the end offset of the StreamSegment. It will not be able to return
-     * anything until such data is appended to the StreamSegment.
+     * The ReadResultEntry points to a location beyond the end offset of the StreamSegment. It will not be able to
+     * return anything until such data is appended to the StreamSegment.
      */
     Future,
 

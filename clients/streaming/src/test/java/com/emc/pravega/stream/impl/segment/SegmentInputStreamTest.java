@@ -116,8 +116,8 @@ public class SegmentInputStreamTest {
         ByteBuffer read = testBlocking(() -> stream.read(),
                 () -> fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
-        read = testBlocking(() -> stream
-                .read(), () -> fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, wireData.slice())));
+        read = testBlocking(() -> stream.read(), () -> fakeNetwork.complete(1,
+                new SegmentRead("Foo", wireData.capacity(), false, false, wireData.slice())));
         assertEquals(ByteBuffer.wrap(data), read);
     }
 
@@ -131,8 +131,8 @@ public class SegmentInputStreamTest {
         fakeNetwork.complete(0, new SegmentRead("Foo", 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         fakeNetwork.complete(1, new SegmentRead("Foo", 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(2, new SegmentRead("Foo", 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
-        fakeNetwork
-                .complete(3, new SegmentRead("Foo", 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        fakeNetwork.complete(3, new SegmentRead("Foo", 11, false, false,
+                ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read);
     }
@@ -157,7 +157,8 @@ public class SegmentInputStreamTest {
             assertEquals(ByteBuffer.wrap(data), stream.read());
         }
         ByteBuffer read = testBlocking(() -> stream.read(), () -> {
-            fakeNetwork.complete(1, new SegmentRead("Foo", wireData.capacity(), false, false, createEventFromData(data)));
+            fakeNetwork.complete(1,
+                    new SegmentRead("Foo", wireData.capacity(), false, false, createEventFromData(data)));
         });
         assertEquals(ByteBuffer.wrap(data), read);
     }
@@ -173,7 +174,8 @@ public class SegmentInputStreamTest {
         fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
         fakeNetwork.complete(2, new SegmentRead("Foo", 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(3, new SegmentRead("Foo", 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
-        fakeNetwork.complete(4, new SegmentRead("Foo", 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        fakeNetwork.complete(4, new SegmentRead("Foo", 11, false, false,
+                ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
         try {
             stream.read();
             fail();

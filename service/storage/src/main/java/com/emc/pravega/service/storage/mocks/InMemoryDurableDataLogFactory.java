@@ -48,7 +48,9 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
         synchronized (this.persistedData) {
             entries = this.persistedData.getOrDefault(containerId, null);
             if (entries == null) {
-                entries = this.maxAppendSize < 0 ? new InMemoryDurableDataLog.EntryCollection() : new InMemoryDurableDataLog.EntryCollection(this.maxAppendSize);
+                entries = this.maxAppendSize < 0 ? new InMemoryDurableDataLog.EntryCollection() : new
+                        InMemoryDurableDataLog.EntryCollection(
+                        this.maxAppendSize);
                 this.persistedData.put(containerId, entries);
             }
         }

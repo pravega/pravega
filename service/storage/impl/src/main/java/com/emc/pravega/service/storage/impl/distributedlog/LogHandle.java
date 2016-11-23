@@ -108,7 +108,8 @@ class LogHandle implements AutoCloseable {
     public void close() {
         if (!this.closed) {
             try {
-                // Check for null for each of these components since we may be attempting to close them from the constructor
+                // Check for null for each of these components since we may be attempting to close them from the
+                // constructor
                 // due to an initialization failure.
                 if (this.logWriter != null) {
                     FutureUtils.result(this.logWriter.asyncClose());
@@ -169,20 +170,28 @@ class LogHandle implements AutoCloseable {
         } catch (OwnershipAcquireFailedException ex) {
             // This means one of two things:
             // 1. Someone else currently holds the exclusive write lock.
-            // 2. Someone else held the exclusive write lock, crashed, and ZooKeeper did not figure it out yet (due to a long Session Timeout).
-            throw new DataLogWriterNotPrimaryException(String.format("Unable to acquire exclusive Writer for log '%s'.", logName), ex);
+            // 2. Someone else held the exclusive write lock, crashed, and ZooKeeper did not figure it out yet (due
+            // to a long Session Timeout).
+            throw new DataLogWriterNotPrimaryException(
+                    String.format("Unable to acquire exclusive Writer for log '%s'" + ".", logName), ex);
         } catch (IOException ex) {
-            // Log does not exist or some other issue happened. Note that LogNotFoundException inherits from IOException, so it's also handled here.
-            throw new DataLogNotAvailableException(String.format("Unable to create DistributedLogManager for log '%s'.", logName), ex);
+            // Log does not exist or some other issue happened. Note that LogNotFoundException inherits from
+            // IOException, so it's also handled here.
+            throw new DataLogNotAvailableException(
+                    String.format("Unable to create DistributedLogManager for log '%s'" + ".", logName), ex);
         } catch (Exception ex) {
             // General exception, configuration issue, etc.
-            throw new DataLogInitializationException(String.format("Unable to create DistributedLogManager for log '%s'.", logName), ex);
+            throw new DataLogInitializationException(
+                    String.format("Unable to create DistributedLogManager for log " + "'%s'.", logName), ex);
         } finally {
             if (!success) {
                 try {
                     close();
                 } catch (Exception ex) {
-                    log.error("Unable to cleanup resources after the failed attempt to create a LogHandle for '{}'. {}", logName, ex);
+                    log.error(
+                            "Unable to cleanup resources after the failed attempt to create a LogHandle for '{}'. " +
+                                    "{}",
+                            logName, ex);
                 }
             }
         }
@@ -192,7 +201,8 @@ class LogHandle implements AutoCloseable {
         } catch (LogEmptyException ex) {
             this.lastTransactionId.set(0);
         } catch (Exception ex) {
-            throw new DataLogInitializationException(String.format("Unable to determine last transaction Id for log '%s'.", logName), ex);
+            throw new DataLogInitializationException(
+                    String.format("Unable to determine last transaction Id for log " + "'%s'.", logName), ex);
         }
 
         log.info("{}: Initialized (LastTransactionId = {}).", this.logName, this.lastTransactionId);
@@ -240,7 +250,9 @@ class LogHandle implements AutoCloseable {
 
             buffer = new byte[dataLength];
             int bytesRead = StreamHelpers.readAll(data, buffer, 0, buffer.length);
-            assert bytesRead == buffer.length : String.format("StreamHelpers.ReadAll did not read entire input stream. Expected %d, Actual %d.", buffer.length, bytesRead);
+            assert bytesRead == buffer.length : String.format(
+                    "StreamHelpers.ReadAll did not read entire input stream" + ". Expected %d, Actual %d.",
+                    buffer.length, bytesRead);
         } catch (IOException ex) {
             return FutureHelpers.failedFuture(ex);
         }
@@ -255,10 +267,12 @@ class LogHandle implements AutoCloseable {
      * Creates a new Reader starting after the given Transaction Id.
      *
      * @param afterTransactionId The Transaction Id right before where to start.
-     * @return A CloseableIterator that returns DurableDataLog.ReadItems, each corresponding to an entry in the DurableLog Read.
+     * @return A CloseableIterator that returns DurableDataLog.ReadItems, each corresponding to an entry in the
+     * DurableLog Read.
      * @throws DurableDataLogException If the reader could not be opened.
      */
-    CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> getReader(long afterTransactionId) throws DurableDataLogException {
+    CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> getReader(long afterTransactionId) throws
+            DurableDataLogException {
         ensureNotClosed();
         Preconditions.checkState(this.logManager != null, "LogHandle is not initialized.");
 
@@ -283,8 +297,8 @@ class LogHandle implements AutoCloseable {
      *
      * @param upToAddress The DLSNAddress to truncate to.
      * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the outcome of the operation. If the operation failed,
-     * the Future will be completed with the appropriate exception.
+     * @return A CompletableFuture that, when completed, will indicate the outcome of the operation. If the operation
+     * failed, the Future will be completed with the appropriate exception.
      */
     CompletableFuture<Boolean> truncate(DLSNAddress upToAddress, java.time.Duration timeout) {
         ensureNotClosed();
@@ -315,7 +329,8 @@ class LogHandle implements AutoCloseable {
         }
     }
 
-    private <T, R> CompletableFuture<R> toCompletableFuture(Future<T> distributedLogFuture, Function<T, R> outputConverter) {
+    private <T, R> CompletableFuture<R> toCompletableFuture(Future<T> distributedLogFuture, Function<T, R>
+            outputConverter) {
         CompletableFuture<R> resultFuture = new CompletableFuture<>();
         distributedLogFuture.addEventListener(new FutureEventListener<T>() {
             @Override
@@ -334,7 +349,8 @@ class LogHandle implements AutoCloseable {
                     // General write failure; try again.
                     wrapException = new WriteFailureException("Unable to write data to DistributedLog.", cause);
                 } else if (cause instanceof LockingException) {
-                    wrapException = new DataLogWriterNotPrimaryException("LogHandle is not exclusive writer for DistributedLog log.", cause);
+                    wrapException = new DataLogWriterNotPrimaryException(
+                            "LogHandle is not exclusive writer for " + "DistributedLog log.", cause);
                 } else if (cause instanceof LogRecordTooLongException) {
                     // User error. Record is too long.
                     wrapException = new WriteTooLongException(cause);
@@ -351,7 +367,8 @@ class LogHandle implements AutoCloseable {
 
     //region DistributedLogReader
 
-    private static class DistributedLogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDataLogException> {
+    private static class DistributedLogReader implements CloseableIterator<DurableDataLog.ReadItem,
+            DurableDataLogException> {
         final String traceObjectId;
         private final DistributedLogManager logManager;
         private final Consumer<DistributedLogReader> closeCallback;
@@ -360,7 +377,8 @@ class LogHandle implements AutoCloseable {
 
         //region Constructor
 
-        DistributedLogReader(long afterTransactionId, DistributedLogManager logManager, Consumer<DistributedLogReader> closeCallback) throws IOException {
+        DistributedLogReader(long afterTransactionId, DistributedLogManager logManager,
+                             Consumer<DistributedLogReader> closeCallback) throws IOException {
             Preconditions.checkNotNull(logManager, "logManager");
             Preconditions.checkNotNull(closeCallback, "closeCallback");
 
@@ -385,7 +403,8 @@ class LogHandle implements AutoCloseable {
                 }
 
                 this.lastTransactionId = baseRecord.getTransactionId();
-                log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId, this.lastTransactionId, baseRecord.getPayload().length);
+                log.debug("{}: LogReader.readNext (TransactionId {}, Length = {}).", this.traceObjectId,
+                        this.lastTransactionId, baseRecord.getPayload().length);
                 return new ReadItem(baseRecord);
             } catch (IOException ex) {
                 // TODO: need to hook up a retry policy here.

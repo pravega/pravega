@@ -31,7 +31,6 @@ import org.junit.Test;
 public class CallbackHelpersTests {
     /**
      * Tests the CallbackHelpers.invokeSafely(Consumer) method.
-     *
      */
     @Test
     public void testInvokeConsumer() {

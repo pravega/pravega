@@ -102,20 +102,11 @@ public class TableHelperTest {
 
         // find predecessors and successors when update to history and index table hasnt happened
         predecessors = TableHelper.getOverlaps(zero,
-                TableHelper
-                        .findSegmentPredecessorCandidates(zero,
-                                new byte[0],
-                                new byte[0])
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(zero, new byte[0], new byte[0]).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(zero,
-                TableHelper.findSegmentSuccessorCandidates(zero,
-                        new byte[0],
-                        new byte[0])
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(zero, new byte[0], new byte[0]).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
 
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, new ArrayList<Integer>());
@@ -162,19 +153,11 @@ public class TableHelperTest {
         historyTable = TableHelper.updateHistoryTable(historyTable, timestamp, newSegments);
         // find predecessor and successor with index table being stale
         predecessors = TableHelper.getOverlaps(ten,
-                TableHelper.findSegmentPredecessorCandidates(ten,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(ten, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(seven,
-                TableHelper.findSegmentSuccessorCandidates(seven,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(seven, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
 
         assertEquals(predecessors, Lists.newArrayList(7, 8));
         assertEquals(successors, Lists.newArrayList(9, 10));
@@ -186,187 +169,111 @@ public class TableHelperTest {
         // 1 has a successor few rows down
 
         predecessors = TableHelper.getOverlaps(zero,
-                TableHelper.findSegmentPredecessorCandidates(zero,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(zero, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(zero,
-                TableHelper.findSegmentSuccessorCandidates(zero,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(zero, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
 
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, new ArrayList<Integer>());
 
         predecessors = TableHelper.getOverlaps(one,
-                TableHelper.findSegmentPredecessorCandidates(one,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(one, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(one,
-                TableHelper.findSegmentSuccessorCandidates(one,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments))
-                        .collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(one, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, Lists.newArrayList(6, 7));
 
         predecessors = TableHelper.getOverlaps(two,
-                TableHelper.findSegmentPredecessorCandidates(two,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(two, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(two,
-                TableHelper.findSegmentSuccessorCandidates(two,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(two, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, Lists.newArrayList(8));
 
         predecessors = TableHelper.getOverlaps(three,
-                TableHelper.findSegmentPredecessorCandidates(three,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(three, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(three,
-                TableHelper.findSegmentSuccessorCandidates(three,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(three, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, Lists.newArrayList(5));
 
         predecessors = TableHelper.getOverlaps(four,
-                TableHelper.findSegmentPredecessorCandidates(four,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(four, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(four,
-                TableHelper.findSegmentSuccessorCandidates(four,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(four, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, new ArrayList<Integer>());
         assertEquals(successors, Lists.newArrayList(5));
 
         predecessors = TableHelper.getOverlaps(five,
-                TableHelper.findSegmentPredecessorCandidates(five,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(five, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(five,
-                TableHelper.findSegmentSuccessorCandidates(five,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(five, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(3, 4));
         assertEquals(successors, Lists.newArrayList(8));
 
         predecessors = TableHelper.getOverlaps(six,
-                TableHelper.findSegmentPredecessorCandidates(six,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(six, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(six,
-                TableHelper.findSegmentSuccessorCandidates(six,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(six, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(1));
         assertEquals(successors, new ArrayList());
 
         predecessors = TableHelper.getOverlaps(seven,
-                TableHelper.findSegmentPredecessorCandidates(seven,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(seven, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(seven,
-                TableHelper.findSegmentSuccessorCandidates(seven,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(seven, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(1));
         assertEquals(successors, Lists.newArrayList(9, 10));
 
         predecessors = TableHelper.getOverlaps(eight,
-                TableHelper.findSegmentPredecessorCandidates(eight,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(eight, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(eight,
-                TableHelper.findSegmentSuccessorCandidates(eight,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(eight, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(2, 5));
         assertEquals(successors, Lists.newArrayList(10, 11));
 
         predecessors = TableHelper.getOverlaps(nine,
-                TableHelper.findSegmentPredecessorCandidates(nine,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(nine, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(nine,
-                TableHelper.findSegmentSuccessorCandidates(nine,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(nine, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(7));
         assertEquals(successors, new ArrayList());
 
         predecessors = TableHelper.getOverlaps(ten,
-                TableHelper.findSegmentPredecessorCandidates(ten,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(ten, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(ten,
-                TableHelper.findSegmentSuccessorCandidates(ten,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(ten, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(7, 8));
         assertEquals(successors, new ArrayList());
 
         predecessors = TableHelper.getOverlaps(eleven,
-                TableHelper.findSegmentPredecessorCandidates(eleven,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentPredecessorCandidates(eleven, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         successors = TableHelper.getOverlaps(eleven,
-                TableHelper.findSegmentSuccessorCandidates(eleven,
-                        indexTable,
-                        historyTable)
-                        .stream()
-                        .map(x -> getSegment(x, segments)).collect(Collectors.toList()));
+                TableHelper.findSegmentSuccessorCandidates(eleven, indexTable, historyTable).stream().map(
+                        x -> getSegment(x, segments)).collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(8));
         assertEquals(successors, new ArrayList());
     }
@@ -374,10 +281,9 @@ public class TableHelperTest {
     private byte[] createSegmentTable(int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
 
-        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
-                .boxed()
-                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                .collect(Collectors.toList());
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments).boxed().map(
+                x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk)).collect(
+                Collectors.toList());
 
         return TableHelper.updateSegmentTable(0, new byte[0], numSegments, newRanges, eventTime);
     }
@@ -385,10 +291,9 @@ public class TableHelperTest {
     private byte[] updateSegmentTable(byte[] segmentTable, int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
         final int startingSegNum = segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE;
-        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
-                .boxed()
-                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                .collect(Collectors.toList());
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments).boxed().map(
+                x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk)).collect(
+                Collectors.toList());
 
         return TableHelper.updateSegmentTable(startingSegNum, segmentTable, numSegments, newRanges, eventTime);
     }

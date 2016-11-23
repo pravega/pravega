@@ -69,8 +69,8 @@ public final class Exceptions {
      * @throws ExceptionT If thrown by call.
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)
-            throws ExceptionT {
+    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT,
+            ResultT> call) throws ExceptionT {
         try {
             return call.call();
         } catch (InterruptedException e) {
@@ -88,7 +88,8 @@ public final class Exceptions {
      * @throws NullPointerException     If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static void checkNotNullOrEmpty(String arg, String argName) throws NullPointerException, IllegalArgumentException {
+    public static void checkNotNullOrEmpty(String arg, String argName)
+            throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(arg.length() > 0, argName, "Cannot be an empty string.");
     }
@@ -103,7 +104,8 @@ public final class Exceptions {
      * @param args           Format args for message. These must correspond to String.format() args.
      * @throws IllegalArgumentException If validCondition is false.
      */
-    public static void checkArgument(boolean validCondition, String argName, String message, Object... args) throws IllegalArgumentException {
+    public static void checkArgument(boolean validCondition, String argName, String message, Object... args)
+            throws IllegalArgumentException {
         if (!validCondition) {
             throw new IllegalArgumentException(badArgumentMessage(argName, message, args));
         }
@@ -121,23 +123,29 @@ public final class Exceptions {
      *                                        greater than upBoundExclusive.
      * @throws IllegalArgumentException       If length is a negative number.
      */
-    public static void checkArrayRange(long startIndex, int length, long arrayLength, String startIndexArgName, String lengthArgName) throws ArrayIndexOutOfBoundsException, IllegalArgumentException {
+    public static void checkArrayRange(long startIndex, int length, long arrayLength, String startIndexArgName,
+                                       String lengthArgName)
+            throws ArrayIndexOutOfBoundsException,
+            IllegalArgumentException {
         // Check for non-negative length.
         if (length < 0) {
-            throw new IllegalArgumentException(badArgumentMessage(lengthArgName, "length must be a non-negative integer."));
+            throw new IllegalArgumentException(badArgumentMessage(lengthArgName,
+                                                            "length must be a non-negative integer."));
         }
 
         // Check for valid start index.
         if (startIndex < 0 || startIndex >= arrayLength) {
             // The only valid case here is if the range has zero elements and the array bounds also has zero elements.
             if (!(startIndex == 0 && length == 0 && arrayLength == 0)) {
-                throw new ArrayIndexOutOfBoundsException(badStartOffsetMessage(startIndex, arrayLength, startIndexArgName));
+                throw new ArrayIndexOutOfBoundsException(badStartOffsetMessage(startIndex, arrayLength,
+                                                                            startIndexArgName));
             }
         }
 
         // Check for valid end offset. Note that end offset can be equal to upBoundExclusive, because this is a range.
         if (startIndex + length > arrayLength) {
-            throw new ArrayIndexOutOfBoundsException(badLengthMessage(startIndex, length, arrayLength, startIndexArgName, lengthArgName));
+            throw new ArrayIndexOutOfBoundsException(badLengthMessage(startIndex, length, arrayLength,
+                                                        startIndexArgName, lengthArgName));
         }
     }
 
@@ -159,10 +167,13 @@ public final class Exceptions {
     }
 
     private static String badStartOffsetMessage(long startIndex, long arrayLength, String startIndexArgName) {
-        return String.format("%s: value must be in interval [0, %d), given %d.", startIndexArgName, arrayLength, startIndex);
+        return String.format("%s: value must be in interval [0, %d), given %d.", startIndexArgName, arrayLength,
+                startIndex);
     }
 
-    private static String badLengthMessage(long startIndex, int length, long arrayLength, String startIndexArgName, String lengthArgName) {
-        return String.format("%s + %s: value must be in interval [0, %d], actual %d.", startIndexArgName, lengthArgName, arrayLength, startIndex + length);
+    private static String badLengthMessage(long startIndex, int length, long arrayLength, String startIndexArgName,
+                                           String lengthArgName) {
+        return String.format("%s + %s: value must be in interval [0, %d], actual %d.", startIndexArgName, lengthArgName,
+                arrayLength, startIndex + length);
     }
 }

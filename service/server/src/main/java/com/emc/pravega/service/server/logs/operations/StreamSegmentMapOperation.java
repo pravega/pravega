@@ -77,10 +77,12 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     /**
      * Sets the StreamSegmentId for this operation.
+     *
      * @param value The Id of the segment to set.
      */
     public void setStreamSegmentId(long value) {
-        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
+        Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "StreamSegmentId has" + " already been assigned for this operation.");
         Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
     }
@@ -106,7 +108,8 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     @Override
     protected void serializeContent(DataOutputStream target) throws IOException {
-        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegment Id has not been assigned for this entry.");
+        ensureSerializationCondition(this.streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                "StreamSegment " + "Id has not been assigned for this entry.");
         target.writeByte(CURRENT_VERSION);
         target.writeLong(this.streamSegmentId);
         target.writeUTF(this.streamSegmentName);
@@ -125,13 +128,9 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
 
     @Override
     public String toString() {
-        return String.format(
-                "%s, Id = %s, Name = %s, Length = %d, Sealed = %s",
-                super.toString(),
-                toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
-                getStreamSegmentName(),
-                getLength(),
-                isSealed());
+        return String.format("%s, Id = %s, Name = %s, Length = %d, Sealed = %s", super.toString(),
+                toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID), getStreamSegmentName(),
+                getLength(), isSealed());
     }
 
     //endregion

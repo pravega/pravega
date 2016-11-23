@@ -38,8 +38,9 @@ public class FutureCollectionHelperTest {
 
     /**
      * Test method for FutureCollectionHelpers.filter.
+     *
      * @throws InterruptedException when future is interrupted
-     * @throws ExecutionException when future is interrupted
+     * @throws ExecutionException   when future is interrupted
      */
     @Test
     public void testFilter() throws ExecutionException, InterruptedException {
@@ -75,7 +76,8 @@ public class FutureCollectionHelperTest {
 
     /**
      * Test method for FutureCollectionHelpers.sequence.
-     * @throws ExecutionException when future is interrupted
+     *
+     * @throws ExecutionException   when future is interrupted
      * @throws InterruptedException when future is interrupted
      */
     @Test
@@ -99,7 +101,8 @@ public class FutureCollectionHelperTest {
     }
 
     /**
-     * Test method for FutureCollectionHelpers.sequence when some elements in original list complete exceptionally in future.
+     * Test method for FutureCollectionHelpers.sequence when some elements in original
+     * list complete exceptionally in future.
      */
     @Test(expected = CompletionException.class)
     public void testSequenceException() {

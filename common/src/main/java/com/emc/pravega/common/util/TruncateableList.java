@@ -76,8 +76,8 @@ public class TruncateableList<T> {
      * Adds a new item at the end of the list, but only if the last item in the list meets the specified criteria.
      *
      * @param item            The item to append.
-     * @param lastItemChecker A predicate to test the tail item in the list. If this predicate returns true, the item
-     *                        is added at the end of the list, otherwise it is not.
+     * @param lastItemChecker A predicate to test the tail item in the list. If this predicate returns true, the item is
+     *                        added at the end of the list, otherwise it is not.
      * @return True if the item was added (lastItemChecker returned true or list was empty), false otherwise.
      */
     public boolean addIf(T item, Predicate<T> lastItemChecker) {
@@ -110,9 +110,10 @@ public class TruncateableList<T> {
     public int truncate(Predicate<T> tester) {
         int count = 0;
         synchronized (this.lock) {
-            // We truncate by finding the new head and simply pointing our head reference to it, as well as disconnecting
-            // its predecessor node from it.
-            // We also need to mark every truncated node as such - this will instruct ongoing reads to stop serving truncated data.
+            // We truncate by finding the new head and simply pointing our head reference to it, as well as
+            // disconnecting its predecessor node from it.
+            // We also need to mark every truncated node as such - this will instruct ongoing reads to stop serving
+            // truncated data.
             ListNode<T> current = this.head;
             while (current != null && tester.test(current.item)) {
                 current = trim(current);
@@ -182,7 +183,8 @@ public class TruncateableList<T> {
      *
      * @param firstItemTester A predicate that is used toe find the first item.
      * @param count           The maximum number of items to read.
-     * @return An Iterator with the resulting items. If no results are available for the given parameters, an empty iterator is returned.
+     * @return                An Iterator with the resulting items. If no results are available for the
+     *                        given parameters, an empty iterator is returned.
      */
     public Iterator<T> read(Predicate<T> firstItemTester, int count) {
         ListNode<T> firstNode = getFirstWithCondition(firstItemTester);

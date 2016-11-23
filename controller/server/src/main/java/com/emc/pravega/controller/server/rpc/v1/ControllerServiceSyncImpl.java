@@ -52,7 +52,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
                                      final HostControllerStore hostStore,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 
     /**
@@ -73,7 +74,8 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     @Override
     public List<SegmentRange> getCurrentSegments(final String scope, final String stream) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.getCurrentSegments(scope, stream), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.getCurrentSegments(scope, stream),
+                RuntimeException::new);
     }
 
     @Override
@@ -83,41 +85,55 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
 
     @Override
     public boolean isSegmentValid(final String scope, final String stream, final int segmentNumber) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.isSegmentValid(scope, stream, segmentNumber), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.isSegmentValid(scope, stream, segmentNumber),
+                RuntimeException::new);
     }
 
     @Override
-    public List<Position> getPositions(final String scope, final String stream, final long timestamp, final int count) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.getPositions(scope, stream, timestamp, count), RuntimeException::new);
+    public List<Position> getPositions(final String scope, final String stream, final long timestamp,
+                                       final int count) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.getPositions(scope, stream, timestamp, count),
+                RuntimeException::new);
     }
 
     @Override
-    public List<Position> updatePositions(final String scope, final String stream, final List<Position> positions) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.updatePositions(scope, stream, positions), RuntimeException::new);
+    public List<Position> updatePositions(final String scope, final String stream, final List<Position> positions)
+            throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.updatePositions(scope, stream, positions),
+                RuntimeException::new);
     }
 
     @Override
-    public ScaleResponse scale(final String scope, final String stream, final List<Integer> sealedSegments, final Map<Double, Double> newKeyRanges, final long scaleTimestamp) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), RuntimeException::new);
+    public ScaleResponse scale(final String scope, final String stream, final List<Integer> sealedSegments,
+                               final Map<Double, Double> newKeyRanges, final long scaleTimestamp) throws TException {
+        return FutureHelpers.getAndHandleExceptions(
+                controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp),
+                RuntimeException::new);
     }
 
     @Override
     public TxId createTransaction(final String scope, final String stream) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream),
+                RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus commitTransaction(final String scope, final String stream, final TxId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid), RuntimeException::new);
+    public TransactionStatus commitTransaction(final String scope, final String stream, final TxId txid)
+            throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid),
+                RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus dropTransaction(final String scope, final String stream, final TxId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid), RuntimeException::new);
+    public TransactionStatus dropTransaction(final String scope, final String stream, final TxId txid)
+            throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid),
+                RuntimeException::new);
     }
 
     @Override
     public TxState checkTransactionStatus(final String scope, final String stream, final TxId txid) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid), RuntimeException::new);
+        return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid),
+                RuntimeException::new);
     }
 }

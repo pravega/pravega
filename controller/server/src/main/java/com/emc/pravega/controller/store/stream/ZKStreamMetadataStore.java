@@ -53,17 +53,16 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             try {
                 final long currentTime = System.currentTimeMillis();
 
-                ZKStream.getAllCompletedTx().get().entrySet().stream()
-                        .forEach(x -> {
-                            CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
-                            if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
-                                try {
-                                    ZKStream.deletePath(x.getKey(), true);
-                                } catch (Exception e) {
-                                    // TODO: log and ignore
-                                }
-                            }
-                        });
+                ZKStream.getAllCompletedTx().get().entrySet().stream().forEach(x -> {
+                    CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
+                    if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
+                        try {
+                            ZKStream.deletePath(x.getKey(), true);
+                        } catch (Exception e) {
+                            // TODO: log and ignore
+                        }
+                    }
+                });
             } catch (Exception e) {
                 // TODO: log!
             }

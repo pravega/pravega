@@ -43,10 +43,11 @@ public class RocksDBConfig extends ComponentConfig {
     /**
      * Creates a new instance of the RocksDBConfig class.
      *
-     * @param properties    The java.util.Properties object to read Properties from.
+     * @param properties The java.util.Properties object to read Properties from.
      * @throws ConfigurationException   When a configuration issue has been detected. This can be:
-     *                                  MissingPropertyException (a required Property is missing from the given properties collection),
-     *                                  NumberFormatException (a Property has a value that is invalid for it).
+     *                                  MissingPropertyException (a required Property is missing from the given
+     *                                  properties collection), NumberFormatException (a Property has a value that is
+     *                                  invalid for it).
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If componentCode is an empty string..
      */

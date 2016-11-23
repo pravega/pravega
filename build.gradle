@@ -131,7 +131,7 @@ project('service:storage:impl') {
         compile project(':common')
         compile project(':service:storage')
         testCompile project(':testcommon')
-	testCompile files(project(':service:storage').sourceSets.test.output)
+        testCompile files(project(':service:storage').sourceSets.test.output)
     }
 }
 
@@ -210,19 +210,19 @@ project('integrationtests') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startLocalService(type: JavaExec) {
         main = "com.emc.pravega.demo.StartLocalService"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startProducer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartProducer"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
-	
+
     task startConsumer(type: JavaExec) {
         main = "com.emc.pravega.demo.StartConsumer"
         classpath = sourceSets.main.runtimeClasspath

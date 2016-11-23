@@ -34,6 +34,7 @@ public class IllegalContainerStateException extends RuntimeException {
     }
 
     public IllegalContainerStateException(int containerId, Service.State expectedState, Service.State desiredState) {
-        super(String.format("Container %d is in an invalid state for this operation. Expected: %s; Actual: %s.", containerId, desiredState, expectedState));
+        super(String.format("Container %d is in an invalid state for this operation. Expected: %s; Actual: %s.",
+                containerId, desiredState, expectedState));
     }
 }

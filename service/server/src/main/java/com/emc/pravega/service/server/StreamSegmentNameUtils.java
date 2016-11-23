@@ -49,10 +49,11 @@ public final class StreamSegmentNameUtils {
     //endregion
 
     /**
-     * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent StreamSegment, and the transactionId.
+     * Returns the transaction name for a TransactionStreamSegment based on the name of the current Parent
+     * StreamSegment, and the transactionId.
      *
      * @param parentStreamSegmentName The name of the Parent StreamSegment for this transaction.
-     * @param transactionId The unique Id for the transaction.
+     * @param transactionId           The unique Id for the transaction.
      * @return The name of the Transaction StreamSegmentId.
      */
     public static String getTransactionNameFromId(String parentStreamSegmentName, UUID transactionId) {
@@ -66,10 +67,12 @@ public final class StreamSegmentNameUtils {
 
 
     /**
-     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method returns a
-     * valid value only if the Transaction StreamSegmentName was generated using the generateTransactionStreamSegmentName method.
-     * 
-     * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent StreamSegment.
+     * Attempts to extract the name of the Parent StreamSegment for the given Transaction StreamSegment. This method
+     * returns a valid value only if the Transaction StreamSegmentName was generated using the
+     * generateTransactionStreamSegmentName method.
+     *
+     * @param transactionName The name of the Transaction StreamSegment to extract the name of the Parent
+     *                        StreamSegment.
      * @return The name of the Parent StreamSegment, or null if not a valid StreamSegment.
      */
     public static String getParentStreamSegmentName(String transactionName) {

@@ -31,7 +31,7 @@ public class ThriftAsyncCallback<T> implements AsyncMethodCallback<T> {
 
     @Override
     public void onComplete(T response) {
-       result.complete(response);
+        result.complete(response);
     }
 
     @Override

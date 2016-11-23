@@ -135,7 +135,8 @@ public class ReadTest {
 
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, decoder, new ReadSegment(segmentName, 0, 10000));
+        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, decoder,
+                new ReadSegment(segmentName, 0, 10000));
 
         assertEquals(result.getSegment(), segmentName);
         assertEquals(result.getOffset(), 0);
@@ -158,8 +159,7 @@ public class ReadTest {
         int port = TestUtils.randomPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
@@ -169,16 +169,15 @@ public class ReadTest {
 
         SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, clientCF);
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
-                                       .getSegments().iterator().next();
+        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream),
+                RuntimeException::new).getSegments().iterator().next();
 
-        @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, null);
+        @Cleanup("close") SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, null);
         out.write(ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>());
         out.flush();
 
-        @Cleanup("close")
-        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment, new SegmentInputConfiguration());
+        @Cleanup("close") SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment,
+                new SegmentInputConfiguration());
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }
@@ -191,23 +190,20 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
 
-        @Cleanup
-        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        @Cleanup MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
 
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        @Cleanup PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
         StreamImpl stream = (StreamImpl) streamManager.createStream(streamName, null);
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        @Cleanup
-        Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
+        @Cleanup Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
         producer.publish("RoutingKey", testString);
         producer.flush();
 
-        @Cleanup
-        Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
+        @Cleanup Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(),
+                streamManager.getInitialPosition(streamName), null);
         String read = consumer.getNextEvent(5000);
         assertEquals(testString, read);
     }

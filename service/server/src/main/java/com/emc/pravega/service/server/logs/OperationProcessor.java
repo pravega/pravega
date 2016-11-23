@@ -63,12 +63,14 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * Creates a new instance of the OperationProcessor class.
      *
      * @param metadata         The ContainerMetadata for the Container to process operations for.
-     * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful Operation committal.
+     * @param stateUpdater     A MemoryStateUpdater that is used to update in-memory structures upon successful
+     *                         Operation committal.
      * @param durableDataLog   The DataFrameLog to write DataFrames to.
      * @param checkpointPolicy The Checkpoint Policy for Metadata.
      * @throws NullPointerException If any of the arguments are null.
      */
-    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
+    OperationProcessor(UpdateableContainerMetadata metadata, MemoryStateUpdater stateUpdater, DurableDataLog
+            durableDataLog, MetadataCheckpointPolicy checkpointPolicy) {
         Preconditions.checkNotNull(metadata, "metadata");
         Preconditions.checkNotNull(stateUpdater, "stateUpdater");
         Preconditions.checkNotNull(durableDataLog, "durableDataLog");
@@ -176,11 +178,13 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * <ol>
      * <li> Picks all items from the Queue. If none, exits.
      * <li> Creates a DataFrameBuilder and starts appending items to it.
-     * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations as well.
+     * <li> As the DataFrameBuilder acknowledges DataFrames being published, acknowledge the corresponding Operations
+     * as well.
      * </ol>
      *
      * @throws InterruptedException    If the current thread has been interrupted (externally).
-     * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually indicates corruption).
+     * @throws DataCorruptionException If an invalid state of the Log or Metadata has been detected (which usually
+     *                                 indicates corruption).
      */
 
     private void runOnce() throws DataCorruptionException, InterruptedException {
@@ -194,24 +198,29 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
                 // In the happy case, this loop is only executed once. But we need the bigger while loop in case we
                 // encountered a non-fatal exception. There is no point in failing the whole set of operations if only
                 // one set failed.
-                state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy, this.traceObjectId);
-                DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, state::commit, state::fail);
+                state = new QueueProcessingState(this.metadataUpdater, this.stateUpdater, this.checkpointPolicy,
+                        this.traceObjectId);
+                DataFrameBuilder<Operation> dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog,
+                        state::commit, state::fail);
                 for (; currentIndex < operations.size(); currentIndex++) {
                     CompletableOperation o = operations.get(currentIndex);
                     boolean processedSuccessfully = processOperation(o, dataFrameBuilder);
 
                     // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
-                    // We only commit data frames when we attempt to start a new record (if it's full) or if we try to close it, so we will not miss out on it.
+                    // We only commit data frames when we attempt to start a new record (if it's full) or if we try
+                    // to close it, so we will not miss out on it.
                     if (processedSuccessfully) {
                         state.addPending(o);
                     }
                 }
 
-                // Only close the DataFrameBuilder (which means flush whatever we have in it to the DataLog) if everything
+                // Only close the DataFrameBuilder (which means flush whatever we have in it to the DataLog) if
+                // everything
                 // went well. If we had any exceptions, and we fail the State, then we must not flush anything out.
                 dataFrameBuilder.close();
             } catch (Exception ex) {
-                // Fail the current set of operations with the given exception. Unless a DataCorruptionException (see below),
+                // Fail the current set of operations with the given exception. Unless a DataCorruptionException (see
+                // below),
                 // we will proceed with the next batch of operations.
                 Throwable realCause = ExceptionHelpers.getRealException(ex);
                 if (state != null) {
@@ -219,7 +228,8 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
                 }
 
                 if (realCause instanceof DataCorruptionException) {
-                    // This is a nasty one. If we encountered a DataCorruptionException, it means we detected something abnormal
+                    // This is a nasty one. If we encountered a DataCorruptionException, it means we detected
+                    // something abnormal
                     // in our container. We need to shutdown right away.
 
                     // But first, fail any Operations that we did not have a chance to process yet.
@@ -240,21 +250,25 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
      * <li> Accepts operation in MetadataUpdater.
      * </ol>
      * Any exceptions along the way will result in the immediate failure of the operations. Exceptions do not bubble out
-     * of this method. The only way to determine whether the operation completed normally or not is to inspect the result.
+     * of this method. The only way to determine whether the operation completed normally or not is to inspect the
+     * result.
      *
      * @param operation        The operation to process.
      * @param dataFrameBuilder The DataFrameBuilder to append the operation to.
      * @return True if processed successfully, false otherwise.
      */
-    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) throws DataCorruptionException {
+    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder)
+            throws DataCorruptionException {
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
-        // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has all the knowledge for that task.
+        // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater has
+        // all the knowledge for that task.
         Operation entry = operation.getOperation();
         try {
             this.metadataUpdater.preProcessOperation(entry);
         } catch (Exception ex) {
-            // This entry was not accepted (due to external error) or some processing error occurred. Our only option is to fail it now, before trying to commit it.
+            // This entry was not accepted (due to external error) or some processing error occurred. Our only option
+            // is to fail it now, before trying to commit it.
             operation.fail(ex);
             return false;
         }
@@ -280,7 +294,8 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         try {
             this.metadataUpdater.acceptOperation(entry);
         } catch (MetadataUpdateException ex) {
-            // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update the metadata due to a bug.
+            // This is an internal error. This shouldn't happen. The entry has been committed, but we couldn't update
+            // the metadata due to a bug.
             operation.fail(ex);
             return false;
         }
@@ -320,7 +335,8 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
             }
         }
 
-        log.debug("{}: Cancelling {} operations because with exception: {}.", this.traceObjectId, cancelCount, failException.toString());
+        log.debug("{}: Cancelling {} operations because with exception: {}.", this.traceObjectId, cancelCount,
+                failException.toString());
     }
 
     //endregion
@@ -328,7 +344,8 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
     //region QueueProcessingState
 
     /**
-     * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all of them.
+     * Temporary State for the QueueProcessor. Keeps track of pending Operations and allows committing or failing all
+     * of them.
      */
     @Slf4j
     private static class QueueProcessingState {
@@ -338,7 +355,8 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
         private final MemoryStateUpdater logUpdater;
         private final MetadataCheckpointPolicy checkpointPolicy;
 
-        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater, MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
+        QueueProcessingState(OperationMetadataUpdater metadataUpdater, MemoryStateUpdater stateUpdater,
+                             MetadataCheckpointPolicy checkpointPolicy, String traceObjectId) {
             assert metadataUpdater != null : "metadataUpdater is null";
             assert stateUpdater != null : "stateUpdater is null";
             assert checkpointPolicy != null : "checkpointPolicy is null";
@@ -363,17 +381,21 @@ class OperationProcessor extends AbstractExecutionThreadService implements Conta
          * Commits all pending Metadata changes, assigns a TruncationMarker and acknowledges all the pending operations.
          *
          * @param commitArgs The Data Frame Commit Args that triggered this action.
-         * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the In-Memory log.
+         * @throws DataCorruptionException When the operation has been committed, but failed to be accepted into the
+         *                                 In-Memory log.
          */
         public void commit(DataFrameBuilder.DataFrameCommitArgs commitArgs) throws Exception {
             log.debug("{}: CommitSuccess (OperationCount = {}).", this.traceObjectId, this.pendingOperations.size());
 
             // Record the Truncation marker and then commit any changes to metadata.
-            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
+            this.metadataUpdater.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(),
+                    commitArgs.getLogAddress());
             this.metadataUpdater.commit();
 
-            // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we ack entries in order of increasing Sequence Number.
-            while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation().getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
+            // Acknowledge all pending entries, in the order in which they are in the queue. It is important that we
+            // ack entries in order of increasing Sequence Number.
+            while (this.pendingOperations.size() > 0 && this.pendingOperations.getFirst().getOperation()
+                    .getSequenceNumber() <= commitArgs.getLastFullySerializedSequenceNumber()) {
                 CompletableOperation e = this.pendingOperations.removeFirst();
                 try {
                     this.logUpdater.process(e.getOperation());

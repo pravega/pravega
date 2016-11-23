@@ -85,8 +85,8 @@ public class SegmentOutputStreamTest {
         verifyNoMoreInteractions(connection);
     }
 
-    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, ByteBuffer data, int num)
-            throws SegmentSealedException, ConnectionFailedException {
+    private void sendEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output, ByteBuffer data,
+                           int num) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(data, acked);
         verify(connection).send(new Append(SEGMENT, cid, num, Unpooled.wrappedBuffer(data)));
@@ -174,8 +174,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        @Cleanup SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
         output.setupConnection();
         verify(connection).send(new SetupAppend(cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new AppendSetup(SEGMENT, cid, 0));

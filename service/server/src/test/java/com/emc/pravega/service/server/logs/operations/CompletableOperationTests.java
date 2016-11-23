@@ -43,18 +43,20 @@ public class CompletableOperationTests {
 
         AtomicLong callbackSeqNo = new AtomicLong(DEFAULT_SEQ_NO);
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
-        CompletableOperation co = new CompletableOperation(op, callbackSeqNo::set, ex -> failureCallbackCalled.set(true));
+        CompletableOperation co = new CompletableOperation(op, callbackSeqNo::set,
+                ex -> failureCallbackCalled.set(true));
 
-        AssertExtensions.assertThrows("complete() succeeded even if Operation had no Sequence Number.",
-                co::complete,
+        AssertExtensions.assertThrows("complete() succeeded even if Operation had no Sequence Number.", co::complete,
                 ex -> ex instanceof IllegalStateException);
 
-        Assert.assertEquals("Success callback was invoked for illegal complete() call.", DEFAULT_SEQ_NO, callbackSeqNo.get());
+        Assert.assertEquals("Success callback was invoked for illegal complete() call.", DEFAULT_SEQ_NO,
+                callbackSeqNo.get());
         Assert.assertFalse("Failure callback was invoked for illegal complete() call.", failureCallbackCalled.get());
 
         op.setSequenceNumber(VALID_SEQ_NO);
         co.complete();
-        Assert.assertEquals("Success callback not invoked with the correct argument after valid complete() call.", VALID_SEQ_NO, callbackSeqNo.get());
+        Assert.assertEquals("Success callback not invoked with the correct argument after valid complete() call.",
+                VALID_SEQ_NO, callbackSeqNo.get());
         Assert.assertFalse("Failure callback was invoked for valid complete() call.", failureCallbackCalled.get());
     }
 
@@ -67,7 +69,8 @@ public class CompletableOperationTests {
 
         AtomicBoolean successCallbackCalled = new AtomicBoolean();
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
-        CompletableOperation co = new CompletableOperation(op, seqNo -> successCallbackCalled.set(true), ex -> failureCallbackCalled.set(true));
+        CompletableOperation co = new CompletableOperation(op, seqNo -> successCallbackCalled.set(true),
+                ex -> failureCallbackCalled.set(true));
 
         co.fail(new IntentionalException());
         Assert.assertTrue("Failure callback was not invoked for valid fail() call.", failureCallbackCalled.get());

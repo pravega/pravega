@@ -46,10 +46,9 @@ public class ConfigHelpers {
      * @param rawProperties The properties to include.
      */
     public static ReadIndexConfig createReadIndexConfigWithInfiniteCachePolicy(PropertyBag rawProperties) {
-        rawProperties
-                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE)
-                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.MAX_VALUE)
-                .with(ReadIndexConfig.PROPERTY_CACHE_POLICY_GENERATION_TIME, Integer.MAX_VALUE);
+        rawProperties.with(ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_SIZE, Long.MAX_VALUE).with(
+                ReadIndexConfig.PROPERTY_CACHE_POLICY_MAX_TIME, Integer.MAX_VALUE).with(
+                ReadIndexConfig.PROPERTY_CACHE_POLICY_GENERATION_TIME, Integer.MAX_VALUE);
 
         return new ReadIndexConfig(convert(rawProperties, ReadIndexConfig.COMPONENT_CODE));
     }

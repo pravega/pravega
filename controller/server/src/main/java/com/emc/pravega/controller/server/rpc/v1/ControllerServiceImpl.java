@@ -70,8 +70,10 @@ public class ControllerServiceImpl {
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
     }
 
-    public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig, final long createTimestamp) {
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig, createTimestamp);
+    public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
+                                                              final long createTimestamp) {
+        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getName(), streamConfig,
+                createTimestamp);
     }
 
     public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
@@ -88,20 +90,23 @@ public class ControllerServiceImpl {
                 );
     }
 
-    public CompletableFuture<List<Position>> getPositions(final String scope, final String stream, final long timestamp, final int count) {
+    public CompletableFuture<List<Position>> getPositions(final String scope, final String stream,
+                                                          final long timestamp, final int count) {
         // first fetch segments active at specified timestamp from the specified stream
         // divide current segments in segmentFutures into at most count positions
         return streamStore.getActiveSegments(stream, timestamp)
                 .thenApply(segmentFutures -> shard(scope, stream, segmentFutures, count));
     }
 
-    public CompletableFuture<List<Position>> updatePositions(final String scope, final String stream, final List<Position> positions) {
+    public CompletableFuture<List<Position>> updatePositions(final String scope, final String stream,
+                                                             final List<Position> positions) {
         // TODO: handle npe with null exception return case
-        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(Collectors.toList());
+        List<PositionInternal> internalPositions = positions.stream().map(ModelHelper::encode).collect(
+                Collectors.toList());
         // initialize completed segments set from those found in the list of input position objects
-        Set<Integer> completedSegments = internalPositions.stream().flatMap(position ->
-                        position.getCompletedSegments().stream().map(Segment::getSegmentNumber)
-        ).collect(Collectors.toSet());
+        Set<Integer> completedSegments = internalPositions.stream().flatMap(
+                position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber)).collect(
+                Collectors.toSet());
 
         Map<Integer, Long> segmentOffsets = new HashMap<>();
 
@@ -111,9 +116,9 @@ public class ControllerServiceImpl {
 
         // fetch updated SegmentFutures from stream metadata
         // and finally convert SegmentFutures back to position objects
-        return streamStore.getNextSegments(stream, completedSegments, segmentFutures)
-                .thenApply(updatedSegmentFutures ->
-                        convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures, segmentOffsets));
+        return streamStore.getNextSegments(stream, completedSegments, segmentFutures).thenApply(
+                updatedSegmentFutures -> convertSegmentFuturesToPositions(scope, stream, updatedSegmentFutures,
+                        segmentOffsets));
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
@@ -121,13 +126,14 @@ public class ControllerServiceImpl {
                                                   final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final long scaleTimestamp) {
-        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments), new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp);
+        return streamMetadataTasks.scale(scope, stream, new ArrayList<>(sealedSegments),
+                new ArrayList<>(ModelHelper.encode(newKeyRanges)), scaleTimestamp);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) throws TException {
         return CompletableFuture.completedFuture(
-                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(), hostStore)
-        );
+                SegmentHelper.getSegmentUri(segment.getScope(), segment.getStreamName(), segment.getNumber(),
+                        hostStore));
     }
 
     private SegmentRange convert(final String scope,
@@ -156,7 +162,8 @@ public class ControllerServiceImpl {
      * @param n              number of shards
      * @return the list of position objects
      */
-    private List<Position> shard(final String scope, final String stream, final SegmentFutures segmentFutures, final int n) {
+    private List<Position> shard(final String scope, final String stream, final SegmentFutures segmentFutures,
+                                 final int n) {
         // divide the active segments equally into at most n partition
         int currentCount = segmentFutures.getCurrent().size();
         int quotient = currentCount / n;
@@ -183,26 +190,22 @@ public class ControllerServiceImpl {
             // Compute the current and future segments set for position i
             Map<SegmentId, Long> currentSegments = new HashMap<>();
             Map<FutureSegment, Long> futureSegments = new HashMap<>();
-            current.stream().forEach(
-                    x -> {
-                        // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
-                        // put it in the currentSegments
-                        currentSegments.put(x, 0L);
+            current.stream().forEach(x -> {
+                // TODO fetch correct offset within the segment at specified timestamp by contacting pravega host
+                // put it in the currentSegments
+                currentSegments.put(x, 0L);
 
-                        // update futures with all segments in segmentFutures.getFutures having x.number as the predecessor
-                        // these segments can be found from the inverted segmentFutures.getFutures
-                        int previous = x.getNumber();
-                        if (inverse.containsKey(previous)) {
-                            inverse.get(previous).stream().forEach(
-                                    y -> {
-                                        SegmentId newSegment = new SegmentId(scope, stream, y);
-                                        SegmentId oldSegment = new SegmentId(scope, stream, previous);
-                                        futureSegments.put(new FutureSegment(newSegment, oldSegment), 0L);
-                                    }
-                            );
-                        }
-                    }
-            );
+                // update futures with all segments in segmentFutures.getFutures having x.number as the predecessor
+                // these segments can be found from the inverted segmentFutures.getFutures
+                int previous = x.getNumber();
+                if (inverse.containsKey(previous)) {
+                    inverse.get(previous).stream().forEach(y -> {
+                        SegmentId newSegment = new SegmentId(scope, stream, y);
+                        SegmentId oldSegment = new SegmentId(scope, stream, previous);
+                        futureSegments.put(new FutureSegment(newSegment, oldSegment), 0L);
+                    });
+                }
+            });
             // create a new position object with current and futures segments thus computed
             Position position = new Position(currentSegments, futureSegments);
             positions.add(position);
@@ -226,34 +229,31 @@ public class ControllerServiceImpl {
         for (PositionInternal position : positions) {
             List<Integer> current = new ArrayList<>(position.getOwnedSegments().size());
             Map<Integer, Integer> futures = new HashMap<>();
-            position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(
-                    x -> {
-                        int number = x.getKey().getSegmentNumber();
-                        current.add(number);
-                        segmentOffsets.put(number, x.getValue());
-                    }
-            );
-            position.getFutureOwnedSegments().stream().forEach(x -> futures.put(x.getSegmentNumber(), x.getPrecedingNumber()));
+            position.getOwnedSegmentsWithOffsets().entrySet().stream().forEach(x -> {
+                int number = x.getKey().getSegmentNumber();
+                current.add(number);
+                segmentOffsets.put(number, x.getValue());
+            });
+            position.getFutureOwnedSegments().stream().forEach(
+                    x -> futures.put(x.getSegmentNumber(), x.getPrecedingNumber()));
             segmentFutures.add(new SegmentFutures(current, futures));
         }
         return segmentFutures;
     }
 
-    private List<Position> convertSegmentFuturesToPositions(String scope, String stream, List<SegmentFutures> segmentFutures, Map<Integer, Long> segmentOffsets) {
+    private List<Position> convertSegmentFuturesToPositions(String scope, String stream, List<SegmentFutures>
+            segmentFutures, Map<Integer, Long> segmentOffsets) {
         List<Position> resultPositions = new ArrayList<>(segmentFutures.size());
-        segmentFutures.stream().forEach(
-                future -> {
-                    Map<SegmentId, Long> currentSegments = new HashMap<>();
-                    Map<FutureSegment, Long> futureSegments = new HashMap<>();
-                    future.getCurrent().stream().forEach(
-                            current -> currentSegments.put(new SegmentId(scope, stream, current), segmentOffsets.get(current))
-                    );
-                    future.getFutures().entrySet().stream().forEach(
-                            y -> futureSegments.put(new FutureSegment(new SegmentId(scope, stream, y.getKey()), new SegmentId(scope, stream, y.getValue())), 0L)
-                    );
-                    resultPositions.add(new Position(currentSegments, futureSegments));
-                }
-        );
+        segmentFutures.stream().forEach(future -> {
+            Map<SegmentId, Long> currentSegments = new HashMap<>();
+            Map<FutureSegment, Long> futureSegments = new HashMap<>();
+            future.getCurrent().stream().forEach(
+                    current -> currentSegments.put(new SegmentId(scope, stream, current), segmentOffsets.get(current)));
+            future.getFutures().entrySet().stream().forEach(y -> futureSegments.put(
+                    new FutureSegment(new SegmentId(scope, stream, y.getKey()),
+                            new SegmentId(scope, stream, y.getValue())), 0L));
+            resultPositions.add(new Position(currentSegments, futureSegments));
+        });
         return resultPositions;
     }
 
@@ -261,28 +261,28 @@ public class ControllerServiceImpl {
         return streamTransactionMetadataTasks.createTx(scope, stream).thenApply(ModelHelper::decode);
     }
 
-    public CompletableFuture<TransactionStatus> commitTransaction(final String scope, final String stream, final TxId txid) {
-        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txid))
-                .handle((ok, ex) -> {
-                    if (ex != null) {
-                        // TODO: return appropriate failures to user
-                        return TransactionStatus.FAILURE;
-                    } else {
-                        return TransactionStatus.SUCCESS;
-                    }
-                });
+    public CompletableFuture<TransactionStatus> commitTransaction(final String scope, final String stream,
+                                                                  final TxId txid) {
+        return streamTransactionMetadataTasks.commitTx(scope, stream, ModelHelper.encode(txid)).handle((ok, ex) -> {
+            if (ex != null) {
+                // TODO: return appropriate failures to user
+                return TransactionStatus.FAILURE;
+            } else {
+                return TransactionStatus.SUCCESS;
+            }
+        });
     }
 
-    public CompletableFuture<TransactionStatus> dropTransaction(final String scope, final String stream, final TxId txid) {
-        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txid))
-                .handle((ok, ex) -> {
-                    if (ex != null) {
-                        // TODO: return appropriate failures to user
-                        return TransactionStatus.FAILURE;
-                    } else {
-                        return TransactionStatus.SUCCESS;
-                    }
-                });
+    public CompletableFuture<TransactionStatus> dropTransaction(final String scope, final String stream,
+                                                                final TxId txid) {
+        return streamTransactionMetadataTasks.dropTx(scope, stream, ModelHelper.encode(txid)).handle((ok, ex) -> {
+            if (ex != null) {
+                // TODO: return appropriate failures to user
+                return TransactionStatus.FAILURE;
+            } else {
+                return TransactionStatus.SUCCESS;
+            }
+        });
     }
 
 

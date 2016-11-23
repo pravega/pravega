@@ -74,8 +74,9 @@ public class ExceptionsTests {
                 Exceptions.checkArrayRange(i, length, maxBound, "start", "length");
             } else {
                 final int index = i;
-                AssertExtensions.assertThrows(
-                        String.format("Unexpected behavior for checkArrayRange(index = %d, length = %d, maxbound = %d).", index, length, maxBound),
+                AssertExtensions.assertThrows(String.format(
+                        "Unexpected behavior for checkArrayRange(index = %d, length = %d, maxbound = %d).",
+                        index, length, maxBound),
                         () -> Exceptions.checkArrayRange(index, length, maxBound, "start", "length"),
                         ex -> ex instanceof ArrayIndexOutOfBoundsException);
             }

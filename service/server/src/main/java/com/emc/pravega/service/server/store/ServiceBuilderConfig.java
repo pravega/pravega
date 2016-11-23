@@ -81,7 +81,8 @@ public class ServiceBuilderConfig {
 
     /**
      * Gets a set of configuration values from a given InputStreamReader.
-     * @param  reader the InputStreamReader from which to read the configuration.
+     *
+     * @param reader the InputStreamReader from which to read the configuration.
      * @return A ServiceBuilderConfig object.
      * @throws IOException If an exception occurred during reading of the configuration.
      */

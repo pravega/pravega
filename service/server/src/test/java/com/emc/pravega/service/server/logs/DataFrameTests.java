@@ -32,7 +32,8 @@ import java.util.List;
  */
 public class DataFrameTests {
     private static final long DEFAULT_PREVIOUS_SEQUENCE = 12345;
-    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accessible from here.
+    private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's
+    // not accessible from here.
 
     /**
      * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.
@@ -43,12 +44,14 @@ public class DataFrameTests {
         int maxRecordCount = 2500;
         int minRecordSize = 0;
         int maxRecordSize = 1024;
-        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
+        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize,
+                maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
         DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
         int recordsAppended = appendRecords(allRecords, df);
-        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
+        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.",
+                allRecords.size() / 2, recordsAppended);
         df.seal();
 
         // Read them back.
@@ -65,17 +68,20 @@ public class DataFrameTests {
         int maxRecordCount = 4500;
         int minRecordSize = 0;
         int maxRecordSize = 1024;
-        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
+        List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize,
+                maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
         DataFrame writeFrame = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, maxFrameSize);
         int recordsAppended = appendRecords(allRecords, writeFrame);
-        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
+        AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.",
+                allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
 
         byte[] serialization = new byte[writeFrame.getLength()];
         int bytesRead = StreamHelpers.readAll(writeFrame.getData(), serialization, 0, serialization.length);
-        Assert.assertEquals("StreamHelpers.readAll did not read the entire DataFrame serialization.", serialization.length, bytesRead);
+        Assert.assertEquals("StreamHelpers.readAll did not read the entire DataFrame serialization.",
+                serialization.length, bytesRead);
 
         // Read them back, by deserializing the frame.
         DataFrame readFrame = new DataFrame(serialization);
@@ -89,15 +95,11 @@ public class DataFrameTests {
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
         DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
-        AssertExtensions.assertThrows(
-                "append(byte) worked even though no entry started.",
-                () -> df.append((byte) 1),
+        AssertExtensions.assertThrows("append(byte) worked even though no entry started.", () -> df.append((byte) 1),
                 ex -> ex instanceof IllegalStateException);
 
-        AssertExtensions.assertThrows(
-                "append(ByteArraySegment) worked even though no entry started.",
-                () -> df.append(new ByteArraySegment(new byte[1])),
-                ex -> ex instanceof IllegalStateException);
+        AssertExtensions.assertThrows("append(ByteArraySegment) worked even though no entry started.",
+                () -> df.append(new ByteArraySegment(new byte[1])), ex -> ex instanceof IllegalStateException);
 
         // Start a new entry.
         boolean started = df.startNewEntry(true);
@@ -155,9 +157,11 @@ public class DataFrameTests {
         started = df.startNewEntry(true);
         Assert.assertFalse("Able to start a new entry in a full frame.", started);
 
-        // Verify we were able to write the expected number of bytes. Each entry uses 'ENTRY_HEADER_SIZE' bytes for its header,
+        // Verify we were able to write the expected number of bytes. Each entry uses 'ENTRY_HEADER_SIZE' bytes for
+        // its header,
         // and we have 3 entries.
-        Assert.assertEquals("Unexpected number of bytes appended.", usableFrameLength - 3 * ENTRY_HEADER_SIZE, bytesAppended);
+        Assert.assertEquals("Unexpected number of bytes appended.", usableFrameLength - 3 * ENTRY_HEADER_SIZE,
+                bytesAppended);
     }
 
     /**
@@ -168,7 +172,8 @@ public class DataFrameTests {
         long newSequence = 67890;
         int dataFrameSize = 1000;
         DataFrame df = new DataFrame(DEFAULT_PREVIOUS_SEQUENCE, dataFrameSize);
-        Assert.assertEquals("Unexpected value for getPreviousSequence().", DEFAULT_PREVIOUS_SEQUENCE, df.getPreviousFrameSequence());
+        Assert.assertEquals("Unexpected value for getPreviousSequence().", DEFAULT_PREVIOUS_SEQUENCE,
+                df.getPreviousFrameSequence());
 
         LogAddress a = new LogAddress(newSequence) {
         };
@@ -208,7 +213,9 @@ public class DataFrameTests {
             fullRecordsAppended++;
         }
 
-        Assert.assertTrue("We did not fill up the DataFrame. This test may not exercise all of the features of DataFrame.", filledUpFrame);
+        Assert.assertTrue(
+                "We did not fill up the DataFrame. This test may not exercise all of the features of " + "DataFrame.",
+                filledUpFrame);
 
         return fullRecordsAppended;
     }

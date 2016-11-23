@@ -45,7 +45,8 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
      * @param storageFactory  The StorageFactory to use to get a reference to the Storage adapter.
      * @param executorService The Executor to use to invoke async callbacks.
      */
-    public ContainerReadIndexFactory(ReadIndexConfig config, StorageFactory storageFactory, ScheduledExecutorService executorService) {
+    public ContainerReadIndexFactory(ReadIndexConfig config, StorageFactory storageFactory, ScheduledExecutorService
+            executorService) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         Preconditions.checkNotNull(executorService, "executorService");
@@ -59,7 +60,8 @@ public class ContainerReadIndexFactory implements ReadIndexFactory {
     @Override
     public ReadIndex createReadIndex(ContainerMetadata containerMetadata, Cache cache) {
         Exceptions.checkNotClosed(this.closed, this);
-        return new ContainerReadIndex(this.config, containerMetadata, cache, this.storageFactory.getStorageAdapter(), this.cacheManager, this.executorService);
+        return new ContainerReadIndex(this.config, containerMetadata, cache, this.storageFactory.getStorageAdapter(),
+                this.cacheManager, this.executorService);
     }
 
     @Override

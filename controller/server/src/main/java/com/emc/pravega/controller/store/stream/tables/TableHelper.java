@@ -49,9 +49,7 @@ public class TableHelper {
         Optional<SegmentRecord> recordOpt = SegmentRecord.readRecord(segmentTable, number);
         if (recordOpt.isPresent()) {
             SegmentRecord record = recordOpt.get();
-            return new Segment(record.getSegmentNumber(),
-                    record.getStartTime(),
-                    record.getRoutingKeyStart(),
+            return new Segment(record.getSegmentNumber(), record.getStartTime(), record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
         } else {
             throw new SegmentNotFoundException(number);
@@ -76,8 +74,7 @@ public class TableHelper {
      * @return
      */
     public static int getNextSegmentNumber(final int chunkNumber, final byte[] chunkData) {
-        return chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE +
-                (chunkData.length / SegmentRecord.SEGMENT_RECORD_SIZE);
+        return chunkNumber * SegmentRecord.SEGMENT_CHUNK_SIZE + (chunkData.length / SegmentRecord.SEGMENT_RECORD_SIZE);
     }
 
     /**
@@ -106,7 +103,8 @@ public class TableHelper {
      * @param historyTable history table
      * @return
      */
-    public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
+    public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[]
+            historyTable) {
         final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
@@ -121,10 +119,9 @@ public class TableHelper {
      * @param candidates candidates
      * @return
      */
-    public static List<Integer> getOverlaps(
-            final Segment current,
-            final List<Segment> candidates) {
-        return candidates.stream().filter(x -> x.overlaps(current)).map(x -> x.getNumber()).collect(Collectors.toList());
+    public static List<Integer> getOverlaps(final Segment current, final List<Segment> candidates) {
+        return candidates.stream().filter(x -> x.overlaps(current)).map(x -> x.getNumber()).collect(
+                Collectors.toList());
     }
 
     /**
@@ -150,21 +147,17 @@ public class TableHelper {
      * @param historyTable history table
      * @return
      */
-    public static List<Integer> findSegmentSuccessorCandidates(
-            final Segment segment,
-            final byte[] indexTable,
-            final byte[] historyTable) {
+    public static List<Integer> findSegmentSuccessorCandidates(final Segment segment, final byte[] indexTable, final
+    byte[] historyTable) {
         // fetch segment start time from segment Is
         // fetch last index Ic
         // fetch record corresponding to Ic. If segment present in that history record, fall through history table
         // else perform binary searchIndex
         // Note: if segment is present at Ic, we will fall through in the history table one record at a time
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(segment.getStart(), indexTable)
-                .getValue();
+        final Optional<IndexRecord> recordOpt = IndexRecord.search(segment.getStart(), indexTable).getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
-                segment.getStart(),
+        final Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset, segment.getStart(),
                 historyTable);
 
         // segment information not in history table
@@ -181,17 +174,19 @@ public class TableHelper {
         // if nothing is indexed read the first record in history table, hence offset = 0
         final int lastIndexedRecordOffset = indexRecord.isPresent() ? indexRecord.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> lastIndexedRecord = HistoryRecord.readRecord(historyTable, lastIndexedRecordOffset);
+        final Optional<HistoryRecord> lastIndexedRecord = HistoryRecord.readRecord(historyTable,
+                lastIndexedRecordOffset);
 
         // if segment is present in history table but its offset is greater than last indexed record,
         // we cant do anything on index table, fall through. OR
         // if segment exists at the last indexed record in history table, fall through,
         // no binary search possible on index
-        if (lastIndexedRecord.get().getEventTime() < historyRecordOpt.get().getEventTime() ||
-                lastIndexedRecord.get().getSegments().contains(segment.getNumber())) {
+        if (lastIndexedRecord.get().getEventTime() < historyRecordOpt.get().getEventTime() || lastIndexedRecord.get()
+                .getSegments().contains(
+                segment.getNumber())) {
             // segment was sealed after the last index entry
-            HistoryRecord startPoint = lastIndexedRecord.get().getEventTime() < historyRecordOpt.get().getEventTime() ?
-                    historyRecordOpt.get() : lastIndexedRecord.get();
+            HistoryRecord startPoint = lastIndexedRecord.get().getEventTime() < historyRecordOpt.get().getEventTime()
+                    ? historyRecordOpt.get() : lastIndexedRecord.get();
             Optional<HistoryRecord> next = HistoryRecord.fetchNext(startPoint, historyTable);
 
             while (next.isPresent() && next.get().getSegments().contains(segment.getNumber())) {
@@ -207,11 +202,7 @@ public class TableHelper {
         } else {
             // segment is definitely sealed and segment sealed event is also present in index table
             // we should be able to find it by doing binary search on Index table
-            final Optional<HistoryRecord> record = findSegmentSealedEvent(
-                    lower,
-                    upper,
-                    segment.getNumber(),
-                    indexTable,
+            final Optional<HistoryRecord> record = findSegmentSealedEvent(lower, upper, segment.getNumber(), indexTable,
                     historyTable);
 
             return record.isPresent() ? record.get().getSegments() : new ArrayList<>();
@@ -233,16 +224,12 @@ public class TableHelper {
      * @param historyTable history table
      * @return
      */
-    public static List<Integer> findSegmentPredecessorCandidates(
-            final Segment segment,
-            final byte[] indexTable,
-            final byte[] historyTable) {
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(segment.getStart(), indexTable)
-                .getValue();
+    public static List<Integer> findSegmentPredecessorCandidates(final Segment segment, final byte[] indexTable,
+                                                                 final byte[] historyTable) {
+        final Optional<IndexRecord> recordOpt = IndexRecord.search(segment.getStart(), indexTable).getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
-                segment.getStart(),
+        final Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset, segment.getStart(),
                 historyTable);
 
         if (!historyRecordOpt.isPresent()) {
@@ -273,11 +260,8 @@ public class TableHelper {
      * @param timeStamp             timestamp
      * @return
      */
-    public static byte[] updateSegmentTable(final int startingSegmentNumber,
-                                            final byte[] segmentTable,
-                                            final int toCreate,
-                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                            final long timeStamp) {
+    public static byte[] updateSegmentTable(final int startingSegmentNumber, final byte[] segmentTable, final int
+            toCreate, final List<AbstractMap.SimpleEntry<Double, Double>> newRanges, final long timeStamp) {
 
         final int created = newRanges.size() - toCreate;
 
@@ -285,19 +269,15 @@ public class TableHelper {
         try {
             segmentStream.write(segmentTable);
 
-            IntStream.range(0, toCreate)
-                    .forEach(
-                            x -> {
-                                try {
-                                    segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
-                                            timeStamp,
-                                            newRanges.get(created + x).getKey(),
-                                            newRanges.get(created + x).getValue()).toByteArray());
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                    );
+            IntStream.range(0, toCreate).forEach(x -> {
+                try {
+                    segmentStream.write(
+                            new SegmentRecord(startingSegmentNumber + x, timeStamp, newRanges.get(created + x).getKey(),
+                                    newRanges.get(created + x).getValue()).toByteArray());
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -313,18 +293,13 @@ public class TableHelper {
      * @param newActiveSegments new active segments
      * @return
      */
-    public static byte[] updateHistoryTable(final byte[] historyTable,
-                                            final long timestamp,
-                                            final List<Integer> newActiveSegments) {
+    public static byte[] updateHistoryTable(final byte[] historyTable, final long timestamp, final List<Integer>
+            newActiveSegments) {
         final ByteArrayOutputStream historyStream = new ByteArrayOutputStream();
 
         try {
             historyStream.write(historyTable);
-            historyStream.write(new HistoryRecord(
-                    timestamp,
-                    newActiveSegments,
-                    historyTable.length)
-                    .toByteArray());
+            historyStream.write(new HistoryRecord(timestamp, newActiveSegments, historyTable.length).toByteArray());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -339,25 +314,19 @@ public class TableHelper {
      * @param historyOffset history offset
      * @return
      */
-    public static byte[] updateIndexTable(final byte[] indexTable,
-                                          final long timestamp,
-                                          final int historyOffset) {
+    public static byte[] updateIndexTable(final byte[] indexTable, final long timestamp, final int historyOffset) {
         final ByteArrayOutputStream indexStream = new ByteArrayOutputStream();
 
         try {
             indexStream.write(indexTable);
-            indexStream.write(new IndexRecord(
-                    timestamp,
-                    historyOffset)
-                    .toByteArray());
+            indexStream.write(new IndexRecord(timestamp, historyOffset).toByteArray());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         return indexStream.toByteArray();
     }
 
-    private static Optional<HistoryRecord> findRecordInHistoryTable(final int startingOffset,
-                                                                    final long timeStamp,
+    private static Optional<HistoryRecord> findRecordInHistoryTable(final int startingOffset, final long timeStamp,
                                                                     final byte[] historyTable) {
         final Optional<HistoryRecord> recordOpt = HistoryRecord.readRecord(historyTable, startingOffset);
 
@@ -380,11 +349,8 @@ public class TableHelper {
     }
 
 
-    private static Optional<HistoryRecord> findSegmentSealedEvent(final int lower,
-                                                                  final int upper,
-                                                                  final int segmentNumber,
-                                                                  final byte[] indexTable,
-                                                                  final byte[] historyTable) {
+    private static Optional<HistoryRecord> findSegmentSealedEvent(final int lower, final int upper, final int
+            segmentNumber, final byte[] indexTable, final byte[] historyTable) {
 
         if (lower > upper || historyTable.length == 0) {
             return Optional.empty();
@@ -394,9 +360,8 @@ public class TableHelper {
 
         final Optional<IndexRecord> indexRecord = IndexRecord.readRecord(indexTable, offset);
 
-        final Optional<IndexRecord> previousIndex = indexRecord.isPresent() ?
-                IndexRecord.fetchPrevious(indexTable, offset) :
-                Optional.empty();
+        final Optional<IndexRecord> previousIndex = indexRecord.isPresent() ? IndexRecord.fetchPrevious(indexTable,
+                offset) : Optional.empty();
 
         final int historyTableOffset = indexRecord.isPresent() ? indexRecord.get().getHistoryOffset() : 0;
         final Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, historyTableOffset);
@@ -412,19 +377,11 @@ public class TableHelper {
             if (previousRecord.get().getSegments().contains(segmentNumber)) {
                 return record; // search complete
             } else { // binary search lower
-                return findSegmentSealedEvent(lower,
-                        (lower + upper) / 2 - 1,
-                        segmentNumber,
-                        indexTable,
-                        historyTable);
+                return findSegmentSealedEvent(lower, (lower + upper) / 2 - 1, segmentNumber, indexTable, historyTable);
             }
         } else { // binary search upper
             // not sealed in the current location: look in second half
-            return findSegmentSealedEvent((lower + upper) / 2 + 1,
-                    upper,
-                    segmentNumber,
-                    indexTable,
-                    historyTable);
+            return findSegmentSealedEvent((lower + upper) / 2 + 1, upper, segmentNumber, indexTable, historyTable);
         }
     }
 }

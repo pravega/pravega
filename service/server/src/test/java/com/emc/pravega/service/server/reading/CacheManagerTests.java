@@ -45,8 +45,7 @@ public class CacheManagerTests {
         final CachePolicy policy = new CachePolicy(Integer.MAX_VALUE, Duration.ofHours(10000), Duration.ofHours(1));
         Random random = new Random();
 
-        @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy);
+        @Cleanup TestCacheManager cm = new TestCacheManager(policy);
 
         // Register a number of clients
         ArrayList<TestClient> clients = new ArrayList<>();
@@ -70,30 +69,34 @@ public class CacheManagerTests {
                 clients.get(random.nextInt(clients.size())).setCacheStatus(1, 0, currentGeneration.get());
 
                 // Fail the test if we get an unexpected value for currentGeneration.
-                clients.forEach(c ->
-                        c.setUpdateGenerationsImpl((current, oldest) -> {
-                            Assert.assertEquals("Unexpected value for current generation.", currentGeneration.get(), (int) current);
-                            updatedClients.add(c);
-                            return -1L;
-                        }));
+                clients.forEach(c -> c.setUpdateGenerationsImpl((current, oldest) -> {
+                    Assert.assertEquals("Unexpected value for current generation.", currentGeneration.get(),
+                            (int) current);
+                    updatedClients.add(c);
+                    return -1L;
+                }));
 
-                // There was activity in this cycle, so increment the expected current generation so we match what the CacheManager s doing.
+                // There was activity in this cycle, so increment the expected current generation so we match what
+                // the CacheManager s doing.
                 currentGeneration.incrementAndGet();
             } else {
                 // Non-active cycle: each client will declare that they had no activity in the last generation.
-                clients.forEach(c ->
-                        c.setUpdateGenerationsImpl((current, oldest) -> {
-                            updatedClients.add(c);
-                            return -1L;
-                        }));
+                clients.forEach(c -> c.setUpdateGenerationsImpl((current, oldest) -> {
+                    updatedClients.add(c);
+                    return -1L;
+                }));
             }
 
             cm.applyCachePolicy();
 
             if (activityInCycle) {
-                Assert.assertEquals("CacheManager did not update all Clients with generation information when activity did happen during the cycle.", clients.size(), updatedClients.size());
+                Assert.assertEquals(
+                        "CacheManager did not update all Clients with generation information when activity did "
+                                + "happen during the cycle.",
+                        clients.size(), updatedClients.size());
             } else {
-                Assert.assertEquals("CacheManager updated Generations when no activity happened during the cycle.", 0, updatedClients.size());
+                Assert.assertEquals("CacheManager updated Generations when no activity happened during the cycle.", 0,
+                        updatedClients.size());
             }
         }
     }
@@ -107,9 +110,9 @@ public class CacheManagerTests {
         final int cycleCount = 12345;
         final int defaultOldestGeneration = 0;
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
-        final long excess = policy.getMaxSize(); // This is the excess size when we want to test Oldest Generation increases.
-        @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy);
+        final long excess = policy.getMaxSize(); // This is the excess size when we want to test Oldest Generation
+        // increases.
+        @Cleanup TestCacheManager cm = new TestCacheManager(policy);
 
         // Use a single client (we tested multiple clients with Newest Generation).
         TestClient client = new TestClient();
@@ -132,23 +135,28 @@ public class CacheManagerTests {
             boolean smallReductionsButNoRepeat = smallReductions && cycleId % 8 == 0;
             AtomicInteger callCount = new AtomicInteger();
             if (exceeds) {
-                // If the total size does exceed the policy limit, repeated calls to 'update' should be made until either the cache is within limits or no change can be made.
-                client.setCacheStatus(policy.getMaxSize() + excess, currentOldestGeneration.get(), currentGeneration.get());
+                // If the total size does exceed the policy limit, repeated calls to 'update' should be made until
+                // either the cache is within limits or no change can be made.
+                client.setCacheStatus(policy.getMaxSize() + excess, currentOldestGeneration.get(),
+                        currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
-                    AssertExtensions.assertGreaterThan("Expected an increase in oldestGeneration.", currentOldestGeneration.get(), oldest);
+                    AssertExtensions.assertGreaterThan("Expected an increase in oldestGeneration.",
+                            currentOldestGeneration.get(), oldest);
                     currentOldestGeneration.set(oldest);
                     callCount.incrementAndGet();
                     if (smallReductionsButNoRepeat && callCount.get() > 0) {
                         return 0L; // Returning 0 indicates we were not able to chop away anything.
                     } else {
-                        return smallReductions ? excess / 2 : excess; // Small Reductions == we only chop away half of the items each time (to verify the loop).
+                        return smallReductions ? excess / 2 : excess; // Small Reductions == we only chop away half
+                        // of the items each time (to verify the loop).
                     }
                 });
             } else {
                 // If the total size does not exceed the policy limit, nothing should change
                 client.setCacheStatus(policy.getMaxSize() - 1, defaultOldestGeneration, currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
-                    Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), (int) oldest);
+                    Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(),
+                            (int) oldest);
                     return 0L;
                 });
             }
@@ -163,13 +171,14 @@ public class CacheManagerTests {
                 } else if (smallReductions) {
                     expectedCallCount = 2; // This is derived by how we constructed the 'excess' variable.
                 } else {
-                    expectedCallCount = 1; // Upon the first reduction we chop away the entire value of 'excess', so we only expect 1.
+                    expectedCallCount = 1; // Upon the first reduction we chop away the entire value of 'excess', so
+                    // we only expect 1.
                 }
             }
-            Assert.assertEquals(
-                    String.format("Unexpected number of calls to Client.updateGenerations(). Cycle=%d,Exceeds=%s,SmallReductions=%s.", cycleId, exceeds, smallReductions),
-                    expectedCallCount,
-                    callCount.get());
+            Assert.assertEquals(String.format(
+                    "Unexpected number of calls to Client.updateGenerations(). Cycle=%d,Exceeds=%s," +
+                            "SmallReductions=%s.",
+                    cycleId, exceeds, smallReductions), expectedCallCount, callCount.get());
         }
     }
 
@@ -179,8 +188,7 @@ public class CacheManagerTests {
     @Test
     public void testAutoUnregister() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
-        @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy);
+        @Cleanup TestCacheManager cm = new TestCacheManager(policy);
         TestClient client = new TestClient();
         cm.register(client);
 

@@ -54,7 +54,8 @@ class DataFrameOutputStream extends OutputStream {
      * @throws IllegalArgumentException If maxDataFrameSize is not a positive integer.
      * @throws NullPointerException     If any of the arguments are null.
      */
-    public DataFrameOutputStream(int maxDataFrameSize, Supplier<Long> getPreviousFrameSequence, ConsumerWithException<DataFrame, IOException> dataFrameCompleteCallback) {
+    public DataFrameOutputStream(int maxDataFrameSize, Supplier<Long> getPreviousFrameSequence,
+                                 ConsumerWithException<DataFrame, IOException> dataFrameCompleteCallback) {
         Exceptions.checkArgument(maxDataFrameSize > 0, "maxDataFrameSize", "Must be a positive integer.");
         Preconditions.checkNotNull(getPreviousFrameSequence, "getPreviousFrameSequence");
         Preconditions.checkNotNull(dataFrameCompleteCallback, "dataFrameCompleteCallback");
@@ -71,15 +72,18 @@ class DataFrameOutputStream extends OutputStream {
     @Override
     public void write(int b) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+        Preconditions.checkState(this.currentFrame != null,
+                "No current frame exists. Most likely no record is " + "started.");
 
         int attemptCount = 0;
         int totalBytesWritten = 0;
         while (totalBytesWritten == 0 && attemptCount < 2) {
-            // We attempt to write 1 byte. If append() says it wrote 0 bytes, it means the current frame is full. Seal it and create a new one.
+            // We attempt to write 1 byte. If append() says it wrote 0 bytes, it means the current frame is full.
+            // Seal it and create a new one.
             totalBytesWritten += this.currentFrame.append((byte) b);
             if (totalBytesWritten == 0) {
-                this.currentFrame.endEntry(false); // Close the current entry, and indicate it is not the last one of the record.
+                this.currentFrame.endEntry(false); // Close the current entry, and indicate it is not the last one of
+                // the record.
                 flush();
                 createNewFrame();
                 startNewRecordInCurrentFrame(false);
@@ -96,12 +100,14 @@ class DataFrameOutputStream extends OutputStream {
     @Override
     public void write(byte[] data, int offset, int length) throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.currentFrame != null, "No current frame exists. Most likely no record is started.");
+        Preconditions.checkState(this.currentFrame != null,
+                "No current frame exists. Most likely no record is " + "started.");
 
         int totalBytesWritten = 0;
         int attemptsWithNoProgress = 0;
         while (totalBytesWritten < length) {
-            int bytesWritten = this.currentFrame.append(new ByteArraySegment(data, offset + totalBytesWritten, length - totalBytesWritten));
+            int bytesWritten = this.currentFrame.append(
+                    new ByteArraySegment(data, offset + totalBytesWritten, length - totalBytesWritten));
             attemptsWithNoProgress = bytesWritten == 0 ? attemptsWithNoProgress + 1 : 0;
             if (attemptsWithNoProgress > 1) {
                 // We had two consecutive attempts to write to a frame with no progress made.
@@ -111,7 +117,8 @@ class DataFrameOutputStream extends OutputStream {
             // Update positions.
             totalBytesWritten += bytesWritten;
             if (totalBytesWritten < length) {
-                // We were only able to write this partially because the current frame is full. Seal it and create a new one.
+                // We were only able to write this partially because the current frame is full. Seal it and create a
+                // new one.
                 this.currentFrame.endEntry(false);
                 flush();
                 createNewFrame();
@@ -161,7 +168,8 @@ class DataFrameOutputStream extends OutputStream {
     //region DataFrameOutputStream Implementation
 
     /**
-     * Indicates to the stream that a new record is about to be started. All subsequent writes will belong to this record.
+     * Indicates to the stream that a new record is about to be started. All subsequent writes will belong to this
+     * record.
      * A record may span multiple data frames (and thus have multiple DataFrame entries), but the DataFrameOutputStream
      * abstracts all of that.
      *
@@ -170,7 +178,8 @@ class DataFrameOutputStream extends OutputStream {
     public void startNewRecord() throws IOException {
         Exceptions.checkNotClosed(this.closed, this);
 
-        // If there is any data in the current frame, seal it and ship it. And create a new one with StartMagic = Last.EndMagic.
+        // If there is any data in the current frame, seal it and ship it. And create a new one with StartMagic =
+        // Last.EndMagic.
         if (this.currentFrame == null) {
             // No active frame, create a new one.
             createNewFrame();
@@ -194,9 +203,9 @@ class DataFrameOutputStream extends OutputStream {
     }
 
     /**
-     * Indicates to the stream that the currently open record is discarded. If the record spans multiple frames (and thus
-     * has multiple DataFrame Entries), the already committed entries will not be discarded. Instead, the DataFrameReader
-     * will detect that such a record was discarded and skip over it upon reading.
+     * Indicates to the stream that the currently open record is discarded. If the record spans multiple frames (and
+     * thus has multiple DataFrame Entries), the already committed entries will not be discarded. Instead, the
+     * DataFrameReader will detect that such a record was discarded and skip over it upon reading.
      */
     public void discardRecord() {
         Exceptions.checkNotClosed(this.closed, this);
@@ -215,7 +224,8 @@ class DataFrameOutputStream extends OutputStream {
     }
 
     private void createNewFrame() {
-        Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(), "Cannot create a new frame if we currently have a non-sealed frame.");
+        Preconditions.checkState(this.currentFrame == null || this.currentFrame.isSealed(),
+                "Cannot create a new " + "frame if we currently have a non-sealed frame.");
 
         this.currentFrame = new DataFrame(this.getPreviousFrameSequence.get(), this.maxDataFrameSize);
         this.hasDataInCurrentFrame = false;

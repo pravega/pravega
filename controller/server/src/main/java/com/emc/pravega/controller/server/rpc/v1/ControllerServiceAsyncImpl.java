@@ -47,24 +47,28 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
                                       final HostControllerStore hostStore,
                                       final StreamMetadataTasks streamMetadataTasks,
                                       final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 
     @Override
-    public void createStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
+    public void createStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler)
+            throws TException {
         log.debug("createStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()),
                 resultHandler);
     }
 
     @Override
-    public void alterStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler) throws TException {
+    public void alterStream(final StreamConfig streamConfig, final AsyncMethodCallback resultHandler)
+            throws TException {
         log.debug("alterStream called for stream " + streamConfig.getScope() + "/" + streamConfig.getName());
         processResult(controllerService.alterStream(ModelHelper.encode(streamConfig)), resultHandler);
     }
 
     @Override
-    public void getCurrentSegments(final String scope, final String stream, final AsyncMethodCallback resultHandler) throws TException {
+    public void getCurrentSegments(final String scope, final String stream, final AsyncMethodCallback resultHandler)
+            throws TException {
         log.debug("getCurrentSegments called for stream " + scope + "/" + stream);
         processResult(controllerService.getCurrentSegments(scope, stream), resultHandler);
     }
@@ -96,12 +100,14 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
                       final long scaleTimestamp,
                       final AsyncMethodCallback resultHandler) throws TException {
         log.debug("scale called for stream " + scope + "/" + stream);
-        processResult(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), resultHandler);
+        processResult(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp),
+                resultHandler);
     }
 
     @Override
     public void getURI(final SegmentId segment, final AsyncMethodCallback resultHandler) throws TException {
-        log.debug("getURI called for segment " + segment.getScope() + "/" + segment.getStreamName() + "/" + segment.getNumber());
+        log.debug( "getURI called for segment " + segment.getScope() + "/" + segment.getStreamName() + "/" +
+                segment.getNumber());
         processResult(controllerService.getURI(segment), resultHandler);
     }
 
@@ -150,15 +156,14 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     }
 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
-        result.whenComplete(
-                (value, ex) -> {
-                    if (ex != null) {
-                        resultHandler.onError(new RuntimeException(ex));
-                    } else if (value != null) {
-                        log.debug("result = " + value.toString());
+        result.whenComplete((value, ex) -> {
+            if (ex != null) {
+                resultHandler.onError(new RuntimeException(ex));
+            } else if (value != null) {
+                log.debug("result = " + value.toString());
 
-                        resultHandler.onComplete(value);
-                    }
-                });
+                resultHandler.onComplete(value);
+            }
+        });
     }
 }
