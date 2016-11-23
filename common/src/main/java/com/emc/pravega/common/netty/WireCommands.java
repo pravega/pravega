@@ -354,6 +354,7 @@ public final class WireCommands {
         final long expectedOffset;
         final ByteBuf data;
         
+
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(connectionId.getMostSignificantBits());
@@ -459,7 +460,7 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID connectionId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
-            return new DataAppended(connectionId, offset);
+            return new ConditionalCheckFailed(connectionId, offset);
         }
     }
 
