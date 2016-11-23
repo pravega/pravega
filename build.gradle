@@ -149,6 +149,25 @@ project('service:server:host') {
         compile project(':service:server')
         testCompile project(':testcommon')
     }
+    task buildPravegaHostImage(type: DockerBuildImage) {
+        dependsOn 'distTar'
+        dockerFile = file(dockerFilePravegaHost)
+        inputDir = file(dockerDirPravegaHost)
+        tag = 'abhijeet78/pravega:host'
+    }
+    task pushPravegaHostImage(type: DockerPushImage) {
+        dependsOn buildPravegaHostImage
+        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
+        docker {
+            registryCredentials {
+                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
+                username = 'abhijeet78'
+                password = 'pravega@123'
+                email = 'abhi.j24@gmail.com'
+            }
+        }
+    }
+
 }
 
 project('integrationtests') {
@@ -169,24 +188,8 @@ project('integrationtests') {
         standardInput = System.in
     }
 
-    task buildPravegaHostImage(type: DockerBuildImage) {
-        dockerFile = file(dockerFilePravegaHost)
-        inputDir = file(dockerDirPravegaHost)
-        tag = 'abhijeet78/pravega:host'
-    }
 
-    task pushPravegaHostImage(type: DockerPushImage) {
-        dependsOn buildPravegaHostImage
-        conventionMapping.imageName = { buildPravegaHostImage.getTag() }
-        docker {
-            registryCredentials {
-                url = 'https://hub.docker.com/r/abhijeet78/pravega/'
-                username = 'abhijeet78'
-                password = 'pravega@123'
-                email = 'abhi.j24@gmail.com'
-            }
-        }
-    }
+
 
     task startServerInteractive(type: JavaExec) {
         main = "com.emc.pravega.service.server.host.InteractiveStreamSegmentStoreTester"
@@ -262,6 +265,7 @@ project('controller:server') {
     }
 
     task buildPravegaControllerImage(type: DockerBuildImage) {
+        dependsOn 'distTar'
         dockerFile = file(dockerFilePravegaController)
         inputDir = file(dockerDirPravegaController)
         tag = 'abhijeet78/pravega:controller'
