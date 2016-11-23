@@ -17,6 +17,7 @@
  */
 package com.emc.pravega.stream;
 
+import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
@@ -105,10 +106,12 @@ public interface Stream {
     /**
      * Creates a new Synchronizer that will work on this stream.
      * 
-     * @param stateSerializer   The serializer for the state object.
      * @param updateSerializer  The serializer for updates.
+     * @param initialSerializer  The serializer for the initial update.
      * @param config            The Serializer configuration
      */
-    <StateT extends Revisioned,UpdateT extends Update<StateT>> Synchronizer<StateT, UpdateT> createSynchronizer(Serializer<StateT> stateSerializer, Serializer<UpdateT> updateSerializer, SynchronizerConfig config );
-    
+    <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
+            Synchronizer<StateT, UpdateT, InitT> createSynchronizer(Serializer<UpdateT> updateSerializer,
+                    Serializer<InitT> initialSerializer, SynchronizerConfig config);
+
 }

@@ -18,6 +18,7 @@
 package com.emc.pravega.stream.impl;
 
 import com.emc.pravega.common.netty.ConnectionFactory;
+import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
@@ -110,8 +111,8 @@ public class StreamImpl implements Stream {
     }
 
     @Override
-    public <StateT extends Revisioned, UpdateT extends Update<StateT>> Synchronizer<StateT, UpdateT> createSynchronizer(
-            Serializer<StateT> stateSerializer, Serializer<UpdateT> updateSerializer, SynchronizerConfig config) {        
+    public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> Synchronizer<StateT, UpdateT, InitT> createSynchronizer(
+            Serializer<UpdateT> updateSerializer, Serializer<InitT> initialSerializer, SynchronizerConfig config) {       
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStreamFactoryImpl inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment, config.getInputConfig());
@@ -122,6 +123,6 @@ public class StreamImpl implements Stream {
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Attempted to create synchronizer on sealed segment", e);
         }
-        return new SynchronizerImpl<StateT,UpdateT>(this, in, out, updateSerializer, stateSerializer);
+        return new SynchronizerImpl<StateT,UpdateT,InitT>(this, in, out, updateSerializer, initialSerializer);
     }
 }

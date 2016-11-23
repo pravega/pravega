@@ -19,16 +19,15 @@ package com.emc.pravega.state.examples;
 
 import java.io.Serializable;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.SynchronizerConfig;
 import com.emc.pravega.state.Update;
-import com.emc.pravega.state.impl.RevisionImpl;
 import com.emc.pravega.stream.Stream;
 import com.emc.pravega.stream.impl.JavaSerializer;
 
@@ -39,8 +38,8 @@ public class SetSynchronizer<T extends Serializable> {
 
     @RequiredArgsConstructor
     private static class UpdatableSet<T> implements Revisioned, Serializable {
-        private final Stream stream;
-        private final Set<T> impl;
+        private final String streamName;
+        private final LinkedHashSet<T> impl;
         private final Revision currentRevision;
 
         private Set<T> getCurrentValues() {
@@ -58,7 +57,7 @@ public class SetSynchronizer<T extends Serializable> {
 
         @Override
         public String getQualifiedStreamName() {
-            return stream.getQualifiedName();
+            return streamName;
         }
     }
 
@@ -67,7 +66,7 @@ public class SetSynchronizer<T extends Serializable> {
         public UpdatableSet<T> applyTo(UpdatableSet<T> oldState, Revision newRevision) {
             LinkedHashSet<T> impl = new LinkedHashSet<>(oldState.impl);
             process(impl);
-            return new UpdatableSet<>(oldState.stream, impl, newRevision);
+            return new UpdatableSet<>(oldState.streamName, impl, newRevision);
         }
 
         public abstract void process(LinkedHashSet<T> updatableList);
@@ -100,24 +99,32 @@ public class SetSynchronizer<T extends Serializable> {
             impl.clear();
         }
     }
+    
+    @RequiredArgsConstructor
+    private static class CreateSet<T> implements InitialUpdate<UpdatableSet<T>>, Serializable {
+        private final String streamName;
+        private final LinkedHashSet<T> impl;
+        
+        @Override
+        public UpdatableSet<T> create(Revision revision) {
+            return new UpdatableSet<>(streamName, impl, revision);
+        }
+    }
 
     private static final int REMOVALS_BEFORE_COMPACTION = 5;
 
-    private final Synchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer;
+    private final Synchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer;
     private UpdatableSet<T> current;
     private int countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
 
-    private SetSynchronizer(Synchronizer<UpdatableSet<T>, SetUpdate<T>> synchronizer) {
+    private SetSynchronizer(Synchronizer<UpdatableSet<T>, SetUpdate<T>, CreateSet<T>> synchronizer) {
         this.synchronizer = synchronizer;
-        UpdatableSet<T> state = synchronizer.updateState(new UpdatableSet<T>(synchronizer.getStream(),
-                                                                 new HashSet<T>(),
-                                                                 new RevisionImpl(0)),
-                                                         new ClearSet<>(),
-                                                         true);
-        if (state == null) {
-            current = synchronizer.getLatestState();
-        } else {
+        String stream = synchronizer.getStream().getQualifiedName();
+        UpdatableSet<T> state = synchronizer.initialize(new CreateSet<T>(stream, new LinkedHashSet<>()));
+        if (state != null) {
             current = state;
+        } else {
+            current = synchronizer.getLatestState();
         }
     }
 
@@ -138,7 +145,7 @@ public class SetSynchronizer<T extends Serializable> {
 
     @Synchronized
     public boolean attemptAdd(T value) {
-        UpdatableSet<T> newSet = synchronizer.updateState(current, new AddToSet<>(value), true);
+        UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new AddToSet<>(value));
         if (newSet == null) {
             return false;
         }
@@ -148,14 +155,14 @@ public class SetSynchronizer<T extends Serializable> {
 
     @Synchronized
     public boolean attemptRemove(T value) {
-        UpdatableSet<T> newSet = synchronizer.updateState(current, new RemoveFromSet<>(value), true);
+        UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new RemoveFromSet<>(value));
         if (newSet == null) {
             return false;
         }
         current = newSet;
         countdownToCompaction--;
         if (countdownToCompaction <= 0) {
-            synchronizer.compact(current);
+            synchronizer.compact(current, new CreateSet<T>(current.streamName, current.impl));
             countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
         }
         return true;
@@ -163,19 +170,19 @@ public class SetSynchronizer<T extends Serializable> {
 
     @Synchronized
     public boolean attemptClear() {
-        UpdatableSet<T> newSet = synchronizer.updateState(current, new ClearSet<>(), true);
+        UpdatableSet<T> newSet = synchronizer.conditionallyUpdateState(current, new ClearSet<>());
         if (newSet == null) {
             return false;
         }
         current = newSet;
-        synchronizer.compact(current);
+        synchronizer.compact(current, new CreateSet<T>(current.streamName, current.impl));
         countdownToCompaction = REMOVALS_BEFORE_COMPACTION;
         return true;
     }
     
     public static <T extends Serializable> SetSynchronizer<T> createNewSet(Stream stream) {
-        return new SetSynchronizer<>(stream.createSynchronizer(new JavaSerializer<UpdatableSet<T>>(),
-                                                               new JavaSerializer<SetUpdate<T>>(),
+        return new SetSynchronizer<>(stream.createSynchronizer(new JavaSerializer<SetUpdate<T>>(),
+                                                               new JavaSerializer<CreateSet<T>>(),
                                                                new SynchronizerConfig(null, null)));
     }
 

@@ -17,7 +17,6 @@
  */
 package com.emc.pravega.state.impl;
 
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
 import com.emc.pravega.state.Update;
@@ -39,22 +39,23 @@ import com.google.common.base.Preconditions;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<StateT>>
-        implements Synchronizer<StateT, UpdateT> {
+public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
+        implements Synchronizer<StateT, UpdateT, InitT> {
 
-    private static final int UPDATE = 1;
-    private static final int STATE = 2;
+    private static final int INITIALIZATION = 1;
+    private static final int UPDATE = 2;
     @Getter
     private final Stream stream;
     private final SegmentInputStream in;
     private final SegmentOutputStream out;
     private final Serializer<UpdateT> updateSerializer;
-    private final Serializer<StateT> stateSerializer;
-   
+    private final Serializer<InitT> initSerializer;
 
     @Override
+    @Synchronized
     public StateT getLatestState() {
         in.setOffset(0);
         ByteBuffer read;
@@ -64,9 +65,9 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
             } catch (EndOfSegmentException e) {
                 throw new CorruptedStateException("Unexpected end of segment ", e);
             }
-        } while(isUpdate(read));
-        StateT state = decodeState(read);
-        in.setOffset(state.getRevision().asImpl().getOffsetInSegment());
+        } while (isUpdate(read));
+        InitialUpdate<StateT> init = decodeInit(read);
+        StateT state = init.create(new RevisionImpl(in.getOffset(), 0));
         while (!in.wasReadAtTail()) {
             state = applyNextUpdateIfAvailable(state, true);
         }
@@ -83,13 +84,15 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
             read = in.read();
         } while (!isUpdate(read));
         StateT result = state;
+        int event = 0;
         for (UpdateT update : decodeUpdate(read)) {
-            result = update.applyTo(state, new RevisionImpl(in.getOffset()));
+            result = update.applyTo(state, new RevisionImpl(in.getOffset(), event++));
         }
         return result;
     }
-    
+
     @Override
+    @Synchronized
     public StateT getLatestState(StateT localState) {
         if (localState == null) {
             return getLatestState();
@@ -104,74 +107,83 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
 
     @Override
-    public StateT updateState(StateT localState, UpdateT update, boolean conditionalOnLatest) {
-        RevisionImpl revision = localState.getRevision().asImpl();
-        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
-        long offset = revision.getOffsetInSegment();
-        try {
-            out.conditionalWrite(offset, encodeUpdate(Collections.singletonList(update)), wasWritten);
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
-        }
-        if (!FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) { 
-            return null;
-        } 
-        return getLatestState(localState);
+    public StateT conditionallyUpdateState(StateT localState, UpdateT update) {
+        return conditionallyUpdateState(localState, Collections.singletonList(update));
     }
-
+    
     @Override
-    public StateT updateState(StateT localState, List<? extends UpdateT> update, boolean conditionalOnLatest) {
-        RevisionImpl revision = localState.getRevision().asImpl();
+    @Synchronized
+    public StateT conditionallyUpdateState(StateT localState, List<? extends UpdateT> update) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
-        long offset = revision.getOffsetInSegment();
+        long offset = localState.getRevision().asImpl().getOffsetInSegment();
         try {
             out.conditionalWrite(offset, encodeUpdate(update), wasWritten);
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        if (!FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) { 
+        if (!FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
             return null;
+        } else {
+            return getLatestState(localState);
         }
+    }
+    
+    @Override
+    public StateT unconditionallyUpdateState(StateT localState, UpdateT update) {
+        return unconditionallyUpdateState(localState, Collections.singletonList(update));
+    }
+    
+    @Override
+    @Synchronized
+    public StateT unconditionallyUpdateState(StateT localState, List<? extends UpdateT> update) {
+        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        try {
+            out.write(encodeUpdate(update), wasWritten);
+        } catch (SegmentSealedException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
+        FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new);
         return getLatestState(localState);
     }
 
     @Override
-    public void compact(StateT compactState) {
+    @Synchronized
+    public void compact(StateT localState, InitT compaction) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            out.write(encodeState(compactState), wasWritten);
+            out.write(encodeInit(compaction), wasWritten);
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
         FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new);
     }
-    
+
     private boolean isUpdate(ByteBuffer read) {
         int type = read.getInt(read.position());
         if (type == UPDATE) {
             return true;
-        } else if (type == STATE) {
+        } else if (type == INITIALIZATION) {
             return false;
         } else {
             throw new CorruptedStateException("Update of unknown type");
         }
     }
-    
-    private ByteBuffer encodeState(StateT state) {
-        ByteBuffer buffer = stateSerializer.serialize(state);
+
+    private ByteBuffer encodeInit(InitT init) {
+        ByteBuffer buffer = initSerializer.serialize(init);
         ByteBuffer result = ByteBuffer.allocate(buffer.capacity() + 4);
-        result.putInt(STATE);
+        result.putInt(INITIALIZATION);
         result.put(buffer);
         result.rewind();
         return result;
     }
-    
-    private StateT decodeState(ByteBuffer read) {
+
+    private InitialUpdate<StateT> decodeInit(ByteBuffer read) {
         int type = read.getInt();
-        Preconditions.checkState(type == STATE);
-        return stateSerializer.deserialize(read);
+        Preconditions.checkState(type == INITIALIZATION);
+        return initSerializer.deserialize(read);
     }
-    
+
     private ByteBuffer encodeUpdate(List<? extends UpdateT> updates) {
         List<ByteBuffer> serializedUpdates = new ArrayList<>();
         int size = 0;
@@ -189,7 +201,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         result.rewind();
         return result;
     }
-    
+
     private List<UpdateT> decodeUpdate(ByteBuffer read) {
         ArrayList<UpdateT> result = new ArrayList<>();
         int origionalLimit = read.limit();
@@ -204,6 +216,19 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
             read.position(position + updateLength);
         }
         return result;
+    }
+
+    @Override
+    @Synchronized
+    public StateT initialize(InitT initializer) {
+        CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
+        try {
+            out.conditionalWrite(0, encodeInit(initializer), wasWritten);
+        } catch (SegmentSealedException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
+        FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new);
+        return getLatestState();        
     }
 
 }

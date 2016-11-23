@@ -27,6 +27,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.emc.pravega.common.concurrent.NewestRefrence;
+import com.emc.pravega.state.InitialUpdate;
 import com.emc.pravega.state.Revision;
 import com.emc.pravega.state.Revisioned;
 import com.emc.pravega.state.Synchronizer;
@@ -53,16 +54,16 @@ public class HeartBeatSynchronizer extends AbstractService {
     private final Thread updateThread = new Thread(new Updater());
 
     private final NewestRefrence<LiveInstances> liveInstances = new NewestRefrence<>();
-    private final Synchronizer<LiveInstances, HeartbeatUpdate> sync;
+    private final Synchronizer<LiveInstances, HeartbeatUpdate, LiveInstances> sync;
 
     HeartBeatSynchronizer(Stream stream) {
-        sync = stream.createSynchronizer(new JavaSerializer<LiveInstances>(),
-                                         new JavaSerializer<HeartbeatUpdate>(),
+        sync = stream.createSynchronizer(new JavaSerializer<HeartbeatUpdate>(),
+                                         new JavaSerializer<LiveInstances>(),
                                          null);
     }
 
     @Data
-    private static class LiveInstances implements Revisioned, Comparable<LiveInstances>, Serializable {
+    private static class LiveInstances implements Revisioned, Comparable<LiveInstances>, Serializable, InitialUpdate<LiveInstances> {
         private final String qualifiedStreamName;
         private final Revision revision;
         private final Map<String, Long> liveInstances;
@@ -70,6 +71,11 @@ public class HeartBeatSynchronizer extends AbstractService {
         @Override
         public int compareTo(LiveInstances o) {
             return revision.compareTo(o.revision);
+        }
+
+        @Override
+        public LiveInstances create(Revision revision) {
+            return new LiveInstances(qualifiedStreamName, revision, liveInstances);
         }
     }
 
@@ -87,7 +93,7 @@ public class HeartBeatSynchronizer extends AbstractService {
                 long currentTime = System.currentTimeMillis();
                 LiveInstances state = liveInstances.get();
                 HeartBeat h = new HeartBeat(instanceId, currentTime);
-                state = sync.updateState(state, h, false);
+                state = sync.unconditionallyUpdateState(state, h);
                 liveInstances.update(state);
             }
         }
@@ -111,7 +117,7 @@ public class HeartBeatSynchronizer extends AbstractService {
                 liveInstances.update(current);
                 List<DeclareDead> dead = findDeadInstances(current, currentTime);
                 if (!dead.isEmpty()) {
-                    sync.updateState(current, dead, true);
+                    sync.conditionallyUpdateState(current, dead);
                 }
             }
         }
