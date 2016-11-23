@@ -14,7 +14,9 @@
  */
 package com.emc.pravega.common.netty;
 
-import static com.emc.pravega.common.netty.WireCommands.*;
+import static com.emc.pravega.common.netty.WireCommands.APPEND_BLOCK_SIZE;
+import static com.emc.pravega.common.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static com.emc.pravega.common.netty.WireCommands.TYPE_SIZE;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 import java.io.ByteArrayOutputStream;
@@ -26,6 +28,7 @@ import java.util.UUID;
 
 import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
+import com.emc.pravega.common.netty.WireCommands.ConditionalAppend;
 import com.emc.pravega.common.netty.WireCommands.Event;
 import com.emc.pravega.common.netty.WireCommands.Padding;
 import com.emc.pravega.common.netty.WireCommands.PartialEvent;
@@ -86,39 +89,48 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
             if (append.getEventNumber() <= session.lastEventNumber) {
                 throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-                        + " following: " + session.lastEventNumber);
+                + " following: " + session.lastEventNumber);
             }
-            Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
-                                     "Bug in CommandEncoder.encode, block is too small.");
-            if (append.segment != segmentBeingAppendedTo) {
+            if (append.isConditional()) {
                 breakFromAppend(out);
-            }
-            if (bytesLeftInBlock == 0) {
-                writeMessage(new AppendBlock(session.id), out);
-                bytesLeftInBlock = APPEND_BLOCK_SIZE;
-                segmentBeingAppendedTo = append.segment;
-            }
-
-            session.lastEventNumber = append.getEventNumber();
-
-            ByteBuf data = append.getData();
-            int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
-            // Is there enough space for a subsequent message after this one?
-            if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
-                bytesLeftInBlock -= writeMessage(new Event(data), out);
+                ConditionalAppend ca = new ConditionalAppend(append.connectionId,
+                        append.eventNumber,
+                        append.getExpectedLength(),
+                        wrappedBuffer(serializeMessage(new Event(append.getData()))));
+                writeMessage(ca, out);
             } else {
-                byte[] serializedMessage = serializeMessage(new Event(data));
-                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
-                ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
-                ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
-                                                       bytesInBlock,
-                                                       serializedMessage.length - bytesInBlock);
-                writeMessage(new PartialEvent(dataInsideBlock), out);
-                writeMessage(new AppendBlockEnd(session.id,
-                        session.lastEventNumber,
-                        APPEND_BLOCK_SIZE - bytesLeftInBlock,
-                        dataRemainging), out);
-                bytesLeftInBlock = 0;
+                Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
+                        "Bug in CommandEncoder.encode, block is too small.");
+                if (append.segment != segmentBeingAppendedTo) {
+                    breakFromAppend(out);
+                }
+                if (bytesLeftInBlock == 0) {
+                    writeMessage(new AppendBlock(session.id), out);
+                    bytesLeftInBlock = APPEND_BLOCK_SIZE;
+                    segmentBeingAppendedTo = append.segment;
+                }
+
+                session.lastEventNumber = append.getEventNumber();
+
+                ByteBuf data = append.getData();
+                int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
+                // Is there enough space for a subsequent message after this one?
+                if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
+                    bytesLeftInBlock -= writeMessage(new Event(data), out);
+                } else {
+                    byte[] serializedMessage = serializeMessage(new Event(data));
+                    int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
+                    ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
+                    ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
+                                                           bytesInBlock,
+                                                           serializedMessage.length - bytesInBlock);
+                    writeMessage(new PartialEvent(dataInsideBlock), out);
+                    writeMessage(new AppendBlockEnd(session.id,
+                                                    session.lastEventNumber,
+                                                    APPEND_BLOCK_SIZE - bytesLeftInBlock,
+                                                    dataRemainging), out);
+                    bytesLeftInBlock = 0;
+                }
             }
         } else if (msg instanceof SetupAppend) {
             breakFromAppend(out);
@@ -174,7 +186,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
         out.setInt(startIdx + TYPE_SIZE, fieldsSize + APPEND_BLOCK_SIZE);
     }
-
+    
     @SneakyThrows(IOException.class)
     private int writeMessage(WireCommand msg, ByteBuf out) {
         int startIdx = out.writerIndex();

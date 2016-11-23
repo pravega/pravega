@@ -29,6 +29,7 @@ import java.util.UUID;
 
 import com.emc.pravega.common.netty.WireCommands.AppendBlock;
 import com.emc.pravega.common.netty.WireCommands.AppendBlockEnd;
+import com.emc.pravega.common.netty.WireCommands.ConditionalAppend;
 import com.emc.pravega.common.netty.WireCommands.Padding;
 import com.emc.pravega.common.netty.WireCommands.PartialEvent;
 import com.emc.pravega.common.netty.WireCommands.SetupAppend;
@@ -62,7 +63,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @Override
     public boolean acceptInboundMessage(Object msg) throws Exception {
         return msg instanceof SetupAppend || msg instanceof AppendBlock || msg instanceof AppendBlockEnd
-                || msg instanceof Padding;
+                || msg instanceof Padding || msg instanceof ConditionalAppend;
     }
     
     @Override
@@ -79,6 +80,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
         }
         Request result;
+        Segment segment;
         switch (command.getType()) {
         case PADDING:
             result = null;
@@ -87,6 +89,19 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             SetupAppend append = (SetupAppend) command;
             appendingSegments.put(append.getConnectionId(), new Segment(append.getSegment()));
             result = append;
+            break;
+        case CONDITIONAL_APPEND:
+            ConditionalAppend ca = (ConditionalAppend) command;
+            segment = getSegment(ca.getConnectionId());
+            if (ca.getEventNumber() < segment.lastEventNumber) {
+                throw new InvalidMessageException("Last event number went backwards.");
+            }
+            segment.lastEventNumber = ca.getEventNumber();
+            result = new Append(segment.getName(),
+                    ca.getConnectionId(),
+                    ca.getEventNumber(),
+                    ca.getData(),
+                    ca.getExpectedOffset());
             break;
         case APPEND_BLOCK:
             getSegment(((AppendBlock) command).getConnectionId());
@@ -102,7 +117,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             if (!connectionId.equals(currentBlock.getConnectionId())) {
                 throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
             }
-            Segment segment = getSegment(connectionId);
+            segment = getSegment(connectionId);
             if (blockEnd.lastEventNumber < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
