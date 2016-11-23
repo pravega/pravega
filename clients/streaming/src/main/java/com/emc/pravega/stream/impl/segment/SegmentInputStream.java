@@ -56,7 +56,7 @@ public abstract class SegmentInputStream implements AutoCloseable {
      * recent available data. (Meaning that the next call to read will block until more data is
      * written).
      * 
-     * Calling this method upon construction or immediately following {@link #setOffset(long)} will
+     * Calling this method upon construction or immediately after changing the offset will
      * return false.
      */
     public abstract boolean wasReadAtTail();
