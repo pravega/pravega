@@ -74,6 +74,7 @@ class SegmentInputStreamImpl extends SegmentInputStream {
             lastRequestAtTail = false;
             buffer.clear();
             receivedEndOfSegment = false;
+            outstandingRequest = null;        
         }
     }
 
