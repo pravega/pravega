@@ -17,18 +17,22 @@
  */
 package com.emc.pravega.state.impl;
 
+import java.io.Serializable;
+
 import com.emc.pravega.state.Revision;
 
 import lombok.Data;
 
 @Data
-public class RevisionImpl implements Revision {
+public class RevisionImpl implements Revision, Serializable {
 
     private final long offsetInSegment;
+    private final int eventAtOffset;
     
     @Override
     public int compareTo(Revision o) {
-        return Long.compare(offsetInSegment, o.asImpl().offsetInSegment);
+        int result = Long.compare(offsetInSegment, o.asImpl().offsetInSegment);
+        return result == 0 ? Integer.compare(eventAtOffset, o.asImpl().eventAtOffset) : result;
     }
 
     @Override
