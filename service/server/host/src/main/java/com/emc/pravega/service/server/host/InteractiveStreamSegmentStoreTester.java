@@ -106,7 +106,7 @@ public class InteractiveStreamSegmentStoreTester {
         }
 
         try {
-            serviceBuilder.initialize(TIMEOUT).join();
+            serviceBuilder.initialize().join();
             InteractiveStreamSegmentStoreTester tester = new InteractiveStreamSegmentStoreTester(serviceBuilder, System.in, System.out, System.err);
             tester.run();
         } finally {
