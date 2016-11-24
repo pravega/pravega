@@ -20,19 +20,28 @@ package com.emc.pravega.controller.server.v1;
 
 import com.emc.pravega.common.cluster.Host;
 import com.emc.pravega.controller.server.rpc.v1.ControllerServiceImpl;
+import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
+import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
+import com.emc.pravega.controller.store.task.TaskStoreFactory;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
+import com.emc.pravega.controller.task.Stream.StreamMetadataTasks;
+import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.stream.ScalingPolicy;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.StreamConfigurationImpl;
+import org.apache.curator.test.TestingServer;
 import org.apache.thrift.TException;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,9 +55,9 @@ import java.util.concurrent.ExecutionException;
 import static org.junit.Assert.assertEquals;
 
 /**
- * ConsumerApiImpl test.
+ * Controller service implementation test.
  */
-public class ConsumerApiImplTest {
+public class ControllerServiceImplTest {
 
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
@@ -57,11 +66,23 @@ public class ConsumerApiImplTest {
     private final StreamMetadataStore streamStore =
             StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
 
-    private Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
+    private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
-    private final HostControllerStore hostStore = HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+    private final ControllerServiceImpl consumer;
 
-    private final ControllerServiceImpl consumer = new ControllerServiceImpl(streamStore, hostStore);
+    private final TestingServer zkServer;
+
+    public ControllerServiceImplTest() throws Exception {
+        zkServer = new TestingServer();
+        zkServer.start();
+        StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
+        final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
+        final HostControllerStore hostStore =
+                HostStoreFactory.createStore(HostStoreFactory.StoreType.InMemory);
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, "host");
+        consumer = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    }
 
     @Before
     public void prepareStreamStore() {
@@ -72,8 +93,8 @@ public class ConsumerApiImplTest {
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
-        streamStore.createStream(stream1, configuration1);
-        streamStore.createStream(stream2, configuration2);
+        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
+        streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion
 
         // region scaleSegments
@@ -95,23 +116,28 @@ public class ConsumerApiImplTest {
         hostContainerMap.put(host, new HashSet<>(Collections.singletonList(0)));
     }
 
+    @After
+    public void stopZKServer() throws IOException {
+        zkServer.close();
+    }
+
     @Test
     public void testMethods() throws InterruptedException, ExecutionException, TException {
         List<Position> positions;
 
-        positions = consumer.getPositions(SCOPE, stream1, 10, 3);
+        positions = consumer.getPositions(SCOPE, stream1, 10, 3).get();
         assertEquals(2, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
         assertEquals(2, positions.get(1).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream1, 10, 1);
+        positions = consumer.getPositions(SCOPE, stream1, 10, 1).get();
         assertEquals(1, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
         assertEquals(2, positions.get(0).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream2, 10, 3);
+        positions = consumer.getPositions(SCOPE, stream2, 10, 3).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -124,7 +150,7 @@ public class ConsumerApiImplTest {
                 Collections.singletonMap(new SegmentId(SCOPE, stream2, 5), 0L),
                 Collections.emptyMap());
         positions.set(2, newPosition);
-        positions = consumer.updatePositions(SCOPE, stream2, positions);
+        positions = consumer.updatePositions(SCOPE, stream2, positions).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -133,14 +159,14 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream2, 10, 2);
+        positions = consumer.getPositions(SCOPE, stream2, 10, 2).get();
         assertEquals(2, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
         assertEquals(1, positions.get(1).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream1, 25, 3);
+        positions = consumer.getPositions(SCOPE, stream1, 25, 3).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -149,12 +175,12 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream1, 25, 1);
+        positions = consumer.getPositions(SCOPE, stream1, 25, 1).get();
         assertEquals(1, positions.size());
         assertEquals(3, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream2, 25, 3);
+        positions = consumer.getPositions(SCOPE, stream2, 25, 3).get();
         assertEquals(3, positions.size());
         assertEquals(1, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
@@ -163,11 +189,12 @@ public class ConsumerApiImplTest {
         assertEquals(1, positions.get(2).getOwnedSegments().size());
         assertEquals(0, positions.get(2).getFutureOwnedSegments().size());
 
-        positions = consumer.getPositions(SCOPE, stream2, 25, 2);
+        positions = consumer.getPositions(SCOPE, stream2, 25, 2).get();
         assertEquals(2, positions.size());
         assertEquals(2, positions.get(0).getOwnedSegments().size());
         assertEquals(0, positions.get(0).getFutureOwnedSegments().size());
         assertEquals(1, positions.get(1).getOwnedSegments().size());
         assertEquals(0, positions.get(1).getFutureOwnedSegments().size());
+
     }
 }

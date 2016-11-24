@@ -15,28 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package com.emc.pravega.controller.store.task;
 
-package com.emc.pravega.common;
+import com.google.common.base.Preconditions;
+import lombok.Data;
 
 /**
- * java.lang.String Extension methods.
+ * Resources managed by controller.
+ * Currently there are two kinds of resources.
+ * 1. Stream resource: scope/streamName
+ * 2, Tx resource:     scope/streamName/txId
  */
-public final class StringHelpers {
+@Data
+public class Resource {
+    private final String string;
 
-    /**
-     * Generates a Long hashCode of the given string.
-     *
-     * @param s      The string to calculate the hashcode of.
-     * @param start  The offset in the string to start calculating the offset at.
-     * @param length The number of bytes to calculate the offset for.
-     */
-    public static long longHashCode(String s, int start, int length) {
-        // TODO: consider using one of http://google.github.io/guava/releases/19.0/api/docs/index.html?com/google/common/hash/Hashing.html
-        long h = 0;
-        for (int i = 0; i < length; i++) {
-            h = 131L * h + s.charAt(start + i);
+    public Resource(final String... parts) {
+        Preconditions.checkNotNull(parts);
+        Preconditions.checkArgument(parts.length > 0);
+        String representation = parts[0];
+        for (int i = 1; i < parts.length; i++) {
+            representation += "/" + parts[i];
         }
-
-        return h;
+        string = representation;
     }
 }

@@ -34,11 +34,10 @@ public interface ReadIndex extends AutoCloseable {
      * @param offset          The offset in the StreamSegment where to write this append. The offset must be at the end
      *                        of the StreamSegment as it exists in the ReadIndex.
      * @param data            The data to append.
-     * @return The CacheKey associated with the data that was just appended.
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
      * @throws IllegalArgumentException If the offset + data.length exceeds the metadata DurableLogLength of the StreamSegment.
      */
-    CacheKey append(long streamSegmentId, long offset, byte[] data);
+    void append(long streamSegmentId, long offset, byte[] data);
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.

@@ -22,10 +22,11 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
 import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
 
@@ -39,9 +40,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -111,6 +112,18 @@ public class InMemoryStorage implements Storage {
     }
 
     @Override
+    public CompletableFuture<Void> open(String streamSegmentName) {
+        return CompletableFuture.supplyAsync(() -> {
+            synchronized (this.lock) {
+                if (!this.streamSegments.containsKey(streamSegmentName)) {
+                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                }
+                return null;
+            }
+        }, this.executor);
+    }
+
+    @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         CompletableFuture<Void> result = getStreamSegmentData(streamSegmentName)
                 .thenCompose(ssd -> ssd.write(offset, data, length));
@@ -149,7 +162,7 @@ public class InMemoryStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName,
-                                          Duration timeout) {
+            Duration timeout) {
         CompletableFuture<StreamSegmentData> sourceData = getStreamSegmentData(sourceStreamSegmentName);
         CompletableFuture<StreamSegmentData> targetData = getStreamSegmentData(targetStreamSegmentName);
         CompletableFuture<Void> result = CompletableFuture.allOf(sourceData, targetData)
@@ -380,10 +393,6 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<SegmentProperties> markSealed() {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
-                    if (this.sealed) {
-                        throw new CompletionException(new StreamSegmentSealedException(this.name));
-                    }
-
                     this.sealed = true;
                     return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
                 }
@@ -398,7 +407,6 @@ public class InMemoryStorage implements Storage {
                         if (offset != this.length) {
                             throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
                         }
-
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
                         while (bytesCopied < other.length) {
@@ -475,4 +483,5 @@ public class InMemoryStorage implements Storage {
     }
 
     //endregion
+
 }

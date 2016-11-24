@@ -22,7 +22,6 @@ import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.service.contracts.AppendContext;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.server.CacheKey;
 import com.emc.pravega.service.server.ContainerMetadata;
 import com.emc.pravega.service.server.DataCorruptionException;
 import com.emc.pravega.service.server.ReadIndex;
@@ -52,9 +51,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Unit tests for MemoryLogUpdater class.
+ * Unit tests for MemoryStateUpdater class.
  */
-public class MemoryLogUpdaterTests {
+public class MemoryStateUpdaterTests {
     /**
      * Tests the functionality of the process() method.
      */
@@ -69,7 +68,7 @@ public class MemoryLogUpdaterTests {
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         @Cleanup
         InMemoryCache cache = new InMemoryCache("0");
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(cache, readIndex));
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(cache, readIndex));
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         // Verify they were properly processed.
@@ -105,13 +104,13 @@ public class MemoryLogUpdaterTests {
 
         // Test DataCorruptionException.
         AssertExtensions.assertThrows(
-                "MemoryLogUpdater accepted an operation that was out of order.",
+                "MemoryStateUpdater accepted an operation that was out of order.",
                 () -> updater.process(new MergeTransactionOperation(1, 2)), // This does not have a SequenceNumber set, so it should trigger a DCE.
                 ex -> ex instanceof DataCorruptionException);
     }
 
     /**
-     * Tests the ability of the MemoryLogUpdater to delegate Enter/Exit recovery mode to the read index.
+     * Tests the ability of the MemoryStateUpdater to delegate Enter/Exit recovery mode to the read index.
      */
     @Test
     public void testRecoveryMode() throws Exception {
@@ -119,7 +118,7 @@ public class MemoryLogUpdaterTests {
         MemoryOperationLog opLog = new MemoryOperationLog();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
 
         StreamSegmentContainerMetadata metadata1 = new StreamSegmentContainerMetadata(1);
         updater.enterRecoveryMode(metadata1);
@@ -148,7 +147,7 @@ public class MemoryLogUpdaterTests {
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
         AtomicInteger flushCallbackCallCount = new AtomicInteger();
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
+        MemoryStateUpdater updater = new MemoryStateUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex), flushCallbackCallCount::incrementAndGet);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 
         methodInvocations.clear(); // We've already tested up to here.
@@ -168,38 +167,7 @@ public class MemoryLogUpdaterTests {
         AssertExtensions.assertContainsSameElements("ReadIndex.triggerFutureReads() was called with the wrong set of StreamSegmentIds.", expectedSegmentIds, triggerSegmentIds);
     }
 
-    /**
-     * Tests the clear() method on the MemoryLogUpdater (clear ReadIndex+MemoryLog; immediate calls to flush() will not
-     * trigger any future reads on ReadIndex).
-     */
-    @Test
-    public void testClear() throws Exception {
-        int segmentCount = 10;
-        int operationCountPerType = 5;
-
-        // Add to MTL + Add to ReadIndex (append; beginMerge).
-        MemoryOperationLog opLog = new MemoryOperationLog();
-        ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
-        TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        MemoryLogUpdater updater = new MemoryLogUpdater(opLog, new CacheUpdater(new InMemoryCache("0"), readIndex));
-        populate(updater, segmentCount, operationCountPerType);
-
-        methodInvocations.clear(); // We've already tested up to here.
-        updater.clear();
-        updater.flush();
-        Assert.assertEquals("Unexpected size for MemoryOperationLog after calling clear.", 0, opLog.size());
-
-        Assert.assertEquals("Unexpected number of calls to the ReadIndex.", 2, methodInvocations.size());
-        TestReadIndex.MethodInvocation mi = methodInvocations.get(0);
-        Assert.assertEquals("No call to ReadIndex.clear() after call to clear().", TestReadIndex.CLEAR, mi.methodName);
-
-        mi = methodInvocations.get(1);
-        Assert.assertEquals("No call to ReadIndex.triggerFutureReads() after call to flush().", TestReadIndex.TRIGGER_FUTURE_READS, mi.methodName);
-        Collection<Long> triggerSegmentIds = (Collection<Long>) mi.args.get("streamSegmentIds");
-        Assert.assertEquals("Call to ReadIndex.triggerFutureReads() with non-empty collection after call to clear() and flush().", 0, triggerSegmentIds.size());
-    }
-
-    private ArrayList<Operation> populate(MemoryLogUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
+    private ArrayList<Operation> populate(MemoryStateUpdater updater, int segmentCount, int operationCountPerType) throws DataCorruptionException {
         ArrayList<Operation> operations = new ArrayList<>();
         long offset = 0;
         for (int i = 0; i < segmentCount; i++) {
@@ -229,7 +197,6 @@ public class MemoryLogUpdaterTests {
         static final String COMPLETE_MERGE = "completeMerge";
         static final String READ = "read";
         static final String TRIGGER_FUTURE_READS = "triggerFutureReads";
-        static final String CLEAR = "clear";
         static final String PERFORM_GARBAGE_COLLECTION = "performGarbageCollection";
         static final String ENTER_RECOVERY_MODE = "enterRecoveryMode";
         static final String EXIT_RECOVERY_MODE = "exitRecoveryMode";
@@ -242,12 +209,11 @@ public class MemoryLogUpdaterTests {
         }
 
         @Override
-        public CacheKey append(long segmentId, long offset, byte[] data) {
+        public void append(long segmentId, long offset, byte[] data) {
             invoke(new MethodInvocation(APPEND)
                     .withArg("streamSegmentId", segmentId)
                     .withArg("offset", offset)
                     .withArg("data", data));
-            return new CacheKey(segmentId, offset);
         }
 
         @Override
@@ -281,7 +247,7 @@ public class MemoryLogUpdaterTests {
 
         @Override
         public void clear() {
-            invoke(new MethodInvocation(CLEAR));
+            throw new IllegalStateException("Not Implemented");
         }
 
         @Override

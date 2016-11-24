@@ -17,11 +17,15 @@
  */
 package com.emc.pravega.controller.store.stream;
 
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Stream Metadata.
@@ -34,9 +38,12 @@ public interface StreamMetadataStore {
      *
      * @param name          stream name.
      * @param configuration stream configuration.
-     * @return boolean indicating whether the stream was created.
+     * @param createTimestamp stream creation timestamp.
+     * @return boolean indicating whether the stream was created
      */
-    boolean createStream(String name, StreamConfiguration configuration);
+    CompletableFuture<Boolean> createStream(final String name,
+                                            final StreamConfiguration configuration,
+                                            final long createTimestamp);
 
     /**
      * Updates the configuration of an existing stream.
@@ -45,7 +52,7 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration
      * @return boolean indicating whether the stream was updated
      */
-    boolean updateConfiguration(String name, StreamConfiguration configuration);
+    CompletableFuture<Boolean> updateConfiguration(final String name, final StreamConfiguration configuration);
 
     /**
      * Fetches the current stream configuration.
@@ -53,43 +60,44 @@ public interface StreamMetadataStore {
      * @param name stream name.
      * @return current stream configuration.
      */
-    StreamConfiguration getConfiguration(String name);
+    CompletableFuture<StreamConfiguration> getConfiguration(final String name);
 
     /**
-     * Gets a segment for the given stream and segment number.
-     *
-     * @param name   stream name.
+     * Get Segment.
+     *  @param name   stream name.
      * @param number segment number.
      * @return segment at given number.
      */
-    Segment getSegment(String name, int number);
+    CompletableFuture<Segment> getSegment(final String name, final int number);
 
     /**
-     * Gets all the currently active segments for the given stream.
+     * Get active segments.
      *
      * @param name stream name.
      * @return currently active segments
      */
-    SegmentFutures getActiveSegments(String name);
+    CompletableFuture<List<Segment>> getActiveSegments(final String name);
 
     /**
-     * Gets all the active segments for the given stream at the given timestamp.
+     * Get active segments at given timestamp.
      *
      * @param name      stream name.
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
-    SegmentFutures getActiveSegments(String name, long timestamp);
+    CompletableFuture<SegmentFutures> getActiveSegments(final String name, final long timestamp);
 
     /**
-     * Gets the new consumer positions for the given arguments.
+     * Get next segments.
      *
      * @param name              stream name.
      * @param completedSegments completely read segments.
      * @param currentSegments   current consumer positions.
      * @return new consumer positions including new (current or future) segments that can be read from.
      */
-    List<SegmentFutures> getNextSegments(String name, Set<Integer> completedSegments, List<SegmentFutures> currentSegments);
+    CompletableFuture<List<SegmentFutures>> getNextSegments(final String name,
+                                                            final Set<Integer> completedSegments,
+                                                            final List<SegmentFutures> currentSegments);
 
     /**
      * Scales in or out the currently set of active segments of a stream.
@@ -101,5 +109,65 @@ public interface StreamMetadataStore {
      *                       all new segments shall have it as their start time.
      * @return the list of newly created segments
      */
-    List<Segment> scale(String name, List<Integer> sealedSegments, List<SimpleEntry<Double, Double>> newRanges, long scaleTimestamp);
+    CompletableFuture<List<Segment>> scale(final String name,
+                                           final List<Integer> sealedSegments,
+                                           final List<SimpleEntry<Double, Double>> newRanges,
+                                           final long scaleTimestamp);
+
+    /**
+     * Method to create a new transaction on a stream.
+     *
+     * @param scope  scope
+     * @param stream stream
+     * @return new Transaction Id
+     */
+    CompletableFuture<UUID> createTransaction(final String scope, final String stream);
+
+    /**
+     * Get transaction status from the stream store.
+     *
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
+     * @return
+     */
+    CompletableFuture<TxStatus> transactionStatus(final String scope, final String stream, final UUID txId);
+
+    /**
+     * Update stream store to mark transaction as committed.
+     *
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
+     * @return
+     */
+    CompletableFuture<TxStatus> commitTransaction(final String scope, final String stream, final UUID txId);
+
+    /**
+     * Update stream store to mark transaction as sealed.
+     *
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
+     * @return
+     */
+    CompletableFuture<TxStatus> sealTransaction(final String scope, final String stream, final UUID txId);
+
+    /**
+     * Update stream store to mark the transaction as dropped.
+     *
+     * @param scope  scope
+     * @param stream stream
+     * @param txId   transaction id
+     * @return
+     */
+    CompletableFuture<TxStatus> dropTransaction(final String scope, final String stream, final UUID txId);
+
+    /**
+     * Returns all active transactions for all streams.
+     * This is used for periodically identifying timedout transactions which can be dropped
+     *
+     * @return
+     */
+    CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx();
 }

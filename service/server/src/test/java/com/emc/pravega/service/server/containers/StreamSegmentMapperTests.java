@@ -37,6 +37,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import com.google.common.util.concurrent.Service;
 import lombok.Cleanup;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -553,6 +554,11 @@ public class StreamSegmentMapperTests {
         }
 
         @Override
+        public CompletableFuture<Void> open(String streamSegmentName) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             return this.getInfoHandler.apply(streamSegmentName);
         }
@@ -561,32 +567,32 @@ public class StreamSegmentMapperTests {
         
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-            return null;
+            throw new NotImplementedException();
         }
         
         @Override
         public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
         public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
         public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
         public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
         public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override

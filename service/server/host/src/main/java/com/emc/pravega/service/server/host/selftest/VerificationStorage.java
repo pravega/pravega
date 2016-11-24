@@ -80,6 +80,11 @@ class VerificationStorage implements Storage {
     }
 
     @Override
+    public CompletableFuture<Void> open(String streamSegmentName) {
+        return this.baseStorage.open(streamSegmentName);
+    }
+
+    @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
         CompletableFuture<Void> result = this.baseStorage.write(streamSegmentName, offset, data, length, timeout);
         result.thenRun(() -> triggerListeners(streamSegmentName, offset + length, false));

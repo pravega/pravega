@@ -31,6 +31,10 @@ import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.service.server.store.ServiceConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogConfig;
 import com.emc.pravega.service.storage.impl.distributedlog.DistributedLogDataLogFactory;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageConfig;
+import com.emc.pravega.service.storage.impl.hdfs.HDFSStorageFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
+import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -44,7 +48,6 @@ import java.util.concurrent.CompletionException;
  */
 public final class ServiceStarter {
     private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
-
     private final ServiceBuilderConfig serviceConfig;
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
@@ -52,16 +55,30 @@ public final class ServiceStarter {
 
     private ServiceStarter(ServiceBuilderConfig config) {
         this.serviceConfig = config;
-        this.serviceBuilder = createServiceBuilder(this.serviceConfig, true);
+        Options opt = new Options();
+        opt.distributedLog = false;
+        opt.hdfs = false;
+        opt.rocksDb = true;
+        opt.zkSegmentManager = false;
+        this.serviceBuilder = createServiceBuilder(this.serviceConfig, opt);
     }
 
-    private ServiceBuilder createServiceBuilder(ServiceBuilderConfig config, boolean inMemory) {
-        if (inMemory) {
-            return ServiceBuilder.newInMemoryBuilder(config);
-        } else {
-            // Real (Distributed Log) Data Log with ZK based segment manager.
-            return attachDistributedLog(attachZKSegmentManager(ServiceBuilder.newInMemoryBuilder(config)));
+    private ServiceBuilder createServiceBuilder(ServiceBuilderConfig config, Options options) {
+        ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(config);
+        if (options.distributedLog) {
+            attachDistributedLog(builder);
         }
+        if (options.rocksDb) {
+            attachRocksDB(builder);
+        }
+        if (options.hdfs) {
+            attachHDFS(builder);
+        }
+        if (options.zkSegmentManager) {
+            attachZKSegmentManager(builder);
+        }
+
+        return builder;
     }
 
     private void start() {
@@ -120,12 +137,40 @@ public final class ServiceStarter {
     /**
      * Attaches a DistributedlogDataLogFactory to the given ServiceBuilder.
      */
-    static ServiceBuilder attachDistributedLog(ServiceBuilder builder) {
-        return builder.withDataLogFactory(setup -> {
+    static void attachDistributedLog(ServiceBuilder builder) {
+        builder.withDataLogFactory(setup -> {
             try {
                 DistributedLogConfig dlConfig = setup.getConfig(DistributedLogConfig::new);
                 DistributedLogDataLogFactory factory = new DistributedLogDataLogFactory("interactive-console",
                         dlConfig);
+                factory.initialize();
+                return factory;
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    static void attachRocksDB(ServiceBuilder builder) {
+        builder.withCacheFactory(setup -> {
+            RocksDBCacheFactory factory = new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::new));
+            factory.initialize(true); // Always clear/reset the cache at startup.
+            return factory;
+        });
+    }
+
+    private static class Options {
+        boolean distributedLog;
+        boolean hdfs;
+        boolean rocksDb;
+        boolean zkSegmentManager;
+    }
+
+    static ServiceBuilder attachHDFS(ServiceBuilder builder) {
+        return builder.withStorageFactory(setup -> {
+            try {
+                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::new);
+                HDFSStorageFactory factory = new HDFSStorageFactory(hdfsConfig);
                 factory.initialize();
                 return factory;
             } catch (Exception ex) {
