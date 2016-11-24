@@ -76,6 +76,8 @@ public class SegmentContainerMonitor implements AutoCloseable {
                     if (newState == ConnectionState.LOST) {
                         log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
                         leaderSelector.interruptLeadership();
+                    } else {
+                        log.debug("Connection state to zookeeper updated: " + newState.toString());
                     }
                 }
         );

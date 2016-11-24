@@ -39,8 +39,8 @@ import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
 public class Main {
 
     public static void main(String[] args) {
-        //1) LOAD configuration.
-        log.info("Creating in-memory stream store");
+        //LOAD configuration.
+        log.info("Creating the stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
                 StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), null);
 
@@ -51,14 +51,14 @@ public class Main {
         //Host monitor is not required for a single node local setup.
         if (Config.HOST_MONITOR_ENABLED) {
             //Start the segment Container Monitor.
+            log.info("Starting the segment container monitor");
             SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
                     ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
                     new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
             monitor.start();
         }
 
-        //2) Start the Server implementations.
-        //2.1) Start RPC server with v1 implementation. Enable other versions if required.
+        //Start the RPC server.
         log.info("Starting RPC server");
         RPCServer.start(new ControllerServiceImpl(streamStore, hostStore));
     }
