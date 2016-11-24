@@ -89,7 +89,7 @@ public class StreamImpl implements Stream {
     }
 
     @Override
-    public String getQualifiedName() {
+    public String getScopedName() {
         StringBuffer sb = new StringBuffer();
         if (scope != null) {
             sb.append(scope);
