@@ -65,7 +65,7 @@ public interface Stream {
     /**
      * Gets the scoped name of this stream.
      */
-    String getQualifiedName();
+    String getScopedName();
 
     /**
      * Gets the configuration associated with this stream.
