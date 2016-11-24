@@ -62,7 +62,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ZKSegmentContainerManager implements SegmentContainerManager {
 
-    private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30); //TODO: config?
+    private static final Duration CLOSE_TIMEOUT = Duration.ofSeconds(30);
     private final SegmentContainerRegistry registry;
     private final SegmentToContainerMapper segmentToContainerMapper;
 
@@ -200,14 +200,10 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
     private NodeCacheListener getListenerNodeCache(final Duration timeout, final Host host) {
         return () -> {
-            try {
-                log.debug("Listener for SegmentContainer mapping invoked.");
-                List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
-                FutureHelpers.allOf(futures).get();
-                log.debug("Completed execution of SegmentContainer listener.");
-            } catch (Exception ex) {
-                log.error("Unable to fetch the mapping information from Zookeeper", ex);
-            }
+            log.debug("Listener for SegmentContainer mapping invoked.");
+            List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
+            FutureHelpers.allOf(futures).get();
+            log.debug("Completed execution of SegmentContainer listener.");
         };
     }
 
