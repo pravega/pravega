@@ -28,9 +28,4 @@ public class InMemoryStorageTests extends StorageTestBase {
     protected Storage createStorage() {
         return new InMemoryStorage();
     }
-
-    @Override
-    protected String createInvalidHandle(String segmentName) {
-        return null;
-    }
 }
