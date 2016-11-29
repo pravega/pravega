@@ -19,7 +19,8 @@
 package com.emc.pravega.service.storage.impl.hdfs;
 
 import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.LoggerHelpers;
+import com.emc.pravega.common.function.RunnableWithException;
 import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.SegmentProperties;
 import com.emc.pravega.service.contracts.StreamSegmentInformation;
@@ -42,7 +43,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Date;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -55,14 +58,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Pravega Node), the HDFSStorage instance on the new node renames the file representing the segment to <segment-name>_<owner_host_id>.
  * This is done by the open call.
  * <p>
- * When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
+ * TODO (this is not implemented): When a segment is sealed, it is renamed to its absolute name "segment-name" and marked as read-only.
  */
 @Slf4j
-public class HDFSStorage implements Storage {
+class HDFSStorage implements Storage {
     //region Members
 
+    private static final String LOG_ID = "HDFSStorage";
     private final Executor executor;
-    private final HDFSStorageConfig serviceBuilderConfig;
+    private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
     private FileSystem fileSystem;
 
@@ -70,12 +74,32 @@ public class HDFSStorage implements Storage {
 
     //region Constructor
 
-    public HDFSStorage(HDFSStorageConfig serviceBuilderConfig, Executor executor) {
-        Preconditions.checkNotNull(serviceBuilderConfig, "serviceBuilderConfig");
+    /**
+     * Creates a new instance of the HDFSStorage class.
+     * @param config The configuration to use.
+     * @param executor The executor to use for running async operations.
+     */
+    HDFSStorage(HDFSStorageConfig config, Executor executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.serviceBuilderConfig = serviceBuilderConfig;
+        this.config = config;
         this.executor = executor;
-        this.closed = new AtomicBoolean();
+        this.closed = new AtomicBoolean(false);
+    }
+
+    /**
+     * Initializes the HDFSStorage.
+     *
+     * @throws IOException If the initialization failed.
+     */
+    public void initialize() throws IOException {
+        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Configuration conf = new Configuration();
+        conf.set("fs.default.name", config.getHDFSHostURL());
+        conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
+        this.fileSystem = FileSystem.get(conf);
+        log.info("{}: Initialized.", LOG_ID);
     }
 
     //endregion
@@ -102,84 +126,47 @@ public class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(() -> createSync(streamSegmentName),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return supplyAsync(() -> createSync(streamSegmentName), streamSegmentName, "create");
     }
 
     @Override
     public CompletableFuture<Void> open(String streamSegmentName) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(() -> {
-                    openSync(streamSegmentName);
-                    return null;
-                },
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return runAsync(() -> openSync(streamSegmentName), streamSegmentName, "open");
     }
 
     @Override
     public CompletableFuture<Void> write(String streamSegmentName, long offset, InputStream data, int length, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> writeSync(streamSegmentName, offset, length, data),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return runAsync(() -> writeSync(streamSegmentName, offset, length, data), streamSegmentName, "write");
     }
 
     @Override
     public CompletableFuture<SegmentProperties> seal(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> sealSync(streamSegmentName),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return supplyAsync(() -> sealSync(streamSegmentName), streamSegmentName, "seal");
     }
 
     @Override
     public CompletableFuture<Void> concat(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName),
-                e -> HDFSExceptionHelpers.translateFromException(targetStreamSegmentName, e),
-                this.executor);
+        return runAsync(() -> concatSync(targetStreamSegmentName, offset, sourceStreamSegmentName), targetStreamSegmentName, "concat");
     }
 
     @Override
     public CompletableFuture<Void> delete(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> deleteSync(streamSegmentName),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return runAsync(() -> deleteSync(streamSegmentName), streamSegmentName, "delete");
     }
 
     @Override
     public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> readSync(streamSegmentName, offset, buffer, bufferOffset, length),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return supplyAsync(() -> readSync(streamSegmentName, offset, buffer, bufferOffset, length), streamSegmentName, "read");
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> this.getStreamSegmentInfoSync(streamSegmentName),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return supplyAsync(() -> getStreamSegmentInfoSync(streamSegmentName), streamSegmentName, "getInfo");
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return FutureHelpers.runAsyncTranslateException(
-                () -> existsSync(streamSegmentName),
-                e -> HDFSExceptionHelpers.translateFromException(streamSegmentName, e),
-                this.executor);
+        return supplyAsync(() -> existsSync(streamSegmentName), streamSegmentName, "exists");
     }
 
     //endregion
@@ -191,8 +178,8 @@ public class HDFSStorage implements Storage {
                 new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE),
                 false,
                 0,
-                this.serviceBuilderConfig.getReplication(),
-                this.serviceBuilderConfig.getBlockSize(),
+                this.config.getReplication(),
+                this.config.getBlockSize(),
                 null).close();
         return new StreamSegmentInformation(streamSegmentName,
                 0,
@@ -206,7 +193,7 @@ public class HDFSStorage implements Storage {
      * Pravega host.
      */
     private String getOwnedSegmentFullPath(String streamSegmentName) {
-        return getCommonPartOfName(streamSegmentName) + "_" + this.serviceBuilderConfig.getPravegaID();
+        return getCommonPartOfName(streamSegmentName) + "_" + this.config.getPravegaID();
     }
 
     /**
@@ -226,7 +213,7 @@ public class HDFSStorage implements Storage {
     }
 
     private String getCommonPartOfName(String streamSegmentName) {
-        return this.serviceBuilderConfig.getHdfsRoot() + "/" + streamSegmentName;
+        return this.config.getHdfsRoot() + "/" + streamSegmentName;
     }
 
     /**
@@ -244,7 +231,7 @@ public class HDFSStorage implements Storage {
         this.fileSystem.rename(statuses[0].getPath(), new Path(this.getOwnedSegmentFullPath(streamSegmentName)));
     }
 
-    private Void writeSync(String streamSegmentName, long offset, int length, InputStream data)
+    private void writeSync(String streamSegmentName, long offset, int length, InputStream data)
             throws BadOffsetException, IOException {
         try (FSDataOutputStream stream = fileSystem.append(new Path(this.getOwnedSegmentFullPath(streamSegmentName)))) {
             if (stream.getPos() != offset) {
@@ -254,8 +241,6 @@ public class HDFSStorage implements Storage {
             IOUtils.copyBytes(data, stream, length);
             stream.flush();
         }
-
-        return null;
     }
 
     private SegmentProperties sealSync(String streamSegmentName) throws IOException {
@@ -277,7 +262,7 @@ public class HDFSStorage implements Storage {
                 new Date(status.getModificationTime()));
     }
 
-    private Void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {
+    private void concatSync(String targetStreamSegmentName, long offset, String sourceStreamSegmentName) throws IOException, BadOffsetException, StreamSegmentSealedException {
         FileStatus status = findOne(targetStreamSegmentName);
         FileStatus sourceStatus = findOne(sourceStreamSegmentName);
         if (sourceStatus.getPermission().getUserAction() != FsAction.READ) {
@@ -291,20 +276,17 @@ public class HDFSStorage implements Storage {
 
         this.fileSystem.concat(new Path(this.getOwnedSegmentFullPath(targetStreamSegmentName)),
                 new Path[]{new Path(this.getOwnedSegmentFullPath(sourceStreamSegmentName))});
-
-        return null;
     }
 
-    private Void deleteSync(String name) throws IOException {
+    private void deleteSync(String name) throws IOException {
         this.fileSystem.delete(new Path(this.getOwnedSegmentFullPath(name)), false);
-        return null;
     }
 
     /**
      * Finds the file containing the given offset for the given segment.
      * Reads from that file.
      */
-    private Integer readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
+    private int readSync(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
@@ -328,19 +310,39 @@ public class HDFSStorage implements Storage {
         return this.fileSystem.exists(new Path(streamSegmentName));
     }
 
-    /**
-     * Initializes the HDFSStorage.
-     *
-     * @throws IOException If the initialization failed.
-     */
-    public void initialize() throws IOException {
-        Preconditions.checkState(this.fileSystem == null, "HDFSStorage has already been initialized.");
+    private CompletableFuture<Void> runAsync(RunnableWithException syncCode, String streamSegmentName, String action) {
+        ensureInitializedAndNotClosed();
+        long traceId = LoggerHelpers.traceEnter(log, LOG_ID, action, streamSegmentName);
+        return CompletableFuture.runAsync(() -> {
+            try {
+                syncCode.run();
+            } catch (Exception e) {
+                throw new CompletionException(HDFSExceptionHelpers.translateFromException(streamSegmentName, e));
+            }
+
+            LoggerHelpers.traceLeave(log, LOG_ID, traceId);
+        }, this.executor);
+    }
+
+    private <T> CompletableFuture<T> supplyAsync(Callable<T> syncCode, String streamSegmentName, String action) {
+        ensureInitializedAndNotClosed();
+        long traceId = LoggerHelpers.traceEnter(log, LOG_ID, action, streamSegmentName);
+        return CompletableFuture.supplyAsync(() -> {
+            T result;
+            try {
+                result = syncCode.call();
+            } catch (Exception e) {
+                throw new CompletionException(HDFSExceptionHelpers.translateFromException(streamSegmentName, e));
+            }
+
+            LoggerHelpers.traceLeave(log, LOG_ID, traceId);
+            return result;
+        }, this.executor);
+    }
+
+    private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Configuration conf = new Configuration();
-        conf.set("fs.default.name", serviceBuilderConfig.getHDFSHostURL());
-        conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
-        this.fileSystem = FileSystem.get(conf);
-        this.closed.set(false);
+        Preconditions.checkState(this.fileSystem != null, "HDFSStorage is not initialized.");
     }
 
     //endregion
