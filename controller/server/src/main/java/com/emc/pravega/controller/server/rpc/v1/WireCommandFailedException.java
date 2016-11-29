@@ -15,30 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.task;
+package com.emc.pravega.controller.server.rpc.v1;
 
-import com.emc.pravega.controller.store.StoreClient;
-import com.emc.pravega.controller.store.ZKStoreClient;
-import org.apache.commons.lang.NotImplementedException;
-
-import java.util.concurrent.ScheduledExecutorService;
+import com.emc.pravega.common.netty.WireCommandType;
 
 /**
- * Task store factory.
+ * Wire command failed exception.
  */
-public class TaskStoreFactory {
+public class WireCommandFailedException extends RuntimeException {
 
-    public static TaskMetadataStore createStore(StoreClient storeClient, ScheduledExecutorService executor) {
-        switch (storeClient.getType()) {
-            case Zookeeper:
-                return new ZKTaskMetadataStore((ZKStoreClient) storeClient, executor);
-            case InMemory:
-                return new InMemoryTaskMetadataStore(executor);
-            case ECS:
-            case S3:
-            case HDFS:
-            default:
-                throw new NotImplementedException();
-        }
+    public enum Reason {
+        ConnectionDropped,
+        ConnectionFailed,
+        UnknownHost,
+        PreconditionFailed,
+    }
+
+    private final WireCommandType type;
+    private final Reason reason;
+
+    public WireCommandFailedException(Throwable cause, WireCommandType type, Reason reason) {
+        super(cause);
+        this.type = type;
+        this.reason = reason;
+    }
+
+    public WireCommandFailedException(WireCommandType type, Reason reason) {
+        this.type = type;
+        this.reason = reason;
     }
 }

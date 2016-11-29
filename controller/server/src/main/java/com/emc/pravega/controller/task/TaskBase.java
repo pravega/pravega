@@ -28,6 +28,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * TaskBase contains the following.
@@ -65,12 +66,15 @@ public class TaskBase implements Cloneable {
         }
     }
 
+    protected final ScheduledExecutorService executor;
+
     private Context context;
 
     private final TaskMetadataStore taskMetadataStore;
 
-    public TaskBase(final TaskMetadataStore taskMetadataStore, final String hostId) {
+    public TaskBase(final TaskMetadataStore taskMetadataStore, final ScheduledExecutorService executor, final String hostId) {
         this.taskMetadataStore = taskMetadataStore;
+        this.executor = executor;
         context = new Context(hostId);
     }
 
@@ -110,19 +114,19 @@ public class TaskBase implements Cloneable {
         // creation or deletion of resource children under HostId node.
         taskMetadataStore.putChild(context.hostId, taggedResource)
                 // After storing that fact, lock the resource, execute task and unlock the resource
-                .thenCompose(x -> executeTask(resource, taskData, tag, operation))
+                .thenComposeAsync(x -> executeTask(resource, taskData, tag, operation), executor)
                 // finally delete the resource child created under the controller's HostId
-                .whenComplete((value, e) ->
-                    taskMetadataStore.removeChild(context.hostId, taggedResource, true)
-                            .whenComplete((innerValue, innerE) -> {
-                                // ignore the result of removeChile operations, since it is an optimization
-                                if (e != null) {
-                                    result.completeExceptionally(e);
-                                } else {
-                                    result.complete(value);
-                                }
-                            })
-                );
+                .whenCompleteAsync((value, e) ->
+                                taskMetadataStore.removeChild(context.hostId, taggedResource, true)
+                                        .whenComplete((innerValue, innerE) -> {
+                                            // ignore the result of removeChile operations, since it is an optimization
+                                            if (e != null) {
+                                                result.completeExceptionally(e);
+                                            } else {
+                                                result.complete(value);
+                                            }
+                                        }),
+                        executor);
 
         return result;
     }

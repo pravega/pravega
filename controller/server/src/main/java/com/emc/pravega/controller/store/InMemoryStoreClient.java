@@ -15,14 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.server.rpc.v1;
+package com.emc.pravega.controller.store;
 
 /**
- * Sealing failed exception.
+ * In memory store client.
  */
-public class SealingFailedException extends RuntimeException {
+public class InMemoryStoreClient implements StoreClient {
 
-    public SealingFailedException(Throwable cause) {
-        super(cause);
+    @Override
+    public Object getClient() {
+        return null;
+    }
+
+    @Override
+    public StoreClientFactory.StoreType getType() {
+        return StoreClientFactory.StoreType.InMemory;
     }
 }
