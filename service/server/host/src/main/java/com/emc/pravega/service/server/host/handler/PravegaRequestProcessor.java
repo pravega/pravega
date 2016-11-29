@@ -120,7 +120,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent().thenApply((ReadResultEntryContents contents) -> {
                 ByteBuffer data = copyData(Collections.singletonList(contents));
-                SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), atTail, endOfSegment, data);
+                SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
                 connection.send(reply);
                 return null;
             }).exceptionally((Throwable e) -> {

@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.InvalidMessageException;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
 import com.emc.pravega.common.util.CircularBuffer;
@@ -55,14 +56,13 @@ class SegmentInputStreamImpl extends SegmentInputStream {
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
     private ReadFuture outstandingRequest = null;
-    @GuardedBy("$lock")
-    private boolean lastRequestAtTail = false;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
         Preconditions.checkArgument(offset >= 0);
         Preconditions.checkNotNull(asyncInput);
         this.asyncInput = asyncInput;
         this.offset = offset;
+        issueRequestIfNeeded();
     }
 
     @Override
@@ -71,7 +71,6 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         Preconditions.checkArgument(offset >= 0);
         if (offset != this.offset) {
             this.offset = offset;
-            lastRequestAtTail = false;
             buffer.clear();
             receivedEndOfSegment = false;
             outstandingRequest = null;        
@@ -137,7 +136,6 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
         }
-        lastRequestAtTail = segmentRead.isAtTail();
         if (segmentRead.isEndOfSegment()) {
             receivedEndOfSegment = true;
         }
@@ -156,25 +154,22 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         }
     }
 
+
     @Override
     @Synchronized
     public void close() {
         asyncInput.close();
     }
 
-    @Override
     @Synchronized
-    public boolean wasReadAtTail() {
-        if (buffer.dataAvailable() > 0) {
-            return false;
+    public boolean canReadWithoutBlocking() {
+        while (dataWaitingToGoInBuffer()) {
+            handleRequest();
         }
-        if (receivedEndOfSegment && outstandingRequest == null) {
+        if (buffer.dataAvailable() > 0) {
             return true;
         }
-        if (outstandingRequest != null && outstandingRequest.isSuccess()) {
-            return false;
-        }
-        return lastRequestAtTail;
+        return false;
     }
 
 }

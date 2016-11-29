@@ -496,7 +496,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEGMENT_READ;
         final String segment;
         final long offset;
-        final boolean atTail;
+        final boolean atTail; //TODO: Is sometimes false when actual state is unknown.
         final boolean endOfSegment;
         final ByteBuffer data;
 

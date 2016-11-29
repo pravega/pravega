@@ -52,16 +52,6 @@ public abstract class SegmentInputStream implements AutoCloseable {
     public abstract ByteBuffer read() throws EndOfSegmentException;
     
     /**
-     * Returns true if the last call to {@link #read()} was at the tail and contained the most
-     * recent available data. (Meaning that the next call to read will block until more data is
-     * written).
-     * 
-     * Calling this method upon construction or immediately after changing the offset will
-     * return false.
-     */
-    public abstract boolean wasReadAtTail();
-    
-    /**
      * Closes this InputStream. No further methods may be called after close.
      * This will free any resources associated with the InputStream.
      */
