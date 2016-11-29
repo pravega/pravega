@@ -22,7 +22,6 @@ import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
-import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,18 +68,6 @@ public class SegmentContainerMonitor implements AutoCloseable {
 
         segmentMonitorLeader = new SegmentMonitorLeader(clusterName, hostStore, balancer, minRebalanceInterval);
         leaderSelector = new LeaderSelector(client, leaderZKPath, segmentMonitorLeader);
-
-        //Listen for any zookeeper connectivity error and relinquish leadership.
-        client.getConnectionStateListenable().addListener(
-                (curatorClient, newState) -> {
-                    if (newState == ConnectionState.LOST) {
-                        log.warn("Connection to zookeeper lost, attempting to interrrupt the leader thread");
-                        leaderSelector.interruptLeadership();
-                    } else {
-                        log.debug("Connection state to zookeeper updated: " + newState.toString());
-                    }
-                }
-        );
     }
 
     /**

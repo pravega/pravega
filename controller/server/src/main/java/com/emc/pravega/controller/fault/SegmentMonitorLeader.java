@@ -26,7 +26,7 @@ import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
+import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
 import org.apache.curator.framework.state.ConnectionState;
 
 import java.time.Duration;
@@ -40,7 +40,7 @@ import java.util.concurrent.Semaphore;
  * also moved if neccessary for load balancing.
  */
 @Slf4j
-class SegmentMonitorLeader implements LeaderSelectorListener {
+class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
 
     //The store for reading and writing the host to container mapping.
     private final HostControllerStore hostStore;
