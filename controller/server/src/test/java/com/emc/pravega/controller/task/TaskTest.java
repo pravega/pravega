@@ -17,10 +17,6 @@
  */
 package com.emc.pravega.controller.task;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import com.emc.pravega.controller.store.ZKStoreClient;
 import com.emc.pravega.controller.store.host.Host;
 import com.emc.pravega.controller.store.host.HostControllerStore;
@@ -60,12 +56,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
- * Task test cases
+ * Task test cases.
  */
 @Slf4j
 public class TaskTest {
@@ -75,9 +77,10 @@ public class TaskTest {
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
 
     private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
@@ -94,8 +97,8 @@ public class TaskTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, HOSTNAME);
+        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config), executor);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, HOSTNAME);
     }
 
     @Before
@@ -107,8 +110,8 @@ public class TaskTest {
         final StreamConfiguration configuration2 = new StreamConfigurationImpl(SCOPE, stream2, policy2);
 
         // region createStream
-        streamStore.createStream(stream1, configuration1);
-        streamStore.createStream(stream2, configuration2);
+        streamStore.createStream(stream1, configuration1, System.currentTimeMillis());
+        streamStore.createStream(stream2, configuration2, System.currentTimeMillis());
         // endregion
 
         // region scaleSegments
@@ -185,7 +188,7 @@ public class TaskTest {
         StreamConfiguration config = streamStore.getConfiguration(stream).get();
         assertTrue(config.getName().equals(configuration.getName()));
         assertTrue(config.getScope().equals(configuration.getScope()));
-        assertTrue(config.getScalingingPolicy().equals(configuration.getScalingingPolicy()));
+        assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
     @Test
@@ -258,7 +261,7 @@ public class TaskTest {
     @Test
     public void testLocking() {
 
-        TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);
+        TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
         LockingTask second = new LockingTask(testTasks, SCOPE, stream1);
@@ -292,13 +295,13 @@ public class TaskTest {
         @Override
         public void run() {
             testTasks.testStreamLock(scope, stream)
-            .whenComplete((value, ex) -> {
-                if (ex != null) {
-                    this.result.completeExceptionally(ex);
-                } else {
-                    this.result.complete(value);
-                }
-            });
+                    .whenComplete((value, ex) -> {
+                        if (ex != null) {
+                            this.result.completeExceptionally(ex);
+                        } else {
+                            this.result.complete(value);
+                        }
+                    });
         }
     }
 

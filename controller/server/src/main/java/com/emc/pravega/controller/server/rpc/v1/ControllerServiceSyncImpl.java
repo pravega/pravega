@@ -20,7 +20,6 @@ package com.emc.pravega.controller.server.rpc.v1;
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.Position;
@@ -42,14 +41,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Synchronous controller service implementation
+ * Synchronous controller service implementation.
  */
-public class ControllerServiceSyncImpl implements ControllerService.Iface {
+public class ControllerServiceSyncImpl implements com.emc.pravega.controller.stream.api.v1.ControllerService.Iface {
 
-    private final ControllerServiceImpl controllerService;
+    private final ControllerService controllerService;
 
-    public ControllerServiceSyncImpl(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks, StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+    public ControllerServiceSyncImpl(final StreamMetadataStore streamStore,
+                                     final HostControllerStore hostStore,
+                                     final StreamMetadataTasks streamMetadataTasks,
+                                     final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     /**
@@ -58,63 +60,63 @@ public class ControllerServiceSyncImpl implements ControllerService.Iface {
      * Asynchronously call createSegment on pravega hosts notifying them about new segments in the stream.
      */
     @Override
-    public CreateStreamStatus createStream(StreamConfig streamConfig) throws TException {
-        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig), System.currentTimeMillis()), RuntimeException::new);
+    public CreateStreamStatus createStream(final StreamConfig streamConfig) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createStream(ModelHelper.encode(streamConfig),
+                System.currentTimeMillis()), RuntimeException::new);
     }
 
     @Override
-    public UpdateStreamStatus alterStream(StreamConfig streamConfig) throws TException {
+    public UpdateStreamStatus alterStream(final StreamConfig streamConfig) throws TException {
         throw new NotImplementedException();
     }
 
     @Override
-    public List<SegmentRange> getCurrentSegments(String scope, String stream) throws TException {
+    public List<SegmentRange> getCurrentSegments(final String scope, final String stream) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getCurrentSegments(scope, stream), RuntimeException::new);
     }
 
     @Override
-    public NodeUri getURI(SegmentId segment) throws TException {
+    public NodeUri getURI(final SegmentId segment) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getURI(segment), RuntimeException::new);
     }
 
     @Override
-    public List<Position> getPositions(String scope, String stream, long timestamp, int count) throws TException {
+    public boolean isSegmentValid(final String scope, final String stream, final int segmentNumber) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.isSegmentValid(scope, stream, segmentNumber), RuntimeException::new);
+    }
+
+    @Override
+    public List<Position> getPositions(final String scope, final String stream, final long timestamp, final int count) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.getPositions(scope, stream, timestamp, count), RuntimeException::new);
     }
 
     @Override
-    public List<Position> updatePositions(String scope, String stream, List<Position> positions) throws TException {
+    public List<Position> updatePositions(final String scope, final String stream, final List<Position> positions) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.updatePositions(scope, stream, positions), RuntimeException::new);
     }
 
     @Override
-    public ScaleResponse scale(String scope, String stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges, long scaleTimestamp) throws TException {
+    public ScaleResponse scale(final String scope, final String stream, final List<Integer> sealedSegments, final Map<Double, Double> newKeyRanges, final long scaleTimestamp) throws TException {
         return FutureHelpers.getAndHandleExceptions(controllerService.scale(scope, stream, sealedSegments, newKeyRanges, scaleTimestamp), RuntimeException::new);
     }
 
     @Override
-    public TxId createTransaction(String scope, String stream) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+    public TxId createTransaction(final String scope, final String stream) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.createTransaction(scope, stream), RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus commitTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+    public TransactionStatus commitTransaction(final String scope, final String stream, final TxId txid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.commitTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
-    public TransactionStatus dropTransaction(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+    public TransactionStatus dropTransaction(final String scope, final String stream, final TxId txid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.dropTransaction(scope, stream, txid), RuntimeException::new);
     }
 
     @Override
-    public TxState checkTransactionStatus(String scope, String stream, TxId txid) throws TException {
-        // TODO Auto-generated method stub
-        return null;
+    public TxState checkTransactionStatus(final String scope, final String stream, final TxId txid) throws TException {
+        return FutureHelpers.getAndHandleExceptions(controllerService.checkTransactionStatus(scope, stream, txid), RuntimeException::new);
     }
-
-
 }

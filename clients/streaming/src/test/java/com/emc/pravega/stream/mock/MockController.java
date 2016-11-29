@@ -229,8 +229,13 @@ public class MockController implements Controller {
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
     }
-    
-    public PositionImpl getInitialPosition(String scope, String stream) {
+
+    @Override
+    public CompletableFuture<Boolean> isSegmentValid(String scope, String stream, int segmentNumber) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    private PositionImpl getInitialPosition(String scope, String stream) {
         return new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0), 0L), Collections.emptyMap());
     }
     

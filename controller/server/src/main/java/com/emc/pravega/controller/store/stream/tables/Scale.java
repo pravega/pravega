@@ -28,23 +28,8 @@ import java.util.List;
  * This is serialized and stored in the persistent store
  * and used to resume partially completed scale operation
  */
-public class Scale implements Task<Scale> {
+public class Scale {
     private final List<Integer> sealedSegments;
     private final List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
     private final long scaleTimestamp;
-
-    @Override
-    public Class<Scale> getType() {
-        return Scale.class;
-    }
-
-    @Override
-    public Create asCreate() {
-        return null;
-    }
-
-    @Override
-    public Scale asScale() {
-        return this;
-    }
 }

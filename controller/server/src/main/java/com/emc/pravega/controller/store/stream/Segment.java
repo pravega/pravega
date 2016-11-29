@@ -32,11 +32,11 @@ public class Segment {
     protected final double keyStart;
     protected final double keyEnd;
 
-    public boolean overlaps(Segment segment) {
+    public boolean overlaps(final Segment segment) {
         return segment.getKeyEnd() > keyStart && segment.getKeyStart() < keyEnd;
     }
 
-    public boolean overlaps(double keyStart, double keyEnd) {
+    public boolean overlaps(final double keyStart, final double keyEnd) {
         return keyEnd > this.keyStart && keyStart < this.keyEnd;
     }
 }

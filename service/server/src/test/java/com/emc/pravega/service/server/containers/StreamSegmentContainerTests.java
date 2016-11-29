@@ -20,7 +20,9 @@ package com.emc.pravega.service.server.containers;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.io.StreamHelpers;
+import com.emc.pravega.common.util.PropertyBag;
 import com.emc.pravega.service.contracts.AppendContext;
+import com.emc.pravega.service.contracts.BadOffsetException;
 import com.emc.pravega.service.contracts.ReadResult;
 import com.emc.pravega.service.contracts.ReadResultEntry;
 import com.emc.pravega.service.contracts.ReadResultEntryContents;
@@ -34,7 +36,6 @@ import com.emc.pravega.service.server.ConfigHelpers;
 import com.emc.pravega.service.server.ExceptionHelpers;
 import com.emc.pravega.service.server.MetadataRepository;
 import com.emc.pravega.service.server.OperationLogFactory;
-import com.emc.pravega.service.server.PropertyBag;
 import com.emc.pravega.service.server.ReadIndexFactory;
 import com.emc.pravega.service.server.SegmentContainer;
 import com.emc.pravega.service.server.ServiceShutdownListener;
@@ -87,7 +88,7 @@ public class StreamSegmentContainerTests {
     private static final int CONTAINER_ID = 1234567;
     private static final int THREAD_POOL_SIZE = 50;
     private static final int MAX_DATA_LOG_APPEND_SIZE = 100 * 1024;
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration TIMEOUT = Duration.ofSeconds(100);
 
     // Create checkpoints every 100 operations or after 10MB have been written, but under no circumstance less frequently than 10 ops.
     private static final DurableLogConfig DEFAULT_DURABLE_LOG_CONFIG = ConfigHelpers.createDurableLogConfig(
@@ -163,6 +164,63 @@ public class StreamSegmentContainerTests {
         checkReadIndex(segmentContents, lengths, context);
 
         // 5. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).join();
+        checkStorage(segmentContents, lengths, context);
+
+        context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Tests the ability to make appends with offset.
+     */
+    @Test
+    public void testAppendWithOffset() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+        context.container.startAsync().awaitRunning();
+
+        // 1. Create the StreamSegments.
+        ArrayList<String> segmentNames = createSegments(context);
+
+        // 2. Add some appends.
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        int appendId = 0;
+        ArrayList<UUID> clients = createClients();
+        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+            for (String segmentName : segmentNames) {
+                AppendContext appendContext = new AppendContext(clients.get(appendId % clients.size()), i);
+                byte[] appendData = getAppendData(segmentName, i);
+                long offset = lengths.getOrDefault(segmentName, 0L);
+                appendFutures.add(context.container.append(segmentName, offset, appendData, appendContext, TIMEOUT));
+
+                lengths.put(segmentName, offset + appendData.length);
+                recordAppend(segmentName, appendData, segmentContents);
+                appendId++;
+            }
+        }
+
+        FutureHelpers.allOf(appendFutures).join();
+
+        // 2.1 Verify that if we pass wrong offsets, the append is failed.
+        for (String segmentName : segmentNames) {
+            AppendContext appendContext = new AppendContext(clients.get(appendId % clients.size()), Integer.MAX_VALUE);
+            byte[] appendData = getAppendData(segmentName, appendId);
+            long offset = lengths.get(segmentName) + (appendId % 2 == 0 ? 1 : -1);
+
+            AssertExtensions.assertThrows(
+                    "append did not fail with the appropriate exception when passed a bad offset.",
+                    () -> context.container.append(segmentName, offset, appendData, appendContext, TIMEOUT),
+                    ex -> ex instanceof BadOffsetException);
+            appendId++;
+        }
+
+        // 3. Reads (regular reads, not tail reads).
+        checkReadIndex(segmentContents, lengths, context);
+
+        // 4. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).join();
         checkStorage(segmentContents, lengths, context);
 

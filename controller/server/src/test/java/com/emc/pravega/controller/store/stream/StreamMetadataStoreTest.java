@@ -29,12 +29,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Stream metadata test
+ * Stream metadata test.
  */
 public class StreamMetadataStoreTest {
 
@@ -45,16 +47,17 @@ public class StreamMetadataStoreTest {
     private final ScalingPolicy policy2 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 3);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(scope, stream1, policy1);
     private final StreamConfiguration configuration2 = new StreamConfigurationImpl(scope, stream2, policy2);
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore store =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
 
     @Test
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
-        store.createStream(stream1, configuration1);
-        store.createStream(stream2, configuration2);
+        store.createStream(stream1, configuration1, System.currentTimeMillis());
+        store.createStream(stream2, configuration2, System.currentTimeMillis());
 
         assertEquals(stream1, store.getConfiguration(stream1).get().getName());
         // endregion

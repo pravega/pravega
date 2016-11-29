@@ -31,9 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * This class
- */
 @Slf4j
 public class TaskSweeper {
 
@@ -66,8 +63,10 @@ public class TaskSweeper {
     /**
      * This method is called whenever a node in the controller cluster dies. A ServerSet abstraction may be used as
      * a trigger to invoke this method with one of the dead hostId.
-     *
+     * <p>
      * It sweeps through all unfinished tasks of failed host and attempts to execute them to completion.
+     * @param oldHostId old host id
+     * @return
      */
     public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
 
@@ -156,8 +155,9 @@ public class TaskSweeper {
 
     /**
      * This method identifies correct method to execute form among the task classes and executes it.
-     * @param oldHostId identifier of old failed host.
-     * @param taskData taks data.
+     *
+     * @param oldHostId      identifier of old failed host.
+     * @param taskData       taks data.
      * @param taggedResource resource on which old host had unfinished task.
      * @return the object returned from task method.
      */
@@ -179,7 +179,11 @@ public class TaskSweeper {
                 return (CompletableFuture<Object>) method.<CompletableFuture<Object>>invoke(o, (Object[]) taskData.getParameters());
 
             } else {
-                throw new RuntimeException(String.format("Task %s not found", taskData.getMethodName()));
+                CompletableFuture<Object> error = new CompletableFuture<>();
+                error.completeExceptionally(
+                        new RuntimeException(String.format("Task %s not found", taskData.getMethodName()))
+                );
+                return error;
             }
 
         } catch (Exception e) {
@@ -216,7 +220,8 @@ public class TaskSweeper {
 
     /**
      * Internal key used in mapping tables.
-     * @param taskName method name.
+     *
+     * @param taskName    method name.
      * @param taskVersion method version.,
      * @return key
      */

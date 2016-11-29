@@ -18,14 +18,6 @@
 
 package com.emc.pravega.service.server.containers;
 
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
-
 import com.emc.pravega.common.Exceptions;
 import com.emc.pravega.common.LoggerHelpers;
 import com.emc.pravega.common.TimeoutTimer;
@@ -42,8 +34,15 @@ import com.emc.pravega.service.server.logs.operations.StreamSegmentMapping;
 import com.emc.pravega.service.server.logs.operations.TransactionMapOperation;
 import com.emc.pravega.service.storage.Storage;
 import com.google.common.base.Preconditions;
-
 import lombok.extern.slf4j.Slf4j;
+
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Helps assign unique Ids to StreamSegments and persists them in Metadata.
@@ -70,6 +69,7 @@ public class StreamSegmentMapper {
      * @param containerMetadata The StreamSegmentContainerMetadata to bind to. All assignments are vetted from here,
      *                          but the Metadata is not touched directly from this component.
      * @param durableLog        The Durable Log to bind to. All assignments are durably stored here.
+     * @param storage           The Storage to use for all external operations (create segment, get info, etc.)
      * @param executor          The executor to use for async operations.
      * @throws NullPointerException If any of the arguments are null.
      */
@@ -136,7 +136,7 @@ public class StreamSegmentMapper {
                 "Given Parent StreamSegmentName looks like a Transaction StreamSegment Name. Cannot create a Transaction for a Transaction.");
 
         // Validate that Parent StreamSegment exists.
-        CompletableFuture<SegmentProperties> parentPropertiesFuture = null;
+        CompletableFuture<Void> parentCheckFuture = null;
         long parentStreamSegmentId = this.containerMetadata.getStreamSegmentId(parentStreamSegmentName);
         if (isValidStreamSegmentId(parentStreamSegmentId)) {
             SegmentMetadata parentMetadata = this.containerMetadata.getStreamSegmentMetadata(parentStreamSegmentId);
@@ -149,19 +149,19 @@ public class StreamSegmentMapper {
                         !parentMetadata.isDeleted() && !parentMetadata.isSealed(),
                         "parentStreamSegmentName",
                         "Given Parent StreamSegment is deleted or sealed. Cannot create a Transaction for it.");
-                parentPropertiesFuture = CompletableFuture.completedFuture(parentMetadata);
+                parentCheckFuture = CompletableFuture.completedFuture(null);
             }
         }
 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentStreamSegmentName, transactionId);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        if (parentPropertiesFuture == null) {
+        if (parentCheckFuture == null) {
             // We were unable to find this StreamSegment in our metadata. Check in Storage. If the parent StreamSegment
             // does not exist, this will throw an exception (and place it on the resulting future).
-            parentPropertiesFuture = this.storage.getStreamSegmentInfo(parentStreamSegmentName, timer.getRemaining());
+            parentCheckFuture = FutureHelpers.toVoid(this.storage.getStreamSegmentInfo(parentStreamSegmentName, timer.getRemaining()));
         }
 
-        return parentPropertiesFuture
+        return parentCheckFuture
                 .thenCompose(parentInfo -> this.storage.create(transactionName, timer.getRemaining()))
                 .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentStreamSegmentId, timer.getRemaining()))
                 .thenApply(id -> {
@@ -272,7 +272,8 @@ public class StreamSegmentMapper {
     private void assignStreamSegmentId(String streamSegmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         this.storage
-                .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+                .open(streamSegmentName)
+                .thenCompose(bool -> this.storage.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()))
                 .thenCompose(streamInfo -> persistInDurableLog(streamInfo, timer.getRemaining()))
                 .exceptionally(ex -> {
                     failAssignment(streamSegmentName, ex);

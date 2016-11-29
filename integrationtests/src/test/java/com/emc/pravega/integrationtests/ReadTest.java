@@ -18,22 +18,6 @@
 
 package com.emc.pravega.integrationtests;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.emc.pravega.common.concurrent.FutureHelpers;
 import com.emc.pravega.common.netty.CommandDecoder;
 import com.emc.pravega.common.netty.ConnectionFactory;
@@ -46,7 +30,6 @@ import com.emc.pravega.service.contracts.ReadResultEntryContents;
 import com.emc.pravega.service.contracts.ReadResultEntryType;
 import com.emc.pravega.service.contracts.StreamSegmentStore;
 import com.emc.pravega.service.server.host.handler.PravegaConnectionListener;
-import com.emc.pravega.service.server.mocks.InMemoryServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilder;
 import com.emc.pravega.service.server.store.ServiceBuilderConfig;
 import com.emc.pravega.stream.Consumer;
@@ -69,16 +52,30 @@ import com.emc.pravega.stream.impl.segment.SegmentSealedException;
 import com.emc.pravega.stream.mock.MockController;
 import com.emc.pravega.stream.mock.MockStreamManager;
 import com.emc.pravega.testcommon.TestUtils;
-
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ReadTest {
-    
+
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
 
@@ -87,8 +84,8 @@ public class ReadTest {
         originalLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
-        this.serviceBuilder = new InMemoryServiceBuilder(ServiceBuilderConfig.getDefaultConfig());
-        this.serviceBuilder.getContainerManager().initialize(Duration.ofMinutes(1)).get();
+        this.serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        this.serviceBuilder.initialize(Duration.ofMinutes(1)).get();
     }
 
     @After
@@ -101,7 +98,7 @@ public class ReadTest {
     public void testReadDirectlyFromStore() throws InterruptedException, ExecutionException, IOException {
         String segmentName = "testReadFromStore";
         int entries = 10;
-        byte[] data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         UUID clientId = UUID.randomUUID();
 
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
@@ -128,7 +125,7 @@ public class ReadTest {
     public void testReceivingReadCall() throws Exception {
         String segmentName = "testReceivingReadCall";
         int entries = 10;
-        byte[] data = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         UUID clientId = UUID.randomUUID();
         CommandDecoder decoder = new CommandDecoder();
 
@@ -152,7 +149,7 @@ public class ReadTest {
         expected.rewind();
         assertEquals(expected, result.getData());
     }
-    
+
     @Test
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException {
         String endpoint = "localhost";
@@ -172,21 +169,20 @@ public class ReadTest {
 
         SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, clientCF);
 
-
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
-                .getSegments().iterator().next();
+                                       .getSegments().iterator().next();
 
         @Cleanup("close")
         SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, null);
         out.write(ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>());
         out.flush();
-        
+
         @Cleanup("close")
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment, new SegmentInputConfiguration());
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }
-    
+
     @Test
     public void readThroughStreamClient() {
         String endpoint = "localhost";
@@ -209,16 +205,15 @@ public class ReadTest {
         Producer<String> producer = stream.createProducer(serializer, new ProducerConfig(null));
         producer.publish("RoutingKey", testString);
         producer.flush();
-        
+
         @Cleanup
         Consumer<String> consumer = stream.createConsumer(serializer, new ConsumerConfig(), streamManager.getInitialPosition(streamName), null);
         String read = consumer.getNextEvent(5000);
         assertEquals(testString, read);
     }
-    
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
-            StreamSegmentStore segmentStore) {
+                                     StreamSegmentStore segmentStore) {
         try {
             segmentStore.createStreamSegment(segmentName, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {

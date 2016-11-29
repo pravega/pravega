@@ -17,6 +17,9 @@
  */
 package com.emc.pravega.controller.task.Stream;
 
+import com.emc.pravega.common.concurrent.FutureCollectionHelper;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.Segment;
@@ -24,6 +27,7 @@ import com.emc.pravega.controller.store.stream.StreamAlreadyExistsException;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamNotFoundException;
 import com.emc.pravega.controller.store.task.Resource;
+import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.controller.stream.api.v1.CreateStreamStatus;
 import com.emc.pravega.controller.stream.api.v1.NodeUri;
 import com.emc.pravega.controller.stream.api.v1.ScaleResponse;
@@ -33,7 +37,6 @@ import com.emc.pravega.controller.stream.api.v1.SegmentRange;
 import com.emc.pravega.controller.stream.api.v1.UpdateStreamStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
-import com.emc.pravega.controller.store.task.TaskMetadataStore;
 import com.emc.pravega.stream.StreamConfiguration;
 import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
@@ -44,23 +47,32 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
- *
+ * <p>
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
 public class StreamMetadataTasks extends TaskBase implements Cloneable {
+    private static final long RETRY_INITIAL_DELAY = 100;
+    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MAX_ATTEMPTS = 100;
+    private static final long RETRY_MAX_DELAY = 100000;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
-    private ConnectionFactoryImpl connectionFactory;
+    private final ConnectionFactoryImpl connectionFactory;
 
-    public StreamMetadataTasks(StreamMetadataStore streamMetadataStore, HostControllerStore hostControllerStore, TaskMetadataStore taskMetadataStore, String hostId) {
-        super(taskMetadataStore, hostId);
+    public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
+                               final HostControllerStore hostControllerStore,
+                               final TaskMetadataStore taskMetadataStore,
+                               final ScheduledExecutorService executor,
+                               final String hostId) {
+        super(taskMetadataStore, executor, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         connectionFactory = new ConnectionFactoryImpl(false);
@@ -73,9 +85,10 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Create stream.
-     * @param scope scope.
-     * @param stream stream name.
-     * @param config stream configuration.
+     *
+     * @param scope           scope.
+     * @param stream          stream name.
+     * @param config          stream configuration.
      * @param createTimestamp creation timestamp.
      * @return creation status.
      */
@@ -84,12 +97,13 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config},
-                () -> createStreamBody(scope, stream, config));
+                () -> createStreamBody(scope, stream, config, createTimestamp));
     }
 
     /**
      * Update stream's configuration.
-     * @param scope scope.
+     *
+     * @param scope  scope.
      * @param stream stream name.
      * @param config modified stream configuration.
      * @return update status.
@@ -104,10 +118,11 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
 
     /**
      * Scales stream segments.
-     * @param scope scope.
-     * @param stream stream name.
+     *
+     * @param scope          scope.
+     * @param stream         stream name.
      * @param sealedSegments segments to be sealed.
-     * @param newRanges key ranges for new segments.
+     * @param newRanges      key ranges for new segments.
      * @param scaleTimestamp scaling time stamp.
      * @return returns the newly created segments.
      */
@@ -119,28 +134,27 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
                 () -> scaleBody(scope, stream, sealedSegments, newRanges, scaleTimestamp));
     }
 
-    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config) {
-        return this.streamMetadataStore.createStream(stream, config)
+    private CompletableFuture<CreateStreamStatus> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
+        return this.streamMetadataStore.createStream(stream, config, timestamp)
+                .thenCompose(x -> {
+                    if (x) {
+                        return this.streamMetadataStore.getActiveSegments(stream)
+                                .thenApply(activeSegments ->
+                                        notifyNewSegments(config.getScope(), stream, activeSegments))
+                                .thenApply(y -> CreateStreamStatus.SUCCESS);
+                    } else {
+                        return CompletableFuture.completedFuture(CreateStreamStatus.FAILURE);
+                    }
+                })
                 .handle((result, ex) -> {
                     if (ex != null) {
-                        if (ex instanceof StreamAlreadyExistsException) {
+                        if (ex.getCause() instanceof StreamAlreadyExistsException) {
                             return CreateStreamStatus.STREAM_EXISTS;
                         } else {
                             return CreateStreamStatus.FAILURE;
                         }
                     } else {
-                        // result is non-null
-                        if (result) {
-                            // successful stream creation implies the stream was completely created from scratch
-                            // or its creation was completed from a previous incomplete state resulting from host failure
-                            this.streamMetadataStore.getActiveSegments(stream)
-                                    .thenApply(activeSegments ->
-                                            notifyNewSegments(config.getScope(), stream, activeSegments));
-                            return CreateStreamStatus.SUCCESS;
-                        } else {
-                            // failure indicates that the stream creation failed due to some internal error, or
-                            return CreateStreamStatus.FAILURE;
-                        }
+                        return result;
                     }
                 });
     }
@@ -210,24 +224,40 @@ public class StreamMetadataTasks extends TaskBase implements Cloneable {
         segmentNumbers
                 .stream()
                 .parallel()
-                .forEach(segment -> asyncNotifyNewSegment(scope, stream, segment.getNumber()));
+                .forEach(segment -> notifyNewSegment(scope, stream, segment.getNumber()));
         return null;
     }
 
-    private Void asyncNotifyNewSegment(String scope, String stream, int segmentNumber) {
+    private Void notifyNewSegment(String scope, String stream, int segmentNumber) {
         NodeUri uri = SegmentHelper.getSegmentUri(scope, stream, segmentNumber, this.hostControllerStore);
 
         // async call, don't wait for its completion or success. Host will contact controller if it does not know
         // about some segment even if this call fails?
-        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory));
+        CompletableFuture.runAsync(() -> SegmentHelper.createSegment(scope, stream, segmentNumber, ModelHelper.encode(uri), this.connectionFactory), executor);
         return null;
     }
 
     private CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        sealedSegments
-                .stream()
-                .parallel()
-                .forEach(number -> SegmentHelper.sealSegment(scope, stream, number, this.hostControllerStore, this.connectionFactory));
-        return CompletableFuture.completedFuture(null);
+        return FutureCollectionHelper.sequence(
+                sealedSegments
+                        .stream()
+                        .parallel()
+                        .map(number -> notifySealedSegment(scope, stream, number))
+                        .collect(Collectors.toList()))
+                .thenApply(x -> null);
+    }
+
+    private CompletableFuture<Boolean> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() ->
+                        SegmentHelper.sealSegment(
+                                scope,
+                                stream,
+                                sealedSegment,
+                                this.hostControllerStore,
+                                this.connectionFactory),
+                        executor);
     }
 }

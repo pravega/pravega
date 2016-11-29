@@ -30,6 +30,7 @@ import com.emc.pravega.testcommon.AssertExtensions;
 import com.emc.pravega.testcommon.IntentionalException;
 import lombok.Cleanup;
 import lombok.val;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -96,7 +97,7 @@ public class StorageReaderTests {
     }
 
     /**
-     * Tests the execute method with invalid Requests:
+     * Tests the execute method with invalid Requests.
      * * StreamSegment does not exist
      * * Invalid read offset
      * * Too long of a read (offset+length is beyond the Segment's length)
@@ -238,6 +239,12 @@ public class StorageReaderTests {
         Supplier<CompletableFuture<Integer>> readImplementation;
 
         @Override
+        public CompletableFuture<Void> open(String streamSegmentName) {
+            // This method is not needed.
+            throw new NotImplementedException();
+        }
+
+        @Override
         public CompletableFuture<Integer> read(String streamSegmentName, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
             return this.readImplementation.get();
         }
@@ -245,13 +252,13 @@ public class StorageReaderTests {
         @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             // This method is not needed.
-            return null;
+            throw new NotImplementedException();
         }
 
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             // This method is not needed.
-            return null;
+            throw new NotImplementedException();
         }
     }
 }

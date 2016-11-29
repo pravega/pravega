@@ -19,6 +19,8 @@ package com.emc.pravega.controller.store.stream;
 
 import org.apache.commons.lang.NotImplementedException;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 public class StreamStoreFactory {
     public enum StoreType {
         InMemory,
@@ -28,12 +30,12 @@ public class StreamStoreFactory {
         HDFS
     }
 
-    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config) {
+    public static StreamMetadataStore createStore(final StoreType type, final StoreConfiguration config, ScheduledExecutorService executor) {
         switch (type) {
             case InMemory:
                 return new InMemoryStreamMetadataStore();
             case Zookeeper:
-                return new ZKStreamMetadataStore(config);
+                return new ZKStreamMetadataStore(config, executor);
             case ECS:
             case S3:
             case HDFS:

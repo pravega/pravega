@@ -19,8 +19,10 @@ package com.emc.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -31,6 +33,7 @@ public class FutureCollectionHelper {
 
     /**
      * Predicate that evaluates in future.
+     *
      * @param <T> Type parameter.
      */
     public interface FuturePredicate<T> {
@@ -39,9 +42,10 @@ public class FutureCollectionHelper {
 
     /**
      * Filter that takes a predicate that evaluates in future and returns the filtered list that evaluates in future.
-     * @param input Input list.
+     *
+     * @param input     Input list.
      * @param predicate Predicate that evaluates in the future.
-     * @param <T> Type parameter.
+     * @param <T>       Type parameter.
      * @return List that evaluates in future.
      */
     public static <T> CompletableFuture<List<T>> filter(List<T> input, FuturePredicate<T> predicate) {
@@ -67,8 +71,9 @@ public class FutureCollectionHelper {
      * If any of the futures in the input list completes exceptionally then the result completes exceptionally.
      * Note that although this function uses a blocking join method, the function is not blocking, because join
      * is invoked on a completed future.
+     *
      * @param futures List of futures.
-     * @param <T> Type parameter.
+     * @param <T>     Type parameter.
      * @return A future list.
      */
     public static <T> CompletableFuture<List<T>> sequence(List<CompletableFuture<T>> futures) {
@@ -81,4 +86,18 @@ public class FutureCollectionHelper {
         );
     }
 
+    public static <T, U> CompletableFuture<Map<T, U>> sequenceMap(Map<T, CompletableFuture<U>> futureMap) {
+        return CompletableFuture.allOf(futureMap.values().toArray(new CompletableFuture[futureMap.size()]))
+                .thenApply(x ->
+                                futureMap.entrySet().stream()
+                                        .map(y -> {
+                                            try {
+                                                return new AbstractMap.SimpleEntry<T, U>(y.getKey(), y.getValue().get());
+                                            } catch (Exception e) {
+                                                throw new RuntimeException(e);
+                                            }
+                                        })
+                                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                );
+    }
 }

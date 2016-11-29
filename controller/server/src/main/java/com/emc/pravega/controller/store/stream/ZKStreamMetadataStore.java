@@ -17,51 +17,67 @@
  */
 package com.emc.pravega.controller.store.stream;
 
-import com.emc.pravega.stream.StreamConfiguration;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
+import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
+import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
-import java.util.concurrent.TimeUnit;
-
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ZK stream metadata store
  */
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+    private static final long INITIAL_DELAY = 1;
+    private static final long PERIOD = 1;
+    private static final long TIMEOUT = 60 * 60 * 1000;
+    private final ScheduledExecutorService executor;
 
+    public ZKStreamMetadataStore(final StoreConfiguration storeConfiguration, ScheduledExecutorService executor) {
 
-    private final LoadingCache<String, ZKStream> zkStreams;
+        this.executor = executor;
+        // TODO: get common curator client
+        CuratorFramework client = CuratorFrameworkFactory.newClient(storeConfiguration.getConnectionString(),
+                new ExponentialBackoffRetry(1000, 3));
+        client.start();
 
-    public ZKStreamMetadataStore(StoreConfiguration storeConfiguration) {
-        zkStreams = CacheBuilder.newBuilder()
-                .maximumSize(1000)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .removalListener(new RemovalListener<String, ZKStream>() {
-                    public void onRemoval(RemovalNotification<String, ZKStream> removal) {
-                        removal.getValue().tearDown();
-                    }
-                })
-                .build(
-                        new CacheLoader<String, ZKStream>() {
-                            public ZKStream load(String key) {
-                                ZKStream zkStream = new ZKStream(key, storeConfiguration.getConnectionString());
-                                zkStream.init();
-                                return zkStream;
+        // Garbage collector for completed transactions
+        ZKStream.initialize(client);
+
+        this.executor.scheduleAtFixedRate(() -> {
+            // find completed transactions to be gc'd
+            try {
+                final long currentTime = System.currentTimeMillis();
+
+                ZKStream.getAllCompletedTx().get().entrySet().stream()
+                        .forEach(x -> {
+                            CompletedTxRecord completedTxRecord = CompletedTxRecord.parse(x.getValue().getData());
+                            if (currentTime - completedTxRecord.getCompleteTime() > TIMEOUT) {
+                                try {
+                                    ZKStream.deletePath(x.getKey(), true);
+                                } catch (Exception e) {
+                                    // TODO: log and ignore
+                                }
                             }
                         });
+            } catch (Exception e) {
+                // TODO: log!
+            }
+            // find completed transactions to be gc'd
+        }, INITIAL_DELAY, PERIOD, TimeUnit.HOURS);
     }
 
     @Override
-    ZKStream getStream(String name) {
-        return zkStreams.getUnchecked(name);
+    ZKStream newStream(final String name) {
+        return new ZKStream(name);
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(String name, StreamConfiguration configuration) {
-        return CompletableFuture.supplyAsync(() -> zkStreams.getUnchecked(name)).thenCompose(x -> x.create(configuration));
+    public CompletableFuture<List<ActiveTxRecordWithStream>> getAllActiveTx() {
+        return ZKStream.getAllActiveTx();
     }
 }

@@ -21,15 +21,13 @@ package com.emc.pravega.controller.task;
  * Exception thrown on finding a duplicate task annotation: combination of method name and version.
  */
 public class DuplicateTaskAnnotationException extends RuntimeException {
-    /**
-     *
-     */
     private static final long serialVersionUID = 1L;
     private static final String FORMAT_STRING = "Duplicate task annotation for method %s version %s.";
 
     /**
-     * Creates a new instance of DuplicateTaskAnnotationException class
-     * @param method method name
+     * Creates a new instance of DuplicateTaskAnnotationException class.
+     *
+     * @param method  method name
      * @param version method version
      */
     public DuplicateTaskAnnotationException(final String method, final String version) {
@@ -37,8 +35,9 @@ public class DuplicateTaskAnnotationException extends RuntimeException {
     }
 
     /**
-     * Creates a new instance of DuplicateTaskAnnotationException class
-     * @param method method name
+     * Creates a new instance of DuplicateTaskAnnotationException class.
+     *
+     * @param method  method name
      * @param version method version
      * @param cause   error cause
      */

@@ -18,6 +18,19 @@
 
 package com.emc.pravega.service.storage.mocks;
 
+import com.emc.pravega.common.Exceptions;
+import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.service.contracts.BadOffsetException;
+import com.emc.pravega.service.contracts.SegmentProperties;
+import com.emc.pravega.service.contracts.StreamSegmentInformation;
+import com.emc.pravega.service.contracts.StreamSegmentExistsException;
+import com.emc.pravega.service.contracts.StreamSegmentSealedException;
+import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
+
+import com.emc.pravega.service.storage.Storage;
+import com.google.common.base.Preconditions;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,22 +40,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import javax.annotation.concurrent.GuardedBy;
-
-import com.emc.pravega.common.Exceptions;
-import com.emc.pravega.common.concurrent.FutureHelpers;
-import com.emc.pravega.service.contracts.SegmentProperties;
-import com.emc.pravega.service.contracts.StreamSegmentExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentInformation;
-import com.emc.pravega.service.contracts.StreamSegmentNotExistsException;
-import com.emc.pravega.service.contracts.StreamSegmentSealedException;
-import com.emc.pravega.service.storage.BadOffsetException;
-import com.emc.pravega.service.storage.Storage;
-import com.google.common.base.Preconditions;
+import java.util.concurrent.Executor;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -109,6 +109,18 @@ public class InMemoryStorage implements Storage {
                     }
                 }, this.executor)
                 .thenCompose(StreamSegmentData::getInfo);
+    }
+
+    @Override
+    public CompletableFuture<Void> open(String streamSegmentName) {
+        return CompletableFuture.supplyAsync(() -> {
+            synchronized (this.lock) {
+                if (!this.streamSegments.containsKey(streamSegmentName)) {
+                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                }
+                return null;
+            }
+        }, this.executor);
     }
 
     @Override
@@ -381,10 +393,6 @@ public class InMemoryStorage implements Storage {
         CompletableFuture<SegmentProperties> markSealed() {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.lock) {
-                    if (this.sealed) {
-                        throw new CompletionException(new StreamSegmentSealedException(this.name));
-                    }
-
                     this.sealed = true;
                     return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date());
                 }
@@ -397,7 +405,7 @@ public class InMemoryStorage implements Storage {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
                     synchronized (this.lock) {
                         if (offset != this.length) {
-                            throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
+                            throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
                         }
                         long bytesCopied = 0;
                         int currentBlockIndex = 0;
@@ -416,7 +424,7 @@ public class InMemoryStorage implements Storage {
 
         CompletableFuture<SegmentProperties> getInfo() {
             synchronized (this.lock) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date())); //TODO: real modification time
+                return CompletableFuture.completedFuture(new StreamSegmentInformation(this.name, this.length, this.sealed, false, new Date()));
             }
         }
 
@@ -439,7 +447,7 @@ public class InMemoryStorage implements Storage {
         private void writeInternal(long startOffset, InputStream data, int length) {
             Exceptions.checkArgument(length >= 0, "length", "bad length");
             if (startOffset != this.length) {
-                throw new CompletionException(new BadOffsetException(String.format("Bad Offset. Expected %d.", this.length)));
+                throw new CompletionException(new BadOffsetException(this.name, this.length, startOffset));
             }
 
             if (this.sealed) {

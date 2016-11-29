@@ -29,19 +29,21 @@ public class StreamAlreadyExistsException extends RuntimeException {
     private static final String FORMAT_STRING = "Stream %s already exists.";
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class
+     * Creates a new instance of StreamAlreadyExistsException class.
+     *
      * @param name duplicate stream name
      */
-    public StreamAlreadyExistsException(String name) {
+    public StreamAlreadyExistsException(final String name) {
         super(String.format(FORMAT_STRING, name));
     }
 
     /**
-     * Creates a new instance of StreamAlreadyExistsException class
-     * @param name duplicate stream name
-     * @param cause   error cause
+     * Creates a new instance of StreamAlreadyExistsException class.
+     *
+     * @param name  duplicate stream name
+     * @param cause error cause
      */
-    public StreamAlreadyExistsException(String name, Throwable cause) {
+    public StreamAlreadyExistsException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);
     }
 }

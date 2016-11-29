@@ -47,6 +47,7 @@ struct ScalingPolicy {
   4: required i32 minNumSegments
 }
 
+
 struct StreamConfig {
   1: required string scope,
   2: required string name,
@@ -101,6 +102,7 @@ service ControllerService {
     list<Position> updatePositions(1:string scope, 2:string stream, 3:list<Position> positions)
     ScaleResponse scale(1:string scope, 2:string stream, 3:list<i32> sealedSegments, 4:map<double, double> newKeyRanges, 5:i64 scaleTimestamp)
     NodeUri getURI(1: SegmentId segment)
+    bool isSegmentValid(1: string scope, 2: string stream, 3: i32 segmentNumber)
     TxId createTransaction(1:string scope, 2:string stream)
     TransactionStatus commitTransaction(1:string scope, 2:string stream, 3:TxId txid)
     TransactionStatus dropTransaction(1:string scope, 2:string stream, 3:TxId txid)

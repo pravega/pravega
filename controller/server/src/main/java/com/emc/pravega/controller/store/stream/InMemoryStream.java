@@ -18,12 +18,15 @@
 package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.stream.StreamConfiguration;
+import com.emc.pravega.stream.impl.TxStatus;
 import com.google.common.base.Preconditions;
+import org.apache.commons.lang.NotImplementedException;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
@@ -52,9 +55,9 @@ class InMemoryStream implements Stream {
     }
 
     @Override
-    public CompletableFuture<Boolean> create(StreamConfiguration configuration) {
+    public synchronized CompletableFuture<Boolean> create(StreamConfiguration configuration, long timestamp) {
         this.configuration = configuration;
-        int numSegments = configuration.getScalingingPolicy().getMinNumSegments();
+        int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         double keyRange = 1.0 / numSegments;
         IntStream.range(0, numSegments)
                 .forEach(
@@ -130,8 +133,9 @@ class InMemoryStream implements Stream {
     /**
      * Seals a set of segments, and adds a new set of segments as current segments.
      * It sets appropriate endtime and successors of sealed segment.
+     *
      * @param sealedSegments segments to be sealed
-     * @param keyRanges    new segments to be added as active segments
+     * @param keyRanges      new segments to be added as active segments
      * @param scaleTimestamp scaling timestamp. This will be the end time of sealed segments and start time of new segments.
      * @return the list of new segments.
      */
@@ -150,7 +154,7 @@ class InMemoryStream implements Stream {
         int start = segments.size();
         // assign status, end times, and successors to sealed segments.
         // assign predecessors to new segments
-        for (Integer sealed: sealedSegments) {
+        for (Integer sealed : sealedSegments) {
             InMemorySegment segment = segments.get(sealed);
             List<Integer> successors = new ArrayList<>();
 
@@ -176,6 +180,36 @@ class InMemoryStream implements Stream {
         }
 
         return CompletableFuture.completedFuture(newSegments);
+    }
+
+    @Override
+    public CompletableFuture<UUID> createTransaction() {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> sealTransaction(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> checkTransactionStatus(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> commitTransaction(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<TxStatus> dropTransaction(UUID txId) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public void refresh() {
+
     }
 
     public String toString() {
