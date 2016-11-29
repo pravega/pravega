@@ -20,11 +20,6 @@ import com.codahale.metrics.Timer;
 import com.codahale.metrics.MetricRegistry;
 import static com.codahale.metrics.MetricRegistry.name;
 
-import org.apache.bookkeeper.stats.Counter;
-import org.apache.bookkeeper.stats.Gauge;
-import org.apache.bookkeeper.stats.OpStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
-
 public class YammerStatsLogger implements StatsLogger {
     protected final String basename;
     final MetricRegistry metrics;

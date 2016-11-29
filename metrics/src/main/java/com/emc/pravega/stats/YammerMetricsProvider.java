@@ -26,8 +26,6 @@ import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import static com.codahale.metrics.MetricRegistry.name;
 
-import org.apache.bookkeeper.stats.StatsLogger;
-import org.apache.bookkeeper.stats.StatsProvider;
 import com.readytalk.metrics.StatsDReporter;
 import org.apache.commons.configuration.Configuration;
 

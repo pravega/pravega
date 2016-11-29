@@ -16,9 +16,6 @@
  */
 package com.emc.pravega.metrics;
 
-
-import org.apache.bookkeeper.stats.OpStatsData;
-import org.apache.bookkeeper.stats.OpStatsLogger;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Snapshot;
 

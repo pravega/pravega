@@ -153,6 +153,7 @@ project('service:server:host') {
         compile project(':service:storage')
         compile project(':service:storage:impl')
         compile project(':service:server')
+        compile project(':metrics')
         testCompile project(':testcommon')
     }
     task buildPravegaHostImage(type: DockerBuildImage) {
@@ -300,24 +301,10 @@ project('controller:server') {
 
 project('metrics') {
     dependencies {
-        compile project(':metrics:null-provider')
-        compile project(':metrics:yammer-provider')
-        testCompile project(':testcommon')
-    }
-}
+        compile project(':common')
+// https://mvnrepository.com/artifact/commons-configuration/commons-configuration
+compile group: 'commons-configuration', name: 'commons-configuration', version: '1.10'
 
-project('metrics:null-provider') {
-    dependencies {
-        // https://mvnrepository.com/artifact/org.apache.bookkeeper.stats/bookkeeper-stats-api
-        compile group: 'org.apache.bookkeeper.stats', name: 'bookkeeper-stats-api', version: '4.4.0'
-        testCompile project(':testcommon')
-    }
-}
-
-project('metrics:yammer-provider') {
-    dependencies {
-        // https://mvnrepository.com/artifact/org.apache.bookkeeper.stats/bookkeeper-stats-api
-        compile group: 'org.apache.bookkeeper.stats', name: 'bookkeeper-stats-api', version: '4.4.0'
         // for Metrics 3.x
         compile('com.readytalk:metrics3-statsd:4.1.0')
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core

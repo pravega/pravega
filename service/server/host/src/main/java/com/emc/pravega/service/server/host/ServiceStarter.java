@@ -37,12 +37,15 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.concurrent.CompletionException;
 
+import com.emc.pravega.metrics.MetricsConfig;
+
 /**
  * Starts the Pravega Service.
  */
 public final class ServiceStarter {
     private static final Duration INITIALIZE_TIMEOUT = Duration.ofSeconds(30);
     private final ServiceBuilderConfig serviceConfig;
+    //private final MetricsConfig metricsConfig;
     private final ServiceBuilder serviceBuilder;
     private PravegaConnectionListener listener;
     private boolean closed;
