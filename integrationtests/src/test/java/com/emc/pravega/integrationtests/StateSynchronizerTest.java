@@ -1,25 +1,23 @@
 /**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements. See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  */
 package com.emc.pravega.integrationtests;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.time.Duration;
 
@@ -63,7 +61,7 @@ public class StateSynchronizerTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 30000)
     public void testStateTracker() throws TxFailedException {
         String endpoint = "localhost";
         String stateName = "abc";
@@ -93,6 +91,33 @@ public class StateSynchronizerTest {
         assertTrue(setA.getCurrentValues().contains("2"));
         assertTrue(setA.attemptClear());
         assertEquals(0, setA.getCurrentValues().size());
+    }
+
+    @Test(timeout = 30000)
+    public void testReadsAllAvailable() {
+        String endpoint = "localhost";
+        String stateName = "abc";
+        int port = TestUtils.randomPort();
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
+        Stream stream = streamManager.createStream(stateName, null);
+
+        SetSynchronizer<String> setA = SetSynchronizer.createNewSet(stream);
+
+        for (int i = 0; i < 10; i++) {
+            assertTrue(setA.attemptAdd("Append: " + i));
+        }
+        SetSynchronizer<String> setB = SetSynchronizer.createNewSet(stream);
+        assertEquals(10, setB.getCurrentSize());
+        for (int i = 10; i < 20; i++) {
+            assertTrue(setA.attemptAdd("Append: " + i));
+        }
+        setB.update();
+        assertEquals(20, setB.getCurrentSize());
     }
 
 }
