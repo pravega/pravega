@@ -37,6 +37,7 @@ import com.emc.pravega.common.netty.ConnectionFailedException;
 import com.emc.pravega.common.netty.WireCommandType;
 import com.emc.pravega.common.netty.WireCommands;
 import com.emc.pravega.common.netty.WireCommands.SegmentRead;
+import com.emc.pravega.common.netty.WireCommands.StreamSegmentInfo;
 import com.emc.pravega.common.util.ByteBufferUtils;
 
 import lombok.Cleanup;
@@ -96,6 +97,11 @@ public class SegmentInputStreamTest {
                 read.attempt++;
                 return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
             }
+        }
+
+        @Override
+        public CompletableFuture<StreamSegmentInfo> getSegmentInfo() {
+            throw new UnsupportedOperationException();
         }
     }
 

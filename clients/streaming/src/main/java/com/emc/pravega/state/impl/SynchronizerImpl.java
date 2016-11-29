@@ -20,7 +20,10 @@ package com.emc.pravega.state.impl;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 
 import com.emc.pravega.common.concurrent.FutureHelpers;
@@ -38,7 +41,6 @@ import com.google.common.base.Preconditions;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
@@ -58,37 +60,46 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     @Synchronized
     public StateT getLatestState() {
         in.setOffset(0);
-        ByteBuffer read;
-        do {
-            try {
+        try {
+            ByteBuffer read;
+            do {
                 read = in.read();
-            } catch (EndOfSegmentException e) {
-                throw new CorruptedStateException("Unexpected end of segment ", e);
-            }
-        } while (isUpdate(read));
-        InitialUpdate<StateT> init = decodeInit(read);
-        StateT state = init.create(new RevisionImpl(in.getOffset(), 0));
-        while (!in.wasReadAtTail()) {
-            state = applyNextUpdateIfAvailable(state, true);
+            } while (isUpdate(read));
+            InitialUpdate<StateT> init = decodeInit(read);
+            Map<Long, ByteBuffer> updates = getUpdates();
+            StateT state = init.create(new RevisionImpl(in.getOffset(), 0));
+            return applyUpdates(updates, state);
+        } catch (EndOfSegmentException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
+    }
+
+    private StateT applyUpdates(Map<Long, ByteBuffer> updates, StateT state) {
+        for (Entry<Long, ByteBuffer> entry : updates.entrySet()) {
+            long offset = entry.getKey();
+            state = applyUpdate(state, offset, entry.getValue());
         }
         return state;
     }
 
-    @SneakyThrows(EndOfSegmentException.class)
-    StateT applyNextUpdateIfAvailable(StateT state, boolean breakAtTail) {
-        ByteBuffer read;
-        do {
-            if (breakAtTail && in.wasReadAtTail()) {
-                return state;
-            }
-            read = in.read();
-        } while (!isUpdate(read));
-        StateT result = state;
-        int event = 0;
+    private StateT applyUpdate(StateT state, long offset, ByteBuffer read) {
+        int i = 0;
         for (UpdateT update : decodeUpdate(read)) {
-            result = update.applyTo(state, new RevisionImpl(in.getOffset(), event++));
+            state = update.applyTo(state, new RevisionImpl(offset, i++));
         }
-        return result;
+        return state;
+    }
+
+    private Map<Long, ByteBuffer> getUpdates() throws EndOfSegmentException {
+        Map<Long, ByteBuffer> updates = new LinkedHashMap<>();
+        long currentStreamLength = in.fetchCurrentStreamLength();
+        while (in.getOffset() < currentStreamLength) {
+            ByteBuffer read = in.read();
+            if (isUpdate(read)) {
+                updates.put(in.getOffset(), read);
+            }
+        }
+        return updates;
     }
 
     @Override
@@ -97,13 +108,14 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         if (localState == null) {
             return getLatestState();
         }
-        StateT state = localState;
-        in.setOffset(state.getRevision().asImpl().getOffsetInSegment());
-        state = applyNextUpdateIfAvailable(state, false);
-        while (!in.wasReadAtTail()) {
-            state = applyNextUpdateIfAvailable(state, true);
+        try {
+            long offset = localState.getRevision().asImpl().getOffsetInSegment();
+            in.setOffset(offset);
+            Map<Long, ByteBuffer> updates = getUpdates();
+            return applyUpdates(updates, localState);
+        } catch (EndOfSegmentException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        return state;
     }
 
     @Override

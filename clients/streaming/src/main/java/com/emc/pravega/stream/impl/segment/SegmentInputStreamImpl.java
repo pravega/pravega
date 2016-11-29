@@ -154,6 +154,10 @@ class SegmentInputStreamImpl extends SegmentInputStream {
         }
     }
 
+    @Override
+    public long fetchCurrentStreamLength() {
+        return FutureHelpers.getAndHandleExceptions(asyncInput.getSegmentInfo(), RuntimeException::new).getSegmentLength();
+    }
 
     @Override
     @Synchronized
