@@ -43,7 +43,7 @@ import static com.emc.pravega.testcommon.AssertExtensions.assertThrows;
 public abstract class StorageTestBase {
     //region General Test arguments
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int SEGMENT_COUNT = 4;
     private static final int APPENDS_PER_SEGMENT = 10;
 

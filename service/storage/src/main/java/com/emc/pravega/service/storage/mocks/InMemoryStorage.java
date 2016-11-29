@@ -41,6 +41,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
@@ -54,6 +56,7 @@ public class InMemoryStorage implements Storage {
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
     private final Object lock = new Object();
     private final ScheduledExecutorService executor;
+    private final AtomicLong currentOwnerId;
     private boolean closed;
     private boolean ownsExecutorService;
 
@@ -70,6 +73,7 @@ public class InMemoryStorage implements Storage {
         this.executor = executor;
         this.offsetTriggers = new HashMap<>();
         this.sealTriggers = new HashMap<>();
+        this.currentOwnerId = new AtomicLong(0);
     }
 
     //endregion
@@ -101,7 +105,7 @@ public class InMemoryStorage implements Storage {
                             throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
                         }
 
-                        StreamSegmentData data = new StreamSegmentData(streamSegmentName);
+                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.currentOwnerId::get);
                         data.open();
                         this.streamSegments.put(streamSegmentName, data);
                         return data;
@@ -181,6 +185,14 @@ public class InMemoryStorage implements Storage {
                         this.streamSegments.remove(streamSegmentName);
                     }
                 }, this.executor);
+    }
+
+    /**
+     * Changes the current owner of the Storage Adapter. After calling this, all calls to existing Segments will fail
+     * until open() is called again on them.
+     */
+    public void changeOwner() {
+        this.currentOwnerId.incrementAndGet();
     }
 
     private CompletableFuture<StreamSegmentData> getStreamSegmentData(String streamSegmentName) {
@@ -341,22 +353,24 @@ public class InMemoryStorage implements Storage {
         private final String name;
         private final ArrayList<byte[]> data;
         private final Object lock = new Object();
+        private final Supplier<Long> getCurrentOwnerId;
+        private long currentOwnerId;
         private long length;
         private boolean sealed;
-        private boolean opened;
 
-        StreamSegmentData(String name) {
+        StreamSegmentData(String name, Supplier<Long> getCurrentOwnerId) {
             this.name = name;
             this.data = new ArrayList<>();
             this.length = 0;
             this.sealed = false;
-            this.opened = false;
+            this.getCurrentOwnerId = getCurrentOwnerId;
+            this.currentOwnerId = Long.MIN_VALUE;
         }
 
         void open() {
             synchronized (this.lock) {
-                //Preconditions.checkState(!this.opened, "Segment is already opened.");
-                this.opened = true;
+                // Get the current InMemoryStorageAdapter owner id and keep track of it; it will be used for validation.
+                this.currentOwnerId = this.getCurrentOwnerId.get();
             }
         }
 
@@ -466,6 +480,7 @@ public class InMemoryStorage implements Storage {
                     if (readBytes < 0) {
                         throw new IOException("reached end of stream while still expecting data");
                     }
+
                     writtenBytes += readBytes;
                     offset += readBytes;
                 }
@@ -477,7 +492,7 @@ public class InMemoryStorage implements Storage {
         }
 
         private void checkOpened() {
-            Preconditions.checkState(this.opened, "StreamSegment is not open.");
+            Preconditions.checkState(this.currentOwnerId == this.getCurrentOwnerId.get(), "StreamSegment '%s' is not open by the current owner.", this.name);
         }
 
         @Override
