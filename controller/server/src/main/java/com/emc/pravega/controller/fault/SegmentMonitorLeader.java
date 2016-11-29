@@ -29,6 +29,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
 import org.apache.curator.framework.state.ConnectionState;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
@@ -149,11 +150,15 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
         }
     }
 
-    private void triggerRebalance() throws Exception {
+    private void triggerRebalance() throws IOException {
         //Read the current mapping from the host store and write back the update after rebalancing.
-        Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
-                pravegaServiceCluster.getClusterMembers());
-        hostStore.updateHostContainersMap(newMapping);
+        try {
+            Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
+                    pravegaServiceCluster.getClusterMembers());
+            hostStore.updateHostContainersMap(newMapping);
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
 
         //Reset the rebalance timer.
         timeoutTimer = new TimeoutTimer(minRebalanceInterval);
