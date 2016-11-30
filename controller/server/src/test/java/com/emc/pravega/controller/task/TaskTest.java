@@ -59,6 +59,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -75,9 +77,10 @@ public class TaskTest {
     private final String stream2 = "stream2";
     private final ScalingPolicy policy1 = new ScalingPolicy(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, 100L, 2, 2);
     private final StreamConfiguration configuration1 = new StreamConfigurationImpl(SCOPE, stream1, policy1);
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore =
-            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null);
+            StreamStoreFactory.createStore(StreamStoreFactory.StoreType.InMemory, null, executor);
 
     private final Map<Host, Set<Integer>> hostContainerMap = new HashMap<>();
 
@@ -94,8 +97,8 @@ public class TaskTest {
         zkServer = new TestingServer();
         zkServer.start();
         StoreConfiguration config = new StoreConfiguration(zkServer.getConnectString());
-        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config));
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, HOSTNAME);
+        taskMetadataStore = TaskStoreFactory.createStore(new ZKStoreClient(config), executor);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, executor, HOSTNAME);
     }
 
     @Before
@@ -145,8 +148,7 @@ public class TaskTest {
         }
 
         CreateStreamStatus result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1, System.currentTimeMillis()).join();
-        // failure because the task will not be able to contact pravega host as we have not started one
-        assertEquals(result, CreateStreamStatus.FAILURE);
+        assertEquals(result, CreateStreamStatus.SUCCESS);
     }
 
     @Test
@@ -259,7 +261,7 @@ public class TaskTest {
     @Test
     public void testLocking() {
 
-        TestTasks testTasks = new TestTasks(taskMetadataStore, HOSTNAME);
+        TestTasks testTasks = new TestTasks(taskMetadataStore, executor, HOSTNAME);
 
         LockingTask first = new LockingTask(testTasks, SCOPE, stream1);
         LockingTask second = new LockingTask(testTasks, SCOPE, stream1);

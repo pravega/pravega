@@ -245,6 +245,63 @@ public final class FutureHelpers {
     }
 
     /**
+     * Executes the asynchronous task returning a CompletableFuture<T> with specified delay and returns the task result.
+     * @param task Asynchronous task.
+     * @param delay Delay in milliseconds.
+     * @param executorService Executor on which to execute the task.
+     * @param <T> Type parameter.
+     * @return The result of task execution.
+     */
+    public static <T> CompletableFuture<T> delayedFuture(final Supplier<CompletableFuture<T>> task,
+                                                         final long delay,
+                                                         final ScheduledExecutorService executorService) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        executorService.schedule(
+                () -> task.get().whenComplete((r, ex) -> complete(result, r, ex)),
+                delay,
+                TimeUnit.MILLISECONDS);
+        return result;
+    }
+
+    /**
+     * Completes the supplied CompletableFuture object with either the exception or a valid value. Preference is given
+     * to exception e when both the exception e and result value are non-null.
+     * @param result The result object to complete.
+     * @param value The result value.
+     * @param e Exception.
+     * @param <T> Type parameter.
+     */
+    public static <T> void complete(final CompletableFuture<T> result, final T value, final Throwable e) {
+        if (e != null) {
+            result.completeExceptionally(e);
+        } else {
+            result.complete(value);
+        }
+    }
+
+    /**
+     * A variant of .exceptionally that admits an exception handler returning value of type T in future. Exceptionally
+     * and flatExceptionally can be thought of as analogous to map and flatMap method for transforming Futures.
+     * @param input The input future.
+     * @param exceptionHandler Exception handler.
+     * @param <T> Type parameter.
+     * @return result of exceptionHandler if input completed exceptionally, otherwise input.
+     */
+    public static <T> CompletableFuture<T> flatExceptionally(final CompletableFuture<T> input,
+                                                             final Function<Throwable, CompletableFuture<T>> exceptionHandler) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        input.whenComplete((r, e) -> {
+            if (e != null) {
+                exceptionHandler.apply(e)
+                        .whenComplete((ir, ie) -> complete(result, ir, ie));
+            } else {
+                result.complete(r);
+            }
+        });
+        return result;
+    }
+
+    /**
      * Attaches the given callback as an exception listener to the given CompletableFuture, which will be invoked when
      * the future times out (fails with a TimeoutException).
      *

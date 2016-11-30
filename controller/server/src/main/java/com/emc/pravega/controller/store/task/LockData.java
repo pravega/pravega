@@ -30,11 +30,18 @@ import java.io.Serializable;
 @EqualsAndHashCode
 class LockData implements Serializable {
     private final String hostId;
-    private final String threadId;
+    private final String tag;
     private final byte[] taskData;
 
     public byte[] serialize() {
         return SerializationUtils.serialize(this);
+    }
+
+    public boolean isOwnedBy(final String owner, final String ownerTag) {
+        return hostId != null
+                && hostId.equals(owner)
+                && tag != null
+                && tag.equals(ownerTag);
     }
 
     public static LockData deserialize(final byte[] bytes) {
