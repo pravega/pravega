@@ -17,10 +17,9 @@
  */
 package com.emc.pravega.controller.server;
 
+import static com.emc.pravega.controller.util.Config.ASYNC_TASK_POOL_SIZE;
 import static com.emc.pravega.controller.util.Config.HOST_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STREAM_STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STREAM_STORE_TYPE;
-import static com.emc.pravega.controller.util.Config.STORE_CONNECTION_STRING;
 import static com.emc.pravega.controller.util.Config.STORE_TYPE;
 
 import com.emc.pravega.controller.fault.SegmentContainerMonitor;
@@ -31,7 +30,6 @@ import com.emc.pravega.controller.store.StoreClient;
 import com.emc.pravega.controller.store.StoreClientFactory;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.host.HostStoreFactory;
-import com.emc.pravega.controller.store.stream.StoreConfiguration;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.stream.StreamStoreFactory;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
@@ -41,11 +39,14 @@ import com.emc.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.emc.pravega.controller.task.TaskSweeper;
 import com.emc.pravega.controller.util.Config;
 import com.emc.pravega.controller.util.ZKUtils;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Entry point of controller server.
@@ -65,18 +66,20 @@ public class Main {
         }
 
         //1. LOAD configuration.
+        //Initialize the executor service.
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(ASYNC_TASK_POOL_SIZE,
+                new ThreadFactoryBuilder().setNameFormat("taskpool-%d").build());
+
         log.info("Creating store client");
         StoreClient storeClient = StoreClientFactory.createStoreClient(
-                StoreClientFactory.StoreType.valueOf(STORE_TYPE),
-                new StoreConfiguration(STORE_CONNECTION_STRING));
+                StoreClientFactory.StoreType.valueOf(STORE_TYPE));
 
         log.info("Creating the stream store");
         StreamMetadataStore streamStore = StreamStoreFactory.createStore(
-                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE),
-                new StoreConfiguration(STREAM_STORE_CONNECTION_STRING));
+                StreamStoreFactory.StoreType.valueOf(STREAM_STORE_TYPE), executor);
 
         log.info("Creating zk based task store");
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         log.info("Creating the host store");
         HostControllerStore hostStore = HostStoreFactory.createStore(
@@ -94,9 +97,12 @@ public class Main {
 
         //2. Start the RPC server.
         log.info("Starting RPC server");
-        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore, hostId);
-        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks));
+        StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+                executor, hostId);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                hostStore, taskMetadataStore, executor, hostId);
+        RPCServer.start(new ControllerServiceAsyncImpl(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks));
 
         //3. Hook up TaskSweeper.sweepOrphanedTasks as a callback on detecting some controller node failure.
         // todo: hook up TaskSweeper.sweepOrphanedTasks with Failover support feature
@@ -104,8 +110,9 @@ public class Main {
         // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
         // invokes the taskSweeper.sweepOrphanedTasks for each failed host. When all resources under the failed hostId
         // are processed and deleted, that failed HostId is removed from FH folder.
-        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of controllers
-        // and starts sweeping tasks orphaned by those hostIds.
-        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks, streamTransactionMetadataTasks);
+        // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
+        // controllers and starts sweeping tasks orphaned by those hostIds.
+        TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, hostId, streamMetadataTasks,
+                streamTransactionMetadataTasks);
     }
 }

@@ -19,36 +19,41 @@ package com.emc.pravega.controller.store.stream;
 
 import com.emc.pravega.controller.store.stream.tables.ActiveTxRecordWithStream;
 import com.emc.pravega.controller.store.stream.tables.CompletedTxRecord;
+import com.emc.pravega.controller.util.ZKUtils;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ZK stream metadata store
+ * ZK stream metadata store.
  */
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+public class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
-    private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService executor;
 
-    public ZKStreamMetadataStore(final StoreConfiguration storeConfiguration) {
+    public ZKStreamMetadataStore(ScheduledExecutorService executor) {
+        this.executor = executor;
+        initialize(ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient());
+    }
 
-        // TODO: get common curator client
-        CuratorFramework client = CuratorFrameworkFactory.newClient(storeConfiguration.getConnectionString(),
-                new ExponentialBackoffRetry(1000, 3));
-        client.start();
+    @VisibleForTesting
+    public ZKStreamMetadataStore(CuratorFramework client, ScheduledExecutorService executor) {
+        this.executor = executor;
+        initialize(client);
+    }
+
+    private void initialize(CuratorFramework client) {
 
         // Garbage collector for completed transactions
         ZKStream.initialize(client);
 
-        EXEC_SERVICE.scheduleAtFixedRate(() -> {
+        this.executor.scheduleAtFixedRate(() -> {
             // find completed transactions to be gc'd
             try {
                 final long currentTime = System.currentTimeMillis();

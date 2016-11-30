@@ -19,7 +19,6 @@ package com.emc.pravega.controller.server.rpc.v1;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.ControllerService;
 import com.emc.pravega.controller.stream.api.v1.Position;
 import com.emc.pravega.controller.stream.api.v1.SegmentId;
 import com.emc.pravega.controller.stream.api.v1.StreamConfig;
@@ -39,15 +38,15 @@ import java.util.concurrent.CompletableFuture;
  * Asynchronous controller service implementation.
  */
 @Slf4j
-public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface {
+public class ControllerServiceAsyncImpl implements com.emc.pravega.controller.stream.api.v1.ControllerService.AsyncIface {
 
-    private final ControllerServiceImpl controllerService;
+    private final ControllerService controllerService;
 
     public ControllerServiceAsyncImpl(final StreamMetadataStore streamStore,
                                       final HostControllerStore hostStore,
                                       final StreamMetadataTasks streamMetadataTasks,
                                       final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
-        controllerService = new ControllerServiceImpl(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks);
     }
 
     @Override
@@ -152,11 +151,11 @@ public class ControllerServiceAsyncImpl implements ControllerService.AsyncIface 
     private static <T> void processResult(final CompletableFuture<T> result, final AsyncMethodCallback resultHandler) {
         result.whenComplete(
                 (value, ex) -> {
+                    log.debug("result = " + (value == null ? "null" : value.toString()));
+
                     if (ex != null) {
                         resultHandler.onError(new RuntimeException(ex));
                     } else if (value != null) {
-                        log.debug("result = " + value.toString());
-
                         resultHandler.onComplete(value);
                     }
                 });

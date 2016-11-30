@@ -31,6 +31,8 @@ public final class Config {
     public static final int SERVER_PORT = CONFIG.getInt("config.controller.server.port");
     public static final int SERVER_SELECTOR_THREAD_COUNT = CONFIG.getInt("config.controller.server.selectorThreadCount");
     public static final int SERVER_WORKER_THREAD_COUNT = CONFIG.getInt("config.controller.server.workerThreadCount");
+    public static final int SERVER_MAX_READ_BUFFER_BYTES = CONFIG.getInt("config.controller.server.maxReadBufferBytes");
+    public static final int ASYNC_TASK_POOL_SIZE = CONFIG.getInt("config.controller.server.asyncTaskPoolSize");
 
     //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
     public static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
@@ -39,7 +41,6 @@ public final class Config {
     //Store configuration.
     //Stream store configuration.
     public static final String STREAM_STORE_TYPE = CONFIG.getString("config.controller.server.store.stream.type");
-    public static final String STREAM_STORE_CONNECTION_STRING = CONFIG.getString("config.controller.server.store.stream.connectionString");
 
     //HostStore configuration.
     public static final String HOST_STORE_TYPE = CONFIG.getString("config.controller.server.store.host.type");
@@ -57,5 +58,4 @@ public final class Config {
 
     //TaskStore configuration.
     public static final String STORE_TYPE = CONFIG.getString("config.controller.server.store.type");
-    public static final String STORE_CONNECTION_STRING = CONFIG.getString("config.controller.server.store.connectionString");
 }

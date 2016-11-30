@@ -19,24 +19,22 @@
 package com.emc.pravega.controller.task.Stream;
 
 import com.emc.pravega.common.concurrent.FutureCollectionHelper;
-import com.emc.pravega.common.concurrent.FutureHelpers;
+import com.emc.pravega.common.util.Retry;
+import com.emc.pravega.controller.server.rpc.v1.WireCommandFailedException;
 import com.emc.pravega.controller.server.rpc.v1.SegmentHelper;
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.emc.pravega.controller.store.stream.StreamMetadataStore;
 import com.emc.pravega.controller.store.task.Resource;
 import com.emc.pravega.controller.store.task.TaskMetadataStore;
-import com.emc.pravega.controller.stream.api.v1.NodeUri;
+import com.emc.pravega.controller.stream.api.v1.TransactionStatus;
 import com.emc.pravega.controller.task.Task;
 import com.emc.pravega.controller.task.TaskBase;
 import com.emc.pravega.stream.impl.TxStatus;
-import com.emc.pravega.stream.impl.model.ModelHelper;
 import com.emc.pravega.stream.impl.netty.ConnectionFactoryImpl;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -52,7 +50,10 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     private static final long INITIAL_DELAY = 1;
     private static final long PERIOD = 1;
     private static final long TIMEOUT = 60 * 60 * 1000;
-    private static final ScheduledExecutorService EXEC_SERVICE = Executors.newSingleThreadScheduledExecutor();
+    private static final long RETRY_INITIAL_DELAY = 100;
+    private static final int RETRY_MULTIPLIER = 10;
+    private static final int RETRY_MAX_ATTEMPTS = 100;
+    private static final long RETRY_MAX_DELAY = 100000;
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -61,14 +62,15 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                           final HostControllerStore hostControllerStore,
                                           final TaskMetadataStore taskMetadataStore,
+                                          final ScheduledExecutorService executor,
                                           final String hostId) {
-        super(taskMetadataStore, hostId);
+        super(taskMetadataStore, executor, hostId);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.connectionFactory = new ConnectionFactoryImpl(false);
 
         // drop timedout transactions periodically
-        EXEC_SERVICE.scheduleAtFixedRate(() -> {
+        executor.scheduleAtFixedRate(() -> {
             // find transactions to be dropped
             try {
                 final long currentTime = System.currentTimeMillis();
@@ -129,7 +131,7 @@ public class StreamTransactionMetadataTasks extends TaskBase implements Cloneabl
     /**
      * Commit transaction.
      *
-t     * @param scope  stream scope.
+     * @param scope  stream scope.
      * @param stream stream name.
      * @param txId   transaction id.
      * @return true/false.
@@ -144,10 +146,15 @@ t     * @param scope  stream scope.
 
     private CompletableFuture<UUID> createTxBody(final String scope, final String stream) {
         return streamMetadataStore.createTransaction(scope, stream)
-                .thenApply(txId -> {
-                    notifyTxCreation(scope, stream, txId);
-                    return txId;
-                });
+                .thenCompose(txId ->
+                        streamMetadataStore.getActiveSegments(stream)
+                                .thenCompose(activeSegments ->
+                                        FutureCollectionHelper.sequence(
+                                                activeSegments.stream()
+                                                        .parallel()
+                                                        .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txId))
+                                                        .collect(Collectors.toList())))
+                                .thenApply(x -> txId));
     }
 
     private CompletableFuture<TxStatus> dropTxBody(final String scope, final String stream, final UUID txid) {
@@ -164,61 +171,50 @@ t     * @param scope  stream scope.
 
     private CompletableFuture<TxStatus> commitTxBody(final String scope, final String stream, final UUID txid) {
         return streamMetadataStore.sealTransaction(scope, stream, txid)
-                .thenCompose(x -> streamMetadataStore.getActiveSegments(stream)
-                        .thenCompose(segments -> {
-                            List<CompletableFuture<Void>> collect = segments.stream()
-                                    .parallel()
-                                    .map(segment -> notifyCommitToHost(scope, stream, segment.getNumber(), txid))
-                                    .collect(Collectors.toList());
-                            return FutureCollectionHelper.sequence(collect);
-                        }))
+                .thenCompose(x ->
+                        streamMetadataStore.getActiveSegments(stream)
+                                .thenCompose(segments ->
+                                        FutureCollectionHelper.sequence(segments.stream()
+                                                .parallel()
+                                                .map(segment ->
+                                                        notifyCommitToHost(scope, stream, segment.getNumber(), txid))
+                                                .collect(Collectors.toList()))))
                 .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txid));
     }
 
-    private void notifyTxCreation(final String scope, final String stream, final UUID txid) {
-        FutureHelpers.getAndHandleExceptions(streamMetadataStore.getActiveSegments(stream)
-                .thenApply(activeSegments -> {
-                    activeSegments
-                            .stream()
-                            .parallel()
-                            .forEach(segment -> {
-                                NodeUri uri = SegmentHelper.getSegmentUri(scope,
-                                        stream,
-                                        segment.getNumber(),
-                                        this.hostControllerStore);
-
-                                SegmentHelper.createTransaction(scope,
-                                        stream,
-                                        segment.getNumber(),
-                                        txid,
-                                        ModelHelper.encode(uri),
-                                        this.connectionFactory);
-                            });
-                    return null;
-                }), RuntimeException::new);
+    private CompletableFuture<UUID> notifyTxCreation(final String scope, final String stream, final int segmentNumber, final UUID txid) {
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() -> SegmentHelper.createTransaction(scope,
+                                stream,
+                                segmentNumber,
+                                txid,
+                                this.hostControllerStore,
+                                this.connectionFactory), executor);
     }
 
-    private CompletableFuture<Void> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return CompletableFuture.<Void>supplyAsync(() -> {
-            SegmentHelper.dropTransaction(scope,
-                    stream,
-                    segmentNumber,
-                    txId,
-                    this.hostControllerStore,
-                    this.connectionFactory);
-            return null;
-        });
+    private CompletableFuture<TransactionStatus> notifyDropToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() -> SegmentHelper.dropTransaction(scope,
+                        stream,
+                        segmentNumber,
+                        txId,
+                        this.hostControllerStore,
+                        this.connectionFactory), executor);
     }
 
-    private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
-        return CompletableFuture.<Void>supplyAsync(() -> {
-            SegmentHelper.commitTransaction(scope,
-                    stream,
-                    segmentNumber,
-                    txId,
-                    this.hostControllerStore,
-                    this.connectionFactory);
-            return null;
-        });
+    private CompletableFuture<TransactionStatus> notifyCommitToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {
+        return Retry.withExpBackoff(RETRY_INITIAL_DELAY, RETRY_MULTIPLIER, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY)
+                .retryingOn(WireCommandFailedException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() -> SegmentHelper.commitTransaction(scope,
+                        stream,
+                        segmentNumber,
+                        txId,
+                        this.hostControllerStore,
+                        this.connectionFactory), executor);
     }
 }

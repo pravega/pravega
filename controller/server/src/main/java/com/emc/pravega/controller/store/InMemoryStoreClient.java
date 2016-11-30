@@ -15,11 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.emc.pravega.controller.store.stream;
+package com.emc.pravega.controller.store;
 
-import lombok.Data;
+/**
+ * In memory store client.
+ */
+public class InMemoryStoreClient implements StoreClient {
 
-@Data
-public class StoreConfiguration {
-    private final String connectionString;
+    @Override
+    public Object getClient() {
+        return null;
+    }
+
+    @Override
+    public StoreClientFactory.StoreType getType() {
+        return StoreClientFactory.StoreType.InMemory;
+    }
 }
