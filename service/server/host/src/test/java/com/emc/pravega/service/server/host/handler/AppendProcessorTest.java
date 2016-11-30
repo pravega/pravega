@@ -94,7 +94,7 @@ public class AppendProcessorTest {
         contextFuture.complete(new AppendContext(clientId, 0));
         when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
         
-        CompletableFuture<Long> result = CompletableFuture.completedFuture((long)data.length);
+        CompletableFuture<Long> result = CompletableFuture.completedFuture((long) data.length);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, 1), AppendProcessor.TIMEOUT))
             .thenReturn(result);
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
@@ -137,8 +137,9 @@ public class AppendProcessorTest {
 
         CompletableFuture<AppendContext> contextFuture = new CompletableFuture<>();
         contextFuture.complete(new AppendContext(clientId, 0));
-        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT)).thenReturn(contextFuture);
-        CompletableFuture<Long> result = CompletableFuture.completedFuture((long)data.length);
+        when(store.getLastAppendContext(streamSegmentName, clientId, AppendProcessor.TIMEOUT))
+            .thenReturn(contextFuture);
+        CompletableFuture<Long> result = CompletableFuture.completedFuture((long) data.length);
         when(store.append(streamSegmentName, data, new AppendContext(clientId, 1), AppendProcessor.TIMEOUT))
             .thenReturn(result);
         processor.setupAppend(new SetupAppend(clientId, streamSegmentName));
@@ -165,7 +166,7 @@ public class AppendProcessorTest {
         verify(connection).send(new AppendSetup(streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
         verify(connection).send(new DataAppended(clientId, 1));
-        verify(connection).send(new ConditionalCheckFailed(clientId,2));
+        verify(connection).send(new ConditionalCheckFailed(clientId, 2));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
