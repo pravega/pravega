@@ -54,7 +54,7 @@ public class ZKHostStore implements HostControllerStore {
      * @param clusterName               The name of the cluster.
      */
     public ZKHostStore(CuratorFramework client, String clusterName) {
-        Preconditions.checkNotNull(client, "Curator Client");
+        Preconditions.checkNotNull(client, "client");
         Preconditions.checkNotNull(clusterName, "clusterName");
 
         zkClient = client;

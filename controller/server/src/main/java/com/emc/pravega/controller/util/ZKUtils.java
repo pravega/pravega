@@ -28,7 +28,7 @@ import org.apache.zookeeper.KeeperException;
  * Helper ZK functions.
  */
 @Slf4j
-public class ZKUtils {
+public final class ZKUtils {
 
     /**
      * Helper utility to lazily create and fetch only one instance of the Curator client to be used by the controller.

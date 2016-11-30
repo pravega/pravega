@@ -80,10 +80,11 @@ class SegmentMonitorLeader extends LeaderSelectorListenerAdapter {
         Preconditions.checkNotNull(clusterName, "clusterName");
         Preconditions.checkNotNull(hostStore, "hostStore");
         Preconditions.checkNotNull(balancer, "balancer");
+        Preconditions.checkArgument(minRebalanceInterval >= 0, "minRebalanceInterval should not be negative");
 
         this.clusterName = clusterName;
         this.hostStore = hostStore;
-        segBalancer = balancer;
+        this.segBalancer = balancer;
         this.minRebalanceInterval = Duration.ofSeconds(minRebalanceInterval);
     }
 

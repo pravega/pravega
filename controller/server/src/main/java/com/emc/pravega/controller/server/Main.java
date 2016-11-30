@@ -84,12 +84,12 @@ public class Main {
 
         //Host monitor is not required for a single node local setup.
         if (Config.HOST_MONITOR_ENABLED) {
-            //Start the segment Container Monitor.
+            //Start the Segment Container Monitor.
             log.info("Starting the segment container monitor");
             SegmentContainerMonitor monitor = new SegmentContainerMonitor(hostStore,
                     ZKUtils.CuratorSingleton.CURATOR_INSTANCE.getCuratorClient(), Config.CLUSTER_NAME,
                     new UniformContainerBalancer(), Config.CLUSTER_MIN_REBALANCE_INTERVAL);
-            monitor.start();
+            monitor.startAsync();
         }
 
         //2. Start the RPC server.

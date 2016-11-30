@@ -19,19 +19,18 @@ package com.emc.pravega.controller.fault;
 
 import com.emc.pravega.controller.store.host.HostControllerStore;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 /**
- * Class used to monitor the pravega host cluster for failures and ensure the segment containers owned by them is
+ * Class used to monitor the pravega host cluster for failures and ensure the segment containers owned by them are
  * assigned to the other pravega hosts.
  */
 @Slf4j
-public class SegmentContainerMonitor implements AutoCloseable {
+public class SegmentContainerMonitor extends AbstractIdleService {
 
     //The leader which monitors the data cluster and ensures all containers are mapped to available hosts.
     private final SegmentMonitorLeader segmentMonitorLeader;
@@ -43,9 +42,6 @@ public class SegmentContainerMonitor implements AutoCloseable {
 
     //The ZK path which is monitored for leader selection.
     private final String leaderZKPath;
-
-    //To prevent invalid start and close operations.
-    private final AtomicBoolean started = new AtomicBoolean(false);
 
     /**
      * Monitor to manage pravega host addition and removal in the cluster.
@@ -60,7 +56,7 @@ public class SegmentContainerMonitor implements AutoCloseable {
     public SegmentContainerMonitor(HostControllerStore hostStore, CuratorFramework client, String clusterName,
             ContainerBalancer balancer, int minRebalanceInterval) {
         Preconditions.checkNotNull(hostStore, "hostStore");
-        Preconditions.checkNotNull(client, "Curator Client");
+        Preconditions.checkNotNull(client, "client");
         Preconditions.checkNotNull(clusterName, "clusterName");
         Preconditions.checkNotNull(balancer, "balancer");
 
@@ -73,9 +69,8 @@ public class SegmentContainerMonitor implements AutoCloseable {
     /**
      * Start the leader selection process.
      */
-    public void start() {
-        Preconditions.checkState(started.compareAndSet(false, true), "Attempt to start multiple times");
-
+    @Override
+    protected void startUp() {
         //Ensure this process always competes for leadership.
         leaderSelector.autoRequeue();
         leaderSelector.start();
@@ -85,9 +80,7 @@ public class SegmentContainerMonitor implements AutoCloseable {
      * Relinquish leadership and close.
      */
     @Override
-    public void close() {
-        Preconditions.checkState(started.compareAndSet(true, false), "Attempt to close before starting");
-
+    protected void shutDown() {
         leaderSelector.interruptLeadership();
         leaderSelector.close();
     }

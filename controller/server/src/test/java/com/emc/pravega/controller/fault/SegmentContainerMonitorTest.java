@@ -114,7 +114,7 @@ public class SegmentContainerMonitorTest {
 
         SegmentContainerMonitor monitor = new SegmentContainerMonitor(new MockHostControllerStore(), zkClient,
                 CLUSTER_NAME, new UniformContainerBalancer(), 5);
-        monitor.start();
+        monitor.startAsync().awaitRunning();
 
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
 
@@ -145,6 +145,6 @@ public class SegmentContainerMonitorTest {
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(4, hostStore.getHostContainersMap().size());
 
-        monitor.close();
+        monitor.shutDown();
     }
 }
