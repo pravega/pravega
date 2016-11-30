@@ -47,7 +47,7 @@ import com.emc.pravega.stream.Stream;
 public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> {
 
     /**
-     * @return The stream used by this Synchronizer.
+     * Returns the stream used by this Synchronizer.
      */
     Stream getStream();
     
@@ -85,6 +85,18 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
     StateT conditionallyUpdateState(StateT localState, UpdateT update);
     
     /**
+     * Same as {@link #conditionallyUpdateState(Revisioned, Update)}, except it persists and applies
+     * multiple updates at the same time. (All updates are persisted at once so they will never be
+     * interleaved with other updates).
+     * @param localState The current revision of the state. The updates will be applied to this
+     *            version and the result returned.
+     * @param update The update that all other processes should receive, and that should be applied
+     *            to the localState if it can be persisted.
+     * @return An updated state if the update was persisted or null if localState was out of date.
+     */
+    StateT conditionallyUpdateState(StateT localState, List<? extends UpdateT> update);
+    
+    /**
      * Persists the provided update, applies it to the provided state and returns the result.
      * 
      * If the localState is out-of-date updates will be applied first, exactly as though 
@@ -97,18 +109,17 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
      * @return An updated state.
      */
     StateT unconditionallyUpdateState(StateT localState, UpdateT update);
-
-    /**
-     * Same as {@link #conditionallyUpdateState(Revisioned, Update)}, except it persists and applies
-     * multiple updates at the same time. (All updates are persisted at once so they will never be
-     * interleaved with other updates).
-     */
-    StateT conditionallyUpdateState(StateT localState, List<? extends UpdateT> update);
     
     /**
      * Same as {@link #unconditionallyupdateState(Revisioned, Update)}, except it persists and applies
      * multiple updates at the same time. (All updates are persisted at once so they will never be
      * interleaved with other updates).
+     * 
+     * @param localState The current revision of the state. The updates will be applied to this
+     *            version and the result returned.
+     * @param update The updates that all other processes should receive, and that should be applied
+     *            to the localState once persisted.
+     * @return An updated state.
      */
     StateT unconditionallyUpdateState(StateT localState, List<? extends UpdateT> update);
     
@@ -118,6 +129,7 @@ public interface Synchronizer<StateT extends Revisioned, UpdateT extends Update<
      * {@link InitialUpdate#create(Revision)} If the stream was already initialized it will do
      * nothing and return the current state.
      * 
+     * @param  initial The initializer for the state
      * @return The result of {@link InitialUpdate#create(Revision)} state if initialization was
      *         successful or the current state if the stream was previously initialized.
      */

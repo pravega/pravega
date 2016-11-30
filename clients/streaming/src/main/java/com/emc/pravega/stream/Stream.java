@@ -106,9 +106,12 @@ public interface Stream {
     /**
      * Creates a new Synchronizer that will work on this stream.
      * 
-     * @param updateSerializer  The serializer for updates.
-     * @param initialSerializer  The serializer for the initial update.
-     * @param config            The Serializer configuration
+     * @param <StateT> The type of the state being synchronized.
+     * @param <UpdateT> The type of updates applied to the state object.
+     * @param <InitT> The type of the initializer of the stat object.
+     * @param updateSerializer The serializer for updates.
+     * @param initialSerializer The serializer for the initial update.
+     * @param config The Serializer configuration
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> 
             Synchronizer<StateT, UpdateT, InitT> createSynchronizer(Serializer<UpdateT> updateSerializer,

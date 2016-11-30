@@ -43,8 +43,8 @@ public abstract class SegmentInputStream implements AutoCloseable {
     public abstract long getOffset();
     
     /**
-     * @return The length of the current segment. IE: calling setOffset with the result of this
-     *         method followed by read would result in read blocking until more data is written.
+     * Returns the length of the current segment. IE: calling setOffset with the result of this
+     * method followed by read would result in read blocking until more data is written.
      */
     public abstract long fetchCurrentStreamLength();
 

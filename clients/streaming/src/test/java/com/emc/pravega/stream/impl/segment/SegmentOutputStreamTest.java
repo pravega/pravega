@@ -85,8 +85,8 @@ public class SegmentOutputStreamTest {
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1, 0L);
         verifyNoMoreInteractions(connection);
     }
-    
-    @Test(timeout=10000)
+
+    @Test(timeout = 20000)
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", 1234);

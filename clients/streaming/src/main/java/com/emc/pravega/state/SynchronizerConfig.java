@@ -25,7 +25,7 @@ import com.emc.pravega.stream.impl.segment.SegmentOutputConfiguration;
 import lombok.Data;
 
 /**
- * The configuration for a Consistent replicated state synchronizer
+ * The configuration for a Consistent replicated state synchronizer.
  */
 @Data
 public class SynchronizerConfig implements Serializable {

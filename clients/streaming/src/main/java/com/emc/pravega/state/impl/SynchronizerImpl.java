@@ -74,6 +74,20 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
     }
+    
+    @Override
+    public StateT getLatestState(StateT localState) {
+        if (localState == null) {
+            return getLatestState();
+        }
+        try {
+            long offset = localState.getRevision().asImpl().getOffsetInSegment();
+            Map<Long, ByteBuffer> updates = getUpdates(offset, true);
+            return applyUpdates(updates, localState);
+        } catch (EndOfSegmentException e) {
+            throw new CorruptedStateException("Unexpected end of segment ", e);
+        }
+    }
 
     private StateT applyUpdates(Map<Long, ByteBuffer> updates, StateT state) {
         for (Entry<Long, ByteBuffer> entry : updates.entrySet()) {
@@ -92,7 +106,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
 
     private Entry<Long, ByteBuffer> getInit(long offset) throws EndOfSegmentException {
-        synchronized(lock) {
+        synchronized (lock) {
             ByteBuffer read;
             in.setOffset(offset);
             do {
@@ -103,7 +117,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
     
     private Map<Long, ByteBuffer> getUpdates(long offset, boolean atLeastOne) throws EndOfSegmentException {
-        synchronized(lock) {
+        synchronized (lock) {
             in.setOffset(offset);
             Map<Long, ByteBuffer> updates = new LinkedHashMap<>();
             long currentStreamLength = in.fetchCurrentStreamLength();
@@ -118,20 +132,6 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     }
 
     @Override
-    public StateT getLatestState(StateT localState) {
-        if (localState == null) {
-            return getLatestState();
-        }
-        try {
-            long offset = localState.getRevision().asImpl().getOffsetInSegment();
-            Map<Long, ByteBuffer> updates = getUpdates(offset, true);
-            return applyUpdates(updates, localState);
-        } catch (EndOfSegmentException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
-        }
-    }
-
-    @Override
     public StateT conditionallyUpdateState(StateT localState, UpdateT update) {
         return conditionallyUpdateState(localState, Collections.singletonList(update));
     }
@@ -141,7 +141,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         long offset = localState.getRevision().asImpl().getOffsetInSegment();
         try {
-            synchronized(lock) {
+            synchronized (lock) {
                 out.conditionalWrite(offset, encodeUpdate(update), wasWritten);
             }
         } catch (SegmentSealedException e) {
@@ -163,7 +163,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     public StateT unconditionallyUpdateState(StateT localState, List<? extends UpdateT> update) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            synchronized(lock) {
+            synchronized (lock) {
                 out.write(encodeUpdate(update), wasWritten);
             }
         } catch (SegmentSealedException e) {
@@ -177,7 +177,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     public void compact(StateT localState, InitT compaction) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            synchronized(lock) {
+            synchronized (lock) {
                 out.write(encodeInit(compaction), wasWritten);
             }
         } catch (SegmentSealedException e) {
@@ -252,7 +252,7 @@ public class SynchronizerImpl<StateT extends Revisioned, UpdateT extends Update<
     public StateT initialize(InitT initializer) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         try {
-            synchronized(lock) {
+            synchronized (lock) {
                 out.conditionalWrite(0, encodeInit(initializer), wasWritten);
             }
         } catch (SegmentSealedException e) {

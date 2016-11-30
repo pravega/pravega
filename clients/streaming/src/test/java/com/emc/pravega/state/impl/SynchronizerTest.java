@@ -1,3 +1,17 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for additional information regarding
+ * copyright ownership. The ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License. You may obtain a
+ * copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package com.emc.pravega.state.impl;
 
 import static org.junit.Assert.assertEquals;
@@ -32,7 +46,7 @@ public class SynchronizerTest {
         private final String qualifiedStreamName;
         private final Revision revision;
     }
-    
+
     @Data
     private static class BlockingUpdate implements Update<RevisionedImpl>, InitialUpdate<RevisionedImpl> {
         private final ReusableLatch latch = new ReusableLatch(false);
@@ -55,7 +69,7 @@ public class SynchronizerTest {
         private ByteBuffer[] results;
         private int pos = 0;
         private int visableLength = 0;
-        
+
         @Override
         public void setOffset(long offset) {
             pos = (int) offset;
@@ -83,8 +97,8 @@ public class SynchronizerTest {
         public void close() {
         }
     }
-    
-    @Test(timeout=20000)
+
+    @Test(timeout = 20000)
     public void testLocking() throws EndOfSegmentException {
         String fakeEndpoint = "localhost";
         int port = 1234;
@@ -98,6 +112,7 @@ public class SynchronizerTest {
                 new BlockingUpdate(3), new BlockingUpdate(4) };
         Serializer<BlockingUpdate> serializer = new Serializer<BlockingUpdate>() {
             AtomicInteger count = new AtomicInteger(0);
+
             @Override
             public ByteBuffer serialize(BlockingUpdate value) {
                 ByteBuffer result = ByteBuffer.allocate(4).putInt(count.getAndIncrement());
@@ -126,13 +141,13 @@ public class SynchronizerTest {
         blocking[1].latch.release();
         RevisionedImpl state1 = sync.getLatestState();
         assertEquals(new RevisionImpl(2, 2), state1.getRevision());
-       
+
         in.visableLength = 3;
         RevisionedImpl state2 = Async.testBlocking(() -> {
             return sync.getLatestState(state1);
         }, () -> blocking[2].latch.release());
         assertEquals(new RevisionImpl(3, 3), state2.getRevision());
-        
+
         in.visableLength = 4;
         RevisionedImpl state3 = Async.testBlocking(() -> {
             return sync.getLatestState(state2);

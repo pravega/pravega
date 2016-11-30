@@ -37,10 +37,11 @@ public abstract class SegmentOutputStream implements AutoCloseable {
 
     /**
      * Writes the provided data to the SegmentOutputStream if and only if the SegmentOutputStream is
-     * currently of expectedLength
+     * currently of expectedLength.
      * 
      * @param expectedLength The length of all data written to the SegmentOutputStream for the write
      *            to be applied
+     * @param buff the data to be written. Note this is limited to {@value #MAX_WRITE_SIZE} bytes.
      * @param onComplete future to be completed when the operation is complete. True if the data was
      *            written and false if it was not.
      * @throws SegmentSealedException If the segment is closed for modifications.

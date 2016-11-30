@@ -103,7 +103,7 @@ public class HeartBeatSynchronizer extends AbstractService {
         long threashold = currentTime - DEATH_THREASHOLD;
         return state.liveInstances.entrySet()
             .stream()
-            .filter(entry -> (entry.getValue() < threashold))
+            .filter(entry -> entry.getValue() < threashold)
             .map(entry -> new DeclareDead(entry.getKey()))
             .collect(Collectors.toList());
     }

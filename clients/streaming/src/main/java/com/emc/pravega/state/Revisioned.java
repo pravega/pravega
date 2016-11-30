@@ -25,12 +25,12 @@ package com.emc.pravega.state;
 public interface Revisioned {
     
     /**
-     * @return The scoped name of this stream used to persist this objcet.
+     * Returns the scoped name of this stream used to persist this object.
      */
     String getQualifiedStreamName();
     
     /**
-     * @return The revision corresponding to this object.
+     * Returns the revision corresponding to this object.
      */
     Revision getRevision();
 }
