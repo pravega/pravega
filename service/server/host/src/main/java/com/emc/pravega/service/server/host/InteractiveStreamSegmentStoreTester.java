@@ -88,7 +88,13 @@ public class InteractiveStreamSegmentStoreTester {
         context.getLoggerList().get(0).setLevel(Level.TRACE);
         context.reset();
 
-        ServiceBuilderConfig config = ServiceBuilderConfig.getDefaultConfig();
+        ServiceBuilderConfig config = null;
+        try {
+            config = ServiceBuilderConfig.getConfigFromFile();
+        } catch (IOException e) {
+            System.out.println("Creation of ServiceBuilderConfig failed becaue of exception " + e);
+            config = ServiceBuilderConfig.getDefaultConfig();
+        }
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(config);
         if (useDistributedLog) {
             // Real (Distributed Log) Data Log.

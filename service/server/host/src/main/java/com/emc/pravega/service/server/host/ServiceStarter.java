@@ -34,6 +34,7 @@ import com.emc.pravega.service.storage.impl.rocksdb.RocksDBCacheFactory;
 import com.emc.pravega.service.storage.impl.rocksdb.RocksDBConfig;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletionException;
 
@@ -100,15 +101,22 @@ public final class ServiceStarter {
     }
 
     public static void main(String[] args) {
-        ServiceStarter serviceStarter = new ServiceStarter(ServiceBuilderConfig.getDefaultConfig());
+        ServiceStarter serviceStarter = null;
+        try {
+            serviceStarter = new ServiceStarter(ServiceBuilderConfig.getConfigFromFile());
+        } catch (IOException e) {
+            System.out.println("Could not create a Service with default config, Aborting.");
+            System.exit(1);
+        }
         try {
             serviceStarter.start();
+            ServiceStarter finalServiceStarter = serviceStarter;
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
                 public void run() {
                     try {
                         System.out.println("Caught interrupt signal...");
-                        serviceStarter.shutdown();
+                        finalServiceStarter.shutdown();
                     } catch (Exception e) {
                         // do nothing
                     }
