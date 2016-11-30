@@ -30,8 +30,9 @@ public interface ClusterListener {
 
     /**
      * Method invoked on cluster Event.
-     * @param type - Event type.
-     * @param host - Host added/removed, in case of an ERROR a null host value is passed.
+     *
+     * @param type Event type.
+     * @param host Host added/removed, in case of an ERROR a null host value is passed.
      */
     public void onEvent(final EventType type, final Host host);
 

@@ -187,10 +187,11 @@ public final class ServiceStarter {
             ServiceConfig config = setup.getConfig(ServiceConfig::new);
             CuratorFramework zkClient = createZKClient(config);
             joinCluster(config, zkClient);
-            return new ZKSegmentContainerManager(setup.getContainerRegistry(), setup
-                    .getSegmentToContainerMapper(),
-                    zkClient, new Host(config.getListeningIPAddress(), config.getListeningPort()), config
-                    .getClusterName());
+            return new ZKSegmentContainerManager(setup.getContainerRegistry(),
+                    setup.getSegmentToContainerMapper(),
+                    zkClient,
+                    new Host(config.getListeningIPAddress(), config.getListeningPort()),
+                    config.getClusterName());
         });
     }
 

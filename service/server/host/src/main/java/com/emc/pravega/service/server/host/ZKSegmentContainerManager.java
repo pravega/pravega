@@ -32,7 +32,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.lang.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
@@ -49,6 +48,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -96,7 +96,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Preconditions.checkNotNull(zkClient, "zkClient");
         Preconditions.checkNotNull(pravegaServiceEndpoint, "pravegaServiceEndpoint");
-        Preconditions.checkArgument(StringUtils.isNotEmpty(clusterName), "cluster name is invalid");
+        Exceptions.checkNotNullOrEmpty(clusterName, "clusterName");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
@@ -104,7 +104,7 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
 
         this.client = zkClient;
         this.clusterPath = ZKPaths.makePath("cluster", clusterName, "segmentContainerHostMapping");
-        segContainerHostMapping = new NodeCache(zkClient, clusterPath);
+        segContainerHostMapping = new NodeCache(zkClient, this.clusterPath);
 
         this.host = pravegaServiceEndpoint;
     }
@@ -191,19 +191,19 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
     private void addListenerSegContainerMapping(Duration timeout, Host host) {
         try {
             segContainerHostMapping.start(); //NodeCache recipe is used listen to events on the mapping data.
-            segContainerHostMapping.getListenable().addListener(getListenerNodeCache(timeout, host));
+            segContainerHostMapping.getListenable().addListener(getSegmentContainerListener(timeout, host));
         } catch (Exception e) {
             throw new RuntimeStreamingException(
                     "Unable to start zk based cache which has the segContainer to Host mapping", e);
         }
     }
 
-    private NodeCacheListener getListenerNodeCache(final Duration timeout, final Host host) {
+    private NodeCacheListener getSegmentContainerListener(final Duration timeout, final Host host) {
         return () -> {
-            log.debug("Listener for SegmentContainer mapping invoked.");
+            long traceId = LoggerHelpers.traceEnter(log, "segmentContainerListener");
             List<CompletableFuture<Void>> futures = initializeFromZK(host, timeout);
-            FutureHelpers.allOf(futures).get();
-            log.debug("Completed execution of SegmentContainer listener.");
+            FutureHelpers.allOf(futures).get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+            LoggerHelpers.traceLeave(log, "segmentContainerListener", traceId);
         };
     }
 
@@ -213,9 +213,9 @@ public class ZKSegmentContainerManager implements SegmentContainerManager {
      * b. Get a list of segment containers that are currently running.
      * c. Start and stop the appropriate containers.
      *
-     * @param hostId  - Identifier of host
-     * @param timeout - timeout value to be passed to SegmentContainerRegistry.
-     * @return - List of CompletableFuture for the start and stop operations performed.
+     * @param hostId  Identifier of host
+     * @param timeout timeout value to be passed to SegmentContainerRegistry.
+     * @return List of CompletableFuture for the start and stop operations performed.
      */
     private List<CompletableFuture<Void>> initializeFromZK(Host hostId, Duration timeout) throws Exception {
         TimeoutTimer timer = new TimeoutTimer(timeout);

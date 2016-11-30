@@ -81,7 +81,7 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Register Host to cluster.
      *
-     * @param host - Host to be part of cluster.
+     * @param host Host to be part of cluster.
      */
     @Override
     @Synchronized
@@ -90,7 +90,8 @@ public class ClusterZKImpl implements Cluster {
         Exceptions.checkArgument(!entryMap.containsKey(host), "host", "host is already registered to cluster.");
 
         String hostPath = ZKPaths.makePath(PATH_CLUSTER, clusterName, HOSTS, host.getIpAddr() + ":" + host.getPort());
-        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath, SerializationUtils.serialize(host));
+        PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath,
+                SerializationUtils.serialize(host));
 
         node.start(); //start creation of ephemeral node in background.
         entryMap.put(host, node);
@@ -99,14 +100,14 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Remove Host from cluster.
      *
-     * @param host - Host to be removed from cluster.
+     * @param host Host to be removed from cluster.
      */
     @Override
     @Synchronized
     public void deregisterHost(Host host) {
         Preconditions.checkNotNull(host, "host");
         PersistentNode node = entryMap.get(host);
-        Exceptions.checkArgument(node != null, "host", "host is not present in cluster.");
+        Preconditions.checkNotNull(node, "Host is not present in cluster.");
         entryMap.remove(host);
         close(node);
     }
@@ -114,8 +115,8 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Add Listener to the cluster.
      *
-     * @param listener - Cluster event Listener.
-     * @throws Exception - Error while communicating to Zookeeper.
+     * @param listener Cluster event Listener.
+     * @throws Exception Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
@@ -130,9 +131,9 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Add Listener to the cluster.
      *
-     * @param listener - Cluster event Listener.
-     * @param executor - Executor to run the listener on.
-     * @throws Exception - Error while communicating to Zookeeper.
+     * @param listener Cluster event Listener.
+     * @param executor Executor to run the listener on.
+     * @throws Exception Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
@@ -148,7 +149,8 @@ public class ClusterZKImpl implements Cluster {
     /**
      * Get the current cluster members.
      *
-     * @return Set<Host> list of cluster members.
+     * @return Set<Host> List of cluster members.
+     * @throws Exception Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
@@ -166,9 +168,7 @@ public class ClusterZKImpl implements Cluster {
     public void close() throws Exception {
         synchronized (entryMap) {
             CollectionHelpers.forEach(entryMap.values(), this::close);
-            if (cache.isPresent()) {
-                close(cache.get());
-            }
+            cache.ifPresent(this::close);
         }
     }
 
@@ -208,7 +208,7 @@ public class ClusterZKImpl implements Cluster {
                     listener.onEvent(ERROR, null);
                     break;
                 default:
-                    log.warn("Received the following event {}", event.getType());
+                    log.warn("Received unknown event {}", event.getType());
             }
         };
     }
